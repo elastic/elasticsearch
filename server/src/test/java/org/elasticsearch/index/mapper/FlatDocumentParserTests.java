@@ -275,26 +275,20 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
 
     public void testDefaultParserSelectedWhenMappingHasRuntimeFields() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            columnarSettings(),
-            topMapping(b -> {
-                b.startObject("runtime");
-                b.startObject("day_of_week").field("type", "keyword").endObject();
-                b.endObject();
-            })
-        );
+        MapperService mapperService = createMapperService(columnarSettings(), topMapping(b -> {
+            b.startObject("runtime");
+            b.startObject("day_of_week").field("type", "keyword").endObject();
+            b.endObject();
+        }));
         assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
     }
 
     public void testDefaultParserSelectedWhenMappingHasCopyTo() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(
-            columnarSettings(),
-            mapping(b -> {
-                b.startObject("source").field("type", "keyword").array("copy_to", "dest").endObject();
-                b.startObject("dest").field("type", "keyword").endObject();
-            })
-        );
+        MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
+            b.startObject("source").field("type", "keyword").array("copy_to", "dest").endObject();
+            b.startObject("dest").field("type", "keyword").endObject();
+        }));
         assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
     }
 

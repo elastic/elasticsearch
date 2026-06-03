@@ -28,6 +28,10 @@ base {
 
 tasks.named("javadoc").configure { enabled = false }
 
+versions << [
+  'hadoop': '3.4.3',
+]
+
 configurations {
   expression
   painless
@@ -59,7 +63,7 @@ dependencies {
   implementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   implementation "org.apache.orc:orc-core:${versions.orc}"
   implementation 'org.apache.hive:hive-storage-api:2.8.1'
-  implementation('org.apache.hadoop:hadoop-common:3.4.3') { transitive = false }
+  implementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
 
   // parquet-hadoop-bundle transitively brings in hadoop-client-api and
   // hadoop-client-runtime, which ship the same classes (e.g. org.apache.hadoop.ipc.RPC$RpcKind)

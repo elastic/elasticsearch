@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatOptions;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasource.csv.TsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasource.orc.OrcFormatReader;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetFormatReader;
@@ -40,13 +40,13 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Format-only comparison: drives the same row-equivalent dataset
- * (id LONG, value INT, name STRING, score DOUBLE) through all four readers
- * — CSV, Parquet, ORC, NDJSON — under identical {@link FormatReadContext}.
+ * (id LONG, value INT, name STRING, score DOUBLE) through all five readers
+ * — CSV, TSV, Parquet, ORC, NDJSON — under identical {@link FormatReadContext}.
  * Each fixture is built once in {@link #setup()} so the per-{@code @Benchmark}
  * cost is dominated by the format decode path.
  * <p>
- * The four fixtures have different on-disk sizes (Parquet/ORC are columnar +
- * compressed dictionaries even at UNCOMPRESSED; CSV/NDJSON are textual). Each
+ * The five fixtures have different on-disk sizes (Parquet/ORC are columnar +
+ * compressed dictionaries even at UNCOMPRESSED; CSV/TSV/NDJSON are textual). Each
  * {@code @Benchmark} method passes its fixture's byte length to {@link ReadMetrics}
  * so JMH reports per-format {@code rowsRead} and {@code bytesRead} rates alongside
  * the primary {@code ops/s} score — comparing the {@code bytesRead} column across
@@ -111,7 +111,7 @@ public class CrossFormatReadBenchmark {
 
     @Benchmark
     public int tsv(ReadMetrics metrics) throws IOException {
-        return drain(new TsvFormatReader(blockFactory), tsvObject, tsvBytes, metrics);
+        return drain(new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")), tsvObject, tsvBytes, metrics);
     }
 
     @Benchmark

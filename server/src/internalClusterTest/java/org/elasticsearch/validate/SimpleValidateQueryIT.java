@@ -10,12 +10,15 @@ package org.elasticsearch.validate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -424,5 +427,45 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         client().admin().indices().close(new CloseIndexRequest("test1")).actionGet();
         ValidateQueryResponse response = indicesAdmin().prepareValidateQuery("test1", "test2").setIndicesOptions(options).get();
         assertThat(response.getTotalShards(), is(1));
+    }
+
+    public void testSliceRequiredWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertAcked(
+            prepareCreate("slice-enabled").setSettings(
+                Settings.builder().put(indexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            )
+        );
+        ensureGreen("slice-enabled");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().validateQuery(new ValidateQueryRequest("slice-enabled")).actionGet()
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testSliceRejectedWhenSliceDisabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-disabled");
+        ensureGreen("slice-disabled");
+
+        ValidateQueryRequest request = new ValidateQueryRequest("slice-disabled").searchSlice("s1");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indicesAdmin().validateQuery(request).actionGet());
+        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testSliceValidateQuerySucceedsWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertAcked(
+            prepareCreate("slice-enabled").setSettings(
+                Settings.builder().put(indexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            )
+        );
+        ensureGreen("slice-enabled");
+
+        ValidateQueryResponse response = indicesAdmin().validateQuery(new ValidateQueryRequest("slice-enabled").searchSlice("s1"))
+            .actionGet();
+        assertThat(response.isValid(), is(true));
     }
 }

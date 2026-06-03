@@ -651,3 +651,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/150571
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150572

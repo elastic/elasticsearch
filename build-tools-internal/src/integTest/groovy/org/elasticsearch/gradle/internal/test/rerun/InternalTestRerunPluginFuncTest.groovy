@@ -140,8 +140,14 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     def "rejects oversized failed-test-history file"() {
         given:
         simpleTestSetup()
-        def largeContent = '{"successfulTasks":["' + ('x'.multiply(10 * 1024 * 1024)) + '"]}'
-        file(".failed-test-history.json") << largeContent
+        // The size check runs before JSON parsing, so content validity is irrelevant here. Write a file
+        // just over the 100MB cap in 1MB chunks to avoid allocating the whole payload in memory.
+        file(".failed-test-history.json").withOutputStream { out ->
+            byte[] chunk = new byte[1024 * 1024]
+            for (int i = 0; i < 101; i++) {
+                out.write(chunk)
+            }
+        }
 
         when:
         def result = gradleRunner("test", "--warning-mode", "all").buildAndFail()

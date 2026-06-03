@@ -98,7 +98,7 @@ public class FunctionScoreTests extends ESTestCase {
 
                 @Override
                 public SortedBinaryDocValues getBytesValues() {
-                    return new SortedBinaryDocValues() {
+                    return new SortedBinaryDocValues(null) {
                         @Override
                         public boolean advanceExact(int docId) {
                             return true;

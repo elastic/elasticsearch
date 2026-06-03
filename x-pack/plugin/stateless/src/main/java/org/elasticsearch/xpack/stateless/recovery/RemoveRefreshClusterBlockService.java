@@ -389,7 +389,7 @@ public class RemoveRefreshClusterBlockService implements ClusterStateListener {
 
             @Override
             public void taskSucceeded(RemoveRefreshBlockClusterStateUpdateTask task, Void unused) {
-                logger.debug("Refresh blocks removed successfully for indices: {}", task.indicesByProject);
+                logger.info("Refresh blocks removed successfully for indices: {}", task.indicesByProject);
             }
         };
 }

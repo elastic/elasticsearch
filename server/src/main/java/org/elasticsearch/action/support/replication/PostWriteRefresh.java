@@ -114,7 +114,14 @@ public class PostWriteRefresh {
             return;
         }
 
+        logger.debug("shard [{}] WAIT_UNTIL: waiting for flush before dispatching unpromotable refresh", indexShard.shardId());
+
         engineOrNull.addFlushListener(location, listener.delegateFailureAndWrap((l, generation) -> {
+            logger.debug(
+                "shard [{}] WAIT_UNTIL: flush reached generation [{}], sending unpromotable refresh",
+                indexShard.shardId(),
+                generation
+            );
             try (
                 ThreadContext.StoredContext ignore = transportService.getThreadPool()
                     .getThreadContext()

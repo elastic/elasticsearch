@@ -758,3 +758,6 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanRejectOnReplicaBasedOnMaxDocumentSize
   issue: https://github.com/elastic/elasticsearch/issues/150703
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150705

@@ -749,3 +749,6 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteIndexingPressureMetricsAreIncremented
   issue: https://github.com/elastic/elasticsearch/issues/150695
+- class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
+  method: testCircuitBreakerTripCountMetric
+  issue: https://github.com/elastic/elasticsearch/issues/150700

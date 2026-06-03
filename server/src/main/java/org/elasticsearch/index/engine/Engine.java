@@ -1163,6 +1163,16 @@ public abstract class Engine implements Closeable {
 
     protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
 
+    /**
+     * Returns whether this engine has performed a document-id lookup (resolving a document via its {@code _id} to its sequence number /
+     * version, as part of an update, delete, or versioned index operation) within the last {@code recencyThreshold}.
+     * <p>
+     * The default implementation returns {@code false}; engines that track id lookups should override this.
+     */
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        return false;
+    }
+
     boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         return true;
     }

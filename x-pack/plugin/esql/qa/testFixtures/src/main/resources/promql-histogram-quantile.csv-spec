@@ -8,7 +8,7 @@ PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" e
 
 result:double      | step:datetime            | job:keyword
 1.5                | 2024-05-10T00:10:00.000Z | api
-2.1670000000000003 | 2024-05-10T00:10:00.000Z | repair
+2.167              | 2024-05-10T00:10:00.000Z | repair
 1.333              | 2024-05-10T00:10:00.000Z | worker
 ;
 
@@ -33,7 +33,7 @@ result:double      | step:datetime
 1.375              | 2024-05-10T00:10:00.000Z
 1.5                | 2024-05-10T00:10:00.000Z
 1.583              | 2024-05-10T00:10:00.000Z
-2.1670000000000003 | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
 ;
 
 histogram_quantile_raw_rate_selector
@@ -48,7 +48,7 @@ result:double      | step:datetime
 1.375              | 2024-05-10T00:10:00.000Z
 1.5                | 2024-05-10T00:10:00.000Z
 1.583              | 2024-05-10T00:10:00.000Z
-2.1670000000000003 | 2024-05-10T00:10:00.000Z
+2.167              | 2024-05-10T00:10:00.000Z
 ;
 
 histogram_quantile_rate_by_job
@@ -60,7 +60,7 @@ PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" e
 
 result:double      | step:datetime            | job:keyword
 1.5                | 2024-05-10T00:10:00.000Z | api
-2.1670000000000003 | 2024-05-10T00:10:00.000Z | repair
+2.167              | 2024-05-10T00:10:00.000Z | repair
 1.333              | 2024-05-10T00:10:00.000Z | worker
 ;
 
@@ -105,7 +105,7 @@ PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" e
 
 result:double      | step:datetime            | job:keyword
 2.958              | 2024-05-10T00:10:00.000Z | api
-2.1670000000000003 | 2024-05-10T00:10:00.000Z | repair
+2.167              | 2024-05-10T00:10:00.000Z | repair
 2.75               | 2024-05-10T00:10:00.000Z | worker
 ;
 

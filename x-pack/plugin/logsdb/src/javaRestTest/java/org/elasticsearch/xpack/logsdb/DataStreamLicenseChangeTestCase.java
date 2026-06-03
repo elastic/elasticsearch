@@ -49,8 +49,12 @@ public abstract class DataStreamLicenseChangeTestCase extends LogsIndexModeRestT
      * detected via the {@code _capabilities} API (capability {@code columnar_index_modes}
      * on {@code PUT /{index}}).
      */
-    protected static boolean isColumnarIndexModeSupported() throws IOException {
-        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+    protected static boolean isColumnarIndexModeSupported() {
+        try {
+            return clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     protected static void startBasic() throws IOException {

@@ -26,115 +26,22 @@ public class SourceModeLicenseDowngradeIT extends SourceModeLicenseChangeTestCas
 
     /** Builds one TestCase for each strict-columnar index mode (columnar, logsdb_columnar). */
     private List<TestCase> columnarCases() {
-        return List.of(new TestCase() {
-            @Override
-            public String dataStreamName() {
-                return "columnar-test";
-            }
-
-            @Override
-            public String indexMode() {
-                return "columnar";
-            }
-
-            @Override
-            public void prepareDataStream() throws IOException {
-                var template = """
-                    {
-                      "index_patterns": ["columnar-test"],
-                      "priority": 100,
-                      "data_stream": {},
-                      "template": {
-                        "settings": {
-                          "index": {
-                            "mode": "columnar"
-                          }
-                        }
-                      }
-                    }
-                    """;
-                putTemplate(client(), "columnar-test-template", template);
-                assertOK(createDataStream(client(), dataStreamName()));
-            }
-
-            @Override
-            public void rollover() throws IOException {
-                rolloverDataStream(client(), dataStreamName());
-            }
-
-            @Override
-            public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
-            }
-
-            @Override
-            public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.COLUMNAR_STORED;
-            }
-
-            @Override
-            public boolean skip() {
-                try {
-                    return isColumnarIndexModeSupported() == false;
-                } catch (IOException e) {
-                    return true;
-                }
-            }
-        }, new TestCase() {
-            @Override
-            public String dataStreamName() {
-                return "logsdb-columnar-test";
-            }
-
-            @Override
-            public String indexMode() {
-                return "logsdb_columnar";
-            }
-
-            @Override
-            public void prepareDataStream() throws IOException {
-                var template = """
-                    {
-                      "index_patterns": ["logsdb-columnar-test"],
-                      "priority": 100,
-                      "data_stream": {},
-                      "template": {
-                        "settings": {
-                          "index": {
-                            "mode": "logsdb_columnar"
-                          }
-                        }
-                      }
-                    }
-                    """;
-                putTemplate(client(), "logsdb-columnar-test-template", template);
-                assertOK(createDataStream(client(), dataStreamName()));
-            }
-
-            @Override
-            public void rollover() throws IOException {
-                rolloverDataStream(client(), dataStreamName());
-            }
-
-            @Override
-            public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
-            }
-
-            @Override
-            public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.COLUMNAR_STORED;
-            }
-
-            @Override
-            public boolean skip() {
-                try {
-                    return isColumnarIndexModeSupported() == false;
-                } catch (IOException e) {
-                    return true;
-                }
-            }
-        });
+        return List.of(
+            new SourceModeTestCase(
+                "columnar-test",
+                "columnar",
+                SourceFieldMapper.Mode.SYNTHETIC,
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                () -> isColumnarIndexModeSupported() == false
+            ),
+            new SourceModeTestCase(
+                "logsdb-columnar-test",
+                "logsdb_columnar",
+                SourceFieldMapper.Mode.SYNTHETIC,
+                SourceFieldMapper.Mode.COLUMNAR_STORED,
+                () -> isColumnarIndexModeSupported() == false
+            )
+        );
     }
 
     @Override

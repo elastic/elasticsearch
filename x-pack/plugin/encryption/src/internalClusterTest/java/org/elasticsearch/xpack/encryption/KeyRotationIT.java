@@ -55,14 +55,6 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, supportsDedicatedMasters = false)
 public class KeyRotationIT extends SecurityIntegTestCase {
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -93,6 +85,10 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     @Before
     public void waitForProjectEncryptionKeyInstalled() throws Exception {
+        assumeTrue(
+            "project encryption key feature flag must be enabled",
+            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
+        );
         ensureGreen();
         assertBusy(() -> assertThat(metadataOnMaster(), notNullValue()));
     }

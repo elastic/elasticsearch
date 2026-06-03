@@ -31,12 +31,12 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
 
     @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
-        return Map.of("credentials", "{\"type\":\"service_account\"}", "project_id", "sample-proj");
+        return Map.of("credentials", "{\"type\":\"service_account\"}", "access_token", "ya29.sample", "project_id", "sample-proj");
     }
 
     @Override
     protected Set<String> expectedSecretFieldNames() {
-        return Set.of("credentials");
+        return Set.of("credentials", "access_token");
     }
 
     @Override
@@ -77,6 +77,20 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "credentials", "{\"type\":\"service_account\"}"))
+        );
+    }
+
+    public void testValidateDatasourceWithAccessToken() {
+        var result = validator.validateDatasource(Map.of("access_token", "ya29.token", "project_id", "proj"));
+        assertTrue(result.get("access_token").secret());
+        assertEquals("ya29.token", result.get("access_token").rawValue());
+        assertFalse(result.get("project_id").secret());
+    }
+
+    public void testValidateDatasourceAccessTokenConflictsWithAuthNone() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token"))
         );
     }
 

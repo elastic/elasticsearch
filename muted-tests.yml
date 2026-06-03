@@ -409,15 +409,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testOneRepeatedVector
   issue: https://github.com/elastic/elasticsearch/issues/149254
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testPitRelocationDuringReshard
-  issue: https://github.com/elastic/elasticsearch/issues/149271
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149272
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardingPitSearchIT
-  method: testReshardedLongLivedPitRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149273
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284
@@ -532,25 +523,15 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedDuringMerge
-  issue: https://github.com/elastic/elasticsearch/issues/150158
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
   issue: https://github.com/elastic/elasticsearch/issues/150187
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
-- class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/150217
-- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/150217
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testTermInSetQueryWithSyntheticIds
   issue: https://github.com/elastic/elasticsearch/issues/150229
-- class: org.elasticsearch.snapshots.SnapshotsServiceIT
-  method: testDeleteSnapshotWhenNotWaitingForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/150257
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
@@ -569,25 +550,13 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-41321}
   issue: https://github.com/elastic/elasticsearch/issues/150300
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testSnapshotShardsWhileHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/150301
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150387
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/150417
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testCCSCheckCompatibility
-  issue: https://github.com/elastic/elasticsearch/issues/150418
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
@@ -600,9 +569,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
-- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
-  method: testWhereNegatedCondition
-  issue: https://github.com/elastic/elasticsearch/issues/150441
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
@@ -651,3 +617,66 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictMappedTimesTwoAndUnmapped
+  issue: https://github.com/elastic/elasticsearch/issues/150567
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150571
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150572
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTSTypeConflictTimeseriesLongUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150584
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/147842
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictTimeseriesWhereWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150590
+- class: org.elasticsearch.xpack.esql.qa.csv.ExternalCsvMultiNodePushdownIT
+  method: testCountStarColdThenWarmShortCircuitsAcrossNodes
+  issue: https://github.com/elastic/elasticsearch/issues/150594
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zst/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150595
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.forkTwoBranches [ndjson.bz2/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150598
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.gz/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150599
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
+  method: testCountStarColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150614
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
+  method: testCountColumnColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150615
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
+  method: testMinMaxColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150616
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150620
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testSearchWhenCoordinatorSeesSplitFirst
+  issue: https://github.com/elastic/elasticsearch/issues/150621
+- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
+  method: testCrossClusterReplicationForTSDBWithSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/150622
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150628
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=ml/data_frame_analytics_crud/Test put classification given max_trees is greater than 2k}
+  issue: https://github.com/elastic/elasticsearch/issues/150629
+- class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
+  method: test {p0=ml/data_frame_analytics_crud/Test put valid config with default outlier detection, query, and filter}
+  issue: https://github.com/elastic/elasticsearch/issues/150630

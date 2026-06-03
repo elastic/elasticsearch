@@ -1180,6 +1180,23 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         );
     }
 
+    public void testSyntheticId() {
+        for (int prefix = 0; prefix <= 0xff; prefix++) {
+            final byte[] tsidBytes = randomByteArrayOfLength(between(16, 20));
+            tsidBytes[0] = (byte) prefix;
+            final BytesRef tsid = new BytesRef(tsidBytes);
+            final long timestamp = randomNonNegativeLong();
+            final int routingHash = randomInt();
+
+            final String syntheticId = TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+            final BytesRef uid = Uid.encodeId(syntheticId);
+
+            assertThat(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid), equalTo(tsid));
+            assertThat(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid), equalTo(timestamp));
+            assertThat(TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid), equalTo(routingHash));
+        }
+    }
+
     @Override
     protected Settings getIndexSettings() {
         return indexSettings(IndexVersion.current(), true, false);

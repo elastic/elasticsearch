@@ -15,7 +15,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.IntFunction;
 
 /**
  * Balanced k-means algorithm that uses a mini-batch approach with an L2 regularization over the cluster sizes.
@@ -128,39 +127,22 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         float[] cumulativeClusterWeights,
         int[] assignments,
         V[] centroids,
-        float[][] sgdCentroids
+        CentroidOps.MutationContext<V> sgdContext
     ) throws IOException {
         // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift).
         // Using a shift so that the updates are gentle and small.
         float learningRateShift = 3.f * this.sampleSize / centroids.length;
 
-        IntFunction<float[]> asFloatCentroid;
-        if (ops instanceof CentroidOps.ByteOps) {
-            assert sgdCentroids != null;
-            asFloatCentroid = k -> sgdCentroids[k];
-        } else {
-            asFloatCentroid = k -> (float[]) centroids[k];
-        }
-
         for (int idx = 0; idx < vectors.size(); idx++) {
             V vec = vectors.vectorValue(idx);
             int k = assignments[idx];
-            float[] centroid = asFloatCentroid.apply(k);
+            float[] centroid = sgdContext.floatCentroid(k);
             cumulativeClusterWeights[k]++;
             float learningRate = 1.f / (cumulativeClusterWeights[k] + learningRateShift);
             ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
         }
 
-        if (ops instanceof CentroidOps.ByteOps) {
-            // SGD was done in float precision, round to byte for subsequent distance computation
-            int dim = vectors.dimension();
-            for (int k = 0; k < centroids.length; k++) {
-                byte[] byteCentroid = (byte[]) centroids[k];
-                for (int d = 0; d < dim; d++) {
-                    byteCentroid[d] = (byte) Math.clamp(Math.round(sgdCentroids[k][d]), -128, 127);
-                }
-            }
-        }
+        sgdContext.syncToNative();
     }
 
     /** assign to each vector the closest centroid */
@@ -212,59 +194,56 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
 
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
-        // TODO: there's not a great way to handle this computationally for updating centroids on the byte path;
-        // alternatively here we could lazily construct float[] centroids caching some fraction of them instead
-        // For byte centroids, maintain float shadow to avoid rounding noise during SGD
-        float[][] sgdCentroids = null;
-        if (ops instanceof CentroidOps.ByteOps) {
-            sgdCentroids = ops.toFloatCentroids(centroids);
-        }
+        // Scoped float-precision mutation context for SGD updates.
+        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
+        // that is synced back to native on each call to syncToNative() and released on close().
+        try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
+            int t = 0;
+            for (int epoch = 0; epoch < maxIterations; epoch++) {
+                for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
+                    // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
+                    // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
+                    // approach seems good enough.
+                    ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
+                        vectors,
+                        miniBatchSizeLocal,
+                        t++,
+                        miniBatchSamples
+                    );
 
-        int t = 0;
-        for (int epoch = 0; epoch < maxIterations; epoch++) {
-            for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
-                // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
-                // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
-                // approach seems good enough.
-                ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
-                    vectors,
-                    miniBatchSizeLocal,
-                    t++,
-                    miniBatchSamples
-                );
+                    IntToIntFunction assigner = i -> {
+                        final int translatedOrd = sampledVectors.ordToDoc(i);
+                        return assignments[translatedOrd];
+                    };
 
-                IntToIntFunction assigner = i -> {
-                    final int translatedOrd = sampledVectors.ordToDoc(i);
-                    return assignments[translatedOrd];
-                };
+                    computeDistances(sampledVectors, centroids, assigner, neighborhoods, distances);
 
-                computeDistances(sampledVectors, centroids, assigner, neighborhoods, distances);
-
-                if (medianEstimator == null) {
-                    // Getting the range of the median estimator from the first batch.
-                    // Since the estimator snaps the values to the provided range, this is a safe operation.
-                    float maxDistance = Float.NEGATIVE_INFINITY;
-                    for (float[] dist : distances) {
-                        for (float d : dist) {
-                            maxDistance = Math.max(maxDistance, d);
+                    if (medianEstimator == null) {
+                        // Getting the range of the median estimator from the first batch.
+                        // Since the estimator snaps the values to the provided range, this is a safe operation.
+                        float maxDistance = Float.NEGATIVE_INFINITY;
+                        for (float[] dist : distances) {
+                            for (float d : dist) {
+                                maxDistance = Math.max(maxDistance, d);
+                            }
                         }
+                        medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
                     }
-                    medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
+
+                    for (float[] dist : distances) {
+                        medianEstimator.updateEstimate(dist);
+                    }
+
+                    float currentMedian = medianEstimator.getEstimate();
+                    float alpha = beta * currentMedian * k / n;
+                    assignMiniBatch(distances, cumulativeClusterWeights, alpha, assigner, neighborhoods, localAssignments);
+
+                    // Update the centroids using SGD.
+                    updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, sgdContext);
                 }
-
-                for (float[] dist : distances) {
-                    medianEstimator.updateEstimate(dist);
+                for (int kk = 0; kk < k; kk++) {
+                    cumulativeClusterWeights[kk] *= forgettingFactor;
                 }
-
-                float currentMedian = medianEstimator.getEstimate();
-                float alpha = beta * currentMedian * k / n;
-                assignMiniBatch(distances, cumulativeClusterWeights, alpha, assigner, neighborhoods, localAssignments);
-
-                // Update the centroids using SGD.
-                updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, sgdCentroids);
-            }
-            for (int kk = 0; kk < k; kk++) {
-                cumulativeClusterWeights[kk] *= forgettingFactor;
             }
         }
 

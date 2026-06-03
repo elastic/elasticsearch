@@ -15,7 +15,6 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.IntFunction;
 
 /**
  * Balanced k-means algorithm that uses a mini-batch approach with OT-based balancing on each mini-batch.
@@ -66,18 +65,10 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         float[] cumulativeClusterWeights,
         float[][] softAssignments,
         V[] centroids,
-        float[][] sgdCentroids
+        CentroidOps.MutationContext<V> sgdContext
     ) throws IOException {
         int k = centroids.length;
         int dim = vectors.dimension();
-
-        IntFunction<float[]> asFloatCentroid;
-        if (ops instanceof CentroidOps.ByteOps) {
-            assert sgdCentroids != null;
-            asFloatCentroid = c -> sgdCentroids[c];
-        } else {
-            asFloatCentroid = c -> (float[]) centroids[c];
-        }
 
         float[][] batchSums = new float[k][dim];
         float[] batchWeights = new float[k];
@@ -101,19 +92,11 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
                 cumulativeClusterWeights[c] += scaledBatchWeight;
                 float learningRate = scaledBatchWeight / cumulativeClusterWeights[c];
                 float lrNorm = learningRate / batchWeights[c];
-                ESVectorUtil.linearCombination(lrNorm, batchSums[c], 1.0f - learningRate, asFloatCentroid.apply(c));
+                ESVectorUtil.linearCombination(lrNorm, batchSums[c], 1.0f - learningRate, sgdContext.floatCentroid(c));
             }
         }
 
-        if (ops instanceof CentroidOps.ByteOps) {
-            // Byte path: SGD was done in float precision, round to byte for subsequent distance computation
-            for (int c = 0; c < k; c++) {
-                byte[] byteCentroid = (byte[]) centroids[c];
-                for (int d = 0; d < dim; d++) {
-                    byteCentroid[d] = (byte) Math.clamp(Math.round(sgdCentroids[c][d]), -128, 127);
-                }
-            }
-        }
+        sgdContext.syncToNative();
     }
 
     /** assign to each vector the closest centroid */
@@ -163,62 +146,59 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         V[] oldCentroids = ops.newCentroidArray(k, vectors.dimension());
         ops.deepCopy(centroids, oldCentroids);
 
-        // TODO: there's not a great way to handle this computationally for updating centroids on the byte path;
-        // alternatively here we could lazily construct float[] centroids caching some fraction of them instead
-        // For byte centroids, maintain float shadow to avoid rounding noise during SGD
-        float[][] sgdCentroids = null;
-        if (ops instanceof CentroidOps.ByteOps) {
-            sgdCentroids = ops.toFloatCentroids(centroids);
-        }
+        // Scoped float-precision mutation context for SGD updates.
+        // For float centroids this is zero-cost; for byte centroids it maintains a float shadow
+        // that is synced back to native on each call to syncToNative() and released on close().
+        try (var sgdContext = ops.newMutationContext(centroids, vectors.dimension())) {
+            int t = 0;
+            for (int epoch = 0; epoch < maxIterations; epoch++) {
+                for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
+                    // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
+                    // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
+                    // approach seems good enough.
+                    ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
+                        vectors,
+                        miniBatchSizeLocal,
+                        t++,
+                        miniBatchSamples
+                    );
 
-        int t = 0;
-        for (int epoch = 0; epoch < maxIterations; epoch++) {
-            for (int batch = 0; batch < sampleSize; batch += miniBatchSizeLocal) {
-                // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
-                // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
-                // approach seems good enough.
-                ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
-                    vectors,
-                    miniBatchSizeLocal,
-                    t++,
-                    miniBatchSamples
-                );
+                    computeDistances(sampledVectors, centroids, distances);
 
-                computeDistances(sampledVectors, centroids, distances);
-
-                if (medianEstimator == null) {
-                    // Getting the range of the median estimator from the first batch.
-                    // Since the estimator snaps the values to the provided range, this is a safe operation.
-                    float maxDistance = Float.NEGATIVE_INFINITY;
-                    for (float[] dist : distances) {
-                        for (float d : dist) {
-                            maxDistance = Math.max(maxDistance, d);
+                    if (medianEstimator == null) {
+                        // Getting the range of the median estimator from the first batch.
+                        // Since the estimator snaps the values to the provided range, this is a safe operation.
+                        float maxDistance = Float.NEGATIVE_INFINITY;
+                        for (float[] dist : distances) {
+                            for (float d : dist) {
+                                maxDistance = Math.max(maxDistance, d);
+                            }
                         }
+                        medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
                     }
-                    medianEstimator = new OnlineQuantileEstimator(0.5f, 0, maxDistance, 0.0001f, 42L);
+
+                    for (float[] dist : distances) {
+                        medianEstimator.updateEstimate(dist);
+                    }
+
+                    float currentMedian = medianEstimator.getEstimate();
+                    float eps = Math.max(eta * currentMedian, etaMin);
+                    // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
+                    sinkhorn.compute(distances, sinkhornIterations, eps, softAssignments);
+
+                    // Update the centroids using SGD.
+                    updateCentroids(sampledVectors, cumulativeClusterWeights, softAssignments, centroids, sgdContext);
+                }
+                eta *= etaMultiplicativeUpdate;
+                for (int kk = 0; kk < k; kk++) {
+                    cumulativeClusterWeights[kk] *= forgettingFactor;
                 }
 
-                for (float[] dist : distances) {
-                    medianEstimator.updateEstimate(dist);
+                if (ops.normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
+                    break;
+                } else {
+                    ops.deepCopy(centroids, oldCentroids);
                 }
-
-                float currentMedian = medianEstimator.getEstimate();
-                float eps = Math.max(eta * currentMedian, etaMin);
-                // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
-                sinkhorn.compute(distances, sinkhornIterations, eps, softAssignments);
-
-                // Update the centroids using SGD.
-                updateCentroids(sampledVectors, cumulativeClusterWeights, softAssignments, centroids, sgdCentroids);
-            }
-            eta *= etaMultiplicativeUpdate;
-            for (int kk = 0; kk < k; kk++) {
-                cumulativeClusterWeights[kk] *= forgettingFactor;
-            }
-
-            if (ops.normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
-                break;
-            } else {
-                ops.deepCopy(centroids, oldCentroids);
             }
         }
 

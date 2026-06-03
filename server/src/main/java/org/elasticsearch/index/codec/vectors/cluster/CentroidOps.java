@@ -139,10 +139,50 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     void computeDiffs(V vector, V centroid, float[] diffs);
 
     /**
-     * Convert centroids to {@code float[][]} for use with float-only subsystems (e.g. {@link NeighborHood}).
-     * For {@link FloatOps} this is a no-op cast. For {@link ByteOps} this widens each byte to float.
+     * Creates a scoped mutation context for SGD-based centroid updates.
+     * <p>
+     * For {@link FloatOps}, the context operates directly on the centroid arrays (no allocation).
+     * For {@link ByteOps}, the context maintains a float-precision shadow array internally.
+     * When the context is closed, float shadows are rounded back into the native centroids and released.
+     * <p>
+     * Usage:
+     * <pre>{@code
+     * try (var sgd = ops.newMutationContext(centroids, dim)) {
+     *     sgd.update(k, learningRate, vec);
+     * } // auto-syncs to native and releases float shadow
+     * }</pre>
+     *
+     * @param centroids the centroid array to mutate
+     * @param dim the vector dimension
      */
-    float[][] toFloatCentroids(V[] centroids);
+    MutationContext<V> newMutationContext(V[] centroids, int dim);
+
+    /**
+     * A scoped, autocloseable context for SGD centroid updates that maintains float-precision
+     * state and syncs back to the native centroid representation on close.
+     *
+     * @param <V> the centroid array type
+     */
+    interface MutationContext<V> extends AutoCloseable {
+        /**
+         * Returns the float-precision view of centroid {@code k} for direct mutation.
+         * For float centroids this is the centroid itself; for byte centroids it is the float shadow.
+         */
+        float[] floatCentroid(int k);
+
+        /**
+         * Sync the float-precision state back to native centroids.
+         * Called automatically by {@link #close()}, but may also be called explicitly
+         * between SGD epochs (e.g. before distance computation on byte centroids).
+         */
+        void syncToNative();
+
+        /**
+         * Closes this context, syncing state and releasing any allocated shadow arrays.
+         */
+        @Override
+        void close();
+    }
 
     // ---- Convergence ----
 
@@ -321,8 +361,23 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
-        public float[][] toFloatCentroids(float[][] centroids) {
-            return centroids;
+        public MutationContext<float[]> newMutationContext(float[][] centroids, int dim) {
+            return new MutationContext<>() {
+                @Override
+                public float[] floatCentroid(int k) {
+                    return centroids[k];
+                }
+
+                @Override
+                public void syncToNative() {
+                    // no-op: float centroids are mutated in place
+                }
+
+                @Override
+                public void close() {
+                    // no-op
+                }
+            };
         }
     }
 
@@ -489,17 +544,45 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
-        public float[][] toFloatCentroids(byte[][] centroids) {
-            float[][] result = new float[centroids.length][];
+        public MutationContext<byte[]> newMutationContext(byte[][] centroids, int dim) {
+            // Eager allocation is appropriate here: SGD updates all centroids every iteration
+            // (each vector updates its assigned centroid), so all shadows will be accessed.
+            // Lazy instantiation would add branch overhead without saving allocations.
+
+            // Allocate float shadow from current byte centroids
+            float[][] shadow = new float[centroids.length][];
             for (int i = 0; i < centroids.length; i++) {
                 byte[] src = centroids[i];
                 float[] dst = new float[src.length];
                 for (int j = 0; j < src.length; j++) {
                     dst[j] = src[j];
                 }
-                result[i] = dst;
+                shadow[i] = dst;
             }
-            return result;
+            return new MutationContext<>() {
+                @Override
+                public float[] floatCentroid(int k) {
+                    return shadow[k];
+                }
+
+                @Override
+                public void syncToNative() {
+                    // Syncs all centroids unconditionally — this is correct because SGD touches
+                    // all centroids during each epoch, so all shadows are potentially dirty.
+                    for (int k = 0; k < centroids.length; k++) {
+                        byte[] byteCentroid = centroids[k];
+                        float[] floatShadow = shadow[k];
+                        for (int d = 0; d < dim; d++) {
+                            byteCentroid[d] = (byte) Math.clamp(Math.round(floatShadow[d]), -128, 127);
+                        }
+                    }
+                }
+
+                @Override
+                public void close() {
+                    syncToNative();
+                }
+            };
         }
 
     }

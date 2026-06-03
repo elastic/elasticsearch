@@ -149,7 +149,10 @@ public class HierarchicalKMeans<V> {
             V centroid = ops.computeMeanCentroid(vectors, dimension);
             V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
-            return new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+            KMeansIntermediate<V> result = new KMeansIntermediate<>(centroids, new int[vectors.size()]);
+            // All vectors are assigned to the single centroid (index 0)
+            result.setCentroids(centroids, new int[] { vectors.size() });
+            return result;
         }
 
         // partition the space
@@ -658,8 +661,8 @@ public class HierarchicalKMeans<V> {
         float[][] centroids = (float[][]) kMeansIntermediate.centroids();
         if (centroids.length > clustersPerNeighborhood) {
             neighborhoods = executor == null || numWorkers < 2
-                ? NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood)
-                : NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+                ? NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, centroids, clustersPerNeighborhood)
+                : NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, executor, numWorkers, centroids, clustersPerNeighborhood);
         }
 
         kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);

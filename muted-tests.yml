@@ -560,9 +560,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-41321}
   issue: https://github.com/elastic/elasticsearch/issues/150300
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testSnapshotShardsWhileHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/150301
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
@@ -654,3 +651,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz/AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150572
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTSTypeConflictTimeseriesLongUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150584
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/147842
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictTimeseriesWhereWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150590

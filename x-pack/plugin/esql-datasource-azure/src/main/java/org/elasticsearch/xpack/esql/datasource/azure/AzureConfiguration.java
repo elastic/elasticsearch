@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
@@ -116,8 +117,6 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
     }
 
     private boolean hasExplicitCredentials() {
-        return (connectionString() != null && connectionString().isEmpty() == false)
-            || (account() != null && key() != null)
-            || (sasToken() != null && sasToken().isEmpty() == false);
+        return Strings.hasText(connectionString()) || (Strings.hasText(account()) && Strings.hasText(key())) || Strings.hasText(sasToken());
     }
 }

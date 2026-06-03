@@ -327,6 +327,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. #2}"
   issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/150552
 
 # Examples:
 #

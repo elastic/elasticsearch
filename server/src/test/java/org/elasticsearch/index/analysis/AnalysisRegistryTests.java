@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -41,6 +42,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -315,7 +317,32 @@ public class AnalysisRegistryTests extends ESTestCase {
         final int numIters = randomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
-            assertSame(indexAnalyzers.get(preBuiltAnalyzers.name()), otherIndexAnalyzers.get(preBuiltAnalyzers.name()));
+            String name = preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
+            NamedAnalyzer analyzer = indexAnalyzers.get(name);
+            NamedAnalyzer otherAnalyzer = otherIndexAnalyzers.get(name);
+            assertNotNull(analyzer);
+            assertNotNull(otherAnalyzer);
+            // the underlying built-in analyzer instance is cached globally and shared across registries
+            assertSame(analyzer.analyzer(), otherAnalyzer.analyzer());
+        }
+    }
+
+    public void testPrebuiltAnalyzersAreReusedAcrossIndices() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+
+        // A single node-level registry serves all indices; build two index-level IndexAnalyzers from it
+        // to simulate two indices created on the same node.
+        AnalysisRegistry registry = emptyAnalysisRegistry(settings);
+        IndexAnalyzers firstIndex = registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
+        IndexAnalyzers secondIndex = registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
+
+        for (PreBuiltAnalyzers preBuiltAnalyzers : PreBuiltAnalyzers.values()) {
+            String name = preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
+            NamedAnalyzer analyzer = firstIndex.get(name);
+            assertSame(analyzer, secondIndex.get(name));
+            assertThat(analyzer.getPositionIncrementGap(name), equalTo(TextFieldMapper.Defaults.POSITION_INCREMENT_GAP));
         }
     }
 

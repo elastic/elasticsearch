@@ -74,7 +74,8 @@ final class ComputeResponse extends TransportResponse {
                     0,
                     0,
                     in.readCollectionAsImmutableList(DriverProfile::readFrom),
-                    List.of()
+                    List.of(),
+                    java.util.Map.of()
                 );
             } else {
                 completionInfo = DriverCompletionInfo.EMPTY;

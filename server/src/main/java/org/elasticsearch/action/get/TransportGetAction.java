@@ -158,7 +158,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             sliceEnabled,
             request.isRoutingFromSlice(),
             request.routing(),
-            "request",
+            "get request",
             request.index()
         );
     }

@@ -149,7 +149,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             sliceEnabled,
             request.isRoutingFromSlice(),
             request.routing(),
-            "request",
+            "update request",
             request.index()
         );
     }

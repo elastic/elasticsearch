@@ -179,6 +179,16 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         @SuppressWarnings("checkstyle:DescendantToken")
         @Override
         public void execute(BuildFinishedFlowAction.Parameters parameters) throws FileNotFoundException {
+            // Skip the expensive archive collection when the build was cancelled due to
+            // GCP preemption. The GradleRunner writes this marker before firing the
+            // cancellation token; skipping here lets the daemon proceed quickly to
+            // finalize and upload the build scan.
+            File preemptionMarker = new File(parameters.getProjectDir().get(), "build/.preemption-marker.json");
+            if (preemptionMarker.exists()) {
+                System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
+                return;
+            }
+
             List<File> filesToArchive = parameters.getFilteredFiles().get();
             if (filesToArchive.isEmpty()) {
                 return;

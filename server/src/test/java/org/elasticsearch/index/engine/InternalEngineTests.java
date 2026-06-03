@@ -231,17 +231,13 @@ public class InternalEngineTests extends EngineTestCase {
 
     private Path tempDir;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setUpTempDir() {
         tempDir = createTempDir();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void tearDownTempDir() throws Exception {
         if (LuceneTestCase.LEAVE_TEMPORARY == false) {
             IOUtils.rm(tempDir);
         }

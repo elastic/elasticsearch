@@ -305,10 +305,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     // Cleanup for temporary files emitted by buildEnvSettings / newNodeEnvironment
     private final List<Path> buildEnvSettingsPaths = new ArrayList<>();
 
-    @Override
     @After
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void cleanupEnvSettingsPaths() throws Exception {
         if (LuceneTestCase.LEAVE_TEMPORARY == false) {
             final var paths = buildEnvSettingsPaths.toArray(new Path[0]);
             buildEnvSettingsPaths.clear();

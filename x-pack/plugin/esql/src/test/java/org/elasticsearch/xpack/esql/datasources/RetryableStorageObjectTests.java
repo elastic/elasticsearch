@@ -481,6 +481,104 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * closeQuietly() must swallow an <em>unchecked</em> close failure (e.g. the AWS SDK's {@code AbortedException})
+     * on the discarded stream, so a noisy close never masks the resume. The first stream delivers some bytes,
+     * drops with a transient fault, and throws {@link RuntimeException} from {@code close()}; the resume must still
+     * re-open and complete byte-exact.
+     */
+    public void testResumeProceedsWhenDiscardedStreamCloseThrowsUnchecked() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[300];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicInteger opens = new AtomicInteger();
+        StorageObject delegate = new StorageObject() {
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = Math.toIntExact(position);
+                int len = length == READ_TO_END ? payload.length - pos : Math.toIntExact(Math.min(length, payload.length - pos));
+                byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
+                if (opens.getAndIncrement() == 0) {
+                    // First open: deliver 100 bytes, then drop transient — and throw unchecked on close().
+                    return new InputStream() {
+                        private int p = 0;
+
+                        @Override
+                        public int read() throws IOException {
+                            if (p >= 100) {
+                                throw new ExternalUnavailableException("transient mid-read drop", new IOException("connection reset"));
+                            }
+                            return slice[p++] & 0xFF;
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            if (p >= 100) {
+                                throw new ExternalUnavailableException("transient mid-read drop", new IOException("connection reset"));
+                            }
+                            int n = Math.min(len, 100 - p);
+                            System.arraycopy(slice, p, b, off, n);
+                            p += n;
+                            return n;
+                        }
+
+                        @Override
+                        public void close() {
+                            throw new RuntimeException("simulated AWS AbortedException on close");
+                        }
+                    };
+                }
+                return new ByteArrayInputStream(slice);
+            }
+
+            @Override
+            public InputStream newStream() {
+                return newStream(0, payload.length);
+            }
+
+            @Override
+            public long length() {
+                return payload.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(opens.get(), 0, 0, 0);
+            }
+        };
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            read = in.readAllBytes();
+        }
+        assertArrayEquals("resume completes byte-exact despite an unchecked close on the discarded stream", payload, read);
+        assertEquals("the resume re-opened exactly once after the unchecked-close discard", 2, opens.get());
+    }
+
+    /**
      * Test fixture for the resuming-stream tests: a range read returns {@code [position, position+length)}
      * of the payload, but the first open (or every open, if {@code alwaysFail}) delivers only
      * {@code failAfterBytes} bytes before throwing the configured fault.

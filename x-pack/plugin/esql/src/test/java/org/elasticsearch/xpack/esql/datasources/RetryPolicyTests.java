@@ -312,6 +312,25 @@ public class RetryPolicyTests extends ESTestCase {
         assertTrue("adaptive delay [" + adaptiveDelay + "] should be > normal delay [" + normalDelay + "]", adaptiveDelay > normalDelay);
     }
 
+    public void testDecideDoesNotRampAdaptiveBackoffWhenGivingUp() {
+        // The onThrottled() feed sits AFTER the give-up + time-budget checks in decide(), so abandoning a
+        // throttle must not ramp the cross-request multiplier. Pins that ordering.
+        AtomicLong clock = new AtomicLong(0);
+        AdaptiveBackoff backoff = new AdaptiveBackoff(AdaptiveBackoff.MAX_MULTIPLIER, clock::get);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
+        ExternalUnavailableException throttle = new ExternalUnavailableException(true, (Throwable) null, "throttled (HTTP 503)");
+
+        // Budget exhausted (attempt == throttleMaxRetries) -> GIVE_UP, and the backoff must stay at baseline.
+        RetryPolicy.RetryDecision giveUp = policy.decide(throttle, policy.throttleMaxRetries(), System.nanoTime());
+        assertFalse("an exhausted-budget throttle must give up", giveUp.retry());
+        assertEquals("giving up must not ramp the adaptive backoff", 1, backoff.currentMultiplier());
+
+        // Positive control: a within-budget throttle commits to a retry and DOES ramp the backoff.
+        RetryPolicy.RetryDecision retry = policy.decide(throttle, 0, System.nanoTime());
+        assertTrue("a within-budget throttle must retry", retry.retry());
+        assertEquals("a committed retry ramps the adaptive backoff", 2, backoff.currentMultiplier());
+    }
+
     public void testThrottleMaxRetriesAccessor() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         assertEquals(RetryPolicy.DEFAULT_THROTTLE_MAX_RETRIES, policy.throttleMaxRetries());

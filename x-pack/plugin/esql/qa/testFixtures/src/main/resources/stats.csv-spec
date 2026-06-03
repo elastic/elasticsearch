@@ -3410,6 +3410,7 @@ SUM(a):long | a:integer | b:integer
 
 
 statsByMvFieldAggExpr
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
 FROM employees 
 | STATS SUM(salary_change) + salary_change BY salary_change 
 | SORT salary_change 
@@ -3445,6 +3446,7 @@ SUM(salary_change):double   | salary_change:double  | x:double
 
 
 statsByMvFieldWhere
+required_capability: fix_stats_mv_constant_fold
 FROM employees 
 | STATS SUM(salary_change) BY salary_change 
 | WHERE salary_change > 1 

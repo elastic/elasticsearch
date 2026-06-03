@@ -234,8 +234,6 @@ import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.security.action.workload.TransportRunWorkloadIssuerTestAction;
-import org.elasticsearch.xpack.security.action.workload.WorkloadIssuerTestAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
@@ -302,6 +300,8 @@ import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportQueryUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
+import org.elasticsearch.xpack.security.action.workload.TransportRunWorkloadIssuerTestAction;
+import org.elasticsearch.xpack.security.action.workload.WorkloadIssuerTestAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;

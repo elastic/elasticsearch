@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Mo
 import static org.elasticsearch.xpack.oteldata.otlp.OTLPMetricsIndexingRestIT.Monotonicity.NON_MONOTONIC;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
@@ -214,17 +215,19 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
             assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("counter"));
 
-            ObjectPath search = search("metrics-generic.otel-default");
-            assertThat(search.evaluate("hits.total.value"), equalTo(2));
-            for (int i = 0; i < 2; i++) {
-                var source = search.evaluate("hits.hits." + i + "._source");
-                Map<String, Object> docMetrics = evaluate(source, "metrics");
-                if (docMetrics.containsKey("cumulative_counter")) {
-                    assertThat(evaluate(source, "temporality"), equalTo("cumulative"));
-                } else {
-                    assertThat(evaluate(source, "temporality"), equalTo("delta"));
+            Request esqlRequest = new Request("POST", "/_query");
+            esqlRequest.setJsonEntity("""
+                {
+                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name"
                 }
-            }
+                """);
+            ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
+            List<List<Object>> values = esqlResponse.evaluate("values");
+            assertThat(values.size(), equalTo(2));
+            assertThat((String) values.get(0).get(0), equalTo("cumulative_counter"));
+            assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
+            assertThat((String) values.get(1).get(0), equalTo("delta_counter"));
+            assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
         } else {
             assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("gauge"));
         }
@@ -247,17 +250,19 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(evaluate(metrics, "up_down_counter_delta.time_series_metric"), equalTo("gauge"));
 
         if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            ObjectPath search = search("metrics-generic.otel-default");
-            assertThat(search.evaluate("hits.total.value"), equalTo(2));
-            for (int i = 0; i < 2; i++) {
-                var source = search.evaluate("hits.hits." + i + "._source");
-                Map<String, Object> docMetrics = evaluate(source, "metrics");
-                if (docMetrics.containsKey("up_down_counter")) {
-                    assertThat(evaluate(source, "temporality"), equalTo("cumulative"));
-                } else {
-                    assertThat(evaluate(source, "temporality"), equalTo("delta"));
+            Request esqlRequest = new Request("POST", "/_query");
+            esqlRequest.setJsonEntity("""
+                {
+                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name"
                 }
-            }
+                """);
+            ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
+            List<List<Object>> values = esqlResponse.evaluate("values");
+            assertThat(values.size(), equalTo(2));
+            assertThat((String) values.get(0).get(0), equalTo("up_down_counter"));
+            assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
+            assertThat((String) values.get(1).get(0), equalTo("up_down_counter_delta"));
+            assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
         }
     }
 

@@ -668,3 +668,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
   method: testMinMaxColdThenWarmShortCircuits
   issue: https://github.com/elastic/elasticsearch/issues/150616
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150620

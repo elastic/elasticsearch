@@ -78,6 +78,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -123,6 +124,7 @@ public class CompositeRolesStore {
     private final AnonymousUser anonymousUser;
 
     private final Map<ProjectId, Long> numInvalidation = new ConcurrentHashMap<>();
+    private final AtomicLong numClusterScopedInvalidation = new AtomicLong(0);
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
@@ -288,7 +290,7 @@ public class CompositeRolesStore {
         final var cacheKey = new ProjectScoped<>(projectId, roleKey);
         final Role existing = roleCache.get(cacheKey);
         if (existing == null) {
-            final long invalidationCounter = numInvalidation.getOrDefault(projectId, 0L);
+            final long invalidationCounter = numInvalidation.getOrDefault(projectId, numClusterScopedInvalidation.get());
             final Consumer<Exception> failureHandler = e -> {
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
@@ -421,15 +423,23 @@ public class CompositeRolesStore {
                          * stuff in an async fashion we need to make sure that if the cache got invalidated since we
                          * started the request we don't put a potential stale result in the cache, hence the
                          * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                         * be on the safe side and don't cache potentially stale results
+                         * be on the safe side and don't cache potentially stale results.
+                         *
+                         * For projects not yet in numInvalidation, numClusterScopedInvalidation is used as the default
+                         * so that cluster-scoped invalidations (e.g. file-based role changes) are detected even for
+                         * projects that have never had a project-specific invalidation. The negative lookup cache is
+                         * populated inside this same check to prevent stale "role not found" entries from being cached
+                         * after a concurrent cluster-scoped invalidation.
                          */
-                        if (invalidationCounter == numInvalidation.getOrDefault(cacheKey.projectId(), 0L)) {
+                        if (invalidationCounter == numInvalidation.getOrDefault(cacheKey.projectId(), numClusterScopedInvalidation.get())) {
                             roleCache.computeIfAbsent(cacheKey, (s) -> role);
+                            for (String missingRole : missing) {
+                                negativeLookupCache.computeIfAbsent(
+                                    new ProjectScoped<>(cacheKey.projectId(), missingRole),
+                                    s -> Boolean.TRUE
+                                );
+                            }
                         }
-                    }
-
-                    for (String missingRole : missing) {
-                        negativeLookupCache.computeIfAbsent(new ProjectScoped<>(cacheKey.projectId(), missingRole), s -> Boolean.TRUE);
                     }
                 }
                 delegate.onResponse(role);
@@ -846,6 +856,7 @@ public class CompositeRolesStore {
     }
 
     public void invalidateClusterScopedRoles(Set<String> roles) {
+        numClusterScopedInvalidation.incrementAndGet();
         numInvalidation.replaceAll((p, num) -> num + 1);
         roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false);
         negativeLookupCacheHelper.removeKeysIf(key -> roles.contains(key.value()));

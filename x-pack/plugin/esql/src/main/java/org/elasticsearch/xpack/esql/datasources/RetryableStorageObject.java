@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -43,6 +44,8 @@ class RetryableStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final RetryPolicy retryPolicy;
+    /** Schedules the async read-retry continuation after a backoff delay without parking a thread on the wait. */
+    private final RetryScheduler retryScheduler;
     /**
      * Local counter for retries observed at this decorator boundary, merged into {@link #metrics()}
      * via {@link StorageObjectMetrics#add}.
@@ -54,14 +57,22 @@ class RetryableStorageObject implements StorageObject {
     private final StorageObjectMetricsCounters retryCounters = new StorageObjectMetricsCounters();
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {
+        this(delegate, retryPolicy, RetryScheduler.DIRECT);
+    }
+
+    RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
         if (retryPolicy == null) {
             throw new IllegalArgumentException("retryPolicy cannot be null");
         }
+        if (retryScheduler == null) {
+            throw new IllegalArgumentException("retryScheduler cannot be null");
+        }
         this.delegate = delegate;
         this.retryPolicy = retryPolicy;
+        this.retryScheduler = retryScheduler;
     }
 
     @Override
@@ -198,16 +209,19 @@ class RetryableStorageObject implements StorageObject {
                     decision.delayMillis(),
                     e.getMessage()
                 );
-                executor.execute(() -> {
-                    try {
-                        Thread.sleep(decision.delayMillis());
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        listener.onFailure(new IOException("Retry interrupted", ie));
-                        return;
-                    }
-                    readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos);
-                });
+                // Reschedule the retry as a continuation rather than sleeping: the backoff is honored by the
+                // scheduler's timer, not by parking this (general-pool) thread on Thread.sleep for the delay.
+                try {
+                    retryScheduler.schedule(
+                        () -> readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos),
+                        decision.delayMillis(),
+                        executor
+                    );
+                } catch (Exception rejected) {
+                    // Scheduler/executor rejected the retry (e.g. shutdown or saturated queue) — surface it so the
+                    // listener is always completed rather than silently dropped.
+                    listener.onFailure(rejected);
+                }
             }
         });
     }
@@ -357,11 +371,9 @@ class RetryableStorageObject implements StorageObject {
         }
 
         private void closeQuietly(InputStream in) {
-            try {
-                in.close();
-            } catch (IOException ignored) {
-                // best-effort: discarding this stream to re-open a fresh range
-            }
+            // Best-effort discard before re-opening a fresh range. Swallow both a checked IOException and an
+            // unchecked close failure (e.g. the AWS SDK's AbortedException) so a noisy close never masks the resume.
+            IOUtils.closeWhileHandlingException(in);
         }
 
         /**

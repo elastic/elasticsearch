@@ -24,8 +24,12 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -125,6 +129,93 @@ public class RetryableStorageObjectTests extends ESTestCase {
         public StorageObjectMetrics metrics() {
             return metrics;
         }
+    }
+
+    public void testAsyncRetrySchedulesContinuationInsteadOfSleeping() {
+        // A transient async failure must reschedule the retry through the RetryScheduler (an off-timer
+        // continuation), NOT park a thread on Thread.sleep for the backoff. The fake scheduler records the
+        // requested delay and runs the continuation inline, so no real waiting happens in the test.
+        StoragePath path = StoragePath.of("s3://bucket/key");
+        AtomicInteger attempts = new AtomicInteger();
+        StorageObject flaky = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long len,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                if (attempts.getAndIncrement() == 0) {
+                    listener.onFailure(new ExternalUnavailableException("transient async read failure", (Throwable) null));
+                } else {
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                }
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+
+        List<Long> scheduledDelays = new ArrayList<>();
+        RetryScheduler capturingScheduler = (command, delayMillis, executor) -> {
+            scheduledDelays.add(delayMillis);
+            command.run();
+        };
+
+        RetryableStorageObject obj = new RetryableStorageObject(flaky, new RetryPolicy(3, 5, 50), capturingScheduler);
+
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(result::set, failure::set)
+        );
+
+        assertNull("async read should recover via the scheduled retry, not fail", failure.get());
+        assertNotNull("async read should deliver a buffer after the scheduled retry", result.get());
+        assertEquals("the single transient failure must reschedule exactly one retry continuation", 1, scheduledDelays.size());
+        assertEquals("the read must succeed on the second attempt", 2, attempts.get());
     }
 
     public void testMetricsForwardsDelegateCountersWhenNoRetries() {

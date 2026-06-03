@@ -205,12 +205,14 @@ class RetryPolicy {
         if (isTransient == false || attempt >= effectiveMaxRetries) {
             return RetryDecision.GIVE_UP;
         }
-        if (isThrottle && adaptiveBackoff != null) {
-            adaptiveBackoff.onThrottled();
-        }
         long delay = delayMillis(attempt, isThrottle);
         if (maxTotalDurationMs > 0 && (System.nanoTime() - startNanos) / 1_000_000 + delay > maxTotalDurationMs) {
             return RetryDecision.GIVE_UP;
+        }
+        // Feed the cross-request adaptive backoff only once we've committed to retrying — no point ramping it
+        // when we're about to give up on the budget or the time limit.
+        if (isThrottle && adaptiveBackoff != null) {
+            adaptiveBackoff.onThrottled();
         }
         return new RetryDecision(true, delay);
     }

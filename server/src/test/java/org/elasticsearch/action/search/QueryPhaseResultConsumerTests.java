@@ -412,7 +412,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
 
         @Override
-        public long getSerializedSize() {
+        public long getUncompressedSerializedSize() {
             return 0;
         }
 

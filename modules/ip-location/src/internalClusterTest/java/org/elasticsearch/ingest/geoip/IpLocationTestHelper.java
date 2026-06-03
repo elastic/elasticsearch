@@ -98,6 +98,21 @@ public final class IpLocationTestHelper {
         Object expectedValue
     ) throws IOException {
         IpLocationService service = cluster.getAnyMasterNodeInstance(IpLocationService.class);
+        assertDatabaseAvailable(service, projectId, databaseFile, ip, expectedField, expectedValue);
+    }
+
+    /**
+     * Asserts that the given database is available and that a lookup for the
+     * given IP returns the expected value for the specified field.
+     */
+    public static void assertDatabaseAvailable(
+        IpLocationService service,
+        String projectId,
+        String databaseFile,
+        String ip,
+        String expectedField,
+        Object expectedValue
+    ) throws IOException {
         IpDataLookup lookup = service.createIpDataLookup(projectId, databaseFile, null);
         assertNotNull("database [" + databaseFile + "] should be available", lookup);
         Map<String, Object> result = lookup.lookup(ip);
@@ -173,6 +188,25 @@ public final class IpLocationTestHelper {
                     nodeResponse.getDatabases(),
                     containsInAnyOrder(expectedDatabases)
                 );
+            }
+        });
+    }
+
+    /**
+     * Waits until all nodes report no downloaded databases and no mmdb files in the temp directory.
+     * Call this after disabling the downloader to ensure async file cleanup has finished before
+     * the next test starts.
+     */
+    public static void awaitNoDatabases(InternalTestCluster cluster) throws Exception {
+        assertBusy(() -> {
+            GeoIpStatsAction.Response response = cluster.client()
+                .execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request())
+                .actionGet();
+            assertThat(response.getNodes(), not(empty()));
+            for (GeoIpStatsAction.NodeResponse nodeResponse : response.getNodes()) {
+                assertThat(nodeResponse.getDatabases(), empty());
+                // ignore the README/LICENSE files with .txt extension
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
     }

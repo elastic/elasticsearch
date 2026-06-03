@@ -1975,6 +1975,36 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
+    public void testGetFieldValueRawBytesLength() {
+        Map<String, Object> document = new HashMap<>();
+        document.put("bytes_field", new byte[] { 1, 2, 3 });
+        document.put("ascii_field", "QQ==");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        assertThat(
+            ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
+            equalTo(3)
+        );
+        assertThat(
+            ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
+            equalTo(4)
+        );
+    }
+
+    public void testGetFieldValueRawBytesLengthInvalidType() {
+        Map<String, Object> document = new HashMap<>();
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        document.put("source_field", randomObject);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ingestDocument.getFieldValueRawBytesLength("source_field", randomObject)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array")
+        );
+    }
+
     public void testDeepCopy() {
         IngestDocument copiedDoc = new IngestDocument(
             IngestDocument.deepCopyMap(document.getSourceAndMetadata()),

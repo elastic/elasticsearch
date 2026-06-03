@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -335,16 +336,34 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws java.io.IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) throws java.io.IOException {
+                    long consumed = 0;
+                    int b;
+                    while ((b = stream.read()) != -1) {
+                        consumed++;
+                        if (consumed > maxRecordBytes) {
+                            return RECORD_TOO_LARGE;
+                        }
+                        if (b == '\n') {
+                            return consumed;
+                        }
+                    }
+                    return -1;
                 }
-            }
-            return -1;
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                    return -1;
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            };
         }
 
         @Override
@@ -358,7 +377,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
     private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        return new DataSourceModule(plugins, capabilities, settings, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
+        );
     }
 
     /**

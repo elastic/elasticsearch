@@ -109,7 +109,7 @@ public class ESAcceptDocsTests extends ESTestCase {
             null,
             10,
             0,
-            () -> new ESAcceptDocs.SliceAcceptDocs(3, 7)
+            () -> new ESAcceptDocs.SliceAcceptDocs(3, 8)
         );
         assertEquals(5L, acceptDocs.approximateCost());
         assertEquals(3L, acceptDocs.cost());
@@ -132,7 +132,7 @@ public class ESAcceptDocsTests extends ESTestCase {
         acceptedDocs.set(5);
         acceptedDocs.set(7);
         acceptedDocs.set(9);
-        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 7));
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 8));
         assertEquals(3L, acceptDocs.approximateCost());
         assertEquals(3L, acceptDocs.cost());
         DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();
@@ -142,7 +142,8 @@ public class ESAcceptDocsTests extends ESTestCase {
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
         Bits acceptDocsBits = acceptDocs.bits();
         for (int i = 0; i < 10; i++) {
-            boolean expected = i >= 3 && i <= 7 && acceptedDocs.get(i);
+            // no special handling for slice
+            boolean expected = acceptedDocs.get(i);
             assertEquals(expected, acceptDocsBits.get(i));
         }
     }

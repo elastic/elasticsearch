@@ -12,16 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.Map;
 
-public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
-    static DateEsField randomDateEsField(int maxPropertiesDepth) {
-        return DateEsField.dateEsField(
-            randomAlphaOfLength(5),
-            randomProperties(maxPropertiesDepth),
-            randomBoolean(),
-            randomFrom(EsField.TimeSeriesFieldType.values())
-        );
-    }
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomDateEsField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 
+public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
     @Override
     protected DateEsField createTestInstance() {
         return randomDateEsField(4);

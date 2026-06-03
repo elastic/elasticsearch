@@ -1,6 +1,6 @@
 ### Modulus `%` [esql-mod]
 
-:::{image} ../../../images/operators/mod.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/operators/mod.svg
 :alt: Embedded
 :class: text-center
 :::
@@ -9,5 +9,5 @@ Divide one number by another and return the remainder. If either field is [multi
 
 
 
-:::{include} ../types/mod.md
+:::{include} ../../generated/x-pack-esql/operators/types/mod.md
 :::

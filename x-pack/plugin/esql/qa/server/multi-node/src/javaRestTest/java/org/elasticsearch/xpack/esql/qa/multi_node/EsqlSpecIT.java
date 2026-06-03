@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
@@ -50,5 +51,14 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected String maybeRandomizeQuery(String query) {
         return randomlyNullify(query);
+    }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        super.shouldSkipTest(testName);
+        CsvTestUtils.assumeTrueLogging(
+            "Multi-node tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
     }
 }

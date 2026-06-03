@@ -3194,6 +3194,49 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
     }
 
+    /**
+     * When subobjects are disabled, an intermediate object that matches no dynamic template is auto-flattened:
+     * its children are mapped as leaf fields prefixed with the object's name.
+     */
+    public void testSubobjectsFalseObjectWithNoMatchingDynamicTemplateIsFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("timestamps");
+                {
+                    b.field("match", "timestamp");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "date");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics" : {
+                "cpu": 1.5,
+                "memory": 2.0
+              }
+            }
+            """));
+
+        // The intermediate "metrics" object must not appear as a mapper; its children are flattened.
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
+        assertNull(root.getMapper("metrics"));
+        assertThat(root.getMapper("metrics.cpu"), instanceOf(NumberFieldMapper.class));
+        assertThat(root.getMapper("metrics.memory"), instanceOf(NumberFieldMapper.class));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.cpu"));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.memory"));
+    }
+
     public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
 
@@ -3509,6 +3552,123 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
             )
         );
+    }
+
+    /**
+     * Verifies that keyword array order inside a logsdb object array is preserved. In logsdb,
+     * source_keep defaults to ARRAYS for object mappers, causing addIgnoredFieldFromContext at the
+     * object array level. The keyword's offset recording must still work correctly within this context.
+     */
+    public void testSyntheticSourceKeywordArrayInsideLogsdbObjectArray() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.array("kw", "b", "a");
+                b.endObject();
+            }
+            b.endArray();
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
+    }
+
+    /**
+     * Verifies that keyword array order is preserved inside a logsdb-like object array
+     * when the keyword array contains a trailing nested empty array. The trailing empty
+     * array causes maybeRecordEmptyArray to create offset metadata. With addIgnoredFieldFromContext
+     * storing per-value data for fields with native offset support (our fix), the _ignored_source
+     * at the object level faithfully preserves both the keyword values and the empty sub-array.
+     */
+    public void testSyntheticSourceKeywordArrayWithTrailingEmptyArrayInObjectArray() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.startArray("kw");
+                b.value("b");
+                b.value("a");
+                b.startArray().endArray();
+                b.endArray();
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\",[]]"));
+    }
+
+    /**
+     * Verifies that parseObject restores immediateXContentParent after parsing a flattened object
+     * element in a keyword array. With subobjects=false, objects in a keyword array are flattened
+     * rather than rejected. Without restoring the parent, subsequent value elements in the same
+     * array see START_OBJECT instead of START_ARRAY, preventing offset recording.
+     */
+    public void testSyntheticSourceKeywordArrayWithFlattenedObjectRestoresParent() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("parent")
+                    .field("type", "object")
+                    .field("subobjects", false)
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("kw.sub")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startObject("parent");
+            b.startArray("kw");
+            b.startObject().field("sub", "x").endObject();
+            b.value("b");
+            b.value("a");
+            b.endArray();
+            b.endObject();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
     }
 
     /**

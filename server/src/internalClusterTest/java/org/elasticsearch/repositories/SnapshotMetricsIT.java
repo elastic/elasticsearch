@@ -112,7 +112,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         // Block the snapshot to test "snapshot shards in progress"
         blockAllDataNodes(repositoryName);
         final String snapshotName = randomIdentifier();
-        final long beforeCreateSnapshotNanos = System.nanoTime();
+        final long beforeCreateSnapshotMs = System.currentTimeMillis();
         final ActionFuture<CreateSnapshotResponse> snapshotFuture;
         try {
             snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repositoryName, snapshotName)
@@ -136,7 +136,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
 
         // wait for snapshot to finish to test the other metrics
         safeGet(snapshotFuture);
-        final TimeValue snapshotElapsedTime = TimeValue.timeValueNanos(System.nanoTime() - beforeCreateSnapshotNanos);
+        final TimeValue snapshotElapsedTime = TimeValue.timeValueMillis(System.currentTimeMillis() - beforeCreateSnapshotMs);
         final double maxHistogramDurationSeconds = snapshotElapsedTime.secondsFrac() + DOUBLE_HISTOGRAM_DURATION_UPPER_BOUND_SLACK_SEC;
         collectMetrics();
 

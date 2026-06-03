@@ -25,12 +25,9 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.MetadataAttributeTests;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -244,7 +244,7 @@ public class PlanStreamOutputTests extends ESTestCase {
             List<EsField> fields = new ArrayList<>();
             int occurrences = randomIntBetween(2, 300);
             for (int i = 0; i < occurrences; i++) {
-                fields.add(EsFieldTests.randomEsField(4));
+                fields.add(randomEsField(4));
             }
 
             // send all the EsFields, three times
@@ -273,8 +273,8 @@ public class PlanStreamOutputTests extends ESTestCase {
 
     private static Attribute randomAttribute() {
         return switch (randomInt(3)) {
-            case 0 -> FieldAttributeTests.createFieldAttribute(0, false);
-            case 1 -> ReferenceAttributeTests.randomReferenceAttribute(false);
+            case 0 -> createFieldAttribute(0, false);
+            case 1 -> randomReferenceAttribute(false);
             case 2 -> UnsupportedAttributeTests.randomUnsupportedAttribute();
             case 3 -> MetadataAttributeTests.randomMetadataAttribute();
             default -> throw new IllegalArgumentException();

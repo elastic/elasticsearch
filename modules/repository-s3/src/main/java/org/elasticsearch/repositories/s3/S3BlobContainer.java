@@ -299,7 +299,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var createMultipartUploadRequestBuilder = CreateMultipartUploadRequest.builder()
             .bucket(blobStore.bucket())
             .key(blobName)
-            .storageClass(blobStore.getStorageClass())
+            .storageClass(blobStore.resolveStorageClass(purpose))
             .acl(blobStore.getCannedACL());
         if (blobStore.serverSideEncryption()) {
             createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
@@ -378,7 +378,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     .destinationBucket(blobStore.bucket())
                     .destinationKey(blobKey)
                     .acl(blobStore.getCannedACL())
-                    .storageClass(blobStore.getStorageClass());
+                    .storageClass(blobStore.resolveStorageClass(purpose));
                 S3BlobStore.configureRequestForMetrics(copyObjectRequestBuilder, blobStore, Operation.COPY_OBJECT, purpose);
                 final var copyObjectRequest = copyObjectRequestBuilder.build();
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -572,7 +572,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             .bucket(s3BlobStore.bucket())
             .key(blobName)
             .contentLength(contentLength)
-            .storageClass(s3BlobStore.getStorageClass())
+            .storageClass(s3BlobStore.resolveStorageClass(purpose))
             .acl(s3BlobStore.getCannedACL());
         if (s3BlobStore.serverSideEncryption()) {
             putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);

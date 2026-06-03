@@ -24,6 +24,13 @@ import java.util.function.Supplier;
 class ExternalClusters {
 
     /**
+     * Request-breaker limit for the external heap-attack cluster, expressed as a percentage of
+     * heap. Kept intentionally low so that the breaker trips before the untracked overhead from
+     * the S3 async client's Netty infrastructure can push the node into an OOM.
+     */
+    static final int BREAKER_LIMIT_PERCENT = 30;
+
+    /**
      * @param s3EndpointSupplier called lazily when the cluster starts; returns the address of
      *                           the (already-started) in-memory S3 fixture
      */
@@ -32,7 +39,8 @@ class ExternalClusters {
             .feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES)
             // Pin the request-breaker limit so the suite reliably trips it regardless of the
             // base cluster's heap size (which varies between the standard and serverless configs).
-            .setting("indices.breaker.request.limit", "50%")
+            // Kept low to leave headroom for untracked S3/Netty allocations.
+            .setting("indices.breaker.request.limit", BREAKER_LIMIT_PERCENT + "%")
             // S3 client wiring — endpoint discovered at startup from the fixture rule.
             .setting("s3.client.default.endpoint", s3EndpointSupplier)
             .setting("s3.client.default.protocol", "http")

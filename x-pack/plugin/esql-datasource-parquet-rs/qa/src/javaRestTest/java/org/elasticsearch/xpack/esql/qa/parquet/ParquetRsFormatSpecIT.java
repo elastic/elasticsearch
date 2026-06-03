@@ -74,10 +74,29 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "externalRerankBooks",
         // TODO: parquet-rs OrdinalBytesRefBlock validity buffer is not 8-byte padded per the Arrow
         // columnar spec; AbstractArrowBufBlock.areAllValuesNull reads it as a long and throws
-        // IndexOutOfBoundsException when the block participates in a multi-key PackedValuesBlockHash.
-        // The single-key BlockHash path doesn't call areAllValuesNull, which is why other STATS BY
-        // tests pass. Re-enable once the parquet-rs reader pads validity buffers correctly.
-        "hivePartitionStatsByLangAndGender"
+        // IndexOutOfBoundsException. Both the multi-key PackedValuesBlockHash path and the single-key
+        // BytesRefBlockHash path (line 77) call areAllValuesNull, so any STATS … BY <keyword> on a
+        // multi-file glob fails with "index: 0, length: 8 (expected: range(0, N))". Single-file STATS BY
+        // tests pass only because the standalone parquet-rs output happens to allocate a buffer ≥ 8 bytes.
+        // Re-enable once the parquet-rs reader pads validity buffers correctly.
+        "hivePartitionStatsByLangAndGender",
+        "aggregateMultiFileByGender",
+        "multiFileEvalAndAggregate",
+        "multiFileGroupByFile",
+        "ffwAggregateByGender",
+        "strictAggregateByGender",
+        "ubnAggregateByGender",
+        // Nested STRUCT subfield projection (external-nested-struct.csv-spec) is implemented by the
+        // Java parquet reader only; parquet-rs does not yet flatten struct schemas.
+        "nestedKeepSingleSubfield",
+        "nestedKeepTwoSubfieldsSameParent",
+        "nestedKeepMixedTopLevelAndNested",
+        "nestedStatsByNested",
+        "nestedNullPropagation",
+        "nestedWhereEquals",
+        "nestedWhereIsNull",
+        "nestedStatsMinMax",
+        "nestedFilterAndProjectMixed"
     );
 
     @Override

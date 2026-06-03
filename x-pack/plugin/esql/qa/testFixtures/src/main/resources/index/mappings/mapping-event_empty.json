@@ -1,0 +1,13 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "event_type": {
+            "type": "constant_keyword"
+        },
+        "severity": {
+            "type": "integer"
+        }
+    }
+}

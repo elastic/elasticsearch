@@ -90,21 +90,22 @@ query used in the initial search.
 :   One or more fields to use for reranking. These fields should contain the
 text that the reranking model will evaluate.
 
-`my_inference_endpoint`
-:   The ID of
+`inference_id`
+:   (Optional) The ID of
 the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md)
 to use for the task.
 The inference endpoint must be configured with the `rerank` task type.
+If not specified, defaults to the preconfigured `.rerank-v1-elasticsearch`
+endpoint.
 
-`timeout_duration` {applies_to}`stack: ga 9.4.1+` {applies_to}`serverless: ga`
+`timeout` {applies_to}`stack: ga 9.4.1+` {applies_to}`serverless: ga`
 :   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
     If not specified, the default search timeout applies. Use this to set a
     per-call timeout independent of the cluster-wide search timeout.
 
 ## Description
 
-The `RERANK` command uses an inference model to compute a new relevance score
-for an initial set of documents, directly within your ES|QL queries.
+Use `RERANK` to re-score search results using a machine learning model for improved relevance.
 
 Typically, you first use a `WHERE` clause with a function like `MATCH` to
 retrieve an initial set of documents. This set is often sorted by `_score` and
@@ -118,10 +119,19 @@ individual values.
 
 ## Requirements
 
-To use this command, you must deploy your reranking model in Elasticsearch as
-an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-with the
-task type `rerank`.
+The `RERANK` command requires an
+[inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+configured with the `rerank` task type. If you omit the `inference_id` option,
+`RERANK` uses the preconfigured `.rerank-v1-elasticsearch` endpoint, which is
+available by default.
+
+For improved relevance, you can use the preconfigured
+`.jina-reranker-v3` endpoint, powered by the
+[Elastic Inference Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
+To use a different model, create a `rerank` inference endpoint and specify
+its ID in the `WITH` clause. Refer to
+[semantic reranking](docs-content://solutions/search/ranking/semantic-reranking.md)
+for a full list of supported reranking models.
 
 ### Handling timeouts
 
@@ -131,13 +141,13 @@ queries. The default timeout is 30 seconds.
 
 You can set per-call timeout using the `"timeout"` option in the `WITH` clause: {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
 ```esql
-COMPLETION answer = question WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
+RERANK "search query" ON title WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
 ```
 
 
 If you can't modify your timeout limits, try the following:
 
-* Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
+* Reduce data volume with `LIMIT` or more selective filters before the `RERANK` command
 * Split complex operations into multiple simpler queries
 * Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
@@ -146,20 +156,20 @@ If you can't modify your timeout limits, try the following:
 
 ### Rerank with a single field
 
-:::{include} ../examples/rerank.csv-spec/simple-query.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/simple-query.md
 :::
 
 ### Rerank with multiple fields and a custom score column
 
-:::{include} ../examples/rerank.csv-spec/two-queries.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/two-queries.md
 :::
 
 ### Combine original score with reranked score
 
-:::{include} ../examples/rerank.csv-spec/combine.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/combine.md
 :::
 
 ### Rerank using document snippets
 
-:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/rerank-top-snippets.md
 :::

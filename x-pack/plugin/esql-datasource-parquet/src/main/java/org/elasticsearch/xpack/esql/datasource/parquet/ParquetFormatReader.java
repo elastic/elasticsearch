@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
+import org.apache.parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -32,6 +32,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
@@ -42,8 +43,8 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,6 +56,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -73,10 +76,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -99,7 +104,7 @@ import java.util.concurrent.ExecutionException;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware {
+public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -116,9 +121,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
     private final boolean lateMaterializationEnabled;
+    private final DynamicThreshold dynamicThreshold;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()}
+    // and folded into AsyncExternalSourceOperator.Status.formatReader by the carrier. Per-reader
+    // (one ParquetFormatReader instance owns one counter struct), incremented by each read /
+    // readRange invocation that flows through this reader.
+    private final ParquetReaderCounters counters = new ParquetReaderCounters();
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
@@ -144,18 +155,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Resolves the {@link ColumnInfo} for a top-level column by name within a parquet
-     * {@link MessageType}, applying the same primitive-type mapping that the iterator uses
-     * (see {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent
-     * or maps to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor
-     * carries {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * Resolves the {@link ColumnInfo} for a column by name within a parquet {@link MessageType},
+     * applying the same primitive-type mapping that the iterator uses (see
+     * {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent or maps
+     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor carries
+     * {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * <p>
+     * {@code columnName} may be a dotted struct-leaf path (e.g. {@code "event.action"}) — the
+     * same D2 resolution rule as {@link #resolveFieldType} applies: literal top-level match wins
+     * over dotted-path traversal.
      * <p>
      * Package-private because {@link ParquetColumnExtractor} is the only collaborator and we
      * deliberately keep this primitive-type mapping single-sourced — duplicating it in the
      * extractor risks subtle type drift the next time a logical type is added.
      */
     static ColumnInfo resolveColumnInfo(MessageType schema, String columnName) {
-        Type field = schema.containsField(columnName) ? schema.getType(columnName) : null;
+        Type field = resolveFieldType(schema, columnName);
         if (field == null) {
             return null;
         }
@@ -163,13 +178,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (esqlType == DataType.UNSUPPORTED || esqlType == DataType.NULL) {
             return null;
         }
-        // For flat columns the descriptor lives directly under the schema; for LIST<primitive>
-        // the descriptor is the inner repeated element. Iterate columns once and pick the
-        // descriptor whose top-level path segment matches the requested column name.
+        // For top-level columns (flat scalars, literal-dot names, LIST<primitive>) match the
+        // descriptor by first path segment. For dotted struct-leaf columns (e.g. "event.action")
+        // the first segment is the struct name, not the full dotted attribute name, so match by
+        // the full joined path instead.
+        boolean isTopLevel = schema.containsField(columnName);
         ColumnDescriptor descriptor = null;
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
-            if (path.length > 0 && path[0].equals(columnName)) {
+            if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : String.join(".", path).equals(columnName)) {
                 descriptor = desc;
                 break;
             }
@@ -189,11 +206,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null);
     }
 
     private ParquetFormatReader(
@@ -202,7 +219,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
-        boolean lateMaterializationEnabled
+        boolean lateMaterializationEnabled,
+        DynamicThreshold dynamicThreshold
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -210,6 +228,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
         this.lateMaterializationEnabled = lateMaterializationEnabled;
+        this.dynamicThreshold = dynamicThreshold;
     }
 
     /**
@@ -218,13 +237,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader, lateMaterializationEnabled);
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            true,
+            optimizedReader,
+            lateMaterializationEnabled,
+            dynamicThreshold
+        );
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader, lateMaterializationEnabled);
+            return new ParquetFormatReader(
+                blockFactory,
+                filter,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled,
+                dynamicThreshold
+            );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
             return new ParquetFormatReader(
@@ -233,10 +268,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled
+                lateMaterializationEnabled,
+                dynamicThreshold
             );
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            lateMaterializationEnabled,
+            threshold
+        );
     }
 
     @Override
@@ -248,7 +297,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
         FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
             ? this
-            : new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
+            : new ParquetFormatReader(
+                blockFactory,
+                pushedFilter,
+                pushedExpressions,
+                forceBaselinePath,
+                newOptimized,
+                newLateMat,
+                dynamicThreshold
+            );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -269,6 +326,46 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
+     * Returns an immutable typed snapshot of this reader's instrumentation counters. The carrier
+     * ({@code AsyncExternalSourceOperator.Status}) folds it into the {@code format_reader}
+     * sub-object on the operator profile.
+     */
+    @Override
+    public ParquetReaderStatus statusSnapshot() {
+        return counters.snapshot();
+    }
+
+    /** Returns {@link StorageObject#length()} when callable, otherwise 0 (length is best-effort). */
+    private static long sizeOrZero(StorageObject object) {
+        try {
+            return Math.max(0L, object.length());
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * Records per-column materialization mode (eager/late) for each projected, non-NULL column.
+     * Per-page byte and time accounting is not wired here; see {@link ParquetReaderCounters} field
+     * docs and the TODO in {@link #read(StorageObject, FormatReadContext)} for scope.
+     */
+    private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
+        Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
+        boolean lateActive = useOptimized && lateMaterializationEnabled && pushedExpressions != null;
+        for (Attribute attr : projectedAttributes) {
+            if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            // A column is late-materialized when the late-mat path is active and the column is NOT
+            // a predicate column (predicate columns are read eagerly to drive row narrowing first).
+            String mode = lateActive && predicateNames.contains(attr.name()) == false
+                ? PerColumnStatus.MATERIALIZATION_LATE
+                : PerColumnStatus.MATERIALIZATION_EAGER;
+            counters.perColumn(attr.name()).setMaterialization(mode);
+        }
+    }
+
+    /**
      * Creates a {@link PlainParquetReadOptions.Builder} initialized with an allocator backed by the
      * block factory's circuit breaker. Uses the Hadoop-free builder that bypasses
      * {@link ParquetReadOptions.Builder}'s unconditional loading of {@code ParquetInputFormat}
@@ -281,13 +378,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(new DirectByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
     /**
      * Opens a Parquet reader, mapping parquet-mr failures (checked and unchecked) to an
-     * {@link IOException} that includes the storage object URI for operators and REST clients.
+     * {@link IllegalArgumentException} that includes the storage object URI. This ensures
+     * invalid/corrupt Parquet files produce HTTP 400 rather than 500.
      */
     private static ParquetFileReader openParquetFile(
         StorageObject object,
@@ -346,8 +444,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * builder.
      */
     private ParquetMetadata loadFooter(StorageObject object, ParquetStorageObjectAdapter adapter) throws IOException {
+        // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
+        boolean[] missed = { false };
         try {
-            return PARSED_FOOTERS.getOrLoad(adapter.cacheKey(), key -> {
+            ParquetMetadata footer = PARSED_FOOTERS.getOrLoad(adapter.cacheKey(), key -> {
+                missed[0] = true;
                 // Always parse the full footer (no range filter) so the cached entry is reusable
                 // by any split. ParquetFileReader.open with a range only retains blocks whose
                 // midpoint falls in the range, which would make getFooter() unusable for other
@@ -359,6 +460,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
                 }
             });
+            counters.recordFooterCache(missed[0] == false);
+            return footer;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
             // ElasticsearchException; any other cause (typically a plain RuntimeException from
@@ -413,12 +516,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return offsets;
     }
 
-    private static IOException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IOException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
     @Override
@@ -429,14 +532,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
+            validateFooterIntegrity(object.path().toString(), parquetSchema, reader.getRowGroups());
             List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-            SourceStatistics statistics = extractStatistics(reader, parquetSchema);
+            SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
         }
     }
 
+    /**
+     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
+     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
+     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
+     * garbage or exceptions during data-page decoding.
+     */
+    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+        for (BlockMetaData rowGroup : rowGroups) {
+            for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = schema.getColumnDescription(path);
+                if (desc != null && desc.getMaxDefinitionLevel() == 0) {
+                    Statistics<?> stats = col.getStatistics();
+                    if (stats != null && stats.getNumNulls() > 0) {
+                        throw new IllegalArgumentException(
+                            "Could not read ["
+                                + uri
+                                + "] as a Parquet file: column ["
+                                + col.getPath().toDotString()
+                                + "] is declared required but row group reports "
+                                + stats.getNumNulls()
+                                + " null(s)"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
+    private SourceStatistics extractStatistics(ParquetFileReader reader, List<Attribute> attributes) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return null;
@@ -486,8 +619,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         final long rowCount = totalRows;
         final long sizeBytes = totalSize;
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
-        for (Type field : schema.getFields()) {
-            String name = field.getName();
+        // Publish stats keyed by every dotted leaf the flattener produced an addressable
+        // attribute for. Skip UNSUPPORTED — they will not bind to a planner attribute the
+        // aggregate-pushdown layer can read stats off of, and over-depth / MAP / LIST<STRUCT>
+        // groups surface as UNSUPPORTED here exactly so this filter removes them. Names match
+        // the collection-loop's col.getPath().toDotString() exactly because
+        // {@link #collectAttributes} concatenates the same Parquet child names with '.'.
+        for (Attribute attribute : attributes) {
+            if (attribute.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            String name = attribute.name();
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
@@ -577,32 +719,41 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
-        // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
-        // recognises the slot, so the iterator emits per-row file-global identities the same way
-        // it emits any other column. Pushed filters, late materialization, page skipping, and
-        // row-group skipping all stay on — each surviving row carries its identity, and the
-        // matching extractor binds those identities back to the file's full footer.
-        ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
-        ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
-        return buildIterator(
-            object,
-            parquetInputFile,
-            reader,
-            context.projectedColumns(),
-            context.batchSize(),
-            context.rowLimit(),
-            null,
-            // For full-file reads the iterator's footer is the file's footer; the deferred
-            // extractor scopes itself to the same set of row groups. {@link #readRange} below
-            // threads the unranged footer separately so the extractor can address rows in the
-            // file's full address space even on a range-restricted scan.
-            reader.getFooter(),
-            // Full-file reads need no per-block file-global offset override — the iterator's
-            // own row-group ordering already matches the file footer.
-            null,
-            filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build())
-        );
+        long startNanos = System.nanoTime();
+        try {
+            // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
+            // read path: {@link #buildProjectedAttributes} types it as LONG and {@link #buildColumnInfos}
+            // recognises the slot, so the iterator emits per-row file-global identities the same way
+            // it emits any other column. Pushed filters, late materialization, page skipping, and
+            // row-group skipping all stay on — each surviving row carries its identity, and the
+            // matching extractor binds those identities back to the file's full footer.
+            ParquetStorageObjectAdapter parquetInputFile = new ParquetStorageObjectAdapter(object, blockFactory.arrowAllocator());
+            long footerStartNanos = System.nanoTime();
+            ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, readOptionsBuilder().build());
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getFooter().getBlocks().size());
+            return buildIterator(
+                object,
+                parquetInputFile,
+                reader,
+                context.projectedColumns(),
+                context.batchSize(),
+                context.rowLimit(),
+                context.readSchema(),
+                // For full-file reads the iterator's footer is the file's footer; the deferred
+                // extractor scopes itself to the same set of row groups. {@link #readRange} below
+                // threads the unranged footer separately so the extractor can address rows in the
+                // file's full address space even on a range-restricted scan.
+                reader.getFooter(),
+                // Full-file reads need no per-block file-global offset override — the iterator's
+                // own row-group ordering already matches the file footer.
+                null,
+                filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build())
+            );
+        } finally {
+            // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
+            // is in the per-column counters, not here.
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
+        }
     }
 
     @Override
@@ -757,68 +908,78 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
-        long rangeStart = context.rangeStart();
-        long rangeEnd = context.rangeEnd();
+        long startNanos = System.nanoTime();
+        try {
+            long rangeStart = context.rangeStart();
+            long rangeEnd = context.rangeEnd();
 
-        // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
-        // range path: the iterator gets file-global per-row-group offsets from the format reader
-        // (computed against the full footer) and emits identities that the matching extractor
-        // resolves against the same full footer — independent of which split owns each row group.
+            // The synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} flows through the regular
+            // range path: the iterator gets file-global per-row-group offsets from the format reader
+            // (computed against the full footer) and emits identities that the matching extractor
+            // resolves against the same full footer — independent of which split owns each row group.
 
-        ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
-            object,
-            rangeEnd - rangeStart,
-            blockFactory.arrowAllocator()
-        );
-        ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
-        // Footer resolution order:
-        // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
-        // lookup; carries the footer across successive splits of the same file on one thread.
-        // 2. ParsedParquetFooterCache — JVM-wide LRU keyed by (path, length); shared across
-        // producer threads and across queries within the access TTL. The loader explicitly
-        // uses unranged read options so the cached value is the full file footer (all row
-        // groups) and is reusable by any split. The underlying FooterByteCache ensures the
-        // tail bytes are fetched from storage only once on the first parse.
-        // ParquetFileReader.open with a range only retains blocks whose midpoint falls in the
-        // range, making getFooter() unusable for other splits — so we must always derive the
-        // range-filtered metadata from the unranged full footer via filterBlocksByRange.
-        ParquetMetadata fullFooter = context.fileContext() instanceof ParquetMetadata cachedFooter
-            ? cachedFooter
-            : loadFooter(object, parquetInputFile);
-        context.setFileContext(fullFooter);
-        ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
-        ParquetFileReader reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
-        // For range-restricted reads the iterator only sees a subset of the file's blocks, but
-        // the deferred-extraction identities must remain file-global so the extractor can later
-        // bind them to the full footer. Compute the per-range-block file-global offsets up front
-        // and hand them to the iterator (it ignores them when the projection has no
-        // {@code _rowPosition} column).
-        long[] rangeBlockGlobalOffsets = context.projectedColumns() != null
-            && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN)
-                ? computeRangeBlockFileGlobalOffsets(fullFooter, rangeStart, rangeEnd)
-                : null;
-        return buildIterator(
-            object,
-            parquetInputFile,
-            reader,
-            context.projectedColumns(),
-            context.batchSize(),
-            NO_LIMIT,
-            context.resolvedAttributes(),
-            // The deferred extractor scopes itself to the file's full footer rather than the
-            // range-filtered subset, so the produced extractor can resolve any file-global
-            // identity even one that lands outside this split's row groups.
-            fullFooter,
-            rangeBlockGlobalOffsets,
-            // fullFooter was resolved (and stashed into the context) above, so the re-open path
-            // always reuses it rather than risk a re-parse through the no-footer overload.
-            filter -> openParquetFile(
+            ParquetStorageObjectAdapter parquetInputFile = ParquetStorageObjectAdapter.forRange(
+                object,
+                rangeEnd - rangeStart,
+                blockFactory.arrowAllocator()
+            );
+            ParquetReadOptions rangeOptions = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
+            // Footer resolution order:
+            // 1. context.fileContext() — per-producer fast path, single-writer/single-reader, no map
+            // lookup; carries the footer across successive splits of the same file on one thread.
+            // 2. ParsedParquetFooterCache — JVM-wide LRU keyed by (path, length); shared across
+            // producer threads and across queries within the access TTL. The loader explicitly
+            // uses unranged read options so the cached value is the full file footer (all row
+            // groups) and is reusable by any split. The underlying FooterByteCache ensures the
+            // tail bytes are fetched from storage only once on the first parse.
+            // ParquetFileReader.open with a range only retains blocks whose midpoint falls in the
+            // range, making getFooter() unusable for other splits — so we must always derive the
+            // range-filtered metadata from the unranged full footer via filterBlocksByRange.
+            ParquetMetadata fullFooter;
+            if (context.fileContext() instanceof ParquetMetadata cachedFooter) {
+                fullFooter = cachedFooter;
+            } else {
+                long footerStartNanos = System.nanoTime();
+                fullFooter = loadFooter(object, parquetInputFile);
+                counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), fullFooter.getBlocks().size());
+            }
+            context.setFileContext(fullFooter);
+            ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
+            ParquetFileReader reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
+            // For range-restricted reads the iterator only sees a subset of the file's blocks, but
+            // the deferred-extraction identities must remain file-global so the extractor can later
+            // bind them to the full footer. Compute the per-range-block file-global offsets up front
+            // and hand them to the iterator (it ignores them when the projection has no
+            // {@code _rowPosition} column).
+            long[] rangeBlockGlobalOffsets = context.projectedColumns() != null
+                && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN)
+                    ? computeRangeBlockFileGlobalOffsets(fullFooter, rangeStart, rangeEnd)
+                    : null;
+            return buildIterator(
                 object,
                 parquetInputFile,
-                readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
-                filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
-            )
-        );
+                reader,
+                context.projectedColumns(),
+                context.batchSize(),
+                NO_LIMIT,
+                context.resolvedAttributes(),
+                // The deferred extractor scopes itself to the file's full footer rather than the
+                // range-filtered subset, so the produced extractor can resolve any file-global
+                // identity even one that lands outside this split's row groups.
+                fullFooter,
+                rangeBlockGlobalOffsets,
+                // fullFooter was resolved (and stashed into the context) above, so the re-open path
+                // always reuses it rather than risk a re-parse through the no-footer overload.
+                filter -> openParquetFile(
+                    object,
+                    parquetInputFile,
+                    readOptionsBuilder().withRange(rangeStart, rangeEnd).withRecordFilter(filter).build(),
+                    filterBlocksByRange(fullFooter, rangeStart, rangeEnd)
+                )
+            );
+        } finally {
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
+        }
     }
 
     /**
@@ -875,12 +1036,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         long[] rangeBlockGlobalOffsets,
         FilteredReopener reopener
     ) throws IOException {
+        counters.setLateMaterializationEnabled(lateMaterializationEnabled);
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
 
             boolean useOptimized = optimizedReader && forceBaselinePath == false;
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
+            if (filterPredicate != null) {
+                counters.markPredicatePushdownUsed();
+            }
             FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
 
             // The optimized path drives row-group selection and page-level filtering itself
@@ -920,6 +1085,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+            recordPerColumnMaterialization(projectedAttributes, useOptimized);
             if (useOptimized) {
                 return createOptimizedIterator(
                     reader,
@@ -946,7 +1112,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 createdBy,
                 object.path().toString(),
                 hasRecordFilter,
-                rangeBlockGlobalOffsets
+                rangeBlockGlobalOffsets,
+                counters
             );
         } catch (Throwable t) {
             reader.close();
@@ -988,93 +1155,139 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         Set<String> predicateColumnPaths = recordFilter != null && pushedExpressions != null
             ? pushedExpressions.predicateColumnNames()
             : null;
-        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject, predicateColumnPaths);
-        adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
-
-        List<BlockMetaData> blocks;
-        boolean[] survivingRowGroups;
-        try {
-            blocks = reader.getRowGroups();
-            survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema);
-        } finally {
-            // Detach the pre-warmed chunks from the adapter so subsequent reads on any
-            // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
-            // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
-            // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
-            // no further reader.
-            adapter.installPreWarmedChunks(null);
+        if (predicateColumnPaths != null) {
+            counters.addPredicateColumns(predicateColumnPaths);
         }
+        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            blockFactory.arrowAllocator()
+        );
+        boolean metadataHandedOff = false;
+        try {
+            adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
 
-        RowRanges[] allRowRanges = null;
-        if (filterPredicate != null) {
-            allRowRanges = new RowRanges[blocks.size()];
-            for (int i = 0; i < blocks.size(); i++) {
-                // Row groups dropped by stats/dictionary/bloom filters will never be opened by
-                // the iterator, so there is no need to compute their column-index row ranges.
-                if (survivingRowGroups[i] == false) {
-                    continue;
+            List<BlockMetaData> blocks;
+            boolean[] survivingRowGroups;
+            try {
+                blocks = reader.getRowGroups();
+                survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
+            } finally {
+                // Detach the pre-warmed chunks from the adapter so subsequent reads on any
+                // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
+                // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
+                // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
+                // no further reader.
+                adapter.installPreWarmedChunks(null);
+            }
+
+            RowRanges[] allRowRanges = null;
+            if (filterPredicate != null) {
+                counters.markPageIndexUsed();
+                allRowRanges = new RowRanges[blocks.size()];
+                long rowsInKept = 0;
+                long rowsAfter = 0;
+                for (int i = 0; i < blocks.size(); i++) {
+                    // Row groups dropped by stats/dictionary/bloom filters will never be opened by
+                    // the iterator, so there is no need to compute their column-index row ranges.
+                    if (survivingRowGroups != null && survivingRowGroups[i] == false) {
+                        continue;
+                    }
+                    long rgRows = blocks.get(i).getRowCount();
+                    rowsInKept += rgRows;
+                    allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, rgRows);
+                    rowsAfter += allRowRanges[i] != null ? allRowRanges[i].selectedRowCount() : rgRows;
                 }
-                allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, blocks.get(i).getRowCount());
+                counters.addPageIndexRows(rowsInKept, rowsAfter);
+            }
+
+            // The iterator owns the late-mat decision: it gates on the structural prerequisite
+            // hasProjectionOnlyColumns (nothing to defer-decode otherwise) and gates the more expensive
+            // two-phase prefetch on its own predicate-byte-ratio threshold (see
+            // {@link OptimizedParquetColumnIterator#shouldUseTwoPhase} /
+            // {@link OptimizedParquetColumnIterator#TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD}). A second
+            // file-level byte-ratio gate here was a leftover from the Pushability.RECHECK era when every
+            // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
+            // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
+            // so suppressing late-mat at the file level would leak unfiltered rows past the source.
+            ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
+            if (effectivePushed != null) {
+                counters.markLateMaterializationUsed();
+            }
+
+            // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
+            // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
+            // Only pass it through when late materialization is actually active; otherwise the
+            // iterator has no use for it.
+            //
+            // Additionally suppress the predicate when any YES conjunct in pushedExpressions did not
+            // translate to a FilterPredicate (today: WildcardLike/Not(WildcardLike) AND'd with a
+            // translatable conjunct). The trivially-passes shortcut would bypass the late-mat
+            // evaluator on the strength of the FilterPredicate alone, but the missing YES conjunct
+            // is no longer in FilterExec to catch the over-inclusion — so dropping the guard here
+            // would silently leak rows that don't match the YES conjunct (e.g. URL LIKE "x*" rows
+            // outside the prefix when AND'd with a stats-trivial status = 200).
+            //
+            // DO NOT REMOVE the hasYesConjunctOutsideFilterPredicate check — it is load-bearing for
+            // correctness of YES-pushed predicates that have no parquet-FilterPredicate translation.
+            // The integration regression test
+            // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
+            // and the unit tests in ParquetPushedExpressionsTests cover this contract.
+            MessageType fileSchema = reader.getFileMetaData().getSchema();
+            FilterPredicate triviallyPassesPredicate = effectivePushed != null
+                && filterPredicate != null
+                && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
+                    ? filterPredicate
+                    : null;
+
+            OptimizedParquetColumnIterator iterator = new OptimizedParquetColumnIterator(
+                reader,
+                projectedSchema,
+                projectedAttributes,
+                batchSize,
+                blockFactory,
+                rowLimit,
+                createdBy,
+                storageObject.path().toString(),
+                columnInfos,
+                preloadedMetadata,
+                storageObject,
+                allRowRanges,
+                survivingRowGroups,
+                rowGroupFirstRowGlobalOverride,
+                codecFactory,
+                effectivePushed,
+                triviallyPassesPredicate,
+                this,
+                fullFooter,
+                dynamicThreshold,
+                resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
+                counters
+            );
+            // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
+            // construction so that a throw inside the constructor does not suppress cleanup.
+            metadataHandedOff = true;
+            return iterator;
+        } finally {
+            if (metadataHandedOff == false) {
+                preloadedMetadata.close();
             }
         }
+    }
 
-        // The iterator owns the late-mat decision: it gates on the structural prerequisite
-        // hasProjectionOnlyColumns (nothing to defer-decode otherwise) and gates the more expensive
-        // two-phase prefetch on its own predicate-byte-ratio threshold (see
-        // {@link OptimizedParquetColumnIterator#shouldUseTwoPhase} /
-        // {@link OptimizedParquetColumnIterator#TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD}). A second
-        // file-level byte-ratio gate here was a leftover from the Pushability.RECHECK era when every
-        // surviving row paid the predicate cost twice (once in late-mat, once again in FilterExec).
-        // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
-        // so suppressing late-mat at the file level would leak unfiltered rows past the source.
-        ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
-
-        // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
-        // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
-        // Only pass it through when late materialization is actually active; otherwise the
-        // iterator has no use for it.
-        //
-        // Additionally suppress the predicate when any YES conjunct in pushedExpressions did not
-        // translate to a FilterPredicate (today: WildcardLike/Not(WildcardLike) AND'd with a
-        // translatable conjunct). The trivially-passes shortcut would bypass the late-mat
-        // evaluator on the strength of the FilterPredicate alone, but the missing YES conjunct
-        // is no longer in FilterExec to catch the over-inclusion — so dropping the guard here
-        // would silently leak rows that don't match the YES conjunct (e.g. URL LIKE "x*" rows
-        // outside the prefix when AND'd with a stats-trivial status = 200).
-        //
-        // DO NOT REMOVE the hasYesConjunctOutsideFilterPredicate check — it is load-bearing for
-        // correctness of YES-pushed predicates that have no parquet-FilterPredicate translation.
-        // The integration regression test
-        // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
-        // and the unit tests in ParquetPushedExpressionsTests cover this contract.
-        MessageType fileSchema = reader.getFileMetaData().getSchema();
-        FilterPredicate triviallyPassesPredicate = effectivePushed != null
-            && filterPredicate != null
-            && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
-                ? filterPredicate
-                : null;
-
-        return new OptimizedParquetColumnIterator(
-            reader,
-            projectedSchema,
-            projectedAttributes,
-            batchSize,
-            blockFactory,
-            rowLimit,
-            createdBy,
-            storageObject.path().toString(),
-            columnInfos,
-            preloadedMetadata,
-            storageObject,
-            allRowRanges,
-            survivingRowGroups,
-            rowGroupFirstRowGlobalOverride,
-            codecFactory,
-            effectivePushed,
-            triviallyPassesPredicate,
-            this,
-            fullFooter
-        );
+    private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {
+        if (dynamicThreshold == null) {
+            return null;
+        }
+        String columnName = dynamicThreshold.columnName();
+        for (ColumnDescriptor descriptor : schema.getColumns()) {
+            String[] path = descriptor.getPath();
+            if (String.join(".", path).equals(columnName) || (path.length == 1 && path[0].equals(columnName))) {
+                return descriptor;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1087,7 +1300,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetFileReader reader,
         List<BlockMetaData> blocks,
         FilterCompat.Filter recordFilter,
-        MessageType schema
+        MessageType schema,
+        ParquetReaderCounters counters
     ) {
         if (FilterCompat.isFilteringRequired(recordFilter) == false) {
             return null;
@@ -1111,17 +1325,42 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 keptIdx++;
             }
         }
+        // parquet-mr's RowGroupFilter returns only the combined survivor set, not which level
+        // (stats / dictionary / bloom) rejected a group, so we track total and kept only.
+        for (int i = 0; i < blocks.size(); i++) {
+            counters.addRowGroupFiltered(flags[i]);
+        }
         return flags;
     }
 
+    /**
+     * Maps each projected attribute to its {@link ColumnInfo}. Resolution is path-aware:
+     * <ol>
+     *   <li>Exact match against a top-level field name in {@code projectedSchema} (preserves
+     *       files whose top-level fields literally contain a dot).</li>
+     *   <li>Otherwise, the attribute name is interpreted as a dotted path and looked up against
+     *       the full leaf paths of {@code projectedSchema}.</li>
+     * </ol>
+     * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
+     * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
+     */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
-        // Uses getPath()[0] (top-level name only), matching the baseline ParquetColumnIterator.
-        // Nested Parquet fields have multi-segment paths, but ESQL currently only supports flat
-        // columns and LIST(primitive) — nested struct types map to UNSUPPORTED and are skipped.
-        Map<String, ColumnDescriptor> descByName = new HashMap<>();
+        // Per-top-level-field descriptors handle LIST<primitive> and other cases where the
+        // descriptor's first path segment is the user-visible field name. This map wins over
+        // the dotted-path map and is the only source of truth for literal-dot top-level names.
+        Map<String, ColumnDescriptor> descByTopLevel = new HashMap<>();
+        Map<String, ColumnDescriptor> descByDottedPath = new HashMap<>();
+        Set<String> topLevelNames = new HashSet<>();
+        for (Type field : projectedSchema.getFields()) {
+            topLevelNames.add(field.getName());
+        }
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
-            descByName.put(desc.getPath()[0], desc);
+            String[] path = desc.getPath();
+            descByDottedPath.put(String.join(".", path), desc);
+            if (path.length > 0 && topLevelNames.contains(path[0])) {
+                descByTopLevel.putIfAbsent(path[0], desc);
+            }
         }
         for (int i = 0; i < attributes.size(); i++) {
             Attribute attr = attributes.get(i);
@@ -1135,7 +1374,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            ColumnDescriptor desc = descByName.get(attr.name());
+            ColumnDescriptor desc = descByTopLevel.get(attr.name());
+            if (desc == null) {
+                desc = descByDottedPath.get(attr.name());
+            }
             if (desc != null) {
                 LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
                 columnInfos[i] = new ColumnInfo(
@@ -1167,9 +1409,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // The deferred-extraction synthetic column has no presence in the file's schema;
                 // the iterator materialises it. We must give it a real {@link DataType#LONG} so
                 // {@link #buildColumnInfos} routes it to {@link ColumnInfo#rowPosition()} instead
-                // of skipping it as an absent column.
-                DataType type = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName) ? DataType.LONG : DataType.NULL;
-                attr = new ReferenceAttribute(Source.EMPTY, columnName, type);
+                // of skipping it as an absent column. The row-position column is always materialised
+                // (non-nullable); an absent file column is always null at runtime (nullable).
+                boolean isRowPosition = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName);
+                DataType type = isRowPosition ? DataType.LONG : DataType.NULL;
+                Nullability nullability = isRowPosition ? Nullability.FALSE : Nullability.TRUE;
+                attr = new ReferenceAttribute(Source.EMPTY, null, columnName, type, nullability, null, false);
             }
             result.add(attr);
         }
@@ -1185,11 +1430,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
-        List<Type> projectedFields = new ArrayList<>();
+        // Resolve each attribute to a path of segments. Per D2, exact top-level match wins over
+        // dotted-path traversal so that literal-dot top-level field names keep resolving to
+        // themselves. Each entry maps the resolved top-level field name -> ordered, deduplicated
+        // child paths (each a list of segments below that top-level field; empty for a literal
+        // top-level match).
+        Map<String, LinkedHashMap<List<String>, Boolean>> topLevelToChildPaths = new LinkedHashMap<>();
         for (Attribute attr : projectedAttributes) {
-            if (fullSchema.containsField(attr.name())) {
-                projectedFields.add(fullSchema.getType(attr.name()));
+            String name = attr.name();
+            if (fullSchema.containsField(name)) {
+                topLevelToChildPaths.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(List.of(), Boolean.TRUE);
+                continue;
             }
+            // Try dotted-path traversal: walk prefixes from shortest to longest and stop at the
+            // first one that resolves to a STRUCT group whose remainder also matches. The literal
+            // top-level name already won above; here we only deal with synthetic dotted names.
+            // Walk dot positions directly with substring rather than splitting + re-joining each
+            // probe; the segments array is still computed once for the remainder.
+            String[] segments = name.split("\\.");
+            int dotIdx = name.indexOf('.');
+            int prefixLen = 1;
+            while (dotIdx >= 0) {
+                String topLevel = name.substring(0, dotIdx);
+                if (fullSchema.containsField(topLevel)) {
+                    Type field = fullSchema.getType(topLevel);
+                    if (field.isPrimitive()) {
+                        break;
+                    }
+                    List<String> remainder = List.of(Arrays.copyOfRange(segments, prefixLen, segments.length));
+                    if (groupContainsPath(field.asGroupType(), remainder, 0)) {
+                        topLevelToChildPaths.computeIfAbsent(topLevel, k -> new LinkedHashMap<>()).put(remainder, Boolean.TRUE);
+                        break;
+                    }
+                }
+                dotIdx = name.indexOf('.', dotIdx + 1);
+                prefixLen++;
+            }
+        }
+        List<Type> projectedFields = new ArrayList<>();
+        for (Map.Entry<String, LinkedHashMap<List<String>, Boolean>> entry : topLevelToChildPaths.entrySet()) {
+            Type field = fullSchema.getType(entry.getKey());
+            // A literal top-level match (List.of()) reads the whole field.
+            if (entry.getValue().containsKey(List.<String>of())) {
+                projectedFields.add(field);
+                continue;
+            }
+            if (field.isPrimitive()) {
+                projectedFields.add(field);
+                continue;
+            }
+            Type subset = buildSubsetGroup(field.asGroupType(), new ArrayList<>(entry.getValue().keySet()));
+            projectedFields.add(subset != null ? subset : field);
         }
         // Parquet requires at least one field; fall back to full schema when none match
         if (projectedFields.isEmpty()) {
@@ -1198,14 +1489,171 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return new MessageType(fullSchema.getName(), projectedFields);
     }
 
+    /**
+     * Resolves a (possibly dotted) attribute name to its {@link Type} in {@code fullSchema}.
+     * Applies D2: literal top-level match wins over dotted-path traversal. Returns {@code null}
+     * when the name has no match.
+     */
+    private static Type resolveFieldType(MessageType fullSchema, String name) {
+        if (fullSchema.containsField(name)) {
+            return fullSchema.getType(name);
+        }
+        String[] segments = name.split("\\.");
+        int dotIdx = name.indexOf('.');
+        int prefixLen = 1;
+        while (dotIdx >= 0) {
+            String topLevel = name.substring(0, dotIdx);
+            if (fullSchema.containsField(topLevel)) {
+                Type field = fullSchema.getType(topLevel);
+                for (int i = prefixLen; i < segments.length; i++) {
+                    if (field.isPrimitive()) {
+                        return null;
+                    }
+                    GroupType group = field.asGroupType();
+                    if (group.containsField(segments[i]) == false) {
+                        return null;
+                    }
+                    field = group.getType(segments[i]);
+                }
+                return field;
+            }
+            dotIdx = name.indexOf('.', dotIdx + 1);
+            prefixLen++;
+        }
+        return null;
+    }
+
+    private static boolean groupContainsPath(GroupType group, List<String> path, int idx) {
+        if (idx >= path.size()) {
+            return true;
+        }
+        String name = path.get(idx);
+        if (group.containsField(name) == false) {
+            return false;
+        }
+        Type child = group.getType(name);
+        if (idx == path.size() - 1) {
+            return true;
+        }
+        if (child.isPrimitive()) {
+            return false;
+        }
+        return groupContainsPath(child.asGroupType(), path, idx + 1);
+    }
+
+    /**
+     * Builds a projected copy of {@code group} containing only the leaves reachable via {@code paths}
+     * (each path is the list of segments below {@code group}). The original {@link Type.Repetition}
+     * is preserved on every reconstructed group so parquet-mr doesn't complain at read time. Returns
+     * {@code null} when {@code paths} is empty.
+     */
+    private static Type buildSubsetGroup(GroupType group, List<List<String>> paths) {
+        if (paths.isEmpty()) {
+            return null;
+        }
+        // Group paths by first segment to recurse children once per branch, preserving insertion order.
+        LinkedHashMap<String, List<List<String>>> byHead = new LinkedHashMap<>();
+        for (List<String> path : paths) {
+            if (path.isEmpty()) {
+                // A leaf request at this group: include the whole group.
+                return group;
+            }
+            byHead.computeIfAbsent(path.get(0), k -> new ArrayList<>()).add(path.subList(1, path.size()));
+        }
+        Types.GroupBuilder<GroupType> builder = Types.buildGroup(group.getRepetition());
+        if (group.getLogicalTypeAnnotation() != null) {
+            builder = builder.as(group.getLogicalTypeAnnotation());
+        }
+        for (Map.Entry<String, List<List<String>>> entry : byHead.entrySet()) {
+            String childName = entry.getKey();
+            if (group.containsField(childName) == false) {
+                continue;
+            }
+            Type child = group.getType(childName);
+            List<List<String>> childPaths = entry.getValue();
+            boolean wholeChildRequested = childPaths.stream().anyMatch(List::isEmpty);
+            if (wholeChildRequested || child.isPrimitive()) {
+                builder = builder.addField(child);
+            } else {
+                Type subset = buildSubsetGroup(child.asGroupType(), childPaths);
+                if (subset != null) {
+                    builder = builder.addField(subset);
+                }
+            }
+        }
+        return builder.named(group.getName());
+    }
+
+    /**
+     * Maximum recursion depth for nested STRUCT flattening. Beyond this, the offending group
+     * surfaces as a single {@link DataType#UNSUPPORTED} attribute at its dotted path and a
+     * DEBUG log entry is emitted; no infinite recursion or partial flattening occurs.
+     *
+     * <p>Depth counts from 1 at the schema's top-level children, so the deepest reachable
+     * group sits at depth {@code MAX_STRUCT_FLATTENING_DEPTH}. The ORC flattener uses the
+     * same convention so the two formats accept the same set of valid paths.
+     */
+    static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
+
+    /**
+     * Recursively converts a Parquet {@link MessageType} into ESQL {@link Attribute}s, flattening
+     * nested STRUCT groups into dotted attribute names (e.g. {@code event.action}). Primitive
+     * fields and {@code LIST<primitive>} groups emit at their parent's dotted path; other groups
+     * (MAP, {@code LIST<STRUCT>}, UNION, anything not understood) surface as a single
+     * {@link DataType#UNSUPPORTED} attribute at the group's dotted path.
+     *
+     * <p>Recursion is bounded by {@link #MAX_STRUCT_FLATTENING_DEPTH}; groups deeper than the cap
+     * are emitted as a single UNSUPPORTED attribute and a DEBUG log line is recorded.
+     *
+     * <p>Resolution rule for dotted projected names (see {@link #buildColumnInfos}): exact
+     * top-level match against the file schema is attempted first, then dotted-path traversal.
+     * This preserves files whose top-level field literally contains a dot — the ES|QL parser
+     * cannot distinguish {@code event.action} from {@code `event.action`} so we cannot
+     * disambiguate at parse time.
+     *
+     * <p>Nullability follows Parquet repetition: a dotted leaf is {@link Nullability#FALSE} iff
+     * every field on the path is {@link Type.Repetition#REQUIRED}. Anything else
+     * ({@link Type.Repetition#OPTIONAL} or {@link Type.Repetition#REPEATED} anywhere on the path)
+     * is nullable from the planner's perspective. Element-level nullability inside a {@code LIST}
+     * group is independent and not modelled here. Defaulting everything to non-nullable — as the
+     * 3-arg {@link ReferenceAttribute} constructor does — would cause planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to
+     * drop legitimate null rows for {@code OPTIONAL} columns.
+     */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
-            String name = field.getName();
-            DataType esqlType = convertParquetTypeToEsql(field);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+            collectAttributes(field, field.getName(), 1, field.isRepetition(Type.Repetition.REQUIRED), attributes);
         }
         return attributes;
+    }
+
+    private void collectAttributes(Type field, String dottedPath, int depth, boolean pathAllRequired, List<Attribute> out) {
+        if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
+            logger.debug(
+                "Parquet field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
+                dottedPath,
+                MAX_STRUCT_FLATTENING_DEPTH
+            );
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
+            return;
+        }
+        Nullability leafNullability = pathAllRequired ? Nullability.FALSE : Nullability.TRUE;
+        if (field.isPrimitive()) {
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertParquetTypeToEsql(field), leafNullability, null, false));
+            return;
+        }
+        GroupType group = field.asGroupType();
+        LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertGroupTypeToEsql(group), leafNullability, null, false));
+            return;
+        }
+        for (Type child : group.getFields()) {
+            boolean childAllRequired = pathAllRequired && child.isRepetition(Type.Repetition.REQUIRED);
+            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, childAllRequired, out);
+        }
     }
 
     private static DataType convertParquetTypeToEsql(Type parquetType) {
@@ -1218,7 +1666,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return switch (primitive.getPrimitiveTypeName()) {
             case BOOLEAN -> DataType.BOOLEAN;
             case INT32 -> {
-                if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 32) {
+                        // Widen to long
+                        yield DataType.LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1226,7 +1679,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 yield DataType.INTEGER;
             }
             case INT64 -> {
-                if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 64) {
+                        yield DataType.UNSIGNED_LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1249,7 +1706,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Handles Parquet group types. Supports LIST of primitives by extracting the element type.
+     * Handles Parquet group types. Supports LIST of primitives by extracting the element type;
+     * everything else (MAP, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
      */
     private static DataType convertGroupTypeToEsql(GroupType groupType) {
         LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
@@ -1294,10 +1752,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            if (fullSchema.containsField(attr.name()) == false) {
+            Type resolved = resolveFieldType(fullSchema, attr.name());
+            if (resolved == null) {
                 continue;
             }
-            DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
+            DataType actualInFile = convertParquetTypeToEsql(resolved);
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
                 if (skipWarnings == null) {
                     skipWarnings = new SkipWarnings(
@@ -1356,6 +1815,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private final String createdBy;
         private final String fileLocation;
         private final boolean hasRecordFilter;
+        private final ParquetReaderCounters counters;
         private int rowBudget;
 
         /** Per-attribute column metadata; null for attributes not present in the file. */
@@ -1390,7 +1850,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             String createdBy,
             String fileLocation,
             boolean hasRecordFilter,
-            long[] rowGroupFirstRowGlobalOverride
+            long[] rowGroupFirstRowGlobalOverride,
+            ParquetReaderCounters counters
         ) {
             this.reader = reader;
             this.projectedSchema = projectedSchema;
@@ -1401,6 +1862,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             this.createdBy = createdBy != null ? createdBy : "";
             this.fileLocation = fileLocation;
             this.hasRecordFilter = hasRecordFilter;
+            this.counters = counters;
 
             reader.setRequestedSchema(projectedSchema);
 
@@ -1469,7 +1931,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 return advanceRowGroup();
             } catch (IOException e) {
-                throw new ElasticsearchException(
+                throw new IllegalArgumentException(
                     "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
                     e
                 );
@@ -1583,10 +2045,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             } else {
                                 blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
                             }
+                        } catch (CircuitBreakingException e) {
+                            Releasables.closeExpectNoException(blocks);
+                            throw e;
                         } catch (Exception e) {
                             Releasables.closeExpectNoException(blocks);
                             Attribute attr = attributes.get(col);
-                            throw new ElasticsearchException(
+                            throw new IllegalArgumentException(
                                 "Failed to read Parquet column ["
                                     + attr.name()
                                     + "] (type "
@@ -1604,11 +2069,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         }
                     }
                 }
-            } catch (ElasticsearchException e) {
+            } catch (IllegalArgumentException | CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
                 Releasables.closeExpectNoException(blocks);
-                throw new ElasticsearchException(
+                throw new IllegalArgumentException(
                     "Failed to create Page batch at row group ["
                         + (rowGroupOrdinal + 1)
                         + "] page batch ["
@@ -1626,6 +2091,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (rowBudget != FormatReader.NO_LIMIT) {
                 rowBudget -= rowsToRead;
             }
+            counters.addRowsEmitted(rowsToRead);
             return new Page(blocks);
         }
 
@@ -1633,12 +2099,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (info.maxRepLevel() > 0) {
                 return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
             }
+            // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
+            // KEEP IN SYNC!
             return switch (info.esqlType()) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
-                case LONG -> {
+                case LONG, UNSIGNED_LONG -> {
+                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
+                        // A plain INT32 with no logical-type annotation is historically "signed"
+                        yield readInt32WidenedToLongColumn(
+                            cr,
+                            info.maxDefLevel(),
+                            rowsToRead,
+                            logicalType == null || logicalType.isSigned()
+                        );
                     }
                     yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
                 }
@@ -1697,7 +2172,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         /**
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
-        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
+        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows, boolean signed) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -1706,7 +2181,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    values[i] = cr.getInteger();
+                    values[i] = signed ? cr.getInteger() : Integer.toUnsignedLong(cr.getInteger());
                 }
                 cr.consume();
             }
@@ -1766,7 +2241,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
                         case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
-                        default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
+                        default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
                 }

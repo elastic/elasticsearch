@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -820,6 +821,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("month", resolvedSchema.get(2).name());
         assertThat(resolvedSchema.get(1), instanceOf(ReferenceAttribute.class));
         assertThat(resolvedSchema.get(2), instanceOf(ReferenceAttribute.class));
+        // End-to-end check: HivePartitionDetector produced non-null values for every file, so the
+        // resolver emits Nullability.FALSE for both partition columns.
+        assertEquals(Nullability.FALSE, resolvedSchema.get(1).nullable());
+        assertEquals(Nullability.FALSE, resolvedSchema.get(2).nullable());
     }
 
     public void testEnrichSchemaWithPartitionColumnsDirectly() {
@@ -846,6 +851,65 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // AnalyzerRules.maybeResolveAgainstList skips them during name resolution.
         assertFalse(schema.get(2).synthetic());
         assertFalse(schema.get(3).synthetic());
+        // No per-file evidence is supplied here: every partition column must stay Nullability.TRUE.
+        assertEquals(Nullability.TRUE, schema.get(2).nullable());
+        assertEquals(Nullability.TRUE, schema.get(3).nullable());
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsEmitsNullabilityFalseWhenNoNulls() {
+        // Per-query optimization: when every matched file has a non-null value for the partition
+        // column, the resolver emits Nullability.FALSE so downstream rules that consult nullability
+        // (Coalesce simplification, PropagateNullable) have correct metadata.
+        List<Attribute> originalSchema = List.of(attr("value", DataType.DOUBLE));
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/data/*.parquet", originalSchema);
+
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        partCols.put("month", DataType.INTEGER);
+
+        Map<StoragePath, Map<String, Object>> filePartitions = new LinkedHashMap<>();
+        filePartitions.put(StoragePath.of("s3://bucket/data/year=2024/month=01/f1.parquet"), Map.of("year", 2024, "month", 1));
+        filePartitions.put(StoragePath.of("s3://bucket/data/year=2024/month=02/f2.parquet"), Map.of("year", 2024, "month", 2));
+        PartitionMetadata partitions = new PartitionMetadata(partCols, filePartitions);
+
+        ExternalSourceMetadata enriched = ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+        List<Attribute> schema = enriched.schema();
+        assertEquals(3, schema.size());
+        assertEquals("year", schema.get(1).name());
+        assertEquals("month", schema.get(2).name());
+        assertEquals(Nullability.FALSE, schema.get(1).nullable());
+        assertEquals(Nullability.FALSE, schema.get(2).nullable());
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsEmitsNullabilityTrueForHiveDefaultSentinel() {
+        // When at least one file lives under __HIVE_DEFAULT_PARTITION__ (decoded to null in
+        // PartitionMetadata#filePartitionValues by HivePartitionDetector), the resolver must keep
+        // Nullability.TRUE for that column. Sibling partition columns that are still all-non-null
+        // remain Nullability.FALSE.
+        List<Attribute> originalSchema = List.of(attr("value", DataType.DOUBLE));
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/data/*.parquet", originalSchema);
+
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        partCols.put("month", DataType.INTEGER);
+
+        Map<StoragePath, Map<String, Object>> filePartitions = new LinkedHashMap<>();
+        filePartitions.put(StoragePath.of("s3://bucket/data/year=2024/month=01/f1.parquet"), Map.of("year", 2024, "month", 1));
+        Map<String, Object> nullMonth = new HashMap<>();
+        nullMonth.put("year", 2024);
+        nullMonth.put("month", null);
+        filePartitions.put(StoragePath.of("s3://bucket/data/year=2024/month=__HIVE_DEFAULT_PARTITION__/f2.parquet"), nullMonth);
+        PartitionMetadata partitions = new PartitionMetadata(partCols, filePartitions);
+
+        ExternalSourceMetadata enriched = ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+        List<Attribute> schema = enriched.schema();
+        assertEquals(3, schema.size());
+        assertEquals("year", schema.get(1).name());
+        assertEquals("month", schema.get(2).name());
+        // year has no nulls in the matched fileset → provably non-null.
+        assertEquals(Nullability.FALSE, schema.get(1).nullable());
+        // month contains a sentinel-decoded null → must stay nullable.
+        assertEquals(Nullability.TRUE, schema.get(2).nullable());
     }
 
     public void testSchemaWithFieldAttributeFailsValidation() throws Exception {
@@ -858,12 +922,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<StorageEntry>> listingsByPrefix = new HashMap<>();
         listingsByPrefix.put("s3://bucket/data/", List.of(entry("s3://bucket/data/file.parquet", 100)));
 
-        Exception e = expectThrows(
-            Exception.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> resolveMultiplePaths(List.of("s3://bucket/data/file.parquet"), schemasByPath, listingsByPrefix)
         );
-        assertThat(e.getCause().getMessage(), containsString("ReferenceAttribute"));
-        assertThat(e.getCause().getMessage(), containsString("FieldAttribute"));
+        assertThat(e.getMessage(), containsString("ReferenceAttribute"));
+        assertThat(e.getMessage(), containsString("FieldAttribute"));
     }
 
     private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
@@ -1461,7 +1525,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
         );
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1541,7 +1606,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
@@ -1606,7 +1672,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             capabilities,
             Settings.EMPTY,
             blockFactory,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module, Settings.EMPTY, cacheService);

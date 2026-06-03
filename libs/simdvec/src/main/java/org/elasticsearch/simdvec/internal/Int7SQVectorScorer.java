@@ -25,7 +25,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI7u;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -41,9 +40,6 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {

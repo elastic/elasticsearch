@@ -540,6 +540,9 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                        throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
+                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -550,9 +553,31 @@ public class ObjectMapper extends Mapper {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + STORE_ARRAY_SOURCE_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.ARRAYS);
                 return true;
             } else if (fieldName.equals(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.from(fieldNode.toString()));
                 return true;
             } else if (fieldName.equals("properties")) {
@@ -935,17 +960,22 @@ public class ObjectMapper extends Mapper {
         };
     }
 
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> innerSyntheticFieldLoader(filter, m))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
-        return new SyntheticSourceFieldLoader(filter, fields, isFragment);
+        return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
     final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        return syntheticFieldLoader(filter, mappers.values(), false);
+        return syntheticFieldLoader(filter, mappers.values(), false, false);
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
@@ -959,6 +989,8 @@ public class ObjectMapper extends Mapper {
         }
 
         if (mapper instanceof ObjectMapper objectMapper) {
+            // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
+            // which is only true for RootObjectMapper, never for child object mappers.
             return objectMapper.syntheticFieldLoader(filter);
         }
 
@@ -986,10 +1018,18 @@ public class ObjectMapper extends Mapper {
         // Use an ordered map between field names and writers to order writing by field name.
         private TreeMap<String, FieldWriter> currentWriters;
 
-        private SyntheticSourceFieldLoader(SourceFilter filter, List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
+        private final boolean columnarStored;
+
+        private SyntheticSourceFieldLoader(
+            SourceFilter filter,
+            List<SourceLoader.SyntheticFieldLoader> fields,
+            boolean isFragment,
+            boolean columnarStored
+        ) {
             this.fields = fields;
             this.isFragment = isFragment;
             this.filter = filter;
+            this.columnarStored = columnarStored;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1102,9 +1142,9 @@ public class ObjectMapper extends Mapper {
                 return;
             }
 
-            if (isRoot() && isEnabled() == false) {
-                // If the root object mapper is disabled, it is expected to contain
-                // the source encapsulated within a single ignored source value.
+            if (isRoot() && (isEnabled() == false || columnarStored)) {
+                // If the root object mapper is disabled, or this is a columnar_stored index, the source is
+                // encapsulated within a single ignored source value pre-computed at index time.
                 assert ignoredValues.size() == 1 : ignoredValues.size();
                 var value = ignoredValues.get(0).value();
                 var type = XContentDataHelper.decodeType(value);

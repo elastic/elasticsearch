@@ -50,6 +50,8 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference.telemetry;
     exports org.elasticsearch.xpack.inference.external.http.sender;
     exports org.elasticsearch.xpack.inference.services.elastic;
+    exports org.elasticsearch.xpack.inference.common.oauth2;
+    exports org.elasticsearch.xpack.inference.common;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

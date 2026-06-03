@@ -23,8 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
-public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByPaginatedSearchResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
         "reindex.remote.whitelist",
         Property.NodeScope
@@ -146,9 +146,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
+    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         validate(request);
-        normalize(request);
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(
             bulkByPaginatedSearchTask,
@@ -172,13 +171,5 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     protected void validate(ReindexRequest request) {
         reindexValidator.initialValidation(request);
-    }
-
-    /**
-     * This method can be overridden if different than usual normalization is needed.
-     * This method should throw an exception if normalization fails.
-     */
-    protected void normalize(ReindexRequest request) {
-        reindexValidator.normalize(request);
     }
 }

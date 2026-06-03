@@ -117,10 +117,11 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
+                // TODO: Will materialize the original source bytes if currently row. Consider making watcher row aware.
                 Watch watch = parser.parseWithSecrets(
                     operation.id(),
                     true,
-                    operation.source(),
+                    operation.source().originalBytes(),
                     now,
                     XContentType.JSON,
                     operation.getIfSeqNo(),

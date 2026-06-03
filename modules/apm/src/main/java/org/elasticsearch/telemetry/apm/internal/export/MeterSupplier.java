@@ -10,17 +10,27 @@
 package org.elasticsearch.telemetry.apm.internal.export;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import java.util.function.Supplier;
 
 public interface MeterSupplier extends Supplier<Meter>, AutoCloseable {
 
     /**
-     * Export any buffered metrics on a best-effort basis.
-     * <p>
-     * This defaults to a no-op just to support the fairly widespread practice of using a lambda for this in tests.
+     * Initiates a best-effort export of buffered metrics. Callers must join the result with an appropriate timeout.
      */
-    default void attemptFlushMetrics() {}
+    default CompletableResultCode attemptFlushMetrics() {
+        return CompletableResultCode.ofSuccess();
+    }
+
+    /**
+     * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Defaults to {@link MeterProvider#noop()} when the supplier does not expose a concrete provider.
+     */
+    default MeterProvider getHealthMeterProvider() {
+        return MeterProvider.noop();
+    }
 
     @Override
     default void close() {}

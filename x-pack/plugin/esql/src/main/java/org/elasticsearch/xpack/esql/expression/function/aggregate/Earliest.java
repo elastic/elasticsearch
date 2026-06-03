@@ -38,7 +38,27 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "date_nanos",
+            "dense_vector",
+            "double",
+            "exponential_histogram",
+            "geo_point",
+            "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "tdigest",
+            "unsigned_long",
+            "version" },
         description = """
             An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
             the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
@@ -49,7 +69,28 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
         Source source,
         @Param(
             name = "field",
-            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "date_nanos",
+                "dense_vector",
+                "double",
+                "exponential_histogram",
+                "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "tdigest",
+                "unsigned_long",
+                "text",
+                "version" },
             description = "The search field"
         ) Expression field,
         Expression timestamp
@@ -95,14 +136,28 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.DATE_NANOS
                 || DataType.isString(dt)
                 || dt == DataType.IP
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+                || dt.isNumeric()
+                || dt == DataType.VERSION
+                || dt == DataType.CARTESIAN_POINT
+                || dt == DataType.CARTESIAN_SHAPE
+                || dt == DataType.GEO_POINT
+                || dt == DataType.GEO_SHAPE
+                || dt == DataType.GEOHASH
+                || dt == DataType.GEOTILE
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
             "date",
+            "dense_vector",
+            "exponential_histogram",
             "ip",
             "string",
-            "numeric except unsigned_long or counter types"
+            "tdigest",
+            "numeric except counter types"
         ).and(
             isType(
                 timestamp,

@@ -576,18 +576,29 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                     } else if (numberType == DataType.LONG) {
                         attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
                     }
-                    return new TestCaseSupplier.TestCase(
-                        args,
-                        "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
-                            + attr
-                            + ", "
-                            + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
-                        DataType.DOUBLE,
-                        resultsMatcher(args)
-                    ).withExtra(META_NUMERIC_50);
+                    return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args))
+                        .withExtra(META_NUMERIC_50);
                 }));
             }
         }
+    }
+
+    /**
+     * Bucket wraps {@code DivDoublesByConstantEvaluator}, whose toString carries an optional
+     * pathLabel suffix ({@code (standard)} or {@code (jit-folded)}) emitted by the
+     * {@code @Fixed(jitConstant=true)} codegen — see {@code ConstantMethodResultSpecializer}.
+     * Tests can land on either label depending on the JVM-wide admission tracker state at the
+     * moment the evaluator is built, so accept all three forms (no suffix is also legal:
+     * other tests in the same JVM may have warmed up the cache to a state that strips it).
+     */
+    private static org.hamcrest.Matcher<String> bucketDivToStringMatcher(String attr) {
+        String head = "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesByConstantEvaluator[lhs=" + attr + ", rhs=50.0]";
+        String tail = "], rhs=LiteralsEvaluator[lit=50.0]]";
+        return Matchers.anyOf(
+            Matchers.equalTo(head + tail),
+            Matchers.equalTo(head + " (standard)" + tail),
+            Matchers.equalTo(head + " (jit-folded)" + tail)
+        );
     }
 
     private static TestCaseSupplier.TypedData numericBound(String name, DataType type, double value) {
@@ -615,15 +626,9 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                 } else if (numberType == DataType.LONG) {
                     attr = "CastLongToDoubleEvaluator[v=" + attr + "]";
                 }
-                return new TestCaseSupplier.TestCase(
-                    args,
-                    "MulDoublesEvaluator[lhs=FloorDoubleEvaluator[val=DivDoublesEvaluator[lhs="
-                        + attr
-                        + ", "
-                        + "rhs=LiteralsEvaluator[lit=50.0]]], rhs=LiteralsEvaluator[lit=50.0]]",
-                    DataType.DOUBLE,
-                    resultsMatcher(args)
-                ).withExtra(META_NUMERIC_50);
+                return new TestCaseSupplier.TestCase(args, bucketDivToStringMatcher(attr), DataType.DOUBLE, resultsMatcher(args)).withExtra(
+                    META_NUMERIC_50
+                );
             }));
         }
 

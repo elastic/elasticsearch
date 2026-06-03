@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
@@ -47,11 +49,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Math.toIntExact;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -376,13 +380,18 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         assertThat("relocated task has a distinct numeric id", relocatedTaskId, not(equalTo(originalTaskId)));
 
         if (slices > 1) {
-            assertBusy(
-                () -> assertThat(
+            assertBusy(() -> {
+                BulkByPaginatedSearchTask.Status status = asInstanceOf(
+                    BulkByPaginatedSearchTask.Status.class,
+                    clusterAdmin().getTask(new GetTaskRequest().setTaskId(originalTaskId)).actionGet().getTask().getTask().status()
+                );
+                int slicesCompletedOnOriginalTask = toIntExact(status.getSliceStatuses().stream().filter(Objects::nonNull).count());
+                assertThat(
                     "slice workers should be registered under the relocated parent",
                     listChildrenOf(relocatedTaskId),
-                    hasSize(slices)
-                )
-            );
+                    hasSize(slices - slicesCompletedOnOriginalTask)
+                );
+            });
         }
 
         return new RelocatedReindex(survivorNodeName, originalTaskId, relocatedTaskId);

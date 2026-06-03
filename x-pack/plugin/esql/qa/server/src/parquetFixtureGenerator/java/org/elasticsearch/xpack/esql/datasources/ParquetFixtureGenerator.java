@@ -20,13 +20,18 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -55,9 +60,10 @@ public final class ParquetFixtureGenerator {
 
     private ParquetFixtureGenerator() {}
 
+    private static final Logger logger = LoggerFactory.getLogger(ParquetFixtureGenerator.class);
     private static final String HIVE_BY_FLAG = "--hive-by";
 
-    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
+    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
         if (args.length == 5 && HIVE_BY_FLAG.equals(args[2])) {
             Path sourcePath = Path.of(args[0]);
@@ -78,7 +84,7 @@ public final class ParquetFixtureGenerator {
             Files.createDirectories(outputPath.getParent());
             byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE, codec);
             Files.write(outputPath, parquetBytes);
-            System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+            logger.info("Generated Parquet fixture ({}): {}", codec, outputPath);
         } else if (args.length == 3 || args.length == 4) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
@@ -91,15 +97,16 @@ public final class ParquetFixtureGenerator {
             String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
             CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
             int total = result.rows().size();
-            int partSize = (total + numParts - 1) / numParts;
             for (int part = 0; part < numParts; part++) {
-                int from = part * partSize;
-                int to = Math.min(from + partSize, total);
-                String fileName = String.format(java.util.Locale.ROOT, "%s_%02d.parquet", baseName, part);
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
+                    break;
+                }
+                String fileName = String.format(Locale.ROOT, "%s_%02d.parquet", baseName, part);
                 Path outputPath = outputDir.resolve(fileName);
-                byte[] parquetBytes = generateFromRows(result, from, to, codec);
+                byte[] parquetBytes = generateFromRows(result, range.from(), range.to(), codec);
                 Files.write(outputPath, parquetBytes);
-                System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
+                logger.info("Generated Parquet fixture ({}): {}", codec, outputPath);
             }
         } else {
             System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet> [codec]");
@@ -119,7 +126,6 @@ public final class ParquetFixtureGenerator {
      * column is preserved in the parquet payload so the fixture can also be queried on the data column
      * itself; the partition column name is deliberately distinct to avoid colliding with that payload.
      */
-    @SuppressForbidden(reason = "Gradle JavaExec task generator writes progress to System.out")
     private static void generateHivePartitionedByColumn(
         Path sourcePath,
         Path outputDir,
@@ -160,7 +166,7 @@ public final class ParquetFixtureGenerator {
                 codec
             );
             Files.write(outputPath, bytes);
-            System.out.println("Generated Hive partition (" + codec + "): " + outputPath + " (" + e.getValue().size() + " rows)");
+            logger.info("Generated Hive partition ({}): {} ({} rows)", codec, outputPath, e.getValue().size());
         }
     }
 
@@ -202,12 +208,22 @@ public final class ParquetFixtureGenerator {
         OutputFile outputFile = createOutputFile(baos);
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
 
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
+        // Pre-compute per-column dotted-path segments; flat (literal-dot) columns get a 1-element
+        // path containing the original full name, so resolveParent treats them as top-level.
+        String[][] columnPaths = new String[columns.size()][];
+        for (int i = 0; i < columns.size(); i++) {
+            columnPaths[i] = flatten[i] ? new String[] { columns.get(i).name() } : columns.get(i).name().split("\\.");
+        }
         try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).withCompressionCodec(codec).build()) {
             for (Object[] row : rows) {
                 Group g = factory.newGroup();
+                Map<String, Group> parentCache = new HashMap<>();
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = i < row.length ? row[i] : null;
-                    addValue(g, columns.get(i), isListColumn[i], value);
+                    Group target = resolveParent(g, columnPaths[i], parentCache);
+                    String leafName = columnPaths[i][columnPaths[i].length - 1];
+                    addValueAt(target, leafName, columns.get(i).type(), isListColumn[i], value);
                 }
                 writer.write(g);
             }
@@ -215,18 +231,91 @@ public final class ParquetFixtureGenerator {
         return baos.toByteArray();
     }
 
-    private static MessageType buildSchema(List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
-        List<Type> fields = new ArrayList<>(columns.size());
-        for (int i = 0; i < columns.size(); i++) {
-            CsvFixtureParser.ColumnSpec col = columns.get(i);
-            if (isListColumn[i]) {
-                Type listType = parquetListType(col);
-                fields.add(listType);
-            } else {
-                fields.add(parquetScalarType(col.type()).named(col.name()));
+    /**
+     * Returns the parent {@link Group} for the given path, creating nested groups lazily and
+     * caching them by dotted-prefix so two columns sharing the same parent (e.g.
+     * {@code event.action} and {@code event.outcome}) write into the same group instance.
+     */
+    private static Group resolveParent(Group root, String[] path, Map<String, Group> parentCache) {
+        if (path.length == 1) {
+            return root;
+        }
+        StringBuilder key = new StringBuilder();
+        Group current = root;
+        for (int i = 0; i < path.length - 1; i++) {
+            if (i > 0) {
+                key.append('.');
             }
+            key.append(path[i]);
+            String cacheKey = key.toString();
+            Group existing = parentCache.get(cacheKey);
+            if (existing == null) {
+                existing = current.addGroup(path[i]);
+                parentCache.put(cacheKey, existing);
+            }
+            current = existing;
+        }
+        return current;
+    }
+
+    /**
+     * Builds a Parquet schema from the CSV columns. CSV headers containing a literal {@code .}
+     * (e.g. {@code event.action:STRING}) are interpreted as paths into nested STRUCT groups —
+     * columns sharing a prefix are grouped under a single optional Parquet group, <b>unless</b>
+     * that prefix already exists as a separate top-level column in the same CSV (e.g.
+     * {@code languages} + {@code languages.long}). In that case the dotted children remain flat
+     * to preserve backward compatibility with existing fixtures that rely on literal-dot
+     * top-level column names.
+     */
+    private static MessageType buildSchema(List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
+        Node root = new Node();
+        for (int i = 0; i < columns.size(); i++) {
+            if (flatten[i]) {
+                Node leaf = new Node();
+                leaf.columnIndex = i;
+                root.children.put(columns.get(i).name(), leaf);
+                continue;
+            }
+            String[] segments = columns.get(i).name().split("\\.");
+            Node current = root;
+            for (int s = 0; s < segments.length - 1; s++) {
+                current = current.children.computeIfAbsent(segments[s], k -> new Node());
+            }
+            Node leaf = new Node();
+            leaf.columnIndex = i;
+            current.children.put(segments[segments.length - 1], leaf);
+        }
+        List<Type> fields = new ArrayList<>();
+        for (Map.Entry<String, Node> e : root.children.entrySet()) {
+            fields.add(buildType(e.getKey(), e.getValue(), columns, isListColumn));
         }
         return new MessageType("schema", fields);
+    }
+
+    private static Type buildType(String name, Node node, List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
+        if (node.columnIndex >= 0) {
+            int i = node.columnIndex;
+            CsvFixtureParser.ColumnSpec col = columns.get(i);
+            if (isListColumn[i]) {
+                // Reuse list-type construction but force the user-facing leaf name.
+                return parquetListType(new CsvFixtureParser.ColumnSpec(name, col.type()));
+            }
+            return parquetScalarType(col.type()).named(name);
+        }
+        Types.GroupBuilder<org.apache.parquet.schema.GroupType> builder = Types.optionalGroup();
+        for (Map.Entry<String, Node> e : node.children.entrySet()) {
+            builder = builder.addField(buildType(e.getKey(), e.getValue(), columns, isListColumn));
+        }
+        return builder.named(name);
+    }
+
+    /** Trie node for grouping dotted CSV columns into nested Parquet groups. */
+    private static final class Node {
+        /** Index into the columns list when this node is a leaf; -1 for inner nodes. */
+        int columnIndex = -1;
+        /** Ordered children so the generated schema is deterministic. */
+        final LinkedHashMap<String, Node> children = new LinkedHashMap<>();
     }
 
     private static Type parquetListType(CsvFixtureParser.ColumnSpec col) {
@@ -265,7 +354,7 @@ public final class ParquetFixtureGenerator {
         };
     }
 
-    private static void addValue(Group g, CsvFixtureParser.ColumnSpec col, boolean isList, Object value) {
+    private static void addValueAt(Group g, String leafName, String type, boolean isList, Object value) {
         if (value == null) {
             return;
         }
@@ -278,21 +367,21 @@ public final class ParquetFixtureGenerator {
             } else {
                 listValue = List.of(value);
             }
-            addListValue(g, col, listValue);
+            addListValueAt(g, leafName, type, listValue);
         } else {
-            addScalarValue(g, col, value);
+            addScalarValueAt(g, leafName, type, value);
         }
     }
 
-    private static void addListValue(Group g, CsvFixtureParser.ColumnSpec col, List<Object> list) {
+    private static void addListValueAt(Group g, String leafName, String type, List<Object> list) {
         if (list == null || list.isEmpty()) {
             return;
         }
-        Group listGroup = g.addGroup(col.name());
+        Group listGroup = g.addGroup(leafName);
         for (Object elem : list) {
             Group listElement = listGroup.addGroup("list");
             if (elem != null) {
-                appendListElement(listElement, col.type(), elem);
+                appendListElement(listElement, type, elem);
             }
         }
     }
@@ -308,17 +397,17 @@ public final class ParquetFixtureGenerator {
         }
     }
 
-    private static void addScalarValue(Group g, CsvFixtureParser.ColumnSpec col, Object value) {
+    private static void addScalarValueAt(Group g, String leafName, String type, Object value) {
         try {
-            switch (col.type()) {
-                case "integer", "short", "byte" -> g.add(col.name(), ((Number) value).intValue());
-                case "long" -> g.add(col.name(), ((Number) value).longValue());
-                case "double", "scaled_float" -> g.add(col.name(), ((Number) value).doubleValue());
-                case "float", "half_float" -> g.add(col.name(), ((Number) value).floatValue());
-                case "boolean" -> g.add(col.name(), Boolean.TRUE.equals(value));
-                case "date" -> g.add(col.name(), ((Number) value).longValue());
-                case "ip" -> g.add(col.name(), value.toString());
-                default -> g.add(col.name(), value.toString());
+            switch (type) {
+                case "integer", "short", "byte" -> g.add(leafName, ((Number) value).intValue());
+                case "long" -> g.add(leafName, ((Number) value).longValue());
+                case "double", "scaled_float" -> g.add(leafName, ((Number) value).doubleValue());
+                case "float", "half_float" -> g.add(leafName, ((Number) value).floatValue());
+                case "boolean" -> g.add(leafName, Boolean.TRUE.equals(value));
+                case "date" -> g.add(leafName, ((Number) value).longValue());
+                case "ip" -> g.add(leafName, value.toString());
+                default -> g.add(leafName, value.toString());
             }
         } catch (Exception e) {
             // Skip unparseable values

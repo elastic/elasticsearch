@@ -5,12 +5,24 @@
 | field | result |
 | --- | --- |
 | boolean | boolean |
+| cartesian_point {applies_to}`stack: ga 9.5.0` | cartesian_point |
+| cartesian_shape {applies_to}`stack: ga 9.5.0` | cartesian_shape |
 | date | date |
 | date_nanos | date_nanos |
+| dense_vector {applies_to}`stack: ga 9.5.0` | dense_vector |
 | double | double |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | exponential_histogram |
+| geo_point {applies_to}`stack: ga 9.5.0` | geo_point |
+| geo_shape {applies_to}`stack: ga 9.5.0` | geo_shape |
+| geohash {applies_to}`stack: ga 9.5.0` | geohash |
+| geohex {applies_to}`stack: ga 9.5.0` | geohex |
+| geotile {applies_to}`stack: ga 9.5.0` | geotile |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |
 | long | long |
+| tdigest {applies_to}`stack: ga 9.5.0` | tdigest |
 | text | keyword |
+| unsigned_long {applies_to}`stack: ga 9.5.0` | unsigned_long |
+| version {applies_to}`stack: ga 9.5.0` | version |
 

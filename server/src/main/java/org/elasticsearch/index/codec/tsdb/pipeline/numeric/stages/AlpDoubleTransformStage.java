@@ -123,6 +123,10 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     public void encode(final long[] values, final int valueCount, final EncodingContext context) {
         assert valueCount >= 1 : "valueCount must be at least 1";
 
+        if (baselineAlreadyNearOptimal(values, valueCount)) {
+            return;
+        }
+
         int bestE;
         int bestF;
         int bestExceptions;
@@ -184,6 +188,53 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         for (int i = 0; i < excCount; i++) {
             values[metadata.readVInt()] = metadata.readLong();
         }
+    }
+
+    /**
+     * Threshold on the spread of sortable-long deltas above which the integer baseline
+     * loses its near-optimal compression. Below the threshold the downstream
+     * {@code delta > offset > bitPack} fits residuals into at most {@code ceil(log2(17))=5}
+     * bits per value and ALP cannot improve on that floor.
+     */
+    static final long DELTA_SPREAD_THRESHOLD = 16L;
+
+    /**
+     * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
+     * a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. In sortable-long space
+     * this characterises monotonic doubles that stay inside a single IEEE 754 exponent
+     * (e.g., a slow drift gauge in a narrow value range); IEEE 754 division can perturb
+     * the stride by a few ULPs, hence the bounded tolerance rather than exact equality.
+     * For these blocks the downstream baseline already compresses to roughly one bit per
+     * value, so ALP can only add exception overhead and the stage opts out.
+     *
+     * <p>Constant blocks (stride zero) are deliberately excluded; ALP handles them in
+     * seven bytes versus the baseline's twelve.
+     *
+     * <p>The hot loop uses {@link Math#min(long, long)} and {@link Math#max(long, long)}
+     * which HotSpot lowers to branchless conditional-move instructions, letting the JIT
+     * auto-vectorise the min/max reduction on platforms where SIMD over longs is
+     * available.
+     */
+    private static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
+        if (valueCount < 3) {
+            return false;
+        }
+        final long firstStride = values[1] - values[0];
+        if (firstStride == 0) {
+            return false;
+        }
+        long min = firstStride;
+        long max = firstStride;
+        for (int i = 2; i < valueCount; i++) {
+            final long stride = values[i] - values[i - 1];
+            min = Math.min(min, stride);
+            max = Math.max(max, stride);
+        }
+        final long spread = max - min;
+        if (spread < 0) {
+            return false;
+        }
+        return spread <= DELTA_SPREAD_THRESHOLD;
     }
 
     public static void encodeStatic(final AlpDoubleTransformStage stage, final long[] values, int valueCount, final EncodingContext context)

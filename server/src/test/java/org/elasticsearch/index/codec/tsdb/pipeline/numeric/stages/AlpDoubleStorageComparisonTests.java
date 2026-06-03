@@ -126,10 +126,16 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         }
     }
 
-    public void testMonotonicAscendingCurrencyNoCatastrophicRegression() throws IOException {
+    public void testMonotonicAscendingCurrencyMatchesBaseline() throws IOException {
         for (int blockSize : BLOCK_SIZES) {
             final long[] values = monotonicAscendingCurrencyBlock(blockSize);
-            assertBoundedRegression("monotonic ascending currency", blockSize, values);
+            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
+            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
+            assertEquals(
+                "ALP must skip on near-constant-stride blocks and match the baseline at blockSize=" + blockSize,
+                baselineSize,
+                alpSize
+            );
         }
     }
 

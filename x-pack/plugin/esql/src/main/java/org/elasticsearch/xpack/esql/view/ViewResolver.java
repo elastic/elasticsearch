@@ -550,18 +550,27 @@ public class ViewResolver {
         plans.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names */
-    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    /** Merge the unresolved relation unless the index patterns contain matching index names. */
+    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
-                    // A duplicate index name was found, fail this attempt to merge
-                    // This will cause the UnresolvedRelation to remain inside a subquery
+                    // A duplicate index name was found, fail this attempt to merge.
+                    return null;
+                }
+                // Prevent merging when a wildcard in one pattern matches a concrete name in the other.
+                // Merging would produce a single UnresolvedRelation that deduplicates the overlapping index
+                // during resolution, collapsing what should be two independent data copies into one.
+                if (Regex.isSimpleMatchPattern(otherPattern) == false && Regex.simpleMatch(mainPattern, otherPattern)) {
+                    return null;
+                }
+                if (Regex.isSimpleMatchPattern(otherPattern)
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.simpleMatch(otherPattern, mainPattern)) {
                     return null;
                 }
             }
         }
-        // No duplicated index names found, let's merge into a single UnresolvedRelation, reducing the branching required to execute
         return new UnresolvedRelation(
             main.source(),
             new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),

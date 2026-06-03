@@ -806,6 +806,7 @@ time:datetime            | first_count:long | last_count:long
 
 isNotNullFilter (timeseries mode)
 required_capability: ts_command_v0
+required_capability: count_of_histogram_types
 required_capability: fix_histogram_blockloaders_isnull
 
 TS tdigest_timeseries_index

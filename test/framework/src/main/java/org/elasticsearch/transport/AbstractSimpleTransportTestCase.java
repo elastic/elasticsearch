@@ -3420,14 +3420,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private static long[] getConstantMessageSizeHistogram(int count, long size) {
         final var histogram = new long[29];
         int bucket = 0;
-        long bucketLowerBound = 8;
+        long nextBucketLowestValue = 8;
         while (bucket < histogram.length) {
-            if (size <= bucketLowerBound) {
+            if (size < nextBucketLowestValue) {
                 histogram[bucket] = count;
                 return histogram;
             }
             bucket++;
-            bucketLowerBound <<= 1;
+            nextBucketLowestValue <<= 1;
         }
         throw new AssertionError("no bucket found");
     }

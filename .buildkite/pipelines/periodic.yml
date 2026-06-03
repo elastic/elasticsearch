@@ -9,6 +9,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -30,6 +31,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -51,6 +53,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -72,6 +75,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -93,6 +97,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -114,6 +119,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -135,6 +141,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -156,6 +163,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -177,6 +185,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -198,6 +207,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -219,6 +229,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -240,6 +251,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -261,6 +273,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -282,6 +295,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -303,6 +317,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -324,6 +339,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -345,6 +361,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -366,6 +383,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -387,6 +405,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -401,17 +420,18 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.16 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.16#bwcTest
+      - label: 8.19.17 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.17#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.16
+          BWC_VERSION: 8.19.17
         retry:
           automatic:
             - exit_status: "-1"
@@ -429,6 +449,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -450,6 +471,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -471,6 +493,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -485,17 +508,18 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.5 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.5#bwcTest
+      - label: 9.3.6 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.5
+          BWC_VERSION: 9.3.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -506,17 +530,18 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.4.2 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.2#bwcTest
+      - label: 9.4.3 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.4.2
+          BWC_VERSION: 9.4.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -611,7 +636,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -678,7 +703,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -737,7 +762,7 @@ steps:
               - openjdk21
               - openjdk25
               - openjdk26
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

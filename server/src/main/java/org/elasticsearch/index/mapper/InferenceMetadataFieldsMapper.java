@@ -51,6 +51,9 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
     public static final String CONTENT_TYPE = "_inference_fields";
 
     public static final NodeFeature INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES = new NodeFeature("inference_fields.get_via_source_includes");
+    public static final NodeFeature INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS = new NodeFeature(
+        "inference_fields.get_via_source_exclude_vectors"
+    );
 
     protected InferenceMetadataFieldsMapper(MappedFieldType inferenceFieldType) {
         super(inferenceFieldType);

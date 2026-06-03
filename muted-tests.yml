@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
-  method: testCBTrippingOnReduction
-  issue: https://github.com/elastic/elasticsearch/issues/134667
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
@@ -118,9 +115,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
-  method: testMigrationWithConcurrentUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/143674
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143697
@@ -252,9 +246,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/145963
-- class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
-  method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
-  issue: https://github.com/elastic/elasticsearch/issues/146106
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/147516
@@ -279,24 +270,66 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.search.KnnSearchIT
-  method: testKnnSearchWithScroll
-  issue: https://github.com/elastic/elasticsearch/issues/148590
-- class: org.elasticsearch.index.engine.CompletionStatsCacheTests
-  method: testCompletionStatsCache
-  issue: https://github.com/elastic/elasticsearch/issues/148965
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/149234
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:exponential_histogram.isNotNullFilter}
-  issue: https://github.com/elastic/elasticsearch/issues/149291
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
-  issue: https://github.com/elastic/elasticsearch/issues/149292
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testCreateCursorWithFormatTxtOnNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/149747
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
+  issue: https://github.com/elastic/elasticsearch/issues/149748
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/149749
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlSearchIT
+  method: testAllTypesWithRequestToUpgradedNodes
+  issue: https://github.com/elastic/elasticsearch/issues/149750
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double].}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 1}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 1}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 1}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 1 #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=<geo_shape>, <null>}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. null in 0}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[double]. null in 0 #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[float]. null in 0 #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[integer]. null in 0}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150079
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/150552
 
 # Examples:
 #

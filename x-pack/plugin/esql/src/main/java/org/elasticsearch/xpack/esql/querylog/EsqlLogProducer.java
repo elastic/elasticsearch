@@ -35,6 +35,8 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);
         if (remotes.isEmpty() == false) {

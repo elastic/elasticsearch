@@ -259,21 +259,23 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.small() /* TODO remove me - use literal true?*/))) {
-                /*
-                 * `fold` can make four things here:
-                 * 1. `TRUE`
-                 * 2. `FALSE`
-                 * 3. null
-                 * 4. A list with more than one `TRUE` or `FALSE` in it.
-                 *
-                 * In the first case, we're foldable if the condition is foldable.
-                 * The multivalued field will make a warning, but eventually
-                 * become null. And null will become false. So cases 2-4 are
-                 * the same. In those cases we are foldable only if the *rest*
-                 * of the condition is foldable.
-                 */
-                return condition.value.foldable();
+            /* Given the current condition is foldable,
+                if we have already folded the condition into a Literal
+                    If True, Case is foldable if the value is foldable
+                    If False, Case is foldable if the rest of the conditions are foldable
+                Otherwise
+                    if the value is foldable and the rest of the conditions are foldable, Case is foldable
+             */
+            if (condition.condition instanceof Literal literal) {
+                if (Boolean.TRUE.equals(literal.value())) {
+                    // The condition is literally TRUE, so only the matching value needs to be foldable.
+                    return condition.value.foldable();
+                } else {
+                    continue;
+                }
+            }
+            if (condition.value.foldable() == false) {
+                return false;
             }
         }
         return elseValue.foldable();
@@ -351,9 +353,36 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private Expression finishPartialFold(List<Expression> newChildren) {
+        Expression result = innerFinishPartialFold(newChildren);
+        if (result.dataType().noText().equals(dataType()) == false) {
+            throw new IllegalStateException("partiallyFold produced type [" + result.dataType() + "] but expected [" + dataType() + "]");
+        }
+        return result;
+    }
+
+    private Expression innerFinishPartialFold(List<Expression> newChildren) {
         return switch (newChildren.size()) {
+            // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            case 1 -> newChildren.get(0);
+            /*
+             * CASE(false, a, b) -> b
+             *
+             * We *must* return something of dataType or downstream stuff will
+             * blow up. `b` can be:
+             *   - dataType - return as-is
+             *   - TEXT when dataType is keyword - return as-is - which is safe because
+             *     TEXT is the same as KEYWORD everywhere that matters downstream from here
+             *   - any NULL-typed expression — cast it to dataType so callers
+             *     see the right type (e.g. KEYWORD, not NULL)
+             */
+            case 1 -> {
+                Expression child = newChildren.getFirst();
+                if (child.dataType() == NULL && dataType() != NULL) {
+                    yield new Literal(child.source(), null, dataType());
+                }
+                yield child;
+            }
+            // CASE(false, a, b, c, d) -> CASE(b, c, d)
             default -> replaceChildren(newChildren);
         };
     }

@@ -13,6 +13,9 @@
 # Prefix slash ensures these are only ignored at the same level as this file
 /.cursor/
 
+# pi agent harness
+.pi
+
 # intellij files
 .idea/
 *.iml

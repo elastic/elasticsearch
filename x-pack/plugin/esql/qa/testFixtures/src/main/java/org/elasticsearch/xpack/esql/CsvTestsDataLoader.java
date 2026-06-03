@@ -132,6 +132,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")
@@ -179,6 +182,7 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
+        new TestDataset("stored_source_k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")

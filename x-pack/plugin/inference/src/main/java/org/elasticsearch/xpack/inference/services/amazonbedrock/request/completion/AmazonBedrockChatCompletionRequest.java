@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.additionalTopK;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.convertChatCompletionMessagesToConverse;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.toDocument;
@@ -92,6 +93,15 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
+
+        // top_k has no field on the Bedrock InferenceConfiguration, so providers that support it
+        // (Anthropic, Cohere, Mistral) get it via additional model fields. Mirrors the wiring used
+        // in AmazonBedrockCompletionRequest for the non-unified completion path.
+        var topKFields = additionalTopK(requestEntity.topK());
+        if (topKFields != null) {
+            converseStreamRequest.additionalModelResponseFieldPaths(topKFields);
+        }
+
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build(), amazonBedrockModel);
     }
 

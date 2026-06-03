@@ -9,7 +9,7 @@ applies_to:
 
 # Reindex indices examples
 
-The [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) copies documents from a source index, data stream, or alias to a destination, allowing for optional data modification via scripts or ingest pipelines.
+The [Reindex API]({{es-apis}}operation/operation-reindex) copies documents from a source index, data stream, or alias to a destination, allowing for optional data modification through scripts or ingest pipelines.
 
 You can learn how to:
 
@@ -94,7 +94,7 @@ If the request contains `wait_for_completion=false`, {{es}} performs some prefli
 
 If you have many sources to reindex it is generally better to reindex them one at a time rather than using a glob pattern to pick up multiple sources.
 That way you can resume the process if there are any errors by removing the partially completed source and starting over.
-It also makes parallelizing the process fairly simple: split the list of sources to reindex and run each list in parallel.
+It also makes parallelizing the process straightforward: split the list of sources to reindex and run each list in parallel.
 
 One-off bash scripts seem to work nicely for this:
 
@@ -116,7 +116,7 @@ done
 
 Set `requests_per_second` to any positive decimal number (for example, `1.4`, `6`, or `1000`) to throttle the rate at which the reindex API issues batches of index operations.
 Requests are throttled by padding each batch with a wait time.
-To disable throttling, set `requests_per_second` to `-1`.
+To turn off throttling, set `requests_per_second` to `-1`.
 
 The throttling is done by waiting between batches so that the `scroll` that the reindex API uses internally can be given a timeout that takes into account the padding. The padding time is the difference between the batch size divided by the `requests_per_second` and the time spent writing. By default the batch size is `1000`, so if `requests_per_second` is set to `500`:
 
@@ -137,7 +137,7 @@ POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 
 The task ID can be found using the [task management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks).
 
-Just like when setting it on the Reindex API, `requests_per_second` can be either `-1` to disable throttling or any decimal number like `1.7` or `12` to throttle to that level.
+Like when setting it on the Reindex API, `requests_per_second` can be either `-1` to turn off throttling or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
 This prevents scroll timeouts.
 
@@ -247,14 +247,14 @@ Setting `slices` to `auto` will let {{es}} choose the number of slices to use.
 This setting will use one slice per shard, up to a certain limit.
 If there are multiple sources, it will choose the number of slices based on the index or backing index with the smallest number of shards.
 
-Adding `slices` to the reindex API just automates the manual process used in the section above, creating sub-requests which means it has some quirks:
+Adding `slices` to the reindex API automates the manual process used in the preceding section, creating sub-requests which means it has some quirks:
 
 * You can see these requests in the [task management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks). These sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains the status of completed slices.
 * These sub-requests are individually addressable for things like cancellation and rethrottling.
 * Rethrottling the request with `slices` will rethrottle the unfinished sub-request proportionally.
 * Canceling the request with `slices` will cancel each sub-request.
-* Due to the nature of `slices` each sub-request won't get a perfectly even portion of the documents. All documents will be addressed, but some slices may be larger than others. Expect larger slices to have a more even distribution.
+* Due to the nature of `slices` each sub-request won't get a perfectly even portion of the documents. All documents will be addressed, but some slices might be larger than others. Expect larger slices to have a more even distribution.
 * Parameters like `requests_per_second` and `max_docs` on a request with `slices` are distributed proportionally to each sub-request. Combine that with the point above about distribution being uneven and you should conclude that using `max_docs` with `slices` might not result in exactly `max_docs` documents being reindexed.
 * Each sub-request gets a slightly different snapshot of the source, though these are all taken at approximately the same time.
 
@@ -459,7 +459,7 @@ GET my-new-index-000001/_doc/1
 ```
 % TEST[continued]
 
-...which will return:
+The response is:
 
 ```console-result
 {
@@ -545,7 +545,7 @@ POST _reindex
 ```
 % TEST[setup:my_index_big]
 
-1. You may need to adjust the `min_score` depending on the relative amount of data extracted from source.
+1. You might need to adjust the `min_score` depending on the relative amount of data extracted from source.
 
 ## Modify documents during reindexing [reindex-scripts]
 
@@ -571,7 +571,7 @@ POST _reindex
 ```
 % TEST[setup:my_index]
 
-Just as in `_update_by_query`, you can set `ctx.op` to change the operation that is run on the destination:
+As in `_update_by_query`, you can set `ctx.op` to change the operation that is run on the destination:
 
 `noop`
 :   Set `ctx.op = "noop"` if your script decides that the document doesn't have to be indexed in the destination. This no operation will be reported in the `noop` counter in the response body.
@@ -581,14 +581,14 @@ Just as in `_update_by_query`, you can set `ctx.op` to change the operation that
 
 Setting `ctx.op` to anything other than `noop` or `delete` will result in an error. Similarly, modifying other fields in `ctx` besides `_id`, `_index`, `_version`, and `_routing` will also fail.
 
-Think of the possibilities! Just be careful; you are able to change:
+Be careful that you can change:
 
 * `_id`
 * `_index`
 * `_version`
 * `_routing`
 
-Setting `_version` to `null` or clearing it from the `ctx` map is just like not sending the version in an indexing request; it will cause the document to be overwritten in the destination regardless of the version on the target or the version type you use in the reindex API request.
+Setting `_version` to `null` or clearing it from the `ctx` map is like not sending the version in an indexing request. It will cause the document to be overwritten in the destination regardless of the version on the target or the version type you use in the reindex API request.
 
 ## Reindex from remote [reindex-from-remote]
 ```{applies_to}
@@ -624,8 +624,8 @@ The `host` parameter must contain a scheme, host, port (for example, `https://<O
 
 ### Using basic auth [reindex-basic-auth]
 
-To authenticate with the remote cluster using basic auth, set the `username` and `password` parameters, as in the example above.
-Be sure to use `https` when using basic auth, or the password will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
+To authenticate with the remote cluster using basic auth, set the `username` and `password` parameters, as in the preceding example.
+Be sure to use `https` when using basic auth, or the password will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behavior of the `https` connection.
 
 ### Using an API key [reindex-api-key]
 
@@ -692,7 +692,7 @@ POST _reindex
 ::::
 
 
-Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behaviour of the `https` connection.
+Be sure to use `https` when using an API key, or it will be sent in plain text. There are a [range of settings](#reindex-ssl) available to configure the behavior of the `https` connection.
 
 ### Permitted remote hosts [reindex-remote-whitelist]
 
@@ -701,7 +701,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 * In the versioned {{stack}}, remote hosts have to be explicitly allowed in elasticsearch.yml using the `reindex.remote.whitelist` property. It can be set to a comma-delimited list of allowed remote host and port combinations. Scheme is ignored; only the host and port are used. For example:
 
   ```
-  reindex.remote.whitelist: [otherhost:9200, another:9200, 127.0.10.*:9200, localhost:*"]
+  reindex.remote.whitelist: ["otherhost:9200", "another:9200", "127.0.10.*:9200", "localhost:*"]
   ```
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
@@ -714,7 +714,7 @@ This feature should work with remote clusters of any version of {{es}} you are l
 ::::{warning}
 {{es}} does not support forward compatibility across major versions. For example, you cannot reindex from a 7.x cluster into a 6.x cluster.
 ::::
-To enable queries sent to older versions of {{es}} the `query` parameter is sent directly to the remote host without validation or modification.
+To enable queries sent to earlier versions of {{es}} the `query` parameter is sent directly to the remote host without validation or modification.
 
 ::::{note}
 Reindexing from remote clusters does not support manual or automatic slicing.
@@ -724,7 +724,7 @@ Reindexing from remote clusters does not support manual or automatic slicing.
 
 Reindexing from a remote server uses an on-heap buffer that defaults to a maximum size of 100mb.
 If the remote index includes very large documents you'll need to use a smaller batch size.
-The example below sets the batch size to `10` which is very, very small.
+The following example sets the batch size to `10` which is very, very small.
 
 ```console
 POST _reindex
@@ -786,8 +786,8 @@ POST _reindex
 ### Configuring SSL parameters [reindex-ssl]
 
 Reindex from remote supports configurable SSL settings.
-These must be specified in the `elasticsearch.yml` file, with the exception of the secure settings, which you add in the {{es}} keystore.
-It is not possible to configure SSL in the body of the reindex API request.
+These must be specified in the `elasticsearch.yml` file, except for the secure settings, which you add in the {{es}} keystore.
+You cannot configure SSL in the body of the reindex API request.
 Refer to [Reindex settings](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings).
 
 ## Reindex in {{cps}} [reindex-cps]
@@ -796,7 +796,7 @@ serverless: preview
 ```
 
 When [{{cps}}](docs-content://explore-analyze/cross-project-search.md) is enabled, the [Reindex API](https://www.elastic.co/docs/api/doc/elasticsearch/v9/operation/operation-reindex) can pull documents from indices across linked {{serverless-short}} projects.
-The `source.index` field resolves across the origin project and all of its linked projects.
+The `source.index` field resolves across the origin project and all its linked projects.
 You can narrow the scope of the source using [project routing](docs-content://explore-analyze/cross-project-search/cross-project-search-project-routing.md) or [qualified index expressions](docs-content://explore-analyze/cross-project-search/cross-project-search-search.md#search-expressions).
 Documents are always written to the destination index on the origin project.
 
@@ -834,7 +834,7 @@ POST _reindex
 When using `source.remote.host`, you can reindex from another {{serverless-short}} project or an {{ech}} deployment over HTTP.
 By default, the reindex operation pulls documents only from the specified remote target.
 
-If the remote target is a {{cps}}-enabled {{serverless-short}} project, the `source.index` field can also resolve across the remote project and all of its linked projects. For this to work, the request must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md) that has **Cloud, Elasticsearch, and Kibana API** access. An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
+If the remote target is a {{cps}}-enabled {{serverless-short}} project, the `source.index` field can also resolve across the remote project and all its linked projects. For this to work, the request must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md) that has **Cloud, Elasticsearch, and Kibana API** access. An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
 
 The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):
 
@@ -891,7 +891,7 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
  - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` field in the `response` object to see if there were partial failures.
  - If this call returns a 404 (`NOT FOUND`) then reindex failed because the task was lost, perhaps due to a node restart.
 
-In any of the failure cases, partial data may have been written to the destination index.
+In any of the failure cases, partial data might have been written to the destination index.
 ::::
 
 To view all currently running reindex tasks (where this API is available):
@@ -920,9 +920,9 @@ GET _cat/allocation?v
 
 ## Version conflicts [version-conflicts]
 
-By default, version conflicts abort the reindexing process.
+By default, version conflicts stop the reindexing process.
 To continue reindexing in the case of conflicts, set `conflicts` to `proceed`.
-This may be necessary when retrying a failed reindex operation, as the destination index could be left in a partial state.
+This might be necessary when retrying a failed reindex operation, as the destination index could be left in a partial state.
 
 ```console
 POST _reindex

@@ -11,6 +11,7 @@ package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.painless.PainlessScript;
+import org.elasticsearch.painless.WriterConstants;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -511,6 +512,60 @@ public class Augmentation {
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();
+    }
+
+    /** Replaces each literal {@code target} with {@code replacement}, like {@link String#replace(CharSequence, CharSequence)}. */
+    public static String replace(String receiver, CharSequence target, CharSequence replacement) {
+        return receiver.replace(target, replacement);
+    }
+
+    /**
+     * Cancellation-aware {@link #replace(String, CharSequence, CharSequence)}.  The JDK call is O(length) but invisible
+     * to the cancellation budget, so a growing-string loop (e.g. {@code s = s.replace('A', 'AB')}) can burn unbounded
+     * CPU.  Reimplements the literal replace as a scan that polls {@link PainlessScript#_pollCancellation()} as it works,
+     * so a deadline interrupts it mid-call.  Delegates to the JDK method when no cancel check is set.
+     */
+    public static String replace(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.replace(target, replacement);
+        }
+
+        String targetString = target.toString();
+        String replacementString = replacement.toString();
+        StringBuilder result = new StringBuilder();
+
+        if (targetString.isEmpty()) {
+            // Match the JDK: replacement before the first char, between every pair, and after the last.
+            result.append(replacementString);
+            for (int index = 0; index < receiver.length(); index++) {
+                result.append(receiver.charAt(index)).append(replacementString);
+                if (index % WriterConstants.CANCELLATION_POLL_INTERVAL == 0) {
+                    script._pollCancellation();
+                }
+            }
+            return result.toString();
+        }
+
+        int from = 0;
+        for (int match = receiver.indexOf(targetString); match >= 0; match = receiver.indexOf(targetString, from)) {
+            appendChunked(script, result, receiver, from, match);
+            result.append(replacementString);
+            script._pollCancellation();
+            from = match + targetString.length();
+        }
+        appendChunked(script, result, receiver, from, receiver.length());
+        return result.toString();
+    }
+
+    /** Appends {@code sequence[start, end)} in chunks, polling after each so a single large copy cannot outrun a deadline. */
+    private static void appendChunked(PainlessScript script, StringBuilder result, CharSequence sequence, int start, int end) {
+        int index = start;
+        while (end - index > WriterConstants.CANCELLATION_POLL_INTERVAL) {
+            result.append(sequence, index, index + WriterConstants.CANCELLATION_POLL_INTERVAL);
+            script._pollCancellation();
+            index += WriterConstants.CANCELLATION_POLL_INTERVAL;
+        }
+        result.append(sequence, index, end);
     }
 
     /**

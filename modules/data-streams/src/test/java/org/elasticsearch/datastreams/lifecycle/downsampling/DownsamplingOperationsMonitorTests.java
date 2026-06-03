@@ -92,10 +92,10 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
             .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks)
             .build();
 
-        // the two shard tasks for index-one are deduplicated; both index names are returned
+        // the two shard tasks for index-one are deduplicated; both indices are returned
         assertThat(
             DownsamplingOperationsMonitor.getActivelyDownsampledIndexNames(projectWithTasks),
-            containsInAnyOrder("index-one", "index-two")
+            containsInAnyOrder(indexOne, indexTwo)
         );
     }
 }

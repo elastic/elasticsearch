@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -37,10 +39,10 @@ public final class IndexWarmer {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, Listener... listeners) {
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, IndexSettings indexSettings, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        list.add(new FieldDataWarmer(executor, indexFieldDataService, shouldWarmGlobalOrdinals(indexSettings)));
 
         Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
@@ -95,18 +97,31 @@ public final class IndexWarmer {
         TerminationHandle warmReader(IndexShard indexShard, ElasticsearchDirectoryReader reader);
     }
 
+    static boolean shouldWarmGlobalOrdinals(IndexSettings settings) {
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless) {
+            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
+        }
+        return true;
+    }
+
     private static class FieldDataWarmer implements IndexWarmer.Listener {
 
         private final Executor executor;
         private final IndexFieldDataService indexFieldDataService;
+        private final boolean eagerGlobalOrdinals;
 
-        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService) {
+        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService, boolean eagerGlobalOrdinals) {
             this.executor = executor;
             this.indexFieldDataService = indexFieldDataService;
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
         @Override
         public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
+            if (eagerGlobalOrdinals == false) {
+                return TerminationHandle.NO_WAIT;
+            }
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (MappedFieldType fieldType : mapperService.getEagerGlobalOrdinalsFields()) {

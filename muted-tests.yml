@@ -523,9 +523,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedDuringMerge
-  issue: https://github.com/elastic/elasticsearch/issues/150158
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
   issue: https://github.com/elastic/elasticsearch/issues/150187
@@ -563,12 +560,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testRestartAfterCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/150417
-- class: org.elasticsearch.xpack.search.AsyncSearchActionIT
-  method: testCCSCheckCompatibility
-  issue: https://github.com/elastic/elasticsearch/issues/150418
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
@@ -674,3 +665,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
   method: testMinMaxColdThenWarmShortCircuits
   issue: https://github.com/elastic/elasticsearch/issues/150616
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150620

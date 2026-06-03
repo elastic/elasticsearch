@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -260,8 +261,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
-        return new LookupResponse(pages, blockFactory);
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead) {
+        return new LookupResponse(pages, blockFactory, null, bytesRead);
     }
 
     @Override
@@ -524,15 +525,21 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private List<Page> pages;
         @Nullable
         private final String planString;
+        private final long bytesRead;
 
         LookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            this(pages, blockFactory, null);
+            this(pages, blockFactory, null, 0L);
         }
 
         LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString) {
+            this(pages, blockFactory, planString, 0L);
+        }
+
+        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString, long bytesRead) {
             super(blockFactory);
             this.pages = pages;
             this.planString = planString;
+            this.bytesRead = bytesRead;
         }
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -548,6 +555,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 } else {
                     this.planString = null;
                 }
+                this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)
+                    ? in.readVLong()
+                    : 0L;
                 this.pages = readPages;
                 success = true;
             } finally {
@@ -566,11 +576,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
                 out.writeOptionalString(planString);
             }
+            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Nullable
         public String planString() {
             return planString;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
         }
 
         @Override
@@ -597,12 +615,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 return false;
             }
             LookupResponse that = (LookupResponse) o;
-            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString);
+            return Objects.equals(pages, that.pages) && Objects.equals(planString, that.planString) && bytesRead == that.bytesRead;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pages, planString);
+            return Objects.hash(pages, planString, bytesRead);
         }
 
         @Override

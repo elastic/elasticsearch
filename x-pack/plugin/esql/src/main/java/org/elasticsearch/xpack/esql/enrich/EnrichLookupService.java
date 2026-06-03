@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
@@ -130,11 +131,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory, long bytesRead) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
-        return new LookupResponse(pages.getFirst(), blockFactory);
+        return new LookupResponse(pages.getFirst(), blockFactory, bytesRead);
     }
 
     @Override
@@ -266,10 +267,12 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     private static class LookupResponse extends AbstractLookupService.LookupResponse {
         private Page page;
+        private final long bytesRead;
 
-        private LookupResponse(Page page, BlockFactory blockFactory) {
+        private LookupResponse(Page page, BlockFactory blockFactory, long bytesRead) {
             super(blockFactory);
             this.page = page;
+            this.bytesRead = bytesRead;
         }
 
         private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -277,6 +280,12 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
             }
+            this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ) ? in.readVLong() : 0L;
+        }
+
+        @Override
+        public long bytesRead() {
+            return bytesRead;
         }
 
         @Override
@@ -285,6 +294,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
             reservedBytes += bytes;
             page.writeTo(out);
+            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+                out.writeVLong(bytesRead);
+            }
         }
 
         @Override

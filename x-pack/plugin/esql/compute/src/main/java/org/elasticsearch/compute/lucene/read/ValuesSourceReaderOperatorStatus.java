@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -33,7 +34,6 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
-    private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;
@@ -122,7 +122,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
     }
 
     private static boolean supportsBytesRead(TransportVersion version) {
-        return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
+        return version.supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ);
     }
 
     private static boolean supportsSplitOnBigValues(TransportVersion version) {

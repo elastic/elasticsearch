@@ -414,10 +414,11 @@ public class ViewResolver {
     }
 
     /**
-     * Finds a position of the pattern that resolved to the given view.
+     * Finds the last position of the pattern that resolved to the given view.
+     * Last position is preferred since it has a higher precedence (in presence of exclusions) if a view matched by several patterns.
      */
     private static int findMatchingPattern(String viewName, String[] patterns, EsqlResolveViewAction.Response response) {
-        for (int p = 0; p < patterns.length; p++) {
+        for (int p = patterns.length - 1; p >= 0; p--) {
             String pattern = patterns[p];
             for (var expression : response.getResolvedIndexExpressions().expressions()) {
                 // find resolved expression for the current pattern that resolves to the given view name

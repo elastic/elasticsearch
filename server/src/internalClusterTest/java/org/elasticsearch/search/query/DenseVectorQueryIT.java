@@ -72,6 +72,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
     private static final float DELTA = 1e-6f;
 
     private VectorIndexType selectedIndexType;
+    private ElementType selectedElementType;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -107,15 +108,20 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        // Pick any VectorIndexType that supports FLOAT. The randomized test seed cycles types over runs.
+        // Randomize over the float-family element types and any VectorIndexType that supports the chosen
+        // type. The randomized test seed cycles element types and index types over runs. bfloat16 stores
+        // reduced-precision vectors, but the dense_vector query and the script-score baseline both read the
+        // same stored representation, so the raw path still matches the ground truth within tolerance.
+        selectedElementType = randomFrom(ElementType.FLOAT, ElementType.BFLOAT16);
         selectedIndexType = randomFrom(
-            Arrays.stream(VectorIndexType.values()).filter(t -> t.supportsElementType(ElementType.FLOAT)).toList()
+            Arrays.stream(VectorIndexType.values()).filter(t -> t.supportsElementType(selectedElementType)).toList()
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
             .startObject("properties")
             .startObject(VECTOR_FIELD)
             .field("type", "dense_vector")
+            .field("element_type", selectedElementType.toString())
             .field("similarity", "l2_norm")
             .startObject("index_options")
             .field("type", selectedIndexType.name().toLowerCase(Locale.ROOT))

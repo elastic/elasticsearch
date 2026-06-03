@@ -80,6 +80,10 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
 
+## Entitlement Policy
+- Never add an entitlement speculatively. Each entry in `entitlement-policy.yaml` must have a specific justification — ideally a concrete `NotEntitledException` that was observed, or at minimum a clear explanation of why the library requires that capability. Entitlements are a security boundary; granting one "just in case" defeats the purpose.
+- Every use of `ESTestCase.WithoutEntitlements` must be accompanied by a comment explaining why the entitlement failure is spurious in the test context and would not occur in production.
+
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
 - In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.

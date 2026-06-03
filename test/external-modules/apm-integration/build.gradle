@@ -38,6 +38,6 @@ dependencies {
   javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
   javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
   javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
-  javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre"
+  javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre" // required by grpc-java (unrelated to the okhttp sender used on the ES side)
   javaRestTestRuntimeOnly "com.google.guava:failureaccess:1.0.2"
 }

@@ -36,9 +36,9 @@ public interface TelemetryProvider {
     /**
      * Flushes buffered audit log records through the OTel SDK {@code BatchLogRecordProcessor}.
      * Needed both for test assertions (to avoid racing the processor's schedule) and for
-     * graceful shutdown. No-op by default.
+     * graceful shutdown.
      */
-    default void attemptFlushLogs() {}
+    void attemptFlushLogs();
 
     TelemetryProvider NOOP = new NoopTelemetryProvider();
 
@@ -56,5 +56,8 @@ public interface TelemetryProvider {
 
         @Override
         public void attemptFlush() {}
+
+        @Override
+        public void attemptFlushLogs() {}
     }
 }

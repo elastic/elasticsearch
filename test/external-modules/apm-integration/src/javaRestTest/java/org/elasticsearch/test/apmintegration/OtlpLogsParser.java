@@ -27,8 +27,8 @@ import java.util.Optional;
 
 /**
  * Parses OTLP protobuf log records into the protocol-neutral {@link ReceivedTelemetry.ReceivedLog}.
- * Used by the HTTP {@code /v1/logs} route in {@link RecordingApmServer}; the gRPC path parses
- * inline in {@code RecordingApmServer.LogsServiceImpl}.
+ * Used by both the HTTP {@code /v1/logs} route and the gRPC {@code LogsServiceImpl} in
+ * {@link RecordingApmServer}.
  */
 public final class OtlpLogsParser {
 
@@ -47,7 +47,7 @@ public final class OtlpLogsParser {
         return result;
     }
 
-    private static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
+    static ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
         Map<String, Object> attributes = new HashMap<>();
         for (KeyValue kv : record.getAttributesList()) {
             Object value = unwrap(kv.getValue());

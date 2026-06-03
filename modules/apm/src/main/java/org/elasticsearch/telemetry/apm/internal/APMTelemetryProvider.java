@@ -62,6 +62,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
         CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Wires the logs supplier after construction. A setter is required rather than a constructor
+     * argument because {@link org.elasticsearch.telemetry.apm.APM} creates the provider in
+     * {@code getTelemetryProvider()} and the supplier in the later {@code createComponents()} call.
+     */
     public void setLogsSupplier(OtelSdkExportLogsSupplier supplier) {
         this.logsSupplier = supplier;
     }

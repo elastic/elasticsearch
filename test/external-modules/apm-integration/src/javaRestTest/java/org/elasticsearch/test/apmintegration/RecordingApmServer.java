@@ -15,8 +15,6 @@ import io.grpc.stub.StreamObserver;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
 import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
 import io.opentelemetry.proto.collector.logs.v1.LogsServiceGrpc;
-import io.opentelemetry.proto.common.v1.AnyValue;
-import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.logs.v1.LogRecord;
 import io.opentelemetry.proto.logs.v1.ResourceLogs;
 import io.opentelemetry.proto.logs.v1.ScopeLogs;
@@ -36,11 +34,7 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -103,12 +97,12 @@ public class RecordingApmServer extends ExternalResource {
         running = false;
         messageConsumerThread.interrupt();
         if (server != null) {
-            server.stop(1);
+            server.stop(30);
         }
         if (grpcServer != null) {
             grpcServer.shutdown();
             try {
-                grpcServer.awaitTermination(1, TimeUnit.SECONDS);
+                grpcServer.awaitTermination(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -231,7 +225,7 @@ public class RecordingApmServer extends ExternalResource {
                     for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
                         for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
                             for (LogRecord record : scopeLogs.getLogRecordsList()) {
-                                received.add(toReceivedLog(record));
+                                received.add(OtlpLogsParser.toReceivedLog(record));
                             }
                         }
                     }
@@ -243,36 +237,6 @@ public class RecordingApmServer extends ExternalResource {
             responseObserver.onCompleted();
         }
 
-        private ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
-            Map<String, Object> attributes = new HashMap<>();
-            for (KeyValue kv : record.getAttributesList()) {
-                Object value = unwrap(kv.getValue());
-                if (value != null) {
-                    attributes.put(kv.getKey(), value);
-                }
-            }
-            Optional<String> traceId = record.getTraceId().isEmpty()
-                ? Optional.empty()
-                : Optional.of(HexFormat.of().formatHex(record.getTraceId().toByteArray()));
-            return new ReceivedTelemetry.ReceivedLog(
-                record.getTimeUnixNano(),
-                record.getSeverityNumberValue(),
-                record.getSeverityText(),
-                record.getBody().getStringValue(),
-                attributes,
-                traceId
-            );
-        }
-
-        private Object unwrap(AnyValue value) {
-            return switch (value.getValueCase()) {
-                case STRING_VALUE -> value.getStringValue();
-                case INT_VALUE -> value.getIntValue();
-                case DOUBLE_VALUE -> value.getDoubleValue();
-                case BOOL_VALUE -> value.getBoolValue();
-                default -> null;
-            };
-        }
     }
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {

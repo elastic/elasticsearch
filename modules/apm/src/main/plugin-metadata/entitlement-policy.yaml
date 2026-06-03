@@ -110,7 +110,6 @@ io.opentelemetry.exporter.sender.jdk.internal:
 
 io.opentelemetry.exporter.sender.okhttp.internal:
   - manage_threads
-  - outbound_network
 
 okhttp3:
   - manage_threads

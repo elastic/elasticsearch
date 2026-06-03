@@ -16,9 +16,7 @@ and defaults to:
 
 ```js
 "stoptags": [
-    "E",
     "IC",
-    "J",
     "MAG", "MAJ", "MM",
     "SP", "SSC", "SSO", "SC", "SE",
     "XPN", "XSA", "XSN", "XSV",

@@ -152,7 +152,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
-        mockGetModelWithSecretsToReturnUnparsedModel(null);
+        mockGetModelWithSecretsToReturnUnparsedModel(null, INFERENCE_ENTITY_ID_VALUE);
 
         var listener = callMasterOperationWithActionFuture();
 
@@ -163,7 +163,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_ServiceNotFoundInRegistry_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
 
         mockServiceRegistryToReturnService(null);
@@ -175,8 +176,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_DefaultEndpointCheckFailed_ThrowsElasticsearchStatusException() {
-        mockGetModelWithSecretsToReturnUnparsedModelForDefaultEndpoint(
-            new UnparsedModel(DEFAULT_INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(DEFAULT_INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            DEFAULT_INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
 
@@ -192,7 +194,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_LicenseCheckFailed_ThrowsSecurityException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
 
@@ -208,7 +211,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_ValidationFailed_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -242,7 +246,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdatedModelIsEqualToExistingModel_ValidationAndUpdateIsSkipped() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
-        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
         GoogleVertexAiEmbeddingsModel model = createModel();
@@ -260,7 +264,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -286,7 +291,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdateModelTransactionReturnedFalse_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -307,7 +313,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_GetModelReturnedNull_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -329,7 +336,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_GetModelThrownException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -375,7 +383,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null, null);
 
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -406,7 +415,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void assertMasterOperation_UnknownSetting_ThrowsBadRequest(String requestBody) {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -441,7 +451,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var model = createMockedModel(mock(ServiceSettings.class), taskSettings, null, null);
 
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -462,7 +473,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UnknownChunkingSetting_ThrowsBadRequest() {
         mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of()),
+            INFERENCE_ENTITY_ID_VALUE
         );
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
@@ -490,7 +502,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
-        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel, INFERENCE_ENTITY_ID_VALUE);
         mockServiceRegistryToReturnService(service);
         mockLicenseStateIsAllowed(true);
         var model = createModel();
@@ -536,14 +548,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onFailure(exception);
             return Void.TYPE;
         }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
-    }
-
-    private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result) {
-        mockGetModelWithSecretsToReturnUnparsedModel(result, INFERENCE_ENTITY_ID_VALUE);
-    }
-
-    private void mockGetModelWithSecretsToReturnUnparsedModelForDefaultEndpoint(UnparsedModel result) {
-        mockGetModelWithSecretsToReturnUnparsedModel(result, DEFAULT_INFERENCE_ENTITY_ID_VALUE);
     }
 
     private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result, String inferenceEntityId) {

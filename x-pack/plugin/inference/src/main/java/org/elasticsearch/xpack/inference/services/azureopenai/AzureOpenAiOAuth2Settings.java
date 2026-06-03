@@ -42,7 +42,7 @@ public class AzureOpenAiOAuth2Settings extends BaseOAuth2Settings {
     public static final String TENANT_ID_FIELD = "tenant_id";
 
     public static final Set<String> REQUIRED_FIELDS = Sets.addToCopy(OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
-    public static final String REQUIRED_FIELDS_DESCRIPTION = OAuth2Settings.requiredFieldsDescription(REQUIRED_FIELDS);
+    public static final String REQUIRED_FIELDS_DESCRIPTION = requiredFieldsDescription(REQUIRED_FIELDS);
 
     private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
     private static final String SERVICE_DESCRIPTION = "Azure OpenAI";

@@ -58,25 +58,6 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
 
-    public static String requiredFieldsDescription(Set<String> requiredFields) {
-        return Strings.format("OAuth2 requires the fields %s, to be set.", new TreeSet<>(requiredFields));
-    }
-
-    public static void addMissingFieldsValidationException(
-        String serviceDescription,
-        Set<String> missingFields,
-        ValidationException validationException
-    ) {
-        validationException.addValidationError(
-            Strings.format(
-                "[%s] all %s OAuth2 fields must be provided together; missing: %s",
-                ModelConfigurations.SERVICE_SETTINGS,
-                serviceDescription,
-                new TreeSet<>(missingFields)
-            )
-        );
-    }
-
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.
      *

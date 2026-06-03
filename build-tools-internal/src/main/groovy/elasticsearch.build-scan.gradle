@@ -207,6 +207,8 @@ develocity {
           }
 
           if (onCI) {
+            def isRealFailure = result.failures && (!wasPreempted || failedBeforePreemption)
+
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
             runBuildkiteAgent(

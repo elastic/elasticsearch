@@ -60,7 +60,7 @@ public class InjectRowPositionForExternalId extends PhysicalOptimizerRules.Param
             if (a instanceof ExternalMetadataAttribute && FileMetadataColumns.RECORD_REF.equals(a.name())) {
                 positionRequested = true;
             }
-            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())) {
+            if (a instanceof MetadataAttribute m && m.synthetic() && ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())) {
                 rowPositionPresent = true;
             }
         }

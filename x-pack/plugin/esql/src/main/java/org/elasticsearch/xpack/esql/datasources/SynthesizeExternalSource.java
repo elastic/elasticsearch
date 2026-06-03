@@ -60,7 +60,8 @@ public final class SynthesizeExternalSource {
             return (BytesRefBlock) factory.newConstantNullBlock(0);
         }
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(positions)) {
-            // TODO: reuse a single map across rows (clear + repopulate) when synthesis hot-paths.
+            // TODO: per-row hot allocations (LinkedHashMap, Source.fromMap, BytesRef.deepCopyOf)
+            // are fine at current call rate; revisit (single reused map + builder) when hot.
             for (int row = 0; row < positions; row++) {
                 Map<String, Object> map = new LinkedHashMap<>(dataColumnNames.length);
                 for (int c = 0; c < dataColumnNames.length; c++) {

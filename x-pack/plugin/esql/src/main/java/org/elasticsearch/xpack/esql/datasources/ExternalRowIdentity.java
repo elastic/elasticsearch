@@ -76,11 +76,10 @@ public final class ExternalRowIdentity {
         int prefixLen = prefix.length;
         // Worst-case allocation: every row present + each row's decimal expansion at MAX_LONG_DIGITS.
         // Bound is generous but fixed-size and avoids a second pass to size; the unused tail bytes
-        // are dropped via the (offset, length) view inside the per-row BytesRef. Pathological deep
-        // paths could blow up — assert in CI.
-        assert (long) positions * (prefixLen + MAX_LONG_DIGITS) < Integer.MAX_VALUE
-            : "_id worst-case allocation overflows int: " + positions + " * (" + prefixLen + " + " + MAX_LONG_DIGITS + ")";
-        int worstCase = positions * (prefixLen + MAX_LONG_DIGITS);
+        // are dropped via the (offset, length) view inside the per-row BytesRef. multiplyExact
+        // surfaces a pathological deep path × large page combination as ArithmeticException in
+        // production rather than as a silent int overflow downstream.
+        int worstCase = Math.multiplyExact(positions, prefixLen + MAX_LONG_DIGITS);
         byte[] backing = new byte[worstCase];
         int[] offsets = new int[positions + 1];
         byte[] digits = new byte[MAX_LONG_DIGITS];
@@ -126,8 +125,9 @@ public final class ExternalRowIdentity {
 
         // Dense path: feed every row to the vector builder via a scratch view over the producer
         // backing array. The builder copies each appended BytesRef into its own internal buffer,
-        // so the rendered vector is not literally backed by `backing` — the single producer-side
-        // allocation here is the decoding scratch, not the vector's storage.
+        // so the rendered vector is not literally backed by `backing` — the producer-side
+        // allocations here are the decoding scratch (`backing` + `offsets`), not the vector's
+        // storage.
         try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
             BytesRef scratch = new BytesRef();
             scratch.bytes = backing;

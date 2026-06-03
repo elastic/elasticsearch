@@ -563,7 +563,7 @@ public class EsqlSession {
             // Only log on internal server errors. User-facing failures (verification errors, parse
             // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
             if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
-                logAnonymizedPlans(planSnapshot);
+                logAnonymizedPlans(planSnapshot, err);
             }
             next.onFailure(err);
         });
@@ -765,7 +765,7 @@ public class EsqlSession {
         }
     }
 
-    private void logAnonymizedPlans(PlanSnapshot snap) {
+    private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
         if (LOGGER.isErrorEnabled() == false) {
             return;
         }
@@ -778,18 +778,28 @@ public class EsqlSession {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
                 .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
             LOGGER.error(
-                "ESQL anonymized plans for failed session [{}]\n"
-                    + "schema:\n{}\n"
-                    + "parsed:\n{}\n"
-                    + "analyzed:\n{}\n"
-                    + "optimized:\n{}\n"
-                    + "physical:\n{}",
+                """
+                    ES|QL query failed in session [{}]
+                    failure:
+                    {}
+                    parsed:
+                    {}
+                    analyzed:
+                    {}
+                    optimized:
+                    {}
+                    physical:
+                    {}
+                    schema:
+                    {}""".stripIndent(),
                 sessionId,
-                anonymized.schema(),
+                err.getMessage(),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),
-                anonymized.physical()
+                anonymized.physical(),
+                anonymized.schema(),
+                err
             );
         } catch (Exception e) {
             LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);

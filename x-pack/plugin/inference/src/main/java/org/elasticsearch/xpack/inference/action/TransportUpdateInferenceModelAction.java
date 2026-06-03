@@ -135,6 +135,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                validateEndpointIsNotDefault(inferenceEntityId);
+
                 if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
                     listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
                     return;
@@ -211,6 +213,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 (listener, modelConfig) -> listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig))
             )
             .addListener(masterListener);
+    }
+
+    private static void validateEndpointIsNotDefault(String inferenceEntityId) {
+        if (inferenceEntityId.startsWith(".")) {
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] cannot be updated", inferenceEntityId);
+        }
     }
 
     protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {

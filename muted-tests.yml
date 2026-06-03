@@ -722,3 +722,6 @@ tests:
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testShouldPeriodicallyFlushOnSize
   issue: https://github.com/elastic/elasticsearch/issues/150669
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150670

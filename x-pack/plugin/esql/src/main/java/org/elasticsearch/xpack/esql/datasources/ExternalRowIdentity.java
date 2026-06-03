@@ -24,8 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
  * <p>
  * Allocation discipline: one {@link BytesRef} per file for the prefix; one {@code byte[]} plus
  * one {@code int[]} of offsets per page; zero per-row allocation (decimal-encoding of the row
- * position runs inline on a stack-resident scratch buffer). Target steady-state cost is under
- * 25ns/row.
+ * position runs inline on a stack-resident scratch buffer).
  */
 public final class ExternalRowIdentity {
 
@@ -77,7 +76,10 @@ public final class ExternalRowIdentity {
         int prefixLen = prefix.length;
         // Worst-case allocation: every row present + each row's decimal expansion at MAX_LONG_DIGITS.
         // Bound is generous but fixed-size and avoids a second pass to size; the unused tail bytes
-        // are dropped via the (offset, length) view inside the per-row BytesRef.
+        // are dropped via the (offset, length) view inside the per-row BytesRef. Pathological deep
+        // paths could blow up — assert in CI.
+        assert (long) positions * (prefixLen + MAX_LONG_DIGITS) < Integer.MAX_VALUE
+            : "_id worst-case allocation overflows int: " + positions + " * (" + prefixLen + " + " + MAX_LONG_DIGITS + ")";
         int worstCase = positions * (prefixLen + MAX_LONG_DIGITS);
         byte[] backing = new byte[worstCase];
         int[] offsets = new int[positions + 1];

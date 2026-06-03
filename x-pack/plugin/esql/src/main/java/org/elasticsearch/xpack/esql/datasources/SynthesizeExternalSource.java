@@ -27,10 +27,9 @@ import java.util.Set;
  * {@link Source#fromMap(Map, XContentType)}, and emitted as a {@code BytesRef} of type
  * {@link org.elasticsearch.xpack.esql.core.type.DataType#SOURCE}.
  * <p>
- * Reuses the framework's source synthesis path so the rendered bytes match what
- * {@code SourceLoader} produces for natively-stored indexed documents — a downstream
- * consumer that already knows how to parse {@code _source} (e.g. Kibana's row-detail view)
- * works unchanged.
+ * Renders via {@link Source#fromMap} so the output matches what {@code SourceLoader}
+ * produces for natively-stored indexed documents — a downstream consumer that already knows
+ * how to parse {@code _source} (e.g. Kibana's row-detail view) works unchanged.
  * <p>
  * This is producer-side and per-row; callers project {@code _source} sparingly because the
  * cost is linear in the bound data column count and dominated by JSON serialization. The
@@ -61,6 +60,7 @@ public final class SynthesizeExternalSource {
             return (BytesRefBlock) factory.newConstantNullBlock(0);
         }
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(positions)) {
+            // TODO: reuse a single map across rows (clear + repopulate) when synthesis hot-paths.
             for (int row = 0; row < positions; row++) {
                 Map<String, Object> map = new LinkedHashMap<>(dataColumnNames.length);
                 for (int c = 0; c < dataColumnNames.length; c++) {

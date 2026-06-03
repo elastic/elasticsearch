@@ -30,10 +30,11 @@ import java.util.List;
  * directly as {@code _file.record_ref} (see {@code ExternalRowIdentity} / {@code VirtualColumnIterator}).
  * <p>
  * Every file reader materializes {@code _rowPosition}: columnar formats (Parquet / Parquet-RS / ORC)
- * emit a file-global row index from their footer/stripe metadata; text formats (CSV / NDJSON) emit a
- * file-global start byte derived from {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#splitStartByte()}
- * plus bytes consumed. Because the value is reader-sourced and intrinsic to the record's position in
- * the file, it is identical regardless of how the file is split or how many workers read it.
+ * emit a file-global row index from their footer/stripe metadata; NDJSON emits a file-global byte
+ * offset via {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#splitStartByte()}
+ * plus bytes consumed; CSV emits a per-iterator record counter (single-split correct; multi-split
+ * byte-offset is a fast-follow). Reader-sourced and intrinsic to the record's position in the file
+ * on every non-CSV format, so the value is identical regardless of split layout.
  * <p>
  * Sibling of {@link InsertExternalFieldExtraction}, which also injects {@code _rowPosition} but for
  * the deferred-extraction late-materialization path (it additionally requires a TopN above the

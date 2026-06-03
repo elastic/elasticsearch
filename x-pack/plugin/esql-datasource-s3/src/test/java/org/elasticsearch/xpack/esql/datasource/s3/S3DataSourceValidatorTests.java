@@ -31,12 +31,12 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
-        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "region", "us-east-1");
+        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "session_token", "FwoG_sample", "region", "us-east-1");
     }
 
     @Override
     protected Set<String> expectedSecretFieldNames() {
-        return Set.of("access_key", "secret_key");
+        return Set.of("access_key", "secret_key", "session_token");
     }
 
     @Override
@@ -110,6 +110,22 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+        );
+    }
+
+    public void testValidateDatasourceWithSessionToken() {
+        var result = validator.validateDatasource(
+            Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")
+        );
+        assertTrue(result.get("session_token").secret());
+        assertEquals("FwoGZXIvYXdz", result.get("session_token").rawValue());
+        assertTrue(result.get("access_key").secret());
+    }
+
+    public void testValidateDatasourceSessionTokenConflictsWithAuthNone() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "session_token", "FwoGZXIvYXdz"))
         );
     }
 

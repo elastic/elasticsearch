@@ -84,6 +84,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
@@ -705,8 +706,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * choosing independently for each argument position.
      */
     private void checkCoAndContraVariance(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
-        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
-
         List<TestCaseSupplier.TypedData> data = testCase.getData();
 
         List<Integer> narrowablePositions = new ArrayList<>();
@@ -736,8 +735,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * narrowing individual arguments like this even in functions that require uniform input types in several arguments.
      */
     protected void checkCoAndContraVarianceUniformly(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
-        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
-
         List<TestCaseSupplier.TypedData> data = testCase.getData();
 
         Map<DataType, Set<DataType>> narrowableTypeMap = new LinkedHashMap<>();

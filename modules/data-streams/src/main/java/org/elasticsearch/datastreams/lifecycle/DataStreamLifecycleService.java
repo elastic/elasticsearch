@@ -719,7 +719,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 // So let's wait for an in-progress downsampling operation to succeed or trigger the last matching round
                 var downsamplingMethod = dataStream.getDataLifecycle().downsamplingMethod();
                 boolean canTriggerNewDownsampling = activeDownsamplingCount < maxDownsamplingIndicesInProgress;
-                Set<Index> downsamplingResult = waitForInProgressOrTriggerDownsampling(
+                Index downsamplingIndex = waitForInProgressOrTriggerDownsampling(
                     dataStream,
                     backingIndexMeta,
                     downsamplingRounds,
@@ -727,8 +727,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     project,
                     canTriggerNewDownsampling
                 );
-                affectedIndices.addAll(downsamplingResult);
-                if (downsamplingResult.isEmpty() == false) {
+                if (downsamplingIndex != null) {
+                    affectedIndices.add(downsamplingIndex);
                     if (canTriggerNewDownsampling) {
                         activeDownsamplingCount++;
                     } else {
@@ -754,9 +754,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Iterate over the matching downsampling rounds for the backing index (if any) and either wait for an early round to complete,
      * add an early completed downsampling round to the data stream, or otherwise trigger the last matching downsampling round.
      *
-     * Returns the indices for which we triggered an action/operation.
+     * Returns the index for which we triggered an action/operation, null otherwise
      */
-    private Set<Index> waitForInProgressOrTriggerDownsampling(
+    @Nullable
+    private Index waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
         List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
@@ -767,11 +768,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         assert dataStream.getIndices().contains(backingIndex.getIndex())
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
-        Set<Index> affectedIndices = new HashSet<>();
         DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
-        Index index = backingIndex.getIndex();
-        String indexName = index.getName();
+        Index sourceIndex = backingIndex.getIndex();
         for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
@@ -794,20 +793,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     targetDownsampleIndexMeta.getIndex()
                 );
                 if (downsamplingNotComplete.isEmpty() == false) {
-                    affectedIndices.addAll(downsamplingNotComplete);
-                    break;
+                    return sourceIndex;
                 }
             } else {
                 if (round.equals(lastRound)) {
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round
-                    affectedIndices.add(index);
                     if (canTriggerNewDownsampling) {
                         downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
                     }
+                    return sourceIndex;
                 }
             }
         }
-        return affectedIndices;
+        return null;
     }
 
     /**

@@ -68,14 +68,6 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     private final AtomicLong fileSettingsVersionCounter = new AtomicLong(1);
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -105,6 +97,10 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     @Before
     public void waitForInitialPekInstall() throws Exception {
+        assumeTrue(
+            "project encryption key feature flag must be enabled",
+            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
+        );
         ensureGreen();
         assertBusy(() -> assertThat(metadataOnMaster(), notNullValue()));
     }

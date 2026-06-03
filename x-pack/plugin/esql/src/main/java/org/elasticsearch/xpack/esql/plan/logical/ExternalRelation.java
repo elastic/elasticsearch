@@ -243,6 +243,14 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
+    public List<Object> nodeProperties() {
+        // metadata.config() may carry SecureString (dataset path) or plaintext String (inline
+        // EXTERNAL path) secrets. Keep them out of EXPLAIN / debug-log
+        // output. fileList and schemaMap are coordinator-only state, also omitted here.
+        return List.of(sourcePath, output);
+    }
+
+    @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
         // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.

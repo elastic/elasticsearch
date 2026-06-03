@@ -26,6 +26,10 @@ public class IndexPattern implements NodeStringRenderable {
         this.indexPattern = indexPattern;
     }
 
+    public Source source() {
+        return source;
+    }
+
     public String indexPattern() {
         return indexPattern;
     }
@@ -47,10 +51,6 @@ public class IndexPattern implements NodeStringRenderable {
 
         IndexPattern other = (IndexPattern) obj;
         return Objects.equals(indexPattern, other.indexPattern);
-    }
-
-    public Source source() {
-        return source;
     }
 
     /**

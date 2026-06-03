@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -133,5 +134,10 @@ public class EsqlLogContext extends QueryLoggerContext {
             .entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
+    }
+
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
     }
 }

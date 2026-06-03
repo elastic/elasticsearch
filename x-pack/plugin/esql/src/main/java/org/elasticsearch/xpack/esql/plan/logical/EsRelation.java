@@ -216,11 +216,18 @@ public class EsRelation extends LeafPlan {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }
 
-    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
-        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+    public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
+        if (additionalAttributes.isEmpty()) {
+            return this;
+        }
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + additionalAttributes.size());
         newAttrs.addAll(attrs);
-        newAttrs.add(additionalAttribute);
+        newAttrs.addAll(additionalAttributes);
         return withAttributes(newAttrs);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        return withAdditionalAttributes(List.of(additionalAttribute));
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {

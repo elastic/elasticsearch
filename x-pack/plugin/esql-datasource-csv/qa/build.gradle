@@ -58,7 +58,7 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
   duplicatesStrategy = DuplicatesStrategy.FAIL
   from(testFixturesProject.file('src/main/resources/data')) {
-    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv'
+    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
   }
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
@@ -140,7 +140,7 @@ tasks.register('generateMultifileCsvSplit_employees') {
 }
 
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
-def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
+def csvBasenamesForTsv = ['employees', 'web_logs', 'books', 'mv_sample', 'employees_no_mv']
 
 def generateStandaloneTsvTasks = []
 csvBasenamesForTsv.each { baseName ->
@@ -154,6 +154,8 @@ csvBasenamesForTsv.each { baseName ->
     args = [csvSynced.path, tsvOut.path]
     inputs.file(csvSynced)
     outputs.file(tsvOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateStandaloneTsvTasks.add(tasks.named(taskName))
 }
@@ -171,6 +173,8 @@ tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
   args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, '3']
   inputs.file(tsvMultifileSplitCsv)
   outputs.dir(tsvMultifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
 

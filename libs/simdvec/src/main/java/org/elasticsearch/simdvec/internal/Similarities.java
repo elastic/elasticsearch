@@ -112,6 +112,19 @@ public class Similarities {
         Operation.BULK_SPARSE
     );
 
+    static final MethodHandle DOT_PRODUCT_D1Q1 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_D1Q1_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_D1Q1_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D1Q1,
+        Operation.BULK_OFFSETS
+    );
+    static final MethodHandle DOT_PRODUCT_D1Q1_BULK_SPARSE = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        BBQType.D1Q1,
+        Operation.BULK_SPARSE
+    );
+
     static final MethodHandle DOT_PRODUCT_D2Q4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE);
     static final MethodHandle DOT_PRODUCT_D2Q4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.BULK);
     static final MethodHandle DOT_PRODUCT_D2Q4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -504,6 +517,38 @@ public class Similarities {
     public static void dotProductD1Q4BulkSparse(MemorySegment addresses, MemorySegment query, int length, int count, MemorySegment scores) {
         try {
             DOT_PRODUCT_D1Q4_BULK_SPARSE.invokeExact(addresses, query, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+        try {
+            return (long) DOT_PRODUCT_D1Q1.invokeExact(a, query, length);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductD1Q1Bulk(MemorySegment a, MemorySegment query, int length, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_D1Q1_BULK.invokeExact(a, query, length, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    public static void dotProductD1Q1BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment query,
+        int length,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_D1Q1_BULK_WITH_OFFSETS.invokeExact(a, query, length, pitch, offsets, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }

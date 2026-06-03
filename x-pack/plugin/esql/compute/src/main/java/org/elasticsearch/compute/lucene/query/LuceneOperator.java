@@ -365,6 +365,30 @@ public abstract class LuceneOperator extends SourceOperator {
             return bulkScorer == null || position >= maxPosition;
         }
 
+        /**
+         * Returns {@code true} when this scorer's current slice spans the entire leaf
+         * (i.e., {@code [0, maxDoc)}). Sub-segment slices produced by
+         * {@link LuceneSliceQueue.PartitioningStrategy#DOC} return {@code false}.
+         *
+         * <p>Used by callers that have leaf-wide shortcuts (e.g.
+         * {@link org.apache.lucene.search.Weight#count}) which must be suppressed when
+         * the driver only owns a sub-range — otherwise sibling DOC-partitioned drivers
+         * on the same leaf would each apply the same leaf-total and over-count.
+         */
+        boolean coversFullLeaf() {
+            return coversFullLeaf(position, maxPosition, leafReaderContext.reader().maxDoc());
+        }
+
+        /**
+         * Package-visible for testing. {@code maxPosition} may be {@link Integer#MAX_VALUE} for
+         * whole-leaf partitions (Lucene's
+         * {@code IndexSearcher.LeafReaderContextPartition.createForEntireSegment} uses that as the
+         * open-ended upper bound), so the comparison uses {@code >=} rather than {@code ==}.
+         */
+        static boolean coversFullLeaf(int position, int maxPosition, int leafMaxDoc) {
+            return position == 0 && maxPosition >= leafMaxDoc;
+        }
+
         void markAsDone() {
             position = DocIdSetIterator.NO_MORE_DOCS;
         }

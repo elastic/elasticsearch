@@ -21,20 +21,24 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * Supports authentication modes:
  * <ul>
  *   <li>Access key + secret key (static credentials)</li>
+ *   <li>Access key + secret key + session token (STS temporary credentials)</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
  * </ul>
+ * The node's ambient credentials (IAM role, instance profile, environment) are never used: a data source
+ * must carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  */
 public class S3Configuration extends FileDataSourceConfiguration {
 
     private static final DataSourceConfigDefinition ACCESS_KEY = secret("access_key");
     private static final DataSourceConfigDefinition SECRET_KEY = secret("secret_key");
+    private static final DataSourceConfigDefinition SESSION_TOKEN = secret("session_token");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition REGION = plaintext("region");
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
         SECRET_KEY,
+        SESSION_TOKEN,
         ENDPOINT,
         REGION,
         AUTH
@@ -62,7 +66,31 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region, String auth) {
-        var raw = buildRawMap(ACCESS_KEY, accessKey, SECRET_KEY, secretKey, ENDPOINT, endpoint, REGION, region, AUTH, auth);
+        return fromFields(accessKey, secretKey, null, endpoint, region, auth);
+    }
+
+    public static S3Configuration fromFields(
+        String accessKey,
+        String secretKey,
+        String sessionToken,
+        String endpoint,
+        String region,
+        String auth
+    ) {
+        var raw = buildRawMap(
+            ACCESS_KEY,
+            accessKey,
+            SECRET_KEY,
+            secretKey,
+            SESSION_TOKEN,
+            sessionToken,
+            ENDPOINT,
+            endpoint,
+            REGION,
+            region,
+            AUTH,
+            auth
+        );
         return raw != null ? fromMap(raw) : null;
     }
 
@@ -72,6 +100,10 @@ public class S3Configuration extends FileDataSourceConfiguration {
 
     public String secretKey() {
         return get(SECRET_KEY.name());
+    }
+
+    public String sessionToken() {
+        return get(SESSION_TOKEN.name());
     }
 
     public String endpoint() {

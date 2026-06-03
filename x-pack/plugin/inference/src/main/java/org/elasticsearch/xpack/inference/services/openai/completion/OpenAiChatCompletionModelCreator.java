@@ -13,6 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModelCreator;
@@ -25,8 +26,8 @@ import java.util.Map;
  */
 public class OpenAiChatCompletionModelCreator extends OpenAiModelCreator<OpenAiChatCompletionModel> {
 
-    public OpenAiChatCompletionModelCreator(ThreadPool threadPool, TokenCache tokenCache) {
-        super(threadPool, tokenCache);
+    public OpenAiChatCompletionModelCreator(ThreadPool threadPool, TokenCache tokenCache, OAuth2ClusterSettings oauth2ClusterSettings) {
+        super(threadPool, tokenCache, oauth2ClusterSettings);
     }
 
     @Override
@@ -49,12 +50,13 @@ public class OpenAiChatCompletionModelCreator extends OpenAiModelCreator<OpenAiC
             secretSettings,
             threadPool,
             tokenCache,
+            oauth2ClusterSettings,
             context
         );
     }
 
     @Override
     public OpenAiChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new OpenAiChatCompletionModel(config, secrets, threadPool, tokenCache);
+        return new OpenAiChatCompletionModel(config, secrets, threadPool, tokenCache, oauth2ClusterSettings);
     }
 }

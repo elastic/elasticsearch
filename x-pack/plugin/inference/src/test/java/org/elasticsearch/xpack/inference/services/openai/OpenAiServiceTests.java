@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloat
 import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.Utils.mockOAuth2ClusterSettings;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
@@ -1254,7 +1255,8 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             null,
             new OpenAiOAuth2SecretsSettings(new SecureString(clientSecret.toCharArray())),
             mock(ThreadPool.class),
-            NoopTokenCache.INSTANCE
+            NoopTokenCache.INSTANCE,
+            mockOAuth2ClusterSettings()
         );
     }
 

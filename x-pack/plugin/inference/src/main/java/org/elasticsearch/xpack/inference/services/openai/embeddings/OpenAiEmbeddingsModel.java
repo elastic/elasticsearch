@@ -15,6 +15,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -50,6 +51,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         @Nullable Map<String, Object> secrets,
         ThreadPool threadPool,
         TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         ConfigurationParseContext context
     ) {
         this(
@@ -61,7 +63,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             chunkingSettings,
             OpenAiSecretSettings.fromMap(secrets),
             threadPool,
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -74,13 +77,15 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable SecretSettings secrets,
         ThreadPool threadPool,
-        TokenCache tokenCache
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             threadPool,
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -88,7 +93,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
         ThreadPool threadPool,
-        TokenCache tokenCache
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         super(
             modelConfigurations,
@@ -98,6 +104,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             (OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings(),
             threadPool,
             tokenCache,
+            oauth2ClusterSettings,
             buildUri(
                 ((OpenAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).uri(),
                 OpenAiService.NAME,

@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -41,6 +42,7 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
         OpenAiServiceSettings serviceSettings,
         ThreadPool threadPool,
         TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         URI uri
     ) {
         super(configurations, secrets);
@@ -51,7 +53,8 @@ public abstract class OpenAiModel extends RateLimitGroupingModel {
             threadPool,
             tokenCache,
             secretSettings,
-            serviceSettings
+            serviceSettings,
+            oauth2ClusterSettings
         );
         this.uri = Objects.requireNonNull(uri);
     }

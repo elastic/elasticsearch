@@ -249,7 +249,7 @@ public interface InferenceService extends Closeable {
     }
 
     /**
-     * Called by the inference update transport action after a successful update has been persisted.
+     * Called by {@code TransportUpdateInferenceModelAction} after a successful update has been persisted.
      * Default no-op. Services can override to invalidate any per-model caches (for example,
      * credential caches) when relevant fields have changed.
      */

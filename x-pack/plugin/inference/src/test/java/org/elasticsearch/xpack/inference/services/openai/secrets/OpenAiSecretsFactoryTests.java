@@ -16,6 +16,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
@@ -61,7 +62,14 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
 
     public void testCreateSecretsApplier_NullSecrets_ReturnsNoopSecretsApplier() {
         var serviceSettings = serviceSettingsWith(null);
-        var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(INFERENCE_ID, threadPool, tokenCache, null, serviceSettings);
+        var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(
+            INFERENCE_ID,
+            threadPool,
+            tokenCache,
+            null,
+            serviceSettings,
+            Utils.mockOAuth2ClusterSettings()
+        );
 
         assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
 
@@ -85,7 +93,8 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
             threadPool,
             tokenCache,
             secretSettings,
-            serviceSettings
+            serviceSettings,
+            Utils.mockOAuth2ClusterSettings()
         );
 
         assertNotNull(secretsApplier);
@@ -101,7 +110,14 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
         var secureString = randomSecureStringOfLength(10);
         var secrets = new OpenAiOAuth2SecretsSettings(secureString);
 
-        var applier = OpenAiSecretsFactory.createSecretsApplier(INFERENCE_ID, threadPool, tokenCache, secrets, serviceSettings);
+        var applier = OpenAiSecretsFactory.createSecretsApplier(
+            INFERENCE_ID,
+            threadPool,
+            tokenCache,
+            secrets,
+            serviceSettings,
+            Utils.mockOAuth2ClusterSettings()
+        );
 
         assertThat(applier, instanceOf(OpenAiOAuth2Applier.class));
     }
@@ -113,7 +129,14 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
 
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiSecretsFactory.createSecretsApplier(INFERENCE_ID, threadPool, tokenCache, secrets, serviceSettings)
+            () -> OpenAiSecretsFactory.createSecretsApplier(
+                INFERENCE_ID,
+                threadPool,
+                tokenCache,
+                secrets,
+                serviceSettings,
+                Utils.mockOAuth2ClusterSettings()
+            )
         );
         assertThat(thrownException.getMessage(), containsString(REQUIRED_FIELDS_DESCRIPTION));
     }
@@ -124,7 +147,14 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
 
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiSecretsFactory.createSecretsApplier(INFERENCE_ID, threadPool, tokenCache, apiKey, serviceSettings)
+            () -> OpenAiSecretsFactory.createSecretsApplier(
+                INFERENCE_ID,
+                threadPool,
+                tokenCache,
+                apiKey,
+                serviceSettings,
+                Utils.mockOAuth2ClusterSettings()
+            )
         );
         assertThat(thrownException.getMessage(), containsString(USE_CLIENT_SECRET_ERROR));
     }

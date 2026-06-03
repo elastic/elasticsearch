@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -98,9 +99,13 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators(TokenCache tokenCache, ThreadPool threadPool) {
-        var embeddingsCreator = new OpenAiEmbeddingsModelCreator(threadPool, tokenCache);
-        var completionCreator = new OpenAiChatCompletionModelCreator(threadPool, tokenCache);
+    private static Map<TaskType, ModelCreator<? extends OpenAiModel>> initModelCreators(
+        TokenCache tokenCache,
+        ThreadPool threadPool,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        var embeddingsCreator = new OpenAiEmbeddingsModelCreator(threadPool, tokenCache, oauth2ClusterSettings);
+        var completionCreator = new OpenAiChatCompletionModelCreator(threadPool, tokenCache, oauth2ClusterSettings);
         return Map.of(
             TaskType.TEXT_EMBEDDING,
             embeddingsCreator,
@@ -115,6 +120,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
 
     private final TokenCache tokenCache;
     private final ProjectResolver projectResolver;
+    private final OAuth2ClusterSettings oauth2ClusterSettings;
 
     public OpenAiService(
         HttpRequestSender.Factory factory,
@@ -133,9 +139,35 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         TokenCache tokenCache,
         ProjectResolver projectResolver
     ) {
-        super(factory, serviceComponents, clusterService, initModelCreators(tokenCache, serviceComponents.threadPool()));
+        this(
+            factory,
+            serviceComponents,
+            clusterService,
+            tokenCache,
+            projectResolver,
+            new OAuth2ClusterSettings(serviceComponents.settings(), clusterService)
+        );
+    }
+
+    // Package-private for testing — accepts a pre-built OAuth2ClusterSettings to avoid registering
+    // duplicate cluster-settings consumers when tests construct multiple service instances.
+    OpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        TokenCache tokenCache,
+        ProjectResolver projectResolver,
+        OAuth2ClusterSettings oauth2ClusterSettings
+    ) {
+        super(
+            factory,
+            serviceComponents,
+            clusterService,
+            initModelCreators(tokenCache, serviceComponents.threadPool(), oauth2ClusterSettings)
+        );
         this.tokenCache = Objects.requireNonNull(tokenCache);
         this.projectResolver = Objects.requireNonNull(projectResolver);
+        this.oauth2ClusterSettings = Objects.requireNonNull(oauth2ClusterSettings);
     }
 
     @Override
@@ -206,7 +238,8 @@ public class OpenAiService extends SenderService<OpenAiModel> {
             openAiModel,
             inputs.getRequest(),
             getServiceComponents().threadPool(),
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
 
         var manager = new GenericRequestManager<>(

@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAct
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -802,6 +803,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(CCMSettings.getSettingsDefinitions());
         settings.addAll(CCMCache.getSettingsDefinitions());
         settings.addAll(OAuth2TokenCache.getSettingsDefinitions());
+        settings.addAll(OAuth2ClusterSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 

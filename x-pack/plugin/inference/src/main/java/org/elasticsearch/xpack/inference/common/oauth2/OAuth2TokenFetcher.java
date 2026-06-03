@@ -48,6 +48,7 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
     private final ThreadPool threadPool;
     private final String inferenceId;
     private final Clock clock;
+    private final OAuth2ClusterSettings oauth2ClusterSettings;
 
     public OAuth2TokenFetcher(
         String inferenceId,
@@ -55,9 +56,10 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
         String clientId,
         String clientSecret,
         List<String> scopes,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
-        this(inferenceId, tokenUri, clientId, clientSecret, scopes, threadPool, Clock.systemUTC());
+        this(inferenceId, tokenUri, clientId, clientSecret, scopes, threadPool, oauth2ClusterSettings, Clock.systemUTC());
     }
 
     OAuth2TokenFetcher(
@@ -67,6 +69,7 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
         String clientSecret,
         List<String> scopes,
         ThreadPool threadPool,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         Clock clock
     ) {
         this.inferenceId = Objects.requireNonNull(inferenceId);
@@ -75,6 +78,7 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
         this.clientSecret = new Secret(Objects.requireNonNull(clientSecret));
         this.scope = new Scope(Objects.requireNonNull(scopes).toArray(String[]::new));
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.oauth2ClusterSettings = Objects.requireNonNull(oauth2ClusterSettings);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -84,7 +88,10 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
             try {
                 var clientAuth = new ClientSecretBasic(clientId, clientSecret);
                 var request = new TokenRequest.Builder(tokenUri, clientAuth, new ClientCredentialsGrant()).scope(scope).build();
-                var response = TokenResponse.parse(request.toHTTPRequest().send());
+                var httpRequest = request.toHTTPRequest();
+                httpRequest.setConnectTimeout(oauth2ClusterSettings.connectTimeoutMillis());
+                httpRequest.setReadTimeout(oauth2ClusterSettings.readTimeoutMillis());
+                var response = TokenResponse.parse(httpRequest.send());
                 if (response.indicatesSuccess() == false) {
                     var errorObject = response.toErrorResponse().getErrorObject();
                     listener.onFailure(

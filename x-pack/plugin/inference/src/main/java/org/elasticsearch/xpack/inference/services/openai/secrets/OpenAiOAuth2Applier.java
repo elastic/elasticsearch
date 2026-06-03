@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenFetcher;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenSupplier;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
@@ -31,7 +32,8 @@ public record OpenAiOAuth2Applier(String inferenceId, TokenCache cache, OAuth2To
         ThreadPool threadPool,
         TokenCache cache,
         OpenAiOAuth2SecretsSettings oauth2Secrets,
-        OpenAiOAuth2Settings oauth2Settings
+        OpenAiOAuth2Settings oauth2Settings,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         var fetcher = new OAuth2TokenFetcher(
             inferenceId,
@@ -39,7 +41,8 @@ public record OpenAiOAuth2Applier(String inferenceId, TokenCache cache, OAuth2To
             oauth2Settings.clientId(),
             oauth2Secrets.clientSecret().toString(),
             oauth2Settings.scopes(),
-            threadPool
+            threadPool,
+            oauth2ClusterSettings
         );
         return new OpenAiOAuth2Applier(inferenceId, cache, fetcher);
     }

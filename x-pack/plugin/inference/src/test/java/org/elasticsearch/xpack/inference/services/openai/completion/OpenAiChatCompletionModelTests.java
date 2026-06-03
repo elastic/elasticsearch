@@ -15,6 +15,7 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -70,7 +71,13 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
     }
 
     private static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
-        return OpenAiChatCompletionModel.of(model, request, mock(ThreadPool.class), NoopTokenCache.INSTANCE);
+        return OpenAiChatCompletionModel.of(
+            model,
+            request,
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
+        );
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
@@ -125,7 +132,8 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             new OpenAiChatCompletionTaskSettings(user, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             mock(ThreadPool.class),
-            NoopTokenCache.INSTANCE
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 
@@ -146,7 +154,8 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             new OpenAiChatCompletionTaskSettings(user, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
             mock(ThreadPool.class),
-            NoopTokenCache.INSTANCE
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
     }
 }

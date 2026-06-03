@@ -68,6 +68,10 @@ public abstract class OpenAiServiceSettings extends FilteredXContentObject imple
         return builder;
     }
 
+    /**
+     * Subclasses must implement equals and hashCode. The base equals and hashCode only consider the common fields,
+     * so subclasses should call super.equals() and super.hashCode() and include any additional fields in their implementations.
+     */
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -75,6 +79,10 @@ public abstract class OpenAiServiceSettings extends FilteredXContentObject imple
         return Objects.equals(oAuth2Settings, that.oAuth2Settings);
     }
 
+    /**
+     * Subclasses must implement equals and hashCode. The base equals and hashCode only consider the common fields,
+     * so subclasses should call super.equals() and super.hashCode() and include any additional fields in their implementations.
+     */
     @Override
     public int hashCode() {
         return Objects.hash(oAuth2Settings);

@@ -15,6 +15,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -45,7 +46,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         OpenAiChatCompletionModel model,
         UnifiedCompletionRequest request,
         ThreadPool threadPool,
-        TokenCache tokenCache
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
@@ -65,7 +67,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             model.getTaskSettings(),
             model.getSecretSettings(),
             threadPool,
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -78,6 +81,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         @Nullable Map<String, Object> secrets,
         ThreadPool threadPool,
         TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings,
         ConfigurationParseContext context
     ) {
         this(
@@ -88,7 +92,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             new OpenAiChatCompletionTaskSettings(taskSettings),
             OpenAiSecretSettings.fromMap(secrets),
             threadPool,
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -100,13 +105,15 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         OpenAiChatCompletionTaskSettings taskSettings,
         @Nullable SecretSettings secrets,
         ThreadPool threadPool,
-        TokenCache tokenCache
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         this(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
             threadPool,
-            tokenCache
+            tokenCache,
+            oauth2ClusterSettings
         );
     }
 
@@ -114,7 +121,8 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
         ModelConfigurations modelConfigurations,
         ModelSecrets modelSecrets,
         ThreadPool threadPool,
-        TokenCache tokenCache
+        TokenCache tokenCache,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         super(
             modelConfigurations,
@@ -124,6 +132,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             (OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings(),
             threadPool,
             tokenCache,
+            oauth2ClusterSettings,
             buildUri(
                 ((OpenAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings()).uri(),
                 OpenAiService.NAME,

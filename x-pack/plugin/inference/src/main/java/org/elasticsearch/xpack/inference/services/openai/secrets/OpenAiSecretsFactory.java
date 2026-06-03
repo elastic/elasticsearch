@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.common.secrets.HeaderApplier;
@@ -56,7 +57,8 @@ public final class OpenAiSecretsFactory {
         ThreadPool threadPool,
         TokenCache tokenCache,
         @Nullable SecretSettings secretSettings,
-        OpenAiServiceSettings serviceSettings
+        OpenAiServiceSettings serviceSettings,
+        OAuth2ClusterSettings oauth2ClusterSettings
     ) {
         return switch (secretSettings) {
             // null means the model is being retrieved without secrets (e.g. GET).
@@ -72,7 +74,14 @@ public final class OpenAiSecretsFactory {
                 if (serviceSettings.oAuth2Settings() == null) {
                     throw new ValidationException().addValidationError(REQUIRED_FIELDS_DESCRIPTION);
                 }
-                yield OpenAiOAuth2Applier.of(inferenceId, threadPool, tokenCache, oauth2Secrets, serviceSettings.oAuth2Settings());
+                yield OpenAiOAuth2Applier.of(
+                    inferenceId,
+                    threadPool,
+                    tokenCache,
+                    oauth2Secrets,
+                    serviceSettings.oAuth2Settings(),
+                    oauth2ClusterSettings
+                );
             }
             default -> throw new IllegalArgumentException(
                 "Unsupported OpenAI secret settings type: " + secretSettings.getClass().getName()

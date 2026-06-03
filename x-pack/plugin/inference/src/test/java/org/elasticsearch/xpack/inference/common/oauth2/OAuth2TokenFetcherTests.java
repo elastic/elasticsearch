@@ -12,7 +12,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -26,6 +28,8 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
+import static org.elasticsearch.xpack.inference.Utils.mockOAuth2ClusterSettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -155,12 +159,61 @@ public class OAuth2TokenFetcherTests extends ESTestCase {
         assertNotNull(thrown.getCause());
     }
 
+    public void testFetch_ReadTimeout_FailsWhenServerDoesNotRespond() throws Exception {
+        // A 1ms read timeout will fire before the server sends anything after the delay.
+        var settings = Settings.builder().put(OAuth2ClusterSettings.READ_TIMEOUT.getKey(), TimeValue.timeValueMillis(1)).build();
+        var oauth2ClusterSettings = new OAuth2ClusterSettings(settings, mockClusterService(settings));
+
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200)
+                .setBody(SUCCESS_BODY)
+                .setBeforeReplyDelay(TimeValue.timeValueSeconds(5))
+                .addHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters())
+        );
+
+        var fetcher = new OAuth2TokenFetcher(
+            INFERENCE_ID,
+            webServer.getUri(TOKEN_PATH),
+            CLIENT_ID,
+            CLIENT_SECRET,
+            SCOPES,
+            threadPool,
+            oauth2ClusterSettings
+        );
+        var future = new TestPlainActionFuture<CachedToken>();
+        fetcher.fetch(future);
+        var thrown = expectThrows(ElasticsearchException.class, () -> future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+
+        assertThat(
+            thrown.getMessage(),
+            containsString(Strings.format("Failed to retrieve access token for request for inference id [%s]", INFERENCE_ID))
+        );
+        assertThat(thrown.getCause().getMessage(), is("Read timed out"));
+    }
+
     private OAuth2TokenFetcher createFetcher(List<String> scopes) throws Exception {
-        return new OAuth2TokenFetcher(INFERENCE_ID, webServer.getUri(TOKEN_PATH), CLIENT_ID, CLIENT_SECRET, scopes, threadPool);
+        return new OAuth2TokenFetcher(
+            INFERENCE_ID,
+            webServer.getUri(TOKEN_PATH),
+            CLIENT_ID,
+            CLIENT_SECRET,
+            scopes,
+            threadPool,
+            mockOAuth2ClusterSettings()
+        );
     }
 
     private OAuth2TokenFetcher createFetcher(List<String> scopes, Clock clock) throws Exception {
-        return new OAuth2TokenFetcher(INFERENCE_ID, webServer.getUri(TOKEN_PATH), CLIENT_ID, CLIENT_SECRET, scopes, threadPool, clock);
+        return new OAuth2TokenFetcher(
+            INFERENCE_ID,
+            webServer.getUri(TOKEN_PATH),
+            CLIENT_ID,
+            CLIENT_SECRET,
+            scopes,
+            threadPool,
+            mockOAuth2ClusterSettings(),
+            clock
+        );
     }
 
     private static MockResponse successResponse() {

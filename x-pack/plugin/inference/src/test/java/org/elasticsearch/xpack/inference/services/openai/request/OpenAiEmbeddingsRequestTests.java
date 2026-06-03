@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
@@ -54,7 +55,8 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
             null,
             new DefaultSecretSettings(new SecureString("secret".toCharArray())),
             mock(ThreadPool.class),
-            NoopTokenCache.INSTANCE
+            NoopTokenCache.INSTANCE,
+            Utils.mockOAuth2ClusterSettings()
         );
 
         var request = new OpenAiEmbeddingsRequest(

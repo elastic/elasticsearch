@@ -376,8 +376,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 return new BooleansBlockLoader(name(), readInArrayOrder);
             }
 
+            // In columnar_stored mode the whole _source is pre-computed as a single blob, so the
+            // FallbackSyntheticSourceBlockLoader (a per-field synthetic-source optimization) does not
+            // apply. Read from _source via BlockSourceReader instead.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),

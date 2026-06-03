@@ -980,8 +980,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
 
+            // In columnar_stored mode the whole _source is pre-computed as a single blob, so the
+            // FallbackSyntheticSourceBlockLoader (a per-field synthetic-source optimization) does not
+            // apply. Read from _source via BlockSourceReader instead.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSourceEnabled() && blContext.parentField(name()) == null) {
+            if (isSyntheticSourceEnabled()
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),

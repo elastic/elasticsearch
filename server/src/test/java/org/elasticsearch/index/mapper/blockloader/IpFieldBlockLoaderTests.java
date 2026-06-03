@@ -41,7 +41,8 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
-            || params.syntheticSource();
+            || params.syntheticSource()
+            || params.isColumnarStored();
         if (hasDocValues && useDocValues) {
             var resultList = ((List<String>) value).stream()
                 .map(v -> convert(v, nullValue))

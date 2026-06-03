@@ -558,8 +558,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 // if we got here, then either synthetic source is not enabled or the preference prohibits us from using doc_values
             }
 
-            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source
-            if (isSyntheticSource && hasDocValues() == false && blContext.parentField(name()) == null) {
+            // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source.
+            // In columnar_stored mode the whole _source is pre-computed as a single blob, so the
+            // FallbackSyntheticSourceBlockLoader (a per-field synthetic-source optimization) does not
+            // apply. Read from _source via BlockSourceReader instead.
+            if (isSyntheticSource
+                && hasDocValues() == false
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
             }
 

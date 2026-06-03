@@ -87,6 +87,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         public boolean syntheticSource() {
             return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+        }
     }
 
     public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}

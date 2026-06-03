@@ -398,7 +398,7 @@ dedupCommand
     ;
 
 highlightCommand
-    : DEV_HIGHLIGHT (queryText=string)? ON highlightFields=qualifiedNames commandNamedParameters
+    : DEV_HIGHLIGHT queryText=string ON highlightFields=qualifiedNames commandNamedParameters
     ;
 
 qualifiedNames

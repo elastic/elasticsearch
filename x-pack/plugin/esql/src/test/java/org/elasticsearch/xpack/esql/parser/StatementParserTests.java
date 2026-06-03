@@ -1251,10 +1251,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testHighlightOnFields() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        LogicalPlan plan = query("FROM foo | HIGHLIGHT ON title, body");
+        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title, body");
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.prefix(), equalTo("highlight_"));
-        assertThat(highlight.query(), nullValue());
+        Literal q = as(highlight.query(), Literal.class);
+        assertThat(BytesRefs.toString(q.value()), equalTo("elasticsearch"));
         assertThat(highlight.fields().size(), equalTo(2));
         assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
         assertThat(((UnresolvedAttribute) highlight.fields().get(1)).name(), equalTo("body"));
@@ -1263,34 +1264,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
     }
 
-    public void testHighlightWithStringQueryAndFields() {
+    public void testHighlightRequiresQueryAndOnClause() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        LogicalPlan plan = query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title");
-        Highlight highlight = as(plan, Highlight.class);
-        Literal query = as(highlight.query(), Literal.class);
-        assertThat(BytesRefs.toString(query.value()), equalTo("elasticsearch"));
-        assertThat(highlight.fields().size(), equalTo(1));
-        assertThat(((UnresolvedAttribute) highlight.fields().get(0)).name(), equalTo("title"));
-    }
-
-    public void testHighlightRequiresOnClause() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        // The plan node still allows an empty fields list so the bare form can be enabled later;
-        // for now the grammar requires ON to spell out the column set.
+        // Both query and ON are grammatically required in v1. The plan node keeps `query` nullable
+        // and `fields` allowed-empty so the bare form can be enabled later without serialization changes.
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT"));
         expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\""));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON title"));
     }
 
     public void testHighlightRejectsPrefixSyntax() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         // The plan node still carries a prefix field (hard-coded to "highlight_") so a future
         // grammar extension can flip it on without breaking serialization.
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" ON title"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT prefix = \"h_\" \"elasticsearch\" ON title"));
     }
 
     public void testHighlightWithOptions() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        LogicalPlan plan = query("FROM foo | HIGHLIGHT ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }");
+        LogicalPlan plan = query(
+            "FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"fragment_size\": 150, \"number_of_fragments\": 2 }"
+        );
         Highlight highlight = as(plan, Highlight.class);
         assertThat(highlight.options(), notNullValue());
         assertThat(highlight.options().keyFoldedMap().keySet(), equalTo(Set.of("fragment_size", "number_of_fragments")));
@@ -1301,7 +1295,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(
             ParsingException.class,
             containsString("Invalid option [bogus] in HIGHLIGHT"),
-            () -> query("FROM foo | HIGHLIGHT ON title WITH { \"bogus\": 1 }")
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title WITH { \"bogus\": 1 }")
         );
     }
 
@@ -1312,7 +1306,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testHighlightRejectsWildcardFields() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT ON *"));
+        expectThrows(ParsingException.class, () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON *"));
     }
 
     public void testHighlightNotInReleaseBuild() {
@@ -1320,7 +1314,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(
             ParsingException.class,
             containsString("mismatched input 'HIGHLIGHT'"),
-            () -> query("FROM foo | HIGHLIGHT ON title")
+            () -> query("FROM foo | HIGHLIGHT \"elasticsearch\" ON title")
         );
     }
 

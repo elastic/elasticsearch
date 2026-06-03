@@ -235,6 +235,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         }
         if (response.getOpenPITContextInfos().isEmpty()) {
             logger.debug("handling empty PITHandoffResponse for shard {}", indexShard.shardId());
+            listener.onResponse(null);
+            return;
         } else {
             logger.debug(
                 "handling PITHandoffResponse for shard {}. {} open PIT infos: {}",

@@ -6756,6 +6756,287 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[x{r}#6]]
+     *   \_Project[[emp_no{r}#35 AS x#6]]
+     *     \_Project[[emp_no{r}#35]]
+     *       \_UnionAll[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
+     *                   languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{r}#45, language_name{r}#46]]
+     *         |_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *                    languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_code{r}#21, language_name{r}#22]]
+     *         | \_Eval[[null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
+     *         |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *         \_Project[[_meta_field{r}#23, emp_no{r}#24, first_name{r}#25, gender{r}#26, hire_date{r}#27, job{r}#28, job.raw{r}#29,
+     *                    languages{r}#30, last_name{r}#31, long_noidx{r}#32, salary{r}#33, language_code{f}#19, language_name{f}#20]]
+     *           \_Eval[[null[KEYWORD] AS _meta_field#23, null[INTEGER] AS emp_no#24, null[KEYWORD] AS first_name#25,
+     *                   null[TEXT] AS gender#26, null[DATETIME] AS hire_date#27, null[TEXT] AS job#28, null[KEYWORD] AS job.raw#29,
+     *                   null[INTEGER] AS languages#30, null[KEYWORD] AS last_name#31, null[LONG] AS long_noidx#32,
+     *                   null[INTEGER] AS salary#33]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#19, language_name{f}#20]
+     */
+    public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {
+        LogicalPlan plan = basic().addLanguages().query("""
+            FROM test, (FROM languages)
+            | KEEP emp_no
+            | RENAME emp_no AS x
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(INTEGER, x.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(INTEGER, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute emp_no = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        assertEquals(INTEGER, emp_no.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "emp_no".equals(a.name()) && INTEGER.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[x{r}#7, y{r}#10]]
+     *   \_Project[[network.total_bytes_in{r}#79 AS x#7, network.eth0.tx{r}#77 AS y#10]]
+     *     \_Project[[network.total_bytes_in{r}#79, network.eth0.tx{r}#77]]
+     *       \_UnionAll[[@timestamp{r}#61, client.ip{r}#62, cluster{r}#63, event{r}#64, event_city{r}#65, event_city_boundary{r}#66,
+     *                   event_location{r}#67, event_log{r}#68, event_shape{r}#69, events_received{r}#70, network.bytes_in{r}#71,
+     *                   network.cost{r}#72, network.eth0.currently_connected_clients{r}#73, network.eth0.firmware_version{r}#74,
+     *                   network.eth0.last_up{r}#75, network.eth0.rx{r}#76, network.eth0.tx{r}#77, network.eth0.up{r}#78,
+     *                   network.total_bytes_in{r}#79, network.total_cost{r}#80, pod{r}#81, language_code{r}#82, language_name{r}#83]]
+     *         |_Project[[@timestamp{f}#12, client.ip{f}#16, cluster{f}#13, event{f}#17, event_city{f}#20, event_city_boundary{f}#21,
+     *                    event_location{f}#23, event_log{f}#18, event_shape{f}#22, events_received{f}#19, network.bytes_in{f}#25,
+     *                    network.cost{f}#27, network.eth0.currently_connected_clients{f}#35, network.eth0.firmware_version{f}#34,
+     *                    network.eth0.last_up{f}#33, network.eth0.rx{f}#32, network.eth0.tx{f}#31, network.eth0.up{f}#30,
+     *                    network.total_bytes_in{r}#84, network.total_cost{r}#85, pod{f}#14, language_code{r}#38, language_name{r}#39]]
+     *         | \_Eval[[TOLONG(network.total_bytes_in{f}#26) AS network.total_bytes_in#84,
+     *                   TODOUBLE(network.total_cost{f}#28) AS network.total_cost#85]]
+     *         |   \_Eval[[null[INTEGER] AS language_code#38, null[KEYWORD] AS language_name#39]]
+     *         |     \_EsRelation[k8s][@timestamp{f}#12, client.ip{f}#16, cluster{f}#13, e..]
+     *         \_Project[[@timestamp{r}#40, client.ip{r}#41, cluster{r}#42, event{r}#43, event_city{r}#44, event_city_boundary{r}#45,
+     *                    event_location{r}#46, event_log{r}#47, event_shape{r}#48, events_received{r}#49, network.bytes_in{r}#50,
+     *                    network.cost{r}#51, network.eth0.currently_connected_clients{r}#52, network.eth0.firmware_version{r}#53,
+     *                    network.eth0.last_up{r}#54, network.eth0.rx{r}#55, network.eth0.tx{r}#56, network.eth0.up{r}#57,
+     *                    network.total_bytes_in{r}#58, network.total_cost{r}#59, pod{r}#60, language_code{f}#36, language_name{f}#37]]
+     *           \_Eval[[null[DATETIME] AS @timestamp#40, null[IP] AS client.ip#41, null[KEYWORD] AS cluster#42,
+     *                   null[KEYWORD] AS event#43, null[GEO_POINT] AS event_city#44, null[GEO_SHAPE] AS event_city_boundary#45,
+     *                   null[CARTESIAN_POINT] AS event_location#46, null[TEXT] AS event_log#47, null[CARTESIAN_SHAPE] AS event_shape#48,
+     *                   null[LONG] AS events_received#49, null[LONG] AS network.bytes_in#50, null[DOUBLE] AS network.cost#51,
+     *                   null[INTEGER] AS network.eth0.currently_connected_clients#52, null[VERSION] AS network.eth0.firmware_version#53,
+     *                   null[DATE_NANOS] AS network.eth0.last_up#54, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#55,
+     *                   null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#56, null[BOOLEAN] AS network.eth0.up#57,
+     *                   null[LONG] AS network.total_bytes_in#58, null[DOUBLE] AS network.total_cost#59, null[KEYWORD] AS pod#60]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#36, language_name{f}#37]
+     */
+    public void testSubqueryRenameKeepOnMissingCounterFields() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in, network.eth0.tx
+            | RENAME network.total_bytes_in AS x, network.eth0.tx AS y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        ReferenceAttribute y = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(LONG, x.dataType());
+        assertEquals("y", y.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        Alias yAlias = as(projections.get(1), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        ReferenceAttribute network_eth0_tx = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("network.eth0.tx", network_eth0_tx.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, network_eth0_tx.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+        assertTrue(
+            unionAll.output().stream().anyMatch(a -> "network.eth0.tx".equals(a.name()) && AGGREGATE_METRIC_DOUBLE.equals(a.dataType()))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[y{r}#9]]
+     *   \_Project[[network.total_bytes_in{r}#78 AS y#9]]
+     *     \_Project[[network.total_bytes_in{r}#78]]
+     *       \_UnionAll[[@timestamp{r}#60, client.ip{r}#61, cluster{r}#62, event{r}#63, event_city{r}#64, event_city_boundary{r}#65,
+     *                   event_location{r}#66, event_log{r}#67, event_shape{r}#68, events_received{r}#69, network.bytes_in{r}#70,
+     *                   network.cost{r}#71, network.eth0.currently_connected_clients{r}#72, network.eth0.firmware_version{r}#73,
+     *                   network.eth0.last_up{r}#74, network.eth0.rx{r}#75, network.eth0.tx{r}#76, network.eth0.up{r}#77,
+     *                   network.total_bytes_in{r}#78, network.total_cost{r}#79, pod{r}#80, language_code{r}#81, language_name{r}#82]]
+     *         |_Project[[@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, event{f}#16, event_city{f}#19, event_city_boundary{f}#20,
+     *                    event_location{f}#22, event_log{f}#17, event_shape{f}#21, events_received{f}#18, network.bytes_in{f}#24,
+     *                    network.cost{f}#26, network.eth0.currently_connected_clients{f}#34, network.eth0.firmware_version{f}#33,
+     *                    network.eth0.last_up{f}#32, network.eth0.rx{f}#31, network.eth0.tx{f}#30, network.eth0.up{f}#29,
+     *                    network.total_bytes_in{r}#83, network.total_cost{r}#84, pod{f}#13, language_code{r}#37, language_name{r}#38]]
+     *         | \_Eval[[TOLONG(network.total_bytes_in{f}#25) AS network.total_bytes_in#83,
+     *                   TODOUBLE(network.total_cost{f}#27) AS network.total_cost#84]]
+     *         |   \_Eval[[null[INTEGER] AS language_code#37, null[KEYWORD] AS language_name#38]]
+     *         |     \_EsRelation[k8s][@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, e..]
+     *         \_Project[[@timestamp{r}#39, client.ip{r}#40, cluster{r}#41, event{r}#42, event_city{r}#43, event_city_boundary{r}#44,
+     *         event_location{r}#45, event_log{r}#46, event_shape{r}#47, events_received{r}#48, network.bytes_in{r}#49,
+     *         network.cost{r}#50, network.eth0.currently_connected_clients{r}#51, network.eth0.firmware_version{r}#52,
+     *         network.eth0.last_up{r}#53, network.eth0.rx{r}#54, network.eth0.tx{r}#55, network.eth0.up{r}#56,
+     *         network.total_bytes_in{r}#57, network.total_cost{r}#58, pod{r}#59, language_code{f}#35, language_name{f}#36]]
+     *           \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client.ip#40, null[KEYWORD] AS cluster#41, null[KEYWORD] AS event#42,
+     *                   null[GEO_POINT] AS event_city#43, null[GEO_SHAPE] AS event_city_boundary#44,
+     *                   null[CARTESIAN_POINT] AS event_location#45, null[TEXT] AS event_log#46, null[CARTESIAN_SHAPE] AS event_shape#47,
+     *                   null[LONG] AS events_received#48, null[LONG] AS network.bytes_in#49, null[DOUBLE] AS network.cost#50,
+     *                   null[INTEGER] AS network.eth0.currently_connected_clients#51, null[VERSION] AS network.eth0.firmware_version#52,
+     *                   null[DATE_NANOS] AS network.eth0.last_up#53, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#54,
+     *                   null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#55, null[BOOLEAN] AS network.eth0.up#56,
+     *                   null[LONG] AS network.total_bytes_in#57, null[DOUBLE] AS network.total_cost#58, null[KEYWORD] AS pod#59]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#35, language_name{f}#36]
+     */
+    public void testSubqueryRenameChainKeepStarOnMissingCounterField() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x, x as y
+            | KEEP y
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[y{r}#9]]
+     *   \_Project[[x{r}#6 AS y#9]]
+     *     \_Project[[network.total_bytes_in{r}#78 AS x#6]]
+     *       \_Project[[network.total_bytes_in{r}#78]]
+     *         \_UnionAll[[@timestamp{r}#60, client.ip{r}#61, cluster{r}#62, event{r}#63, event_city{r}#64, event_city_boundary{r}#65,
+     *                     event_location{r}#66, event_log{r}#67, event_shape{r}#68, events_received{r}#69, network.bytes_in{r}#70,
+     *                     network.cost{r}#71, network.eth0.currently_connected_clients{r}#72, network.eth0.firmware_version{r}#73,
+     *                     network.eth0.last_up{r}#74, network.eth0.rx{r}#75, network.eth0.tx{r}#76, network.eth0.up{r}#77,
+     *                     network.total_bytes_in{r}#78, network.total_cost{r}#79, pod{r}#80, language_code{r}#81, language_name{r}#82]]
+     *           |_Project[[@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, event{f}#16, event_city{f}#19, event_city_boundary{f}#20,
+     *                      event_location{f}#22, event_log{f}#17, event_shape{f}#21, events_received{f}#18, network.bytes_in{f}#24,
+     *                      network.cost{f}#26, network.eth0.currently_connected_clients{f}#34, network.eth0.firmware_version{f}#33,
+     *                      network.eth0.last_up{f}#32, network.eth0.rx{f}#31, network.eth0.tx{f}#30, network.eth0.up{f}#29,
+     *                      network.total_bytes_in{r}#83, network.total_cost{r}#84, pod{f}#13, language_code{r}#37, language_name{r}#38]]
+     *           | \_Eval[[TOLONG(network.total_bytes_in{f}#25) AS network.total_bytes_in#83,
+     *                     TODOUBLE(network.total_cost{f}#27) AS network.total_cost#84]]
+     *           |   \_Eval[[null[INTEGER] AS language_code#37, null[KEYWORD] AS language_name#38]]
+     *           |     \_EsRelation[k8s][@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, e..]
+     *           \_Project[[@timestamp{r}#39, client.ip{r}#40, cluster{r}#41, event{r}#42, event_city{r}#43, event_city_boundary{r}#44,
+     *                      event_location{r}#45, event_log{r}#46, event_shape{r}#47, events_received{r}#48, network.bytes_in{r}#49,
+     *                      network.cost{r}#50, network.eth0.currently_connected_clients{r}#51, network.eth0.firmware_version{r}#52,
+     *                      network.eth0.last_up{r}#53, network.eth0.rx{r}#54, network.eth0.tx{r}#55, network.eth0.up{r}#56,
+     *                      network.total_bytes_in{r}#57, network.total_cost{r}#58, pod{r}#59, language_code{f}#35, language_name{f}#36]]
+     *             \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client.ip#40, null[KEYWORD] AS cluster#41,
+     *                     null[KEYWORD] AS event#42, null[GEO_POINT] AS event_city#43, null[GEO_SHAPE] AS event_city_boundary#44,
+     *                     null[CARTESIAN_POINT] AS event_location#45, null[TEXT] AS event_log#46, null[CARTESIAN_SHAPE] AS event_shape#47,
+     *                     null[LONG] AS events_received#48, null[LONG] AS network.bytes_in#49, null[DOUBLE] AS network.cost#50,
+     *                     null[INTEGER] AS network.eth0.currently_connected_clients#51, null[VERSION] AS network.eth0.firmware_version#52,
+     *                     null[DATE_NANOS] AS network.eth0.last_up#53, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#54,
+     *                     null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#55, null[BOOLEAN] AS network.eth0.up#56,
+     *                     null[LONG] AS network.total_bytes_in#57, null[DOUBLE] AS network.total_cost#58, null[KEYWORD] AS pod#59]]
+     *               \_Subquery[]
+     *                 \_EsRelation[languages][language_code{f}#35, language_name{f}#36]
+     */
+    public void testSubqueryDoubleRenameKeepStarOnMissingCounterField() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x
+            | RENAME x as y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

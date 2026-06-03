@@ -155,19 +155,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return null;
     }
 
-    /**
-     * Flushes the system provider twice, then the health provider. The double system flush is
-     * required because {@code PeriodicMetricReader} records {@code collection.duration} into its
-     * own provider <i>after</i> each collection completes, so a second cycle is needed to ship the
-     * value produced by the first. The health provider must flush last because
-     * {@code OtlpHttpMetricExporter} records exporter self-telemetry (e.g.
-     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after
-     * the system HTTP export completes.
-     * Callers must join the result with an appropriate timeout.
-     * <p>
-     * The returned result always succeeds: flush is best-effort and intermediate failures are silently
-     * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
-     */
+    /** Flushes the meter provider. Callers must join the result with an appropriate timeout. */
     @Override
     public CompletableResultCode attemptFlushMetrics() {
         OTelMetricsResources resources;
@@ -181,16 +169,14 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
      * {@code BatchSpanProcessor} registers its queue-metric instruments exactly once on the first span,
      * so the provider it receives here is permanent. Initializing eagerly ensures that happens against
      * the real SDK provider even if metrics have not been explicitly enabled yet.
-     * The health provider is returned (not the system provider) because span pipeline self-monitoring
-     * metrics are OTel SDK-internal telemetry, not application metrics.
      */
     @Override
-    public MeterProvider getHealthMeterProvider() {
+    public MeterProvider getMeterProvider() {
         synchronized (mutex) {
             if (resources == null) {
                 resources = createMeteringResources();
             }
-            return resources.meterHealthMeterProvider();
+            return resources.meterProvider();
         }
     }
 

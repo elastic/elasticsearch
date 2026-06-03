@@ -122,14 +122,8 @@ public final class TextFieldMapper extends FieldMapper {
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
     private static final String FAST_PREFIX_SUFFIX = "._index_prefix";
 
-    public static final DocValuesParameter.Values DOCUMENT_DOC_VALUES_PARAMS_DEFAULT = new DocValuesParameter.Values(
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
-        DocValuesParameter.Values.Cardinality.HIGH,
-        true
-    );
-
-    public static final DocValuesParameter.Values COLUMNAR_DOC_VALUES_PARAMS_DEFAULT = new DocValuesParameter.Values(
-        true,
         DocValuesParameter.Values.Cardinality.HIGH,
         true
     );
@@ -280,7 +274,10 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Boolean> norms;
         private final Parameter<Boolean> index;
 
-        final DocValuesParameter docValuesParameters;
+        final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> ((TextFieldMapper) m).docValuesParameters
+        );
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -345,16 +342,10 @@ public final class TextFieldMapper extends FieldMapper {
                 // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
                 return true;
             });
-            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
-                indexMode.isStrictColumnar() ? COLUMNAR_DOC_VALUES_PARAMS_DEFAULT : DOCUMENT_DOC_VALUES_PARAMS_DEFAULT,
-                m -> ((TextFieldMapper) m).docValuesParameters
-            );
+
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
                 // ideally and for simplicity, store should be set to false by default
                 if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return false;
-                }
-                if (docValuesParameters.getValue().enabled()) {
                     return false;
                 }
 

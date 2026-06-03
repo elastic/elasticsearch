@@ -15,7 +15,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -38,6 +40,15 @@ import java.util.concurrent.atomic.AtomicLong;
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but
  *                          not free so this will be empty if the {@code profile} option was not set in
  *                          the request.
+ * @param capturedSourceMetadata Per-file flat {@code _stats.*} metadata contributions captured during
+ *                               data-node execution and shipped back so the coordinator can merge and
+ *                               enrich its {@code SchemaCacheEntry} for the next query. Keyed by file
+ *                               path; the value is the list of contributions from each operator/driver
+ *                               that touched the file (per-chunk for parallel parsing, per-split for
+ *                               macro-splits). The actual merge is intentionally deferred to esql-side
+ *                               consumers because the merge algorithm lives in
+ *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
+ *                               esql-module types this compute module cannot reach.
  */
 public record DriverCompletionInfo(
     long documentsFound,
@@ -47,7 +58,8 @@ public record DriverCompletionInfo(
     long readNanos,
     long cpuNanos,
     List<DriverProfile> driverProfiles,
-    List<PlanProfile> planProfiles
+    List<PlanProfile> planProfiles,
+    Map<String, List<Map<String, Object>>> capturedSourceMetadata
 ) implements Writeable {
 
     /**
@@ -55,7 +67,11 @@ public record DriverCompletionInfo(
      * Usually this is returned with an error, but it's also used when receiving
      * responses from very old nodes.
      */
-    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of());
+    public static final DriverCompletionInfo EMPTY = new DriverCompletionInfo(0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of());
+
+    public DriverCompletionInfo {
+        capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
+    }
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
@@ -102,7 +118,8 @@ public record DriverCompletionInfo(
             readNanos,
             cpuNanos,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile))
+            List.of(new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile)),
+            collectCapturedSourceMetadata(drivers)
         );
     }
 
@@ -133,10 +150,49 @@ public record DriverCompletionInfo(
             }
             cpuNanos += s.cpuNanos();
         }
-        return new DriverCompletionInfo(documentsFound, valuesLoaded, rowsEmitted, bytesRead, readNanos, cpuNanos, List.of(), List.of());
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            cpuNanos,
+            List.of(),
+            List.of(),
+            collectCapturedSourceMetadata(drivers)
+        );
+    }
+
+    /**
+     * Walks every driver's completed operators, pulls each contribution off any
+     * {@link CapturingExternalSourceStatus} the operators expose, and concatenates per file path.
+     * The actual per-path merge is deferred to esql-side consumers (see class Javadoc).
+     */
+    private static Map<String, List<Map<String, Object>>> collectCapturedSourceMetadata(List<Driver> drivers) {
+        Map<String, List<Map<String, Object>>> perFile = null;
+        for (Driver d : drivers) {
+            DriverStatus s = d.status();
+            for (OperatorStatus o : s.completedOperators()) {
+                Operator.Status status = o.status();
+                if (status instanceof CapturingExternalSourceStatus capturing) {
+                    Map<String, List<Map<String, Object>>> contribution = capturing.capturedSourceMetadata();
+                    if (contribution == null || contribution.isEmpty()) {
+                        continue;
+                    }
+                    if (perFile == null) {
+                        perFile = new HashMap<>();
+                    }
+                    for (Map.Entry<String, List<Map<String, Object>>> e : contribution.entrySet()) {
+                        perFile.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
+                    }
+                }
+            }
+        }
+        return perFile == null ? Map.of() : perFile;
     }
 
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+    private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
     // Also gates AsyncExternalSourceOperator.Status fields and EsqlQueryProfile.datasetResolution.
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
@@ -157,6 +213,27 @@ public record DriverCompletionInfo(
         List<PlanProfile> planProfiles = in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
             ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
             : List.of();
+        Map<String, List<Map<String, Object>>> captured;
+        if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+            int n = in.readVInt();
+            if (n == 0) {
+                captured = Map.of();
+            } else {
+                Map<String, List<Map<String, Object>>> tmp = new HashMap<>(n);
+                for (int i = 0; i < n; i++) {
+                    String path = in.readString();
+                    int contributionCount = in.readVInt();
+                    List<Map<String, Object>> contributions = new ArrayList<>(contributionCount);
+                    for (int j = 0; j < contributionCount; j++) {
+                        contributions.add(in.readGenericMap());
+                    }
+                    tmp.put(path, contributions);
+                }
+                captured = tmp;
+            }
+        } else {
+            captured = Map.of();
+        }
         return new DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
@@ -165,7 +242,8 @@ public record DriverCompletionInfo(
             readNanos,
             cpuNanos,
             driverProfiles,
-            planProfiles
+            planProfiles,
+            captured
         );
     }
 
@@ -183,6 +261,17 @@ public record DriverCompletionInfo(
         if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
             out.writeCollection(planProfiles);
         }
+        if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+            out.writeVInt(capturedSourceMetadata.size());
+            for (Map.Entry<String, List<Map<String, Object>>> e : capturedSourceMetadata.entrySet()) {
+                out.writeString(e.getKey());
+                List<Map<String, Object>> contributions = e.getValue();
+                out.writeVInt(contributions.size());
+                for (Map<String, Object> contribution : contributions) {
+                    out.writeGenericMap(contribution);
+                }
+            }
+        }
     }
 
     public static class Accumulator {
@@ -194,6 +283,7 @@ public record DriverCompletionInfo(
         private long cpuNanos;
         private final List<DriverProfile> driverProfiles = new ArrayList<>();
         private final List<PlanProfile> planProfiles = new ArrayList<>();
+        private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound += info.documentsFound;
@@ -204,6 +294,7 @@ public record DriverCompletionInfo(
             this.cpuNanos += info.cpuNanos;
             this.driverProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
+            mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
         }
 
         public DriverCompletionInfo finish() {
@@ -215,7 +306,8 @@ public record DriverCompletionInfo(
                 readNanos,
                 cpuNanos,
                 driverProfiles,
-                planProfiles
+                planProfiles,
+                capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata)
             );
         }
     }
@@ -229,6 +321,7 @@ public record DriverCompletionInfo(
         private final AtomicLong cpuNanos = new AtomicLong();
         private final List<DriverProfile> collectedProfiles = Collections.synchronizedList(new ArrayList<>());
         private final List<PlanProfile> planProfiles = Collections.synchronizedList(new ArrayList<>());
+        private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new HashMap<>();
 
         public void accumulate(DriverCompletionInfo info) {
             this.documentsFound.addAndGet(info.documentsFound);
@@ -239,9 +332,16 @@ public record DriverCompletionInfo(
             this.cpuNanos.addAndGet(info.cpuNanos);
             this.collectedProfiles.addAll(info.driverProfiles);
             this.planProfiles.addAll(info.planProfiles);
+            synchronized (capturedSourceMetadata) {
+                mergeCapturedSourceMetadata(capturedSourceMetadata, info.capturedSourceMetadata);
+            }
         }
 
         public DriverCompletionInfo finish() {
+            Map<String, List<Map<String, Object>>> snapshot;
+            synchronized (capturedSourceMetadata) {
+                snapshot = capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata);
+            }
             return new DriverCompletionInfo(
                 documentsFound.get(),
                 valuesLoaded.get(),
@@ -250,8 +350,25 @@ public record DriverCompletionInfo(
                 readNanos.get(),
                 cpuNanos.get(),
                 collectedProfiles,
-                planProfiles
+                planProfiles,
+                snapshot
             );
+        }
+    }
+
+    /**
+     * Concatenates {@code incoming}'s per-path contribution lists into {@code into}. The actual
+     * per-path merge of the resulting flat-map contributions is deferred to esql-side consumers.
+     */
+    private static void mergeCapturedSourceMetadata(
+        Map<String, List<Map<String, Object>>> into,
+        Map<String, List<Map<String, Object>>> incoming
+    ) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, List<Map<String, Object>>> e : incoming.entrySet()) {
+            into.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
         }
     }
 }

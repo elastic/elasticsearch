@@ -34,6 +34,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "esql_documents_found_and_values_loaded"
     );
     private static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
+    private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
 
     private final Map<String, Integer> readersBuilt;
     private final Map<String, Integer> convertersUsed;

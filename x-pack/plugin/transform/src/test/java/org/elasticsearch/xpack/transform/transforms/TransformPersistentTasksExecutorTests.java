@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +47,7 @@ import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
@@ -59,6 +62,7 @@ import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformConfigAutoMigration;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
@@ -77,6 +81,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
@@ -393,10 +398,13 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private void putTransformConfiguration(TransformConfigManager configManager, String transformId) {
-        configManager.putTransformConfiguration(
-            TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT),
-            ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e))
-        );
+        putTransformConfiguration(configManager, transformId, null);
+    }
+
+    private void putTransformConfiguration(TransformConfigManager configManager, String transformId, String credentialId) {
+        var base = TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT);
+        var config = credentialId == null ? base : new TransformConfig.Builder(base).setCredentialId(credentialId).build();
+        configManager.putTransformConfiguration(config, ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e)));
     }
 
     public void testNodeOperationStartupRetryWithGetConfigFailure() throws Exception {
@@ -466,6 +474,211 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         verify(transformServices.auditor()).warning(
             eq(transformId),
             assertArg(message -> assertThat(message, startsWith("Failed while starting Transform. Automatically retrying")))
+        );
+    }
+
+    public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var transformId = "testCloudCredentialLoad";
+        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var transformsConfigManager = new InMemoryTransformConfigManager();
+        transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
+
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId, "an-id");
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // success path is synchronous — no scheduler retry needed
+        verify(task.getContext()).setPersistedCloudCredential(persisted);
+        verify(task).start(isNull(), any());
+    }
+
+    public void testNodeOperationRetriesCloudCredentialLoadOnTransientFailure() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var transformId = "testCloudCredentialRetry";
+        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
+        // retry path and (b) the scheduler-driven retry's first attempt failing — which flips the
+        // task into "Retrying transform start." state.
+        var remainingFailures = new java.util.concurrent.atomic.AtomicInteger(2);
+        var transformsConfigManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void getTransformCloudCredentialByTokenId(
+                String tokenId,
+                boolean allowNoMatch,
+                ActionListener<PersistedCloudCredential> listener
+            ) {
+                if (remainingFailures.getAndDecrement() > 0) {
+                    listener.onFailure(new IllegalStateException("system index momentarily unavailable"));
+                } else {
+                    super.getTransformCloudCredentialByTokenId(tokenId, allowNoMatch, listener);
+                }
+            }
+        };
+        transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
+        var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
+
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId, "an-id");
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // first attempt failed and queued a scheduler retry; trigger it now instead of waiting
+        transformScheduler.scheduleNow(transformId);
+
+        // scheduler-driven retry's first attempt also failed, flipping state to "Retrying transform start."
+        verify(task).persistStateToClusterState(argThat(state -> {
+            assertThat(TransformTaskState.STARTED, equalTo(state.getTaskState()));
+            assertThat(IndexerState.STOPPED, equalTo(state.getIndexerState()));
+            return true;
+        }), any());
+
+        // trigger the next scheduler tick — this time the load succeeds
+        transformScheduler.scheduleNow(transformId);
+
+        verify(task.getContext()).setPersistedCloudCredential(persisted);
+        verify(task).start(isNull(), any());
+    }
+
+    public void testNodeOperationSweepsDanglingCredentialsOnStartup() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var transformId = "testSweepDangling";
+        var activeId = "active-id";
+        var danglingId1 = "dangling-1";
+        var danglingId2 = "dangling-2";
+
+        var configManager = new InMemoryTransformConfigManager();
+        // prime with three credentials: one active, two dangling
+        configManager.putTransformCloudCredential(
+            transformId,
+            new PersistedCloudCredential(activeId, new SecureString("k".toCharArray())),
+            ActionListener.noop()
+        );
+        configManager.putTransformCloudCredential(
+            transformId,
+            new PersistedCloudCredential(danglingId1, new SecureString("k".toCharArray())),
+            ActionListener.noop()
+        );
+        configManager.putTransformCloudCredential(
+            transformId,
+            new PersistedCloudCredential(danglingId2, new SecureString("k".toCharArray())),
+            ActionListener.noop()
+        );
+        putTransformConfiguration(configManager, transformId, activeId);
+
+        // mock apiKeyService so revoke calls succeed
+        var apiKeyService = mock(org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService.class);
+        doAnswer(inv -> {
+            ActionListener<Void> l = inv.getArgument(1);
+            l.onResponse(null);
+            return null;
+        }).when(apiKeyService).revokeCloudAuthentication(any(), any());
+
+        var credentialManager = new TransformCloudCredentialManager(
+            threadPool,
+            null,
+            mock(org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager.class),
+            apiKeyService,
+            configManager,
+            mock(TransformAuditor.class)
+        );
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO);
+        var services = transformServicesWithCredentialManager(configManager, transformScheduler, credentialManager);
+        var taskExecutor = buildTaskExecutor(services);
+
+        var params = taskParams(transformId);
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // active credential must still be in storage
+        var remainingIds = new ArrayList<String>();
+        configManager.forEachTransformCloudCredential(
+            transformId,
+            c -> remainingIds.add(c.id()),
+            ActionTestUtils.assertNoFailureListener(ignored -> {})
+        );
+        assertThat(remainingIds, equalTo(List.of(activeId)));
+
+        // task must start normally after the sweep
+        verify(task).start(isNull(), any());
+    }
+
+    public void testNodeOperationSweepDoesNotBlockStartupOnListFailure() throws Exception {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var transformId = "testSweepListFailure";
+        var activeId = "active-id";
+
+        // config manager that fails the list-by-transformId query
+        var configManager = new InMemoryTransformConfigManager() {
+            @Override
+            public void forEachTransformCloudCredential(
+                String tid,
+                Consumer<PersistedCloudCredential> action,
+                ActionListener<Void> listener
+            ) {
+                listener.onFailure(new IllegalStateException("index unavailable"));
+            }
+        };
+        var persisted = new PersistedCloudCredential(activeId, new SecureString("k".toCharArray()));
+        configManager.putTransformCloudCredential(transformId, persisted, ActionListener.noop());
+        putTransformConfiguration(configManager, transformId, activeId);
+
+        var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO);
+        // use real credential manager so we can confirm sweep failure is swallowed
+        var credentialManager = new TransformCloudCredentialManager(
+            threadPool,
+            null,
+            mock(org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager.class),
+            mock(org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService.class),
+            configManager,
+            mock(TransformAuditor.class)
+        );
+        var services = transformServicesWithCredentialManager(configManager, transformScheduler, credentialManager);
+        var taskExecutor = buildTaskExecutor(services);
+
+        var params = taskParams(transformId);
+        var task = mockTransformTask();
+        taskExecutor.nodeOperation(task, params, mock());
+
+        // task must still start even though the sweep list failed
+        verify(task.getContext()).setPersistedCloudCredential(persisted);
+        verify(task).start(isNull(), any());
+    }
+
+    private TransformServices transformServicesWithCredentialManager(
+        TransformConfigManager configManager,
+        TransformScheduler scheduler,
+        TransformCloudCredentialManager credentialManager
+    ) {
+        var mockAuditor = mock(TransformAuditor.class);
+        var transformCheckpointService = new TransformCheckpointService(
+            Clock.systemUTC(),
+            Settings.EMPTY,
+            StubLinkedProjectConfigService.INSTANCE,
+            configManager,
+            mockAuditor
+        );
+        return new TransformServices(
+            configManager,
+            transformCheckpointService,
+            mockAuditor,
+            scheduler,
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class),
+            credentialManager
         );
     }
 
@@ -675,7 +888,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
     }
 

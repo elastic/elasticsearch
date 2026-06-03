@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 148663
+summary: Don't apply time zones to epoch-based timestamps
+type: bug

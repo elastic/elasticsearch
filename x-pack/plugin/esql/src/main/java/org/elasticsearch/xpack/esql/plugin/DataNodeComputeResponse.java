@@ -51,7 +51,8 @@ final class DataNodeComputeResponse extends TransportResponse {
                 0,
                 0,
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
-                List.of()
+                List.of(),
+                java.util.Map.of()
             );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;

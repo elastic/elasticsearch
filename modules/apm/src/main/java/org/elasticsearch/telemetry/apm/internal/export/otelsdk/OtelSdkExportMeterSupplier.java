@@ -53,6 +53,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.diskBufferPath = diskBufferPath;
     }
 
+    /** For testing: pre-initializes resources so tests can inject readable providers. */
+    OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
+        this.settings = settings;
+        this.diskBufferPath = diskBufferPath;
+        this.resources = testResources;
+    }
+
     @Override
     public Meter get() {
         synchronized (mutex) {
@@ -181,6 +188,23 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         CompletableResultCode result = new CompletableResultCode();
         sys.forceFlush().whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(result::succeed)));
         return result;
+    }
+
+    /**
+     * {@code BatchSpanProcessor} registers its queue-metric instruments exactly once on the first span,
+     * so the provider it receives here is permanent. Initializing eagerly ensures that happens against
+     * the real SDK provider even if metrics have not been explicitly enabled yet.
+     * The health provider is returned (not the system provider) because span pipeline self-monitoring
+     * metrics are OTel SDK-internal telemetry, not application metrics.
+     */
+    @Override
+    public MeterProvider getHealthMeterProvider() {
+        synchronized (mutex) {
+            if (resources == null) {
+                resources = createMeteringResources();
+            }
+            return resources.meterHealthMeterProvider();
+        }
     }
 
     @Override

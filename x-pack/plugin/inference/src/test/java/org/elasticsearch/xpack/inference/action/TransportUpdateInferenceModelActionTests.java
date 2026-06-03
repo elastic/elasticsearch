@@ -632,14 +632,14 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        return callMasterOperationWithActionFuture(INFERENCE_ENTITY_ID_VALUE);
+        return callMasterOperationWithInferenceId(INFERENCE_ENTITY_ID_VALUE);
     }
 
     private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFutureForDefaultEndpoint() {
-        return callMasterOperationWithActionFuture(DEFAULT_INFERENCE_ENTITY_ID_VALUE);
+        return callMasterOperationWithInferenceId(DEFAULT_INFERENCE_ENTITY_ID_VALUE);
     }
 
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture(String inferenceEntityId) {
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithInferenceId(String inferenceEntityId) {
         return callMasterOperationWithRequestBody(inferenceEntityId, """
             {
                 "task_type": "text_embedding",

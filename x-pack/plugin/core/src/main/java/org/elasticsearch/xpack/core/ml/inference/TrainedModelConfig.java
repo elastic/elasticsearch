@@ -69,7 +69,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final int MAX_PREFIX_STRING_LENGTH = 1_000;
     public static final int MAX_INPUT_FIELD_NAMES = 100;
     public static final int MAX_DEFAULT_FIELD_MAP_ENTRIES = 100;
-    public static final int MAX_METADATA_SIZE_BYTES = 64 * 1024;
+    public static final int MAX_METADATA_SIZE_BYTES = (int) ByteSizeValue.ofKb(64).getBytes();
 
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
@@ -924,7 +924,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             if (tags.size() > MAX_TAGS_LENGTH) {
                 validationException = addValidationError(
-                    "[" + TAGS.getPreferredName() + "] must contain less than " + MAX_TAGS_LENGTH + " tags.",
+                    "[" + TAGS.getPreferredName() + "] must contain not more than " + MAX_TAGS_LENGTH + " tags.",
                     validationException
                 );
             }
@@ -980,7 +980,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                             + PREFIX_STRINGS.getPreferredName()
                             + "."
                             + TrainedModelPrefixStrings.INGEST_PREFIX.getPreferredName()
-                            + "] must be less than "
+                            + "] must be not more than "
                             + MAX_PREFIX_STRING_LENGTH
                             + " characters in length.",
                         validationException
@@ -992,7 +992,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                             + PREFIX_STRINGS.getPreferredName()
                             + "."
                             + TrainedModelPrefixStrings.SEARCH_PREFIX.getPreferredName()
-                            + "] must be less than "
+                            + "] must be not more than "
                             + MAX_PREFIX_STRING_LENGTH
                             + " characters in length.",
                         validationException
@@ -1006,7 +1006,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                         + INPUT.getPreferredName()
                         + "."
                         + TrainedModelInput.FIELD_NAMES.getPreferredName()
-                        + "] must contain less than "
+                        + "] must contain not more than "
                         + MAX_INPUT_FIELD_NAMES
                         + " field names.",
                     validationException
@@ -1015,21 +1015,25 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
             if (defaultFieldMap != null && defaultFieldMap.size() > MAX_DEFAULT_FIELD_MAP_ENTRIES) {
                 validationException = addValidationError(
-                    "[" + DEFAULT_FIELD_MAP.getPreferredName() + "] must contain less than " + MAX_DEFAULT_FIELD_MAP_ENTRIES + " entries.",
+                    "["
+                        + DEFAULT_FIELD_MAP.getPreferredName()
+                        + "] must contain not more than "
+                        + MAX_DEFAULT_FIELD_MAP_ENTRIES
+                        + " entries.",
                     validationException
                 );
             }
 
             if (metadata != null && serializationSize(metadata) > MAX_METADATA_SIZE_BYTES) {
                 validationException = addValidationError(
-                    "[" + METADATA.getPreferredName() + "] must be less than " + MAX_METADATA_SIZE_BYTES + " bytes.",
+                    "[" + METADATA.getPreferredName() + "] must be not more than " + MAX_METADATA_SIZE_BYTES + " bytes in size.",
                     validationException
                 );
             }
 
             if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
                 validationException = addValidationError(
-                    "[" + DESCRIPTION.getPreferredName() + "] must be less than " + MAX_DESCRIPTION_LENGTH + " characters in length.",
+                    "[" + DESCRIPTION.getPreferredName() + "] must be not more than " + MAX_DESCRIPTION_LENGTH + " characters in length.",
                     validationException
                 );
             }

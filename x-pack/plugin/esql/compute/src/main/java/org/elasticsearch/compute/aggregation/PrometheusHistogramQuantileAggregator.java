@@ -30,7 +30,11 @@ class PrometheusHistogramQuantileAggregator {
         return "prometheus_histogram_quantile";
     }
 
-    public static PrometheusHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
+    public static PrometheusHistogramQuantileStates.SingleState initSingle(
+        DriverContext driverContext,
+        double quantile,
+        Warnings warnings
+    ) {
         return new PrometheusHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
     }
 

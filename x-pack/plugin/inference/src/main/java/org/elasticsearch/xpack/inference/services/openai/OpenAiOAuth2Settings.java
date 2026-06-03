@@ -12,13 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.ValidationResult;
+import org.elasticsearch.xpack.inference.common.oauth2.BaseOAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
@@ -29,7 +27,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR;
-import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.addMissingFieldsValidationException;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.requiredFieldsDescription;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
@@ -44,7 +41,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
  * shape of {@code AzureOpenAiOAuth2Settings} but with {@code token_url} replacing
  * Azure's {@code tenant_id}.
  */
-public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
+public class OpenAiOAuth2Settings extends BaseOAuth2Settings {
 
     public static final TransportVersion OPENAI_OAUTH2_SETTINGS = TransportVersion.fromName("openai_oauth2_settings");
 
@@ -53,14 +50,13 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
 
     private static final String SERVICE_DESCRIPTION = "OpenAI";
 
-    private final OAuth2Settings oAuth2Settings;
     private final URI tokenUrl;
 
     public static OpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
         var tokenUrl = extractOptionalUri(map, TOKEN_URL, validationException);
 
-        var hasAllFields = validateFields(oauth2ServiceSettings, tokenUrl, validationException);
+        var hasAllFields = validateFields(oauth2ServiceSettings, tokenUrl, TOKEN_URL, SERVICE_DESCRIPTION, validationException);
 
         if (hasAllFields) {
             return new OpenAiOAuth2Settings(oauth2ServiceSettings.result(), tokenUrl);
@@ -68,44 +64,18 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         return null;
     }
 
-    private static boolean validateFields(
-        ValidationResult<OAuth2Settings> oauth2Settings,
-        @Nullable URI tokenUrl,
-        ValidationException validationException
-    ) {
-        if (tokenUrl == null) {
-            if (oauth2Settings.isUndefined()) {
-                return false;
-            }
-            addMissingFieldsValidationException(SERVICE_DESCRIPTION, Set.of(TOKEN_URL), validationException);
-            return false;
-        } else if (oauth2Settings.isUndefined()) {
-            addMissingFieldsValidationException(SERVICE_DESCRIPTION, OAuth2Settings.REQUIRED_FIELDS, validationException);
-            return false;
-        }
-        return oauth2Settings.isSuccess();
-    }
-
     public OpenAiOAuth2Settings(String clientId, List<String> scopes, URI tokenUrl) {
         this(new OAuth2Settings(clientId, scopes), tokenUrl);
     }
 
     public OpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, URI tokenUrl) {
-        this.oAuth2Settings = Objects.requireNonNull(oAuth2Settings);
+        super(oAuth2Settings);
         this.tokenUrl = Objects.requireNonNull(tokenUrl);
     }
 
     public OpenAiOAuth2Settings(StreamInput in) throws IOException {
-        this.oAuth2Settings = new OAuth2Settings(in);
+        super(new OAuth2Settings(in));
         this.tokenUrl = URI.create(in.readString());
-    }
-
-    public String clientId() {
-        return oAuth2Settings.clientId();
-    }
-
-    public List<String> scopes() {
-        return oAuth2Settings.scopes();
     }
 
     public URI tokenUrl() {

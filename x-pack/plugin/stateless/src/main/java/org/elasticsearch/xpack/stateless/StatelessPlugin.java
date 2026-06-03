@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.BoostConfigurationsService;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -121,6 +122,7 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -721,6 +723,16 @@ public class StatelessPlugin extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        settings.put(Settings.builder().loadFromSource("""
+            {
+              "_default": {
+                "bw0": { "max_age": "7d", "cache_power_min": 100},
+                "bw1": { "max_age": "3650d", "cache_power_min": 10}
+              },
+              "no_timestamp": {
+                "bw0": { "max_age": "-1", "cache_power_min": 100}
+              }
+            }""", XContentType.JSON).normalizePrefix(BoostConfigurationsService.BOOST_CONFIGURATIONS_SETTING.getKey()).build());
         return settings.build();
     }
 
@@ -1019,6 +1031,7 @@ public class StatelessPlugin extends Plugin
             }
         }
 
+        components.add(new BoostConfigurationsService(clusterService, threadPool));
         return components;
     }
 
@@ -1314,7 +1327,8 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
-            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
+            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING,
+            BoostConfigurationsService.BOOST_CONFIGURATIONS_SETTING
         );
     }
 

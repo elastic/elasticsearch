@@ -560,9 +560,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-41321}
   issue: https://github.com/elastic/elasticsearch/issues/150300
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testSnapshotShardsWhileHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/150301
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
@@ -591,9 +588,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT
   method: testJoinedDataNodeDecryptsTheSecret
   issue: https://github.com/elastic/elasticsearch/issues/150440
-- class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
-  method: testWhereNegatedCondition
-  issue: https://github.com/elastic/elasticsearch/issues/150441
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
@@ -645,3 +639,21 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictMappedTimesTwoAndUnmapped
+  issue: https://github.com/elastic/elasticsearch/issues/150567
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150571
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150572
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTSTypeConflictTimeseriesLongUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150584
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/147842

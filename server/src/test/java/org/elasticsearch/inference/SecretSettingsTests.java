@@ -72,7 +72,9 @@ public class SecretSettingsTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[%s] only the field [%s] can be updated for this secret, received: [%s]", SCOPE, FIELD, OTHER_FIELD))
+            containsString(
+                Strings.format("[%s] only the field [%s] can be updated for this secret, received: [%s]", SCOPE, FIELD, OTHER_FIELD)
+            )
         );
     }
 
@@ -91,7 +93,9 @@ public class SecretSettingsTests extends ESTestCase {
         );
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[%s] only the field [%s] can be updated for this secret, received: [%s]", SCOPE, FIELD, OTHER_FIELD))
+            containsString(
+                Strings.format("[%s] only the field [%s] can be updated for this secret, received: [%s]", SCOPE, FIELD, OTHER_FIELD)
+            )
         );
     }
 

@@ -155,18 +155,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
-- class: org.elasticsearch.xpack.sql.qa.multi_node.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.security.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
   issue: https://github.com/elastic/elasticsearch/issues/146312

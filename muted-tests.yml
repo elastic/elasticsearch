@@ -669,3 +669,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [ndjson.bz2/AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150598
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.gz/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150599

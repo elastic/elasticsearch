@@ -29,7 +29,8 @@ public interface TelemetryProvider {
 
     /**
      * Forces any buffered telemetry (metrics, traces, and log records) to be exported immediately.
-     * Implementations should flush all signals and bound the wait to an appropriate timeout.
+     * Implementations should flush all signals concurrently where possible and bound the wait to
+     * an appropriate timeout.
      */
     void attemptFlush();
 

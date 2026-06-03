@@ -109,7 +109,7 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         assertNotNull(log.attributes());
         // PR 1 intentionally asserts on the log4j.map_message. prefix: the OpenTelemetryAppender
         // captures StringMapMessage entries as prefixed attributes when
-        // setCaptureMapMessageAttributes(true) is set. Stripping the prefix is PR 2's job.
+        // setCaptureMapMessageAttributes(true) is set. Stripping the prefix is tracked in #4183.
         assertNotNull("audit log should carry event.action", log.attributes().get("log4j.map_message.event.action"));
         assertNotNull("audit log should carry event.type", log.attributes().get("log4j.map_message.event.type"));
         // R6: cluster and node identity fields must not be present on records that ship via OTLP.

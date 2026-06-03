@@ -103,8 +103,10 @@ public sealed interface ReceivedTelemetry {
 
     /**
      * A single OTLP log record, as emitted by the OTel SDK audit-log export path.
-     * {@code attributes} is a flat map of OTLP log record attributes; the keys include the
-     * {@code log4j.map_message.} prefix until the custom appender in PR 2 strips it.
+     * {@code attributes} is a flat map of OTLP log record attributes; the keys currently include
+     * a {@code log4j.map_message.} prefix, which will be removed (tracked in #4183) when the raw
+     * {@code OpenTelemetryAppender} is replaced with a custom one that applies the audit field
+     * rename.
      */
     record ReceivedLog(
         long timeUnixNano,

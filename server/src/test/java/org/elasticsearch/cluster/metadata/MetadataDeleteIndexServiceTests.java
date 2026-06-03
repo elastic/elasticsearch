@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -78,12 +77,9 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
     public void testDeleteMissing() {
         Index index = new Index("missing", "doesn't matter");
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> MetadataDeleteIndexService.deleteIndices(state, Set.of(index), Settings.EMPTY)
-        );
-        assertEquals(index, e.getIndex());
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(index), Settings.EMPTY);
+        assertSame(before, after);
     }
 
     public void testDeleteSnapshotting() {

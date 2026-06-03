@@ -32,7 +32,7 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
     @Override
     protected RankBuilder getRankBuilder(int rankWindowSize, String rankFeatureField) {
-        return new TextSimilarityRankBuilder(rankFeatureField, inferenceId, inferenceText, rankWindowSize, minScore, false);
+        return new TextSimilarityRankBuilder(rankFeatureField, inferenceId, inferenceText, rankWindowSize, minScore, false, null);
     }
 
     @Override
@@ -53,7 +53,8 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
             inferenceText,
             minScore,
             failuresAllowed,
-            type.name()
+            type.name(),
+            null
         );
     }
 

@@ -18,7 +18,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
+import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +34,11 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
     GetInferenceDiagnosticsAction.NodeResponse,
     Void> {
 
-    private final HttpClientManager httpClientManager;
+    public record ClientManagers(HttpClientManager externalHttpClientManager, HttpClientManager eisMtlsHttpClientManager) {}
+
+    private final ClientManagers managers;
+    private final InferenceEndpointRegistry inferenceEndpointRegistry;
+    private final OAuth2TokenCache oauth2TokenCache;
 
     @Inject
     public TransportGetInferenceDiagnosticsAction(
@@ -39,7 +46,9 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        HttpClientManager httpClientManager
+        ClientManagers managers,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
+        OAuth2TokenCache oauth2TokenCache
     ) {
         super(
             GetInferenceDiagnosticsAction.NAME,
@@ -50,7 +59,9 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
 
-        this.httpClientManager = Objects.requireNonNull(httpClientManager);
+        this.managers = Objects.requireNonNull(managers);
+        this.inferenceEndpointRegistry = Objects.requireNonNull(inferenceEndpointRegistry);
+        this.oauth2TokenCache = Objects.requireNonNull(oauth2TokenCache);
     }
 
     @Override
@@ -74,6 +85,25 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
 
     @Override
     protected GetInferenceDiagnosticsAction.NodeResponse nodeOperation(GetInferenceDiagnosticsAction.NodeRequest request, Task task) {
-        return new GetInferenceDiagnosticsAction.NodeResponse(transportService.getLocalNode(), httpClientManager.getPoolStats());
+        return new GetInferenceDiagnosticsAction.NodeResponse(
+            transportService.getLocalNode(),
+            managers.externalHttpClientManager().getPoolStats(),
+            managers.eisMtlsHttpClientManager().getPoolStats(),
+            toCacheStats(inferenceEndpointRegistry),
+            toCacheStats(oauth2TokenCache)
+        );
+    }
+
+    private static GetInferenceDiagnosticsAction.NodeResponse.Stats toCacheStats(DiagnosticsCache<?> cache) {
+        if (cache.cacheEnabled() == false) {
+            return null;
+        }
+        var stats = cache.stats();
+        return new GetInferenceDiagnosticsAction.NodeResponse.Stats(
+            cache.cacheCount(),
+            stats.getHits(),
+            stats.getMisses(),
+            stats.getEvictions()
+        );
     }
 }

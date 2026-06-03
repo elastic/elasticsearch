@@ -20,7 +20,7 @@ This connector is available as a self-managed connector. This self-managed conne
 
 To create a new Oracle connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Oracle** self-managed connector.
 
 
@@ -38,6 +38,7 @@ PUT _connector/my-oracle-connector
   "service_type": "oracle"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -193,8 +194,9 @@ You can deploy the Oracle connector as a self-managed connector using Docker. Fo
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -232,13 +234,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -321,4 +323,4 @@ This connector is built with the [Elastic connector framework](https://github.co
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*).
 
-View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/connectors/sources/oracle.py) (branch *main*, compatible with Elastic *9.0*).
+View [additional code specific to this data source](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/oracle) (branch *main*, compatible with Elastic *9.0*).

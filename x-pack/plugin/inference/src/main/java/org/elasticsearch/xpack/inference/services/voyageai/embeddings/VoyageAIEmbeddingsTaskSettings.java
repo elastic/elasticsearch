@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,28 +38,27 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "voyageai_embeddings_task_settings";
     public static final VoyageAIEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsTaskSettings(null, null);
-    static final String INPUT_TYPE = "input_type";
+    static final String INPUT_TYPE_FIELD = "input_type";
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
 
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        InputType inputType = extractOptionalEnum(
+        var inputType = extractOptionalEnum(
             map,
-            INPUT_TYPE,
+            INPUT_TYPE_FIELD,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
+        var truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -80,30 +77,13 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         VoyageAIEmbeddingsTaskSettings originalSettings,
         VoyageAIEmbeddingsTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
-        var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
+        if (requestTaskSettings.isEmpty() || originalSettings.equals(requestTaskSettings)) {
+            return originalSettings;
+        }
+        var inputTypeToUse = requestTaskSettings.inputType() == null ? originalSettings.inputType() : requestTaskSettings.inputType();
+        var truncationToUse = requestTaskSettings.truncation() == null ? originalSettings.truncation() : requestTaskSettings.truncation();
 
         return new VoyageAIEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
-    }
-
-    private static InputType getValidInputType(
-        VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings
-    ) {
-        InputType inputTypeToUse = originalSettings.inputType;
-
-        if (requestTaskSettings.inputType != null) {
-            inputTypeToUse = requestTaskSettings.inputType;
-        }
-
-        return inputTypeToUse;
-    }
-
-    private static Boolean getValidTruncation(
-        VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings
-    ) {
-        return requestTaskSettings.getTruncation() == null ? originalSettings.truncation : requestTaskSettings.getTruncation();
     }
 
     private final InputType inputType;
@@ -136,22 +116,20 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (inputType != null) {
-            builder.field(INPUT_TYPE, inputType);
+            builder.field(INPUT_TYPE_FIELD, inputType);
         }
-
         if (truncation != null) {
             builder.field(TRUNCATION, truncation);
         }
-
         builder.endObject();
         return builder;
     }
 
-    public InputType getInputType() {
+    public InputType inputType() {
         return inputType;
     }
 
-    public Boolean getTruncation() {
+    public Boolean truncation() {
         return truncation;
     }
 
@@ -163,13 +141,12 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
-            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+        return version.supports(VOYAGE_AI_INTEGRATION_ADDED);
     }
 
     @Override
@@ -193,7 +170,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        VoyageAIEmbeddingsTaskSettings updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
+        var updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

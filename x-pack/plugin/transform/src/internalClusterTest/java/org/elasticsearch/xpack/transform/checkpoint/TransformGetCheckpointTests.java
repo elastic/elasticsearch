@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -86,10 +86,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private TestTransportGetCheckpointNodeAction getCheckpointNodeAction;
     private ClusterState clusterStateWithIndex;
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void setupTransportService() throws Exception {
         numberOfNodes = randomIntBetween(1, 10);
         numberOfIndices = randomIntBetween(1, 10);
         // create at least as many shards as nodes, so every node has at least 1 shard
@@ -133,7 +131,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
+            .putCompatibilityVersions("node01", TransportVersion.minimumCompatible(), Map.of())
             .build();
 
         client = mock(Client.class);
@@ -150,12 +148,10 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         getCheckpointNodeAction = new TestTransportGetCheckpointNodeAction();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void cleanupThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
-        super.tearDown();
     }
 
     public void testEmptyCheckpoint() throws InterruptedException {

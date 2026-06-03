@@ -11,8 +11,10 @@ package org.elasticsearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -24,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +70,7 @@ public class TaskResultsService {
      * time is 600000 milliseconds, ten minutes.
      */
     static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
-    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 0;
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private final Client client;
 
@@ -80,6 +83,28 @@ public class TaskResultsService {
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
+        doStoreResult(STORE_BACKOFF_POLICY.iterator(), buildIndexRequest(taskResult), listener);
+    }
+
+    /**
+     * Stores the task result only if a document with the same ID does not already exist. Uses {@code opType(CREATE)} so a concurrent or
+     * earlier write wins. A version conflict (document already exists) is treated as success.
+     */
+    public void storeResultIfAbsent(TaskResult taskResult, ActionListener<Void> listener) {
+        doStoreResult(
+            STORE_BACKOFF_POLICY.iterator(),
+            buildIndexRequest(taskResult).setOpType(DocWriteRequest.OpType.CREATE),
+            listener.delegateResponse((l, e) -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    l.onResponse(null);
+                } else {
+                    l.onFailure(e);
+                }
+            })
+        );
+    }
+
+    private IndexRequestBuilder buildIndexRequest(TaskResult taskResult) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().taskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_CANCELLED_PARAM, "false")));
@@ -87,7 +112,7 @@ public class TaskResultsService {
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
         }
-        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
+        return index;
     }
 
     private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {
@@ -184,6 +209,14 @@ public class TaskResultsService {
                             builder.startObject("headers");
                             builder.field("type", "object");
                             builder.field("enabled", false);
+                            builder.endObject();
+
+                            builder.startObject("original_task_id");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("original_start_time_in_millis");
+                            builder.field("type", "long");
                             builder.endObject();
                         }
                         builder.endObject();

@@ -27,13 +27,13 @@ import java.util.Objects;
 public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
 
     public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(ThreadPoolUsageStats::new));
+        this(in.readString(), in.readImmutableMap(ThreadPoolUsageStats::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(this.nodeId);
-        out.writeMap(threadPoolUsageStatsMap, StreamOutput::writeWriteable);
+        out.writeMap(this.threadPoolUsageStatsMap, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -47,6 +47,9 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         if (o == null || getClass() != o.getClass()) return false;
         NodeUsageStatsForThreadPools other = (NodeUsageStatsForThreadPools) o;
         for (var entry : other.threadPoolUsageStatsMap.entrySet()) {
+            if (nodeId.equals(other.nodeId) == false) {
+                return false;
+            }
             var loadStats = threadPoolUsageStatsMap.get(entry.getKey());
             if (loadStats == null || loadStats.equals(entry.getValue()) == false) {
                 return false;
@@ -70,14 +73,11 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
      *
      * @param totalThreadPoolThreads Total number of threads in the thread pool.
      * @param averageThreadPoolUtilization Percent of thread pool threads that are in use, averaged over some period of time.
-     * @param averageThreadPoolQueueLatencyMillis How much time tasks spend in the thread pool queue. Zero if there is nothing being queued
-     *                                            in the write thread pool.
+     * @param maxThreadPoolQueueLatencyMillis The max time any task has spent in the thread pool queue. Zero if no task is queued.
      */
-    public record ThreadPoolUsageStats(
-        int totalThreadPoolThreads,
-        float averageThreadPoolUtilization,
-        long averageThreadPoolQueueLatencyMillis
-    ) implements Writeable {
+    public record ThreadPoolUsageStats(int totalThreadPoolThreads, float averageThreadPoolUtilization, long maxThreadPoolQueueLatencyMillis)
+        implements
+            Writeable {
 
         public ThreadPoolUsageStats(StreamInput in) throws IOException {
             this(in.readVInt(), in.readFloat(), in.readVLong());
@@ -87,35 +87,7 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.totalThreadPoolThreads);
             out.writeFloat(this.averageThreadPoolUtilization);
-            out.writeVLong(this.averageThreadPoolQueueLatencyMillis);
+            out.writeVLong(this.maxThreadPoolQueueLatencyMillis);
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalThreadPoolThreads, averageThreadPoolUtilization, averageThreadPoolQueueLatencyMillis);
-        }
-
-        @Override
-        public String toString() {
-            return "[totalThreadPoolThreads="
-                + totalThreadPoolThreads
-                + ", averageThreadPoolUtilization="
-                + averageThreadPoolUtilization
-                + ", averageThreadPoolQueueLatencyMillis="
-                + averageThreadPoolQueueLatencyMillis
-                + "]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ThreadPoolUsageStats other = (ThreadPoolUsageStats) o;
-            return totalThreadPoolThreads == other.totalThreadPoolThreads
-                && averageThreadPoolUtilization == other.averageThreadPoolUtilization
-                && averageThreadPoolQueueLatencyMillis == other.averageThreadPoolQueueLatencyMillis;
-        }
-
-    } // ThreadPoolUsageStats
-
+    }
 }

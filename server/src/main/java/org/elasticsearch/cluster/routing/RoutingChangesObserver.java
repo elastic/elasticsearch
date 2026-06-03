@@ -13,6 +13,9 @@ package org.elasticsearch.cluster.routing;
  * Records changes made to {@link RoutingNodes} during an allocation round.
  */
 public interface RoutingChangesObserver {
+
+    RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
+
     /**
      * Called when unassigned shard is initialized. Does not include initializing relocation target shards.
      */

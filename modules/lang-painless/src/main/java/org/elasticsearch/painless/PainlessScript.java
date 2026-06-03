@@ -46,6 +46,9 @@ public interface PainlessScript {
      * @return The generated ScriptException.
      */
     default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+        if (t instanceof PainlessWrappedException) {
+            t = t.getCause();
+        }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;
@@ -118,4 +121,29 @@ public interface PainlessScript {
     default int getNextStatement(int offset) {
         return getStatements().nextSetBit(offset + 1);
     }
+
+    /**
+     * Returns the cancellation runnable for this script instance, or {@code null} for none.
+     * The painless engine reads this once at {@code execute} entry and invokes it between loop
+     * iterations to honor the surrounding deadline (search timeout, task cancellation). Contexts
+     * opt in by overriding both this method and {@link #_setCancellationCheck}; the default
+     * {@code null} means non-opted-in contexts pay no per-iteration cost.
+     */
+    default Runnable _getCancellationCheck() {
+        return null;
+    }
+
+    /** Binds a cancellation runnable; default no-op. See {@link #_getCancellationCheck()}. */
+    default void _setCancellationCheck(Runnable cancellationCheck) {}
+
+    /**
+     * Performs one decrement-and-check of this script instance's persistent cancellation poll
+     * counter, running the cancellation runnable and resetting the counter when it reaches zero.
+     * Opted-in contexts back the counter with a generated field ({@code $cancelPoll}) that the
+     * compiler also decrements inline at every loop back-edge and function entry;
+     * {@code @script_aware} augmentations call this once per iteration so their polling shares
+     * that single counter rather than a private copy, keeping the cadence amortised across all
+     * script work. The default no-op is for non-opted-in contexts.
+     */
+    default void _pollCancellation() {}
 }

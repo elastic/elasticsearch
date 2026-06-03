@@ -84,14 +84,20 @@ public class CannedSourceOperator extends SourceOperator {
         try {
             for (Page p : pages) {
                 Block[] blocks = new Block[p.getBlockCount()];
-                for (int b = 0; b < blocks.length; b++) {
-                    Block orig = p.getBlock(b);
-                    try (Block.Builder builder = orig.elementType().newBlockBuilder(p.getPositionCount(), blockFactory)) {
-                        builder.copyFrom(orig, 0, p.getPositionCount());
-                        blocks[b] = builder.build();
+                try {
+                    for (int b = 0; b < blocks.length; b++) {
+                        Block orig = p.getBlock(b);
+                        try (Block.Builder builder = orig.elementType().newBlockBuilder(p.getPositionCount(), blockFactory)) {
+                            builder.copyFrom(orig, 0, p.getPositionCount());
+                            blocks[b] = builder.build();
+                        }
                     }
+                    out.add(new Page(blocks));
+                } catch (Exception e) {
+                    // Something went wrong, release the blocks.
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
                 }
-                out.add(new Page(blocks));
             }
         } finally {
             if (pages.size() != out.size()) {
@@ -131,5 +137,14 @@ public class CannedSourceOperator extends SourceOperator {
         while (page.hasNext()) {
             page.next().releaseBlocks();
         }
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // CannedSourceOperator doesn't buffer data internally - it just returns pages from an iterator.
+        // There's no internal buffer that needs draining, so return false.
+        // The default SourceOperator implementation returns !isFinished() which would cause busy-spin
+        // when downstream async operators are blocked.
+        return false;
     }
 }

@@ -1,10 +1,10 @@
 {
   "connector.delete": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-connector-api.html",
-      "description": "Deletes a connector."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-delete",
+      "description": "Delete a connector"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -31,7 +31,7 @@
       "hard": {
         "type": "boolean",
         "default": false,
-        "description":  "If true, the connector doc is deleted. If false, connector doc is marked as deleted (soft-deleted)."
+        "description": "If true, the connector doc is deleted. If false, connector doc is marked as deleted (soft-deleted)."
       },
       "delete_sync_jobs": {
         "type": "boolean",

@@ -9,12 +9,7 @@ mapped_pages:
 
 The *Elastic GitHub connector* is a [connector](/reference/search-connectors/index.md) for [GitHub](https://www.github.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/github.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/github) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-github-connector-client-reference]
 
@@ -34,7 +29,7 @@ To use this connector, satisfy all [self-managed connector requirements](/refere
 
 To create a new GitHub connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **GitHub** self-managed connector.
 
 
@@ -52,6 +47,7 @@ PUT _connector/my-github-connector
   "service_type": "github"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -237,8 +233,9 @@ You can deploy the GitHub connector as a self-managed connector using Docker. Fo
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -276,13 +273,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -361,6 +358,7 @@ $$$es-connectors-github-client-sync-rules-advanced-branch$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
 **Indexing document based on issue query related to bugs via issue key**
@@ -375,6 +373,7 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-key$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
 **Indexing document based on PR query related to open PR’s via PR key**
@@ -389,6 +388,7 @@ $$$es-connectors-github-client-sync-rules-advanced-pr-key$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
 **Indexing document and files based on queries and branch name**
@@ -405,6 +405,7 @@ $$$es-connectors-github-client-sync-rules-advanced-issue-query-branch-name$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 ::::{note}
 All documents pulled by a given rule are indexed regardless of whether the document has already been indexed by a previous rule. This can lead to document duplication, but the indexed documents count will differ in the logs. Check the Elasticsearch index for the actual document count.
@@ -431,6 +432,7 @@ $$$es-connectors-github-client-sync-rules-advanced-overlapping$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 ::::{note}
 If `GitHub App` is selected as the authentication method, the  "OWNER/" portion of the "OWNER/REPO" repository argument must be provided.

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -19,6 +22,7 @@ import org.elasticsearch.compute.data.sort.BooleanBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.sort.SortOrder;
+// end generated imports
 
 /**
  * Aggregates the top N field values for boolean.
@@ -57,16 +61,16 @@ class TopBooleanAggregator {
         state.add(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, BooleanBlock values, int valuesPosition) {
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
+    public static void combineIntermediate(GroupingState state, int groupId, BooleanBlock values, int position) {
+        int start = values.getFirstValueIndex(position);
+        int end = start + values.getValueCount(position);
         for (int i = start; i < end; i++) {
             combine(state, groupId, values.getBoolean(i));
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
     public static class GroupingState implements GroupingAggregatorState {
@@ -80,7 +84,6 @@ class TopBooleanAggregator {
             sort.collect(value, groupId);
         }
 
-        @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
@@ -113,7 +116,9 @@ class TopBooleanAggregator {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory());
+            try (var intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
+                internalState.toIntermediate(blocks, offset, intValues, driverContext);
+            }
         }
 
         Block toBlock(BlockFactory blockFactory) {

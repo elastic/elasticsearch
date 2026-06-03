@@ -11,7 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
+import org.elasticsearch.xpack.esql.qa.rest.generative.PerFeatureGenerativeRestTest;
 import org.junit.ClassRule;
 
 /**
@@ -26,9 +29,14 @@ import org.junit.ClassRule;
  * </ul>
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class GenerativeIT extends GenerativeRestTest {
+@TestLogging(value = "org.elasticsearch.xpack.esql.plugin.ComputeService", reason = "see plans on failure")
+public class GenerativeIT extends PerFeatureGenerativeRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    public GenerativeIT(GenerativeFeature feature) {
+        super(feature);
+    }
 
     @Override
     protected String getTestRestCluster() {

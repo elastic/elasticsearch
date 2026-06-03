@@ -22,7 +22,7 @@ public class CompressorFactory {
     public static final Compressor COMPRESSOR = new DeflateCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
-        return compressor(bytes) != null;
+        return compressorForUnknownXContentType(bytes) != null;
     }
 
     @Nullable
@@ -33,6 +33,15 @@ public class CompressorFactory {
             // as a xcontent, we have a problem
             assert XContentHelper.xContentType(bytes) == null;
             return COMPRESSOR;
+        }
+        return null;
+    }
+
+    @Nullable
+    public static Compressor compressorForUnknownXContentType(BytesReference bytes) {
+        Compressor compressor = compressor(bytes);
+        if (compressor != null) {
+            return compressor;
         }
 
         XContentType contentType = XContentHelper.xContentType(bytes);
@@ -56,13 +65,13 @@ public class CompressorFactory {
      * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
+        Compressor compressor = compressorForUnknownXContentType(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
         return compressor == null ? bytes : compressor.uncompress(bytes);
     }
 
     /** Decompress the provided {@link BytesReference}. */
     public static BytesReference uncompress(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(bytes);
+        Compressor compressor = compressorForUnknownXContentType(bytes);
         if (compressor == null) {
             throw new NotCompressedException();
         }

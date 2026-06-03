@@ -12,17 +12,21 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.config.MainInstrumentationProvider;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
-import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
+import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -42,57 +46,51 @@ import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
 
 public class TestEntitlementBootstrap {
-
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
-    private static TestPolicyManager policyManager;
+    private static TestPathLookup TEST_PATH_LOOKUP;
+    private static TestPolicyManager POLICY_MANAGER;
 
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap(@Nullable Path tempDir, @Nullable Path configDir) throws IOException {
-        if (isEnabledForTest() == false) {
+    public static void bootstrap(Path tempDir) throws IOException {
+        if (isEnabledForTests() == false) {
             return;
         }
-        TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
-        policyManager = createPolicyManager(pathLookup);
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
-        logger.debug("Loading entitlement agent");
-        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+        assert POLICY_MANAGER == null && TEST_PATH_LOOKUP == null : "Test entitlement bootstrap called multiple times";
+        TEST_PATH_LOOKUP = new TestPathLookup(tempDir);
+        POLICY_MANAGER = createPolicyManager(TEST_PATH_LOOKUP);
+        loadAgent(POLICY_MANAGER, TEST_PATH_LOOKUP);
     }
 
-    private static <T> List<T> zeroOrOne(T item) {
-        if (item == null) {
-            return List.of();
-        } else {
-            return List.of(item);
-        }
-    }
-
-    public static boolean isEnabledForTest() {
+    public static boolean isEnabledForTests() {
         return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
-    public static void setActive(boolean newValue) {
-        policyManager.setActive(newValue);
+    static TestPolicyManager testPolicyManager() {
+        return POLICY_MANAGER;
     }
 
-    public static void setTriviallyAllowingTestCode(boolean newValue) {
-        policyManager.setTriviallyAllowingTestCode(newValue);
+    static TestPathLookup testPathLookup() {
+        return TEST_PATH_LOOKUP;
     }
 
-    public static void setEntitledTestPackages(String[] entitledTestPackages) {
-        policyManager.setEntitledTestPackages(entitledTestPackages);
-    }
-
-    public static void reset() {
-        if (policyManager != null) {
-            policyManager.reset();
-        }
+    private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
+        logger.debug("Loading entitlement agent");
+        PolicyCheckerImpl policyChecker = createPolicyChecker(Set.of(), policyManager, pathLookup);
+        InstrumentationRegistryImpl instrumentationRegistry = new InstrumentationRegistryImpl(policyChecker);
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            pathLookup,
+            Set.of(),
+            policyChecker,
+            instrumentationRegistry
+        );
+        new MainInstrumentationProvider().init(instrumentationRegistry);
+        instrumentationRegistry.validate();
+        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
@@ -113,7 +111,7 @@ public class TestEntitlementBootstrap {
 
         String separator = System.getProperty("path.separator");
 
-        // In productions, plugins would have access to their respective bundle directories,
+        // In production, plugins would have access to their respective bundle directories,
         // and so they'd be able to read from their jars. In testing, we approximate this
         // by considering the entire classpath to be "source paths" of all plugins. This
         // also has the effect of granting read access to everything on the test-only classpath,
@@ -140,7 +138,7 @@ public class TestEntitlementBootstrap {
         }
 
         return new TestPolicyManager(
-            HardcodedEntitlements.serverPolicy(null, null),
+            HardcodedEntitlements.serverPolicy(null, parseTestServerPolicy()),
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
@@ -148,6 +146,14 @@ public class TestEntitlementBootstrap {
             classPathEntries,
             testOnlyClassPath
         );
+    }
+
+    private static PolicyCheckerImpl createPolicyChecker(
+        Set<Package> suppressFailureLogPackages,
+        PolicyManager policyManager,
+        PathLookup pathLookup
+    ) {
+        return new PolicyCheckerImpl(suppressFailureLogPackages, EntitlementBootstrap.ENTITLEMENTS_MODULE, policyManager, pathLookup);
     }
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {
@@ -166,6 +172,22 @@ public class TestEntitlementBootstrap {
             }
         }
         return policies;
+    }
+
+    /**
+     * Discovers optional per-lib test entitlement policies on the classpath and merges them
+     * into a single patch to be applied on top of the hardcoded server entitlements.
+     */
+    private static Policy parseTestServerPolicy() throws IOException {
+        var resources = EntitlementInitialization.class.getClassLoader().getResources("META-INF/test-server-entitlement-policy.yaml");
+        List<Scope> mergedScopes = new ArrayList<>();
+        while (resources.hasMoreElements()) {
+            try (var inputStream = getStream(resources.nextElement())) {
+                var policy = new PolicyParser(inputStream, "test-server-patch", false).parsePolicy();
+                mergedScopes = PolicyUtils.mergeScopes(mergedScopes, policy.scopes());
+            }
+        }
+        return mergedScopes.isEmpty() ? null : new Policy("test-server-patch", mergedScopes);
     }
 
     private static List<PluginDescriptor> parsePluginsDescriptors(List<String> pluginNames) {

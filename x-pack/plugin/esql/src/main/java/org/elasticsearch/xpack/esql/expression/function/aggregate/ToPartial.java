@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -60,42 +57,28 @@ import java.util.stream.IntStream;
  * @see FromPartialGroupingAggregatorFunction
  */
 public class ToPartial extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToPartial",
-        ToPartial::new
-    );
+    private static final String NAME = "ToPartial";
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, ToPartial::new);
 
     private final Expression function;
 
     public ToPartial(Source source, Expression field, Expression function) {
-        this(source, field, Literal.TRUE, function);
+        this(source, field, Literal.TRUE, NO_WINDOW, function);
     }
 
-    public ToPartial(Source source, Expression field, Expression filter, Expression function) {
-        super(source, field, filter, List.of(function));
+    public ToPartial(Source source, Expression field, Expression filter, Expression window, Expression function) {
+        super(source, field, filter, window, List.of(function));
         this.function = function;
     }
 
     private ToPartial(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
-        );
-    }
-
-    @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(function);
+        super(in);
+        function = parameters().getFirst();
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return NAME;
     }
 
     public Expression function() {
@@ -114,17 +97,17 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToPartial(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new ToPartial(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public ToPartial withFilter(Expression filter) {
-        return new ToPartial(source(), field(), filter(), function);
+        return new ToPartial(source(), field(), filter, window(), function);
     }
 
     @Override
     protected NodeInfo<ToPartial> info() {
-        return NodeInfo.create(this, ToPartial::new, field(), filter(), function);
+        return NodeInfo.create(this, ToPartial::new, field(), filter(), window(), function);
     }
 
     @Override

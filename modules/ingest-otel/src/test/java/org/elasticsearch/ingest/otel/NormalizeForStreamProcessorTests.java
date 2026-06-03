@@ -9,18 +9,58 @@
 
 package org.elasticsearch.ingest.otel;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestPipelineFieldAccessPattern;
+import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.util.Map.entry;
+import static org.hamcrest.CoreMatchers.is;
 
 public class NormalizeForStreamProcessorTests extends ESTestCase {
 
     private final NormalizeForStreamProcessor processor = new NormalizeForStreamProcessor("test", "test processor");
+
+    /**
+     * The processor uses a static map of field paths to use for transforming from one format to another. These field paths
+     * must be able to work on both classic and flexible access patterns, which means they cannot use any syntax that is exclusive
+     * to one or the other, nor should they use features that work differently between the access patterns.
+     */
+    public void testRenameKeysHaveUniversalSyntax() {
+        NormalizeForStreamProcessor.RENAME_KEYS.forEach((key, value) -> {
+            var keyParts = key.split("\\.");
+            for (String keyPart : keyParts) {
+                assertThat("Cannot use open bracket in rename keys", keyPart.contains("]"), is(false));
+                assertThat("Cannot use close bracket in rename keys", keyPart.contains("["), is(false));
+                expectThrows(NumberFormatException.class, "Cannot use numeric field name in rename keys", () -> Integer.parseInt(keyPart));
+            }
+            var valueParts = value.split("\\.");
+            for (String valuePart : valueParts) {
+                assertThat("Cannot use open bracket in rename keys", valuePart.contains("]"), is(false));
+                assertThat("Cannot use close bracket in rename keys", valuePart.contains("["), is(false));
+                expectThrows(
+                    NumberFormatException.class,
+                    "Cannot use numeric field name in rename keys",
+                    () -> Integer.parseInt(valuePart)
+                );
+            }
+        });
+    }
 
     public void testIsOTelDocument_validMinimalOTelDocument() {
         Map<String, Object> source = new HashMap<>();
@@ -121,7 +161,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         );
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
         Map<String, Object> shallowCopy = new HashMap<>(source);
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
         // verify that top level keys are not moved when processing a valid OTel document
         assertEquals(shallowCopy, document.getSource());
     }
@@ -132,7 +172,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("key2", "value2");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> result = document.getSource();
         assertTrue(result.containsKey("attributes"));
@@ -158,7 +198,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("key1", "value1");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> result = document.getSource();
         assertTrue(result.containsKey("attributes"));
@@ -183,7 +223,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("key1", "value1");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> result = document.getSource();
         assertTrue(result.containsKey("attributes"));
@@ -213,7 +253,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("trace", trace);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeForStreamProcessor.renameSpecialKeys(document);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -232,7 +272,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("message", "this is a message");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeForStreamProcessor.renameSpecialKeys(document);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         assertEquals("spanIdValue", result.get("span_id"));
@@ -255,7 +295,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("span.id", "topLevelSpanIdValue");
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        NormalizeForStreamProcessor.renameSpecialKeys(document);
+        doWithRandomAccessPattern(document, NormalizeForStreamProcessor::renameSpecialKeys);
 
         Map<String, Object> result = document.getSource();
         // nested form should take precedence
@@ -274,7 +314,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.putAll(expectedAttributes);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         assertTrue(source.containsKey("resource"));
         Map<String, Object> resource = get(source, "resource");
@@ -303,7 +343,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         Map<String, Object> expectedAttributes = Map.of("agent.non-resource", "value", "service.non-resource", "value", "foo", "bar");
         expectedAttributes.forEach(document::setFieldValue);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> source = document.getSource();
 
@@ -335,7 +375,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
         source.put("agent.name", null);
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         assertFalse(source.containsKey("span"));
         assertTrue(source.containsKey("span_id"));
@@ -372,7 +412,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
 
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> result = document.getSource();
 
@@ -419,7 +459,7 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
 
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
-        processor.execute(document);
+        runWithRandomAccessPattern(document);
 
         Map<String, Object> result = document.getSource();
 
@@ -439,10 +479,260 @@ public class NormalizeForStreamProcessorTests extends ESTestCase {
     }
 
     /**
+     * Test for ECS-JSON {@code message} field normalization.
+     * <p>
+     * Input document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "message": "{
+     *     \"@timestamp\": \"2023-10-02T12:00:00Z\",
+     *     \"log.level\": \"INFO\",
+     *     \"service.name\": \"my-service\",
+     *     \"message\": \"The actual log message\",
+     *     \"http\": {
+     *       \"method\": \"GET\",
+     *       \"url\": {
+     *         \"path\": \"/api/v1/resource\"
+     *       }
+     *     }
+     *   }"
+     * }
+     * </pre>
+     * <p>
+     * Expected output document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-02T12:00:00Z",
+     *   "severity_text": "INFO",
+     *   "body": {
+     *     "text": "The actual log message"
+     *   },
+     *   "resource": {
+     *     "attributes": {
+     *       "service.name": "my-service"
+     *     }
+     *   },
+     *   "attributes": {
+     *     "http.method": "GET",
+     *     "http.url.path": "/api/v1/resource"
+     *   }
+     * }
+     * </pre>
+     */
+    public void testExecute_ecsJsonMessageNormalization() throws IOException {
+        Map<String, Object> httpUrl = new HashMap<>();
+        httpUrl.put("path", "/api/v1/resource");
+
+        Map<String, Object> http = new HashMap<>();
+        http.put("method", "GET");
+        http.put("url", httpUrl);
+
+        Map<String, Object> message = new HashMap<>();
+        message.put("@timestamp", "2023-10-02T12:00:00Z");
+        message.put("log.level", "INFO");
+        message.put("service.name", "my-service");
+        message.put("message", "The actual log message");
+        message.put("http", http);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("@timestamp", "2023-10-01T12:00:00Z");
+        source.put("message", representJsonAsString(message));
+
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+        runWithRandomAccessPattern(document);
+
+        Map<String, Object> result = document.getSource();
+
+        assertEquals("2023-10-02T12:00:00Z", result.get("@timestamp"));
+        assertEquals("INFO", result.get("severity_text"));
+        assertEquals("The actual log message", get(get(result, "body"), "text"));
+        assertEquals(Map.of("service.name", "my-service"), get(get(result, "resource"), "attributes"));
+        assertEquals(Map.of("http.method", "GET", "http.url.path", "/api/v1/resource"), get(result, "attributes"));
+    }
+
+    /**
+     * Test for non-ECS-JSON {@code message} field normalization.
+     * <p>
+     * Input document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "log": {
+     *     "level": "INFO"
+     *   },
+     *   "service": {
+     *     "name": "my-service"
+     *   },
+     *   "tags": ["user-action", "api-call"],
+     *   "message": "{
+     *     \"root_cause\": \"Network error\",
+     *     \"http\": {
+     *       \"method\": \"GET\",
+     *       \"url\": {
+     *         \"path\": \"/api/v1/resource\"
+     *       }
+     *     }
+     *   }"
+     * }
+     * </pre>
+     * <p>
+     * Expected output document:
+     * <pre>
+     * {
+     *   "@timestamp": "2023-10-01T12:00:00Z",
+     *   "severity_text": "INFO",
+     *   "resource": {
+     *     "attributes": {
+     *       "service.name": "my-service"
+     *     }
+     *   },
+     *   "attributes": {
+     *     "tags": ["user-action", "api-call"]
+     *   },
+     *   "body": {
+     *     "structured": {
+     *       "root_cause": "Network error",
+     *       "http": {
+     *         "method": "GET",
+     *         "url": {
+     *           "path": "/api/v1/resource"
+     *         }
+     *       }
+     *     }
+     *   }
+     * }
+     * </pre>
+     */
+    public void testExecute_nonEcsJsonMessageNormalization() throws IOException {
+        Map<String, Object> httpUrl = new HashMap<>();
+        httpUrl.put("path", "/api/v1/resource");
+
+        Map<String, Object> http = new HashMap<>();
+        http.put("method", "GET");
+        http.put("url", httpUrl);
+
+        Map<String, Object> message = new HashMap<>();
+        message.put("root_cause", "Network error");
+        message.put("http", http);
+
+        Map<String, Object> log = new HashMap<>();
+        log.put("level", "INFO");
+
+        Map<String, Object> service = new HashMap<>();
+        service.put("name", "my-service");
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("@timestamp", "2023-10-01T12:00:00Z");
+        source.put("log", log);
+        source.put("service", service);
+        source.put("tags", new ArrayList<>(List.of("user-action", "api-call")));
+        source.put("message", representJsonAsString(message));
+
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+        runWithRandomAccessPattern(document);
+
+        Map<String, Object> result = document.getSource();
+
+        assertEquals("2023-10-01T12:00:00Z", result.get("@timestamp"));
+        assertEquals("INFO", result.get("severity_text"));
+        assertEquals(Map.of("service.name", "my-service"), get(get(result, "resource"), "attributes"));
+        assertEquals(Map.of("tags", List.of("user-action", "api-call")), get(result, "attributes"));
+        assertEquals(message, get(get(result, "body"), "structured"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testOtherPrimitiveMessage() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("message", 42);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        runWithRandomAccessPattern(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(42, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testObjectMessage() {
+        Map<String, Object> source = new HashMap<>();
+        Map<String, Object> message = new HashMap<>();
+        message.put("key1", "value1");
+        message.put("key2", "value2");
+        source.put("message", message);
+        IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+
+        runWithRandomAccessPattern(document);
+
+        Map<String, Object> result = document.getSource();
+        assertEquals(message, ((Map<String, Object>) result.get("body")).get("text"));
+    }
+
+    private static String representJsonAsString(Map<String, Object> json) throws IOException {
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            return Strings.toString(xContentBuilder.map(json));
+        }
+    }
+
+    /**
      * A utility function for getting a key from a map and casting the result.
      */
     @SuppressWarnings("unchecked")
     private static <T> T get(Map<String, Object> context, String key) {
         return (T) context.get(key);
+    }
+
+    private void runWithRandomAccessPattern(IngestDocument document) {
+        runWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document);
+    }
+
+    private void runWithAccessPattern(IngestPipelineFieldAccessPattern accessPattern, IngestDocument document) {
+        runProcessorWithAccessPattern(accessPattern, document, processor);
+    }
+
+    private void doWithRandomAccessPattern(IngestDocument document, Consumer<IngestDocument> action) {
+        doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), document, action);
+    }
+
+    private void doWithAccessPattern(
+        IngestPipelineFieldAccessPattern accessPattern,
+        IngestDocument document,
+        Consumer<IngestDocument> action
+    ) {
+        runProcessorWithAccessPattern(accessPattern, document, new TestProcessor(action));
+    }
+
+    private void runProcessorWithAccessPattern(
+        IngestPipelineFieldAccessPattern accessPattern,
+        IngestDocument document,
+        Processor processor
+    ) {
+        AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>(null);
+        document.executePipeline(
+            new Pipeline(
+                randomAlphanumericOfLength(10),
+                null,
+                null,
+                null,
+                new CompoundProcessor(processor),
+                accessPattern,
+                null,
+                null,
+                null
+            ),
+            (ignored, ex) -> {
+                if (ex != null) {
+                    if (ex instanceof IngestProcessorException ingestProcessorException) {
+                        exceptionAtomicReference.set((Exception) ingestProcessorException.getCause());
+                    } else {
+                        exceptionAtomicReference.set(ex);
+                    }
+                }
+            }
+        );
+        Exception exception = exceptionAtomicReference.get();
+        if (exception != null) {
+            fail(exception);
+        }
     }
 }

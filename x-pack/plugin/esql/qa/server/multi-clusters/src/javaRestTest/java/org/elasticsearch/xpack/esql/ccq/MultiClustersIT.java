@@ -13,18 +13,24 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
@@ -57,6 +63,9 @@ public class MultiClustersIT extends ESRestTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     private static TestFeatureService remoteFeaturesService;
 
     @Override
@@ -75,6 +84,7 @@ public class MultiClustersIT extends ESRestTestCase {
     final String lookupIndexLocal = "test-lookup-index-local";
     final String lookupIndexRemote = "test-lookup-index-remote";
     final String lookupAlias = "test-lookup-index";
+    private Boolean shouldCheckShardCounts = null;
 
     @Before
     public void setUpIndices() throws Exception {
@@ -120,9 +130,13 @@ public class MultiClustersIT extends ESRestTestCase {
                "morecolor": { "type": "keyword" }
              }
             """;
-        var lookupDocs = IntStream.range(0, between(1, 5))
-            .mapToObj(n -> new Doc(n, randomFrom("red", "yellow", "green"), randomIntBetween(1, 1000)))
-            .toList();
+        var randomDocsData = new ArrayList<Integer>();
+        var lookupDocs = IntStream.range(0, between(1, 5)).mapToObj(n -> {
+            String color = randomFrom("red", "yellow", "green");
+            int data = randomValueOtherThanMany(i -> randomDocsData.contains(i), () -> randomIntBetween(1, 1000));
+            randomDocsData.add(data);
+            return new Doc(n, color, data);
+        }).toList();
         createIndex(
             localClient,
             lookupIndexLocal,
@@ -199,10 +213,21 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         if (supportsAsync()) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject);
+            return RestEsqlTestCase.runEsqlSync(requestObject, new AssertWarnings.NoWarnings(), profileLogger);
         }
+    }
+
+    private boolean checkShardCounts() {
+        if (shouldCheckShardCounts == null) {
+            try {
+                shouldCheckShardCounts = capabilitiesSupportedNewAndOld(List.of("correct_skipped_shard_count"));
+            } catch (IOException e) {
+                shouldCheckShardCounts = false;
+            }
+        }
+        return shouldCheckShardCounts;
     }
 
     private <C, V> void assertResultMapWithCapabilities(
@@ -241,9 +266,9 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
         MapMatcher mapMatcher = getResultMatcher(
-            ccsMetadataAvailable(),
             result.containsKey("is_partial"),
-            result.containsKey("documents_found")
+            result.containsKey("documents_found"),
+            result.containsKey("start_time_in_millis")
         ).extraOk();
         if (includeCCSMetadata) {
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
@@ -294,7 +319,6 @@ public class MultiClustersIT extends ESRestTestCase {
             assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
         {
-            assumeTrue("requires ccs metadata", ccsMetadataAvailable());
             Map<String, Object> result = runWithColumnarAndIncludeCCSMetadata("FROM *:test-remote-index | STATS total = SUM(data)");
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
@@ -335,11 +359,16 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(
             remoteClusterShards,
             matchesMap().entry("total", greaterThanOrEqualTo(0))
-                .entry("successful", remoteClusterShards.get("total"))
+                .entry("successful", greaterThanOrEqualTo(0))
                 .entry("skipped", greaterThanOrEqualTo(0))
                 .entry("failed", 0)
         );
-
+        if (checkShardCounts()) {
+            assertThat(
+                (int) remoteClusterShards.get("successful") + (int) remoteClusterShards.get("skipped"),
+                equalTo(remoteClusterShards.get("total"))
+            );
+        }
         if (remoteOnly == false) {
             @SuppressWarnings("unchecked")
             Map<String, Object> localCluster = (Map<String, Object>) details.get("(local)");
@@ -353,10 +382,16 @@ public class MultiClustersIT extends ESRestTestCase {
             assertThat(
                 localClusterShards,
                 matchesMap().entry("total", greaterThanOrEqualTo(0))
-                    .entry("successful", localClusterShards.get("total"))
+                    .entry("successful", greaterThanOrEqualTo(0))
                     .entry("skipped", greaterThanOrEqualTo(0))
                     .entry("failed", 0)
             );
+            if (checkShardCounts()) {
+                assertThat(
+                    (int) localClusterShards.get("successful") + (int) localClusterShards.get("skipped"),
+                    equalTo(localClusterShards.get("total"))
+                );
+            }
         }
     }
 
@@ -424,8 +459,6 @@ public class MultiClustersIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testStats() throws IOException {
-        assumeTrue("capabilities endpoint is not available", capabilitiesEndpointAvailable());
-
         Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
         Response capsResponse = client().performRequest(caps);
         Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
@@ -497,7 +530,11 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size()));
 
-            MapMatcher mapMatcher = getResultMatcher(true, false, result.containsKey("documents_found")).extraOk();
+            MapMatcher mapMatcher = getResultMatcher(
+                false,
+                result.containsKey("documents_found"),
+                result.containsKey("start_time_in_millis")
+            ).extraOk();
             mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
             mapMatcher = mapMatcher.entry("is_partial", true);
             assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
@@ -723,20 +760,71 @@ public class MultiClustersIT extends ESRestTestCase {
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
     }
 
-    private static boolean ccsMetadataAvailable() {
-        return Clusters.localClusterVersion().onOrAfter(Version.V_8_16_0);
-    }
-
-    private static boolean capabilitiesEndpointAvailable() {
-        return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
-    }
-
     private static boolean supportsLookupJoinAliases(Version version) {
         return version.onOrAfter(Version.V_9_2_0);
     }
 
     private static boolean includeCCSMetadata() {
-        return ccsMetadataAvailable() && randomBoolean();
+        return randomBoolean();
+    }
+
+    public void testRemoteViewFailsQuery() throws IOException {
+        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of("views_crud_as_index_actions")));
+        try (RestClient remoteClient = remoteClusterClient()) {
+            Request putView = new Request("PUT", "/_query/view/test-remote-view");
+            putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");
+            assertOK(remoteClient.performRequest(putView));
+        }
+        try {
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build())
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
+            assertThat(error.get("type"), equalTo("remote_view_not_supported_exception"));
+            assertThat(
+                (String) error.get("reason"),
+                equalTo(
+                    "ES|QL queries with remote views are not supported. Matched [remote_cluster:test-remote-view]."
+                        + " Remove them from the query pattern or exclude them with"
+                        + " [remote_cluster:-test-remote-view] if matched by a wildcard."
+                )
+            );
+        } finally {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                Request deleteView = new Request("DELETE", "/_query/view/test-remote-view");
+                remoteClient.performRequest(deleteView);
+            }
+        }
+    }
+
+    public void testStartsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("STARTS_WITH(_index, \"" + REMOTE_CLUSTER_NAME + ":test-remote\")");
+    }
+
+    public void testEndsWithIndex() throws Exception {
+        assertRemoteIndexPredicate("ENDS_WITH(_index, \"remote-index\")");
+    }
+
+    private void assertRemoteIndexPredicate(String predicate) throws Exception {
+        assumeTrue(
+            "requires fix",
+            capabilitiesSupportedNewAndOld(List.of(EsqlCapabilities.Cap.FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX.capabilityName()))
+        );
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+
+        Map<String, Object> result = run(LoggerMessageFormat.format(null, """
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE {}
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, predicate), includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMap(includeCCSMetadata, result, columns, values, false);
     }
 
     public static class ClusterSettingToggle implements AutoCloseable {

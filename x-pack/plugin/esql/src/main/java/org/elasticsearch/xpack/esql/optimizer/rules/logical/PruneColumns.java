@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,9 +19,15 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -30,6 +36,9 @@ import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans.skipPlan;
 
 /**
  * Remove unused columns created in the plan, in fields inside eval or aggregations inside stats.
@@ -38,134 +47,299 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // track used references
-        var used = plan.outputSet().asBuilder();
-        // track inlinestats' own aggregation output (right-hand side of the join) so that any other plan on the left-hand side of the
-        // inline join won't have its columns pruned due to the lack of "visibility" into the right hand side output/Attributes
-        var inlineJoinRightOutput = new ArrayList<Attribute>();
-        Holder<Boolean> forkPresent = new Holder<>(false);
+        return pruneColumns(plan, plan.outputSet().asBuilder(), false);
+    }
 
+    private static LogicalPlan pruneColumns(LogicalPlan plan, AttributeSet.Builder used, boolean inlineJoin) {
         // while going top-to-bottom (upstream)
-        var pl = plan.transformDown(p -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
+        return plan.transformDownSkipBranch((p, skipBranch) -> {
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the
             // same index fields will have different name ids in the left and right hand sides - as in the extreme example
             // `FROM lookup_idx | LOOKUP JOIN lookup_idx ON key_field`.
 
-            // skip nodes that simply pass the input through
-            if (p instanceof Limit) {
+            // TODO: revisit with every new command
+            // skip nodes that simply pass the input through and use no references
+            if (p instanceof Limit || p instanceof Sample) {
                 return p;
             }
 
-            if (p instanceof Fork) {
-                forkPresent.set(true);
-            }
-            // pruning columns for Fork branches can have the side effect of having misaligned outputs
-            if (forkPresent.get()) {
-                return p;
-            }
-
-            // TODO: INLINESTATS unit testing for tracking this set
-            if (p instanceof InlineJoin ij) {
-                inlineJoinRightOutput.addAll(ij.right().outputSet());
-            }
-
-            // remember used
-            boolean recheck;
+            var recheck = new Holder<Boolean>();
             // analyze the unused items against dedicated 'producer' nodes such as Eval and Aggregate
             // perform a loop to retry checking if the current node is completely eliminated
             do {
-                recheck = false;
-                if (p instanceof Aggregate aggregate) {
-                    // TODO: INLINESTATS https://github.com/elastic/elasticsearch/pull/128917#discussion_r2175162099
-                    var remaining = removeUnused(aggregate.aggregates(), used, inlineJoinRightOutput);
-
-                    if (remaining != null) {
-                        if (remaining.isEmpty()) {
-                            // We still need to have a plan that produces 1 row per group.
-                            if (aggregate.groupings().isEmpty()) {
-                                p = new LocalRelation(
-                                    aggregate.source(),
-                                    List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
-                                    LocalSupplier.of(
-                                        new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
-                                    )
-                                );
-                            } else {
-                                // Aggs cannot produce pages with 0 columns, so retain one grouping.
-                                Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
-                                NamedExpression firstAggregate = aggregate.aggregates().getFirst();
-                                remaining = List.of(
-                                    new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id())
-                                );
-                                p = aggregate.with(aggregate.groupings(), remaining);
-                            }
-                        } else {
-                            p = aggregate.with(aggregate.groupings(), remaining);
-                        }
+                recheck.set(false);
+                p = switch (p) {
+                    case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
+                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case Eval eval -> pruneColumnsInEval(eval, used, recheck);
+                    case Project project -> pruneColumnsInProject(project, used, recheck);
+                    case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
+                    case ExternalRelation ext -> pruneColumnsInExternalRelation(ext, used);
+                    case Fork fork -> {
+                        // Skip descending into the Fork subtree: a true Fork handles its subplans internally in
+                        // pruneColumnsInFork, while UnionAll is left untouched. Using skipBranch (instead of a sticky
+                        // flag) ensures that pruning resumes for siblings outside the Fork, e.g. the right-hand side
+                        // of an enclosing InlineJoin.
+                        skipBranch.set(true);
+                        yield pruneColumnsInFork(fork, used);
                     }
-                } else if (p instanceof InlineJoin ij) {// TODO: InlineStats - add unit tests for this IJ removal
-                    var remaining = removeUnused(ij.right().output(), used, inlineJoinRightOutput);
-                    if (remaining != null) {
-                        if (remaining.isEmpty()) {
-                            // remove the InlineJoin altogether
-                            p = ij.left();
-                            recheck = true;
-                        }
-                        // TODO: InlineStats - prune ONLY the unused output columns from it? In other words, don't perform more aggs
-                        // if they will not be used anyway
-                    }
-                } else if (p instanceof Eval eval) {
-                    var remaining = removeUnused(eval.fields(), used, inlineJoinRightOutput);
-                    // no fields, no eval
-                    if (remaining != null) {
-                        if (remaining.isEmpty()) {
-                            p = eval.child();
-                            recheck = true;
-                        } else {
-                            p = new Eval(eval.source(), eval.child(), remaining);
-                        }
-                    }
-                } else if (p instanceof EsRelation esr && esr.indexMode() == IndexMode.LOOKUP) {
-                    // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
-                    // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
-                    // it works differently as we extract all fields (other than the join key) that the EsRelation has.
-                    var remaining = removeUnused(esr.output(), used, inlineJoinRightOutput);
-                    if (remaining != null) {
-                        p = new EsRelation(esr.source(), esr.indexPattern(), esr.indexMode(), esr.indexNameWithModes(), remaining);
-                    }
-                }
-            } while (recheck);
+                    case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
+                    default -> p;
+                };
+            } while (recheck.get());
 
             used.addAll(p.references());
 
             // preserve the state before going to the next node
             return p;
         });
+    }
 
-        return pl;
+    private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
+        LogicalPlan p = aggregate;
+        var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
+
+        if (remaining == null) {
+            return p;
+        }
+        if (remaining.isEmpty()) {
+            if (inlineJoin) {
+                // all aggregates are pruned, delegate to child plan
+                p = aggregate.child();
+            } else if (aggregate.groupings().isEmpty()) {
+                // We still need to have a plan that produces 1 row per group.
+                p = new LocalRelation(
+                    aggregate.source(),
+                    List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
+                    LocalSupplier.of(new Page(BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1)))
+                );
+            } else {
+                // Aggs cannot produce pages with 0 columns, so retain one grouping.
+                Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
+                NamedExpression firstAggregate = aggregate.aggregates().getFirst();
+                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, attribute.id()));
+                p = aggregate.with(aggregate.groupings(), remaining);
+            }
+        } else {
+            if (inlineJoin) {
+                // An InlineJoin right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
+                // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
+                if (aggregate.groupings().containsAll(remaining)) {
+                    p = aggregate.child();
+                }
+                // TODO: deal with prunning partial groupings in InlineJoin right side
+            } else { // not an INLINEJOIN or there are actually aggregates to compute
+                p = aggregate.with(aggregate.groupings(), remaining);
+            }
+        }
+        return p;
+    }
+
+    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = ij;
+        used.addAll(ij.references());
+        var right = pruneColumns(ij.right(), used, true);
+
+        if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
+            // ij.references() are the join keys and if the output of the inline join doesn't contain anything else except the join keys,
+            // then the inline join doesn't add any new columns. Since it preserves rows, it doesn't do anything and can be pruned.
+            p = pruneRightSideAndProject(ij);
+            recheck.set(true);
+        }
+
+        return p;
+    }
+
+    /*
+     * InlineJoin updates the order of the output, so even if the right side is dropped, the groups need to be pulled to the end.
+     * So we keep just the left side of the join (i.e. drop the right agg), but place a Project on top to keep the correct columns order.
+     */
+    private static LogicalPlan pruneRightSideAndProject(InlineJoin ij) {
+        List<Attribute> newOutput = new ArrayList<>(ij.output());
+        AttributeSet leftOutputSet = ij.left().outputSet();
+        newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
+        return new Project(ij.source(), ij.left(), newOutput);
+    }
+
+    private static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = eval;
+
+        var remaining = pruneUnusedAndAddReferences(eval.fields(), used);
+        // no fields, no eval
+        if (remaining != null) {
+            if (remaining.isEmpty()) {
+                p = eval.child();
+                recheck.set(true);
+            } else {
+                p = new Eval(eval.source(), eval.child(), remaining);
+            }
+        }
+
+        return p;
+    }
+
+    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = project;
+
+        var remaining = pruneUnusedAndAddReferences(project.projections(), used);
+        if (remaining != null) {
+            p = new Project(project.source(), project.child(), remaining);
+            recheck.set(true);
+        }
+
+        return p;
+    }
+
+    private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
+        LogicalPlan p = esr;
+
+        if (esr.indexMode() == IndexMode.LOOKUP) {
+            // Normally, pruning EsRelation has no effect because InsertFieldExtraction only extracts the required fields, anyway.
+            // However, InsertFieldExtraction can't be currently used in LOOKUP JOIN right index,
+            // it works differently as we extract all fields (other than the join key) that the EsRelation has.
+            var remaining = pruneUnusedAndAddReferences(esr.output(), used);
+            if (remaining != null) {
+                p = esr.withAttributes(remaining);
+            }
+        }
+
+        return p;
     }
 
     /**
-     * Prunes attributes from the list not found in the given set.
-     * Returns null if no changed occurred.
+     * Prunes unused columns from an {@link ExternalRelation}.
+     * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
+     * the attribute list on an external relation directly controls which columns the format reader loads from storage.
      */
-    private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet.Builder used, List<Attribute> exceptions) {
-        var clone = new ArrayList<>(named);
-        var it = clone.listIterator(clone.size());
+    private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        var remaining = pruneUnusedAndAddReferences(ext.output(), used);
+        return remaining != null ? ext.withAttributes(remaining) : ext;
+    }
 
-        // due to Eval, go in reverse
-        while (it.hasPrevious()) {
-            N prev = it.previous();
-            var attr = prev.toAttribute();
-            if (used.contains(attr) == false && exceptions.contains(attr) == false) {
-                it.remove();
+    // TODO: see ResolveUnmapped#patchFork comment
+    private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
+
+        // exit early for UnionAll
+        if (fork instanceof UnionAll) {
+            return fork;
+        }
+
+        // prune the output attributes of fork based on usage from the rest of the plan
+        boolean forkOutputChanged = false;
+        AttributeSet.Builder builder = AttributeSet.builder();
+        // if any of the fork outputs are used, keep them
+        // otherwise, prune them based on the rest of the plan's usage
+        for (var attr : fork.output()) {
+            // we should also ensure to keep any synthetic attributes around as those could still be used for internal processing
+            if (attr.synthetic() || used.contains(attr)) {
+                builder.add(attr);
             } else {
-                used.addAll(prev.references());
+                forkOutputChanged = true;
             }
         }
+        var prunedForkAttrs = forkOutputChanged ? builder.build().stream().toList() : fork.output();
+        // now that we have the pruned fork output attributes, we can proceed to apply pruning all children plan
+        var forkOutputNames = prunedForkAttrs.stream().map(NamedExpression::name).collect(Collectors.toSet());
+        boolean subPlanChanged = false;
+        List<LogicalPlan> newChildren = new ArrayList<>();
+        for (var subPlan : fork.children()) {
+            var usedAttrs = AttributeSet.builder();
+            LogicalPlan newSubPlan;
+            // if it's a local relation, just update the output attributes
+            // and return early
+            if (subPlan instanceof LocalRelation localRelation) {
+                var outputAttrs = localRelation.output().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                newSubPlan = new LocalRelation(localRelation.source(), outputAttrs, localRelation.supplier());
+            } else {
+                // otherwise, we first prune the projections of the top-level Project of each subplan
+                subPlan.outputSet().stream().filter(x -> forkOutputNames.contains(x.name())).forEach(usedAttrs::add);
+
+                Holder<Boolean> projectVisited = new Holder<>(false);
+                newSubPlan = subPlan.transformDown(Project.class, p -> {
+                    if (projectVisited.get()) {
+                        return p;
+                    }
+                    projectVisited.set(true);
+                    // filter projections based on fork output attributes
+                    var prunedAttrs = p.projections().stream().filter(x -> forkOutputNames.contains(x.name())).toList();
+                    return new Project(p.source(), p.child(), prunedAttrs);
+                });
+                newSubPlan = pruneColumns(newSubPlan, usedAttrs, false);
+            }
+            if (false == newSubPlan.equals(subPlan)) {
+                subPlanChanged = true;
+            }
+            newChildren.add(newSubPlan);
+        }
+        if (subPlanChanged || forkOutputChanged) {
+            fork = fork.replaceSubPlansAndOutput(newChildren, prunedForkAttrs);
+        }
+        return fork;
+    }
+
+    /**
+     * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
+     * <p>
+     * Partial field pruning is <b>not</b> supported due to a layout–operator mismatch in
+     * {@code LocalExecutionPlanner}:
+     * <ul>
+     *   <li>The <b>layout</b> is built from {@code extractedFields} (size N, after pruning), which
+     *       determines channel indices for all downstream operators.</li>
+     *   <li>The <b>operator</b> ({@code StringExtractOperator} / {@code ColumnExtractOperator}) is
+     *       initialized from the full parser pattern (size M, unpruned), so it always appends M blocks
+     *       to the page at runtime.</li>
+     * </ul>
+     * When N &lt; M, downstream operators (e.g. {@code Aggregator}) read from wrong channel indices
+     * (off by M − N), corrupting the page structure.
+     * <p>
+     * We also cannot simply reconcile the two sides by matching on {@code extractedFields} names,
+     * because {@code PushDownRegexExtract} may rename attributes to avoid variable shadowing
+     * (see PR #108360), while the parser still returns results keyed by the original pattern names.
+     * </p>
+     */
+    private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = re;
+
+        var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
+        // If none of the extracted fields are used, remove the entire RegexExtract node
+        if (remaining != null && remaining.isEmpty()) {
+            p = re.child();
+            recheck.set(true);
+        }
+
+        return p;
+    }
+
+    private static LogicalPlan emptyLocalRelation(UnaryPlan plan) {
+        // create an empty local relation with no attributes
+        return skipPlan(plan);
+    }
+
+    private static boolean isLocalEmptyRelation(LogicalPlan plan) {
+        return plan instanceof LocalRelation local && local.hasEmptySupplier();
+    }
+
+    /**
+     * Prunes attributes from the `named` list that are not found in the given set (builder).
+     * Returns null if no pruning occurred.
+     * As a side effect, the references of the kept attributes are added to the input set (builder) -- irrespective of the return value.
+     */
+    private static <N extends NamedExpression> List<N> pruneUnusedAndAddReferences(List<N> named, AttributeSet.Builder used) {
+        var clone = new ArrayList<>(named);
+
+        for (var it = clone.listIterator(clone.size()); it.hasPrevious();) {
+            N prev = it.previous();
+            var attr = prev.toAttribute();
+            if (used.contains(attr)) {
+                used.addAll(prev.references());
+            } else {
+                it.remove();
+            }
+        }
+
         return clone.size() != named.size() ? clone : null;
     }
 }

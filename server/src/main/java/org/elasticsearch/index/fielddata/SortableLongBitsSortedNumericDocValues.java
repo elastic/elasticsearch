@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.ScorerAware;
@@ -17,41 +16,24 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import java.io.IOException;
 
 /**
- * {@link SortedNumericDocValues} instance that wraps a {@link SortedNumericDoubleValues}
+ * {@link SortedNumericLongValues} instance that wraps a {@link SortedNumericDoubleValues}
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#doubleToSortableLong(double)}.
  */
-final class SortableLongBitsSortedNumericDocValues extends AbstractSortedNumericDocValues implements ScorerAware {
-
-    private final SortedNumericDoubleValues values;
+final class SortableLongBitsSortedNumericDocValues extends SortedNumericLongValues.SortedNumericDoubleWrapper implements ScorerAware {
 
     SortableLongBitsSortedNumericDocValues(SortedNumericDoubleValues values) {
-        this.values = values;
-    }
-
-    @Override
-    public boolean advanceExact(int target) throws IOException {
-        return values.advanceExact(target);
+        super(values);
     }
 
     @Override
     public long nextValue() throws IOException {
-        return NumericUtils.doubleToSortableLong(values.nextValue());
-    }
-
-    @Override
-    public int docValueCount() {
-        return values.docValueCount();
-    }
-
-    /** Return the wrapped values. */
-    public SortedNumericDoubleValues getDoubleValues() {
-        return values;
+        return NumericUtils.doubleToSortableLong(getDoubleValues().nextValue());
     }
 
     @Override
     public void setScorer(Scorable scorer) {
-        if (values instanceof ScorerAware aware) {
+        if (getDoubleValues() instanceof ScorerAware aware) {
             aware.setScorer(scorer);
         }
     }

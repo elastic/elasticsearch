@@ -54,6 +54,13 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
+    // Id of the task that opened this reader context, captured for diagnostic logging on close.
+    // {@code 0L} sentinel means "not available" (e.g. relocated PIT contexts where the original
+    // creator is not recoverable, or test instantiations). Task ids issued by {@code TaskManager}
+    // start at 1, so 0 is unambiguous. The owning node id is the local SearchService node id, so
+    // it isn't stored here. See https://github.com/elastic/elasticsearch/issues/112680.
+    private final long creatorTaskId;
+
     @SuppressWarnings("this-escape")
     public ReaderContext(
         ShardSearchContextId id,
@@ -61,13 +68,15 @@ public class ReaderContext implements Releasable {
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
         long keepAliveInMillis,
-        boolean singleSession
+        boolean singleSession,
+        long creatorTaskId
     ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
+        this.creatorTaskId = creatorTaskId;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
         this.refCounted = AbstractRefCounted.of(this::doClose);
@@ -77,7 +86,7 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected final long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
@@ -116,6 +125,10 @@ public class ReaderContext implements Releasable {
         this.keepAlive.accumulateAndGet(keepAlive, Math::max);
     }
 
+    public long keepAlive() {
+        return keepAlive.longValue();
+    }
+
     /**
      * Returns a releasable to indicate that the caller has stopped using this reader.
      * The time to live of the reader after usage can be extended using the provided
@@ -131,11 +144,29 @@ public class ReaderContext implements Releasable {
     }
 
     public boolean isExpired() {
-        if (refCounted.refCount() > 1) {
+        if (hasOutstandingRefs()) {
             return false; // being used by markAsUsed
         }
+
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
+    }
+
+    protected final boolean hasOutstandingRefs() {
+        return refCounted.refCount() > 1;
+    }
+
+    public boolean isRelocating() {
+        return false;
+    }
+
+    /**
+     * Returns the id of the task that opened this reader context, or {@code 0L} if it was
+     * not captured (relocated PIT contexts and test instantiations). The owning node id is
+     * the local node id at open time and is formatted by the caller for logging.
+     */
+    public long creatorTaskId() {
+        return creatorTaskId;
     }
 
     // BWC

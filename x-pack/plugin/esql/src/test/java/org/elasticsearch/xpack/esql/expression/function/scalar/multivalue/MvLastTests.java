@@ -32,6 +32,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_last", "MvLast", DataType.BOOLEAN, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         bytesRefs(cases, "mv_last", "MvLast", Function.identity(), (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        flattened(cases, "mv_last", "MvLast", Function.identity(), (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         doubles(cases, "mv_last", "MvLast", DataType.DOUBLE, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsDouble()));
         ints(cases, "mv_last", "MvLast", DataType.INTEGER, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsInt()));
         longs(cases, "mv_last", "MvLast", DataType.LONG, (size, values) -> equalTo(values.reduce((f, s) -> s).getAsLong()));
@@ -42,7 +43,10 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         cartesianPoints(cases, "mv_last", "MvLast", DataType.CARTESIAN_POINT, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geoShape(cases, "mv_last", "MvLast", DataType.GEO_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         cartesianShape(cases, "mv_last", "MvLast", DataType.CARTESIAN_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, cases);
+        geohashGrid(cases, "mv_first", "MvLast", DataType.GEOHASH, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        geotileGrid(cases, "mv_first", "MvLast", DataType.GEOTILE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        geohexGrid(cases, "mv_first", "MvLast", DataType.GEOHEX, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
     }
 
     @Override

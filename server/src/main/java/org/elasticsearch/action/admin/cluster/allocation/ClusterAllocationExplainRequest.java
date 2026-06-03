@@ -236,6 +236,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             }
         }
         sb.append(",").append(INCLUDE_YES_DECISIONS_PARAMETER_NAME).append("?=").append(includeYesDecisions);
+        sb.append(",").append(INCLUDE_DISK_INFO_PARAMETER_NAME).append("?=").append(includeDiskInfo);
         return sb.toString();
     }
 

@@ -14,6 +14,10 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES;
+import static org.elasticsearch.index.mapper.RoutingFieldMapper.ROUTING_AS_DOC_VALUES_BY_DEFAULT;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_MAPPED_SUBFIELDS_FEATURE;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.FLATTENED_PASSTHROUGH_FEATURE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ;
@@ -24,11 +28,11 @@ import static org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper.SPA
  */
 public class MapperFeatures implements FeatureSpecification {
 
-    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+    static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
-    public static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
+    static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
         "mapper.counted_keyword.synthetic_source_native_support"
     );
 
@@ -38,6 +42,11 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
     public static final NodeFeature DOC_VALUES_SKIPPER = new NodeFeature("mapper.doc_values_skipper");
+    public static final NodeFeature MATCH_ONLY_TEXT_BLOCK_LOADER_FIX = new NodeFeature("mapper.match_only_text_block_loader_fix");
+    public static final NodeFeature MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
+        "mapper.match_only_text.doc_values_prefix_wildcard_regexp"
+    );
+
     static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
         "mapper.unknown_field_mapping_update_error_message"
     );
@@ -46,7 +55,62 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
     static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
-    static final NodeFeature PATTERNED_TEXT = new NodeFeature("mapper.patterned_text");
+    static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
+    static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
+    static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
+    static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text_rename");
+    static final NodeFeature DISKBBQ_ON_DISK_RESCORING = new NodeFeature("mapper.vectors.diskbbq_on_disk_rescoring");
+    static final NodeFeature PROVIDE_INDEX_SORT_SETTING_DEFAULTS = new NodeFeature("mapper.provide_index_sort_setting_defaults");
+    static final NodeFeature INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT = new NodeFeature(
+        "mapper.ignore_dynamic_field_names_beyond_limit"
+    );
+    static final NodeFeature EXCLUDE_VECTORS_DOCVALUE_BUGFIX = new NodeFeature("mapper.exclude_vectors_docvalue_bugfix");
+    static final NodeFeature BASE64_DENSE_VECTORS = new NodeFeature("mapper.base64_dense_vectors");
+    public static final NodeFeature GENERIC_VECTOR_FORMAT = new NodeFeature("mapper.vectors.generic_vector_format");
+    static final NodeFeature FIX_DENSE_VECTOR_WRONG_FIELDS = new NodeFeature("mapper.fix_dense_vector_wrong_fields");
+    static final NodeFeature BBQ_DISK_STATS_SUPPORT = new NodeFeature("mapper.bbq_disk_stats_support");
+    static final NodeFeature SKIPPERS_ON_UNINDEXED_FIELDS = new NodeFeature("mapper.skippers_on_unindexed_fields");
+    static final NodeFeature STORED_FIELDS_SPEC_MERGE_BUG = new NodeFeature("mapper.stored_fields_spec_merge_bug");
+    static final NodeFeature EXPONENTIAL_HISTOGRAM_TYPE = new NodeFeature("mapper.exponential_histogram_type");
+    static final NodeFeature STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES = new NodeFeature(
+        "mapper.keyword.store_high_cardinality_in_binary_doc_values"
+    );
+    static final NodeFeature HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD = new NodeFeature(
+        "mapper.keyword.high_cardinality_length_function_fuse_to_load"
+    );
+    static final NodeFeature MV_MIN_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_min_function_fuse_to_load");
+    static final NodeFeature MV_MAX_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_max_function_fuse_to_load");
+    static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    public static final NodeFeature TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
+        "mapper.text.doc_values_prefix_wildcard_regexp"
+    );
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_dotted_field_fix"
+    );
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE = new NodeFeature("mapper.doc_values.multi_value");
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE_ENFORCEMENT = new NodeFeature("mapper.doc_values.multi_value_enforcement");
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE_RENAME = new NodeFeature("mapper.doc_values.multi_value_rename");
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_nested_object_fix"
+    );
+    static final NodeFeature ARRAY_OBJECTS_LIMIT = new NodeFeature("mapper.array_objects_limit");
+    public static final NodeFeature ES940_DISK_BBQ = new NodeFeature("mapper.es940_disk_bbq");
+    public static final NodeFeature IP_MAPPER_CARDINALITY_OPTION = new NodeFeature("mapper.ip.doc_values_cardinality_option");
+    public static final NodeFeature IGNORED_VALUES_STORED_IN_BINARY_DV = new NodeFeature("mapper.doc_values.ignored_values_in_binary_dv");
+    static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
+    public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
+        "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
+    static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
+        "mapper.analyzer-wrapper.reloadable_search_analyzer"
+    );
+    static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
+    public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
+    static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
+    static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
+        "mapper.keyword.columnar_default_high_cardinality"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -80,7 +144,50 @@ public class MapperFeatures implements FeatureSpecification {
             BBQ_DISK_SUPPORT,
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
-            PATTERNED_TEXT
+            PATTERN_TEXT,
+            IGNORED_SOURCE_FIELDS_PER_ENTRY,
+            MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            MATCH_ONLY_TEXT_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
+            PATTERN_TEXT_RENAME,
+            DISKBBQ_ON_DISK_RESCORING,
+            PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG,
+            GENERIC_VECTOR_FORMAT,
+            EXPONENTIAL_HISTOGRAM_TYPE,
+            STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
+            HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
+            MV_MIN_FUNCTION_FUSE_TO_LOAD,
+            MV_MAX_FUNCTION_FUSE_TO_LOAD,
+            TDIGEST_TYPE,
+            TEXT_FIELD_DOC_VALUES,
+            TEXT_FIELD_DOC_VALUES_PREFIX_WILDCARD_REGEXP,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
+            DOC_VALUES_MULTI_VALUE,
+            DOC_VALUES_MULTI_VALUE_ENFORCEMENT,
+            DOC_VALUES_MULTI_VALUE_RENAME,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            ARRAY_OBJECTS_LIMIT,
+            ES940_DISK_BBQ,
+            FLATTENED_PASSTHROUGH_FEATURE,
+            IGNORED_VALUES_STORED_IN_BINARY_DV,
+            IP_MAPPER_CARDINALITY_OPTION,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+            ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
+            ROUTING_AS_DOC_VALUES,
+            ROUTING_AS_DOC_VALUES_BY_DEFAULT,
+            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
+            COLUMNAR_MAINTAIN_ARRAY_ORDER,
+            COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
+            KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY
         );
     }
 }

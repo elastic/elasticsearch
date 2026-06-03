@@ -186,4 +186,9 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         request.allowPartialSearchResults(allowPartialSearchResults);
         return this;
     }
+
+    public SqlQueryRequestBuilder projectRouting(String projectRouting) {
+        request.projectRouting(projectRouting);
+        return this;
+    }
 }

@@ -1,0 +1,8 @@
+version: ${xpack.oteldata.template.version}
+_meta:
+  description: Default settings for all OpenTelemetry data streams
+  managed: true
+template:
+  data_stream_options:
+    failure_store:
+      enabled: true

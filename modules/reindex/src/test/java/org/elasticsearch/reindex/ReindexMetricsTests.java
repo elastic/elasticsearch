@@ -9,6 +9,12 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -16,26 +22,153 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_RELOCATED;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SOURCE;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
+import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
+import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_RELOCATION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
+import static org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 
 public class ReindexMetricsTests extends ESTestCase {
 
-    private RecordingMeterRegistry recordingMeterRegistry;
+    private RecordingMeterRegistry registry;
     private ReindexMetrics metrics;
 
     @Before
     public void createMetrics() {
-        recordingMeterRegistry = new RecordingMeterRegistry();
-        metrics = new ReindexMetrics(recordingMeterRegistry);
+        registry = new RecordingMeterRegistry();
+        metrics = new ReindexMetrics(registry);
     }
 
     public void testRecordTookTime() {
-        int secondsTaken = randomIntBetween(1, 50);
-        metrics.recordTookTime(secondsTaken);
-        List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM);
-        assertEquals(measurements.size(), 1);
-        assertEquals(measurements.get(0).getLong(), secondsTaken);
+        long secondsTaken = randomLongBetween(1, Long.MAX_VALUE);
+
+        metrics.recordTookTime(secondsTaken, false, SlicingMode.NONE, false);
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM);
+        assertEquals(1, measurements.size());
+        assertEquals(secondsTaken, measurements.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("none", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(false, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_RELOCATED));
+
+        long remoteSecondsTaken = randomLongBetween(1, Long.MAX_VALUE);
+        metrics.recordTookTime(remoteSecondsTaken, true, SlicingMode.AUTO, true);
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REINDEX_TIME_HISTOGRAM);
+        assertEquals(2, measurements.size());
+        assertEquals(secondsTaken, measurements.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals(remoteSecondsTaken, measurements.get(1).getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("auto", measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(true, measurements.get(1).attributes().get(ATTRIBUTE_NAME_RELOCATED));
+    }
+
+    public void testRecordSuccess() {
+        metrics.recordSuccess(false, SlicingMode.NONE, false);
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals(
+            SlicingMode.NONE.name().toLowerCase(Locale.ROOT),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE)
+        );
+        assertEquals(false, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_RELOCATED));
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+
+        metrics.recordSuccess(true, SlicingMode.FIXED, true);
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("fixed", measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(true, measurements.get(1).attributes().get(ATTRIBUTE_NAME_RELOCATED));
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+    }
+
+    public void testRecordFailure() {
+        metrics.recordFailure(false, SlicingMode.NONE, false, new IllegalArgumentException("random failure"));
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals("java.lang.IllegalArgumentException", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("none", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(false, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_RELOCATED));
+
+        metrics.recordFailure(true, SlicingMode.AUTO, true, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST));
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        assertEquals(1, measurements.get(1).getLong());
+        assertEquals(RestStatus.BAD_REQUEST.name(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("auto", measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(true, measurements.get(1).attributes().get(ATTRIBUTE_NAME_RELOCATED));
+    }
+
+    public void testRecordRelocation() {
+        metrics.recordRelocation(false, SlicingMode.NONE);
+
+        List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(1, measurements.size());
+        assertEquals(1, measurements.getFirst().getLong());
+        // counter is success-only by definition (destination-side), so error_type must always be absent
+        assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("none", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        // every reindex metric carries the relocated attribute for schema uniformity; on this counter it's always true
+        assertEquals(true, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_RELOCATED));
+
+        metrics.recordRelocation(true, SlicingMode.FIXED);
+
+        measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_RELOCATION_COUNTER);
+        assertEquals(2, measurements.size());
+        assertEquals(1, measurements.get(1).getLong());
+        assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+        assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
+        assertEquals("fixed", measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(true, measurements.get(1).attributes().get(ATTRIBUTE_NAME_RELOCATED));
+    }
+
+    public void testResolveSlicingModeNone() {
+        ReindexRequest request = new ReindexRequest();
+        assertEquals(SlicingMode.NONE, ReindexMetrics.resolveSlicingMode(request));
+    }
+
+    public void testResolveSlicingModeNoneOneSlice() {
+        ReindexRequest request = new ReindexRequest();
+        request.setSlices(1);
+        assertEquals(SlicingMode.NONE, ReindexMetrics.resolveSlicingMode(request));
+    }
+
+    public void testResolveSlicingModeFixed() {
+        ReindexRequest request = new ReindexRequest();
+        request.setSlices(randomIntBetween(2, 20));
+        assertEquals(SlicingMode.FIXED, ReindexMetrics.resolveSlicingMode(request));
+    }
+
+    public void testResolveSlicingModeAuto() {
+        ReindexRequest request = new ReindexRequest();
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+        assertEquals(SlicingMode.AUTO, ReindexMetrics.resolveSlicingMode(request));
+    }
+
+    public void testResolveSlicingModeManual() {
+        ReindexRequest request = new ReindexRequest();
+        request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(0, 3)));
+        assertEquals(SlicingMode.MANUAL, ReindexMetrics.resolveSlicingMode(request));
     }
 }

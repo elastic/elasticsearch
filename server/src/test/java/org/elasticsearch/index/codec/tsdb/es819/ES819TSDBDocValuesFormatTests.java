@@ -10,34 +10,72 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.TSDBDocValuesTestUtil;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoader.OptionalColumnAtATimeReader;
+import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery;
+import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Locale;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomUnicodeOfCodepointLengthBetween;
+import static org.hamcrest.Matchers.equalTo;
 
-    private final Codec codec = new Elasticsearch900Lucene101Codec() {
+public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTests {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
+    private final Codec codec = new Elasticsearch93Lucene104Codec() {
+
+        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
+            random().nextBoolean()
+        );
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -45,487 +83,478 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     };
 
+    public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
+
+        public TestES819TSDBDocValuesFormatVersion0() {
+            super();
+        }
+
+        @Override
+        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+            return new ES819TSDBDocValuesConsumerVersion0(
+                state,
+                formatConfig.skipIndexIntervalSize(),
+                formatConfig.minDocsPerOrdinalForRangeEncoding(),
+                enableOptimizedMerge,
+                DATA_CODEC,
+                DATA_EXTENSION,
+                META_CODEC,
+                META_EXTENSION,
+                NUMERIC_BLOCK_SHIFT
+            );
+        }
+    }
+
     @Override
     protected Codec getCodec() {
         return codec;
     }
 
-    public void testForceMergeDenseCase() throws Exception {
-        String timestampField = "@timestamp";
-        String hostnameField = "host.name";
-        long baseTimestamp = 1704067200000L;
-
-        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long counter1 = 0;
-            long counter2 = 10_000_000;
-            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
-            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
-            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
-
-            int numDocs = 256 + random().nextInt(1024);
-            int numHosts = numDocs / 20;
-
-            for (int i = 0; i < numDocs; i++) {
-                var d = new Document();
-
-                int batchIndex = i / numHosts;
-                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
-                long timestamp = baseTimestamp + (1000L * i);
-
-                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
-                // Index sorting doesn't work with NumericDocValuesField:
-                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
-                d.add(new NumericDocValuesField("counter_1", counter1++));
-                d.add(new SortedNumericDocValuesField("counter_2", counter2++));
-                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
-
-                int numGauge2 = 1 + random().nextInt(8);
-                for (int j = 0; j < numGauge2; j++) {
-                    d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[(i + j) % gauge2Values.length]));
-                }
-
-                int numTags = 1 + random().nextInt(8);
-                for (int j = 0; j < numTags; j++) {
-                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(i + j) % tags.length])));
-                }
-
-                d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[i % tags.length])));
-
-                iw.addDocument(d);
-                if (i % 100 == 0) {
-                    iw.commit();
-                }
-            }
-            iw.commit();
-
-            iw.forceMerge(1);
-
-            // For asserting using binary search later on:
-            Arrays.sort(gauge2Values);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                assertEquals(numDocs, reader.maxDoc());
-                var leaf = reader.leaves().get(0).reader();
-                var hostNameDV = leaf.getSortedDocValues(hostnameField);
-                assertNotNull(hostNameDV);
-                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
-                assertNotNull(timestampDV);
-                var counterOneDV = leaf.getNumericDocValues("counter_1");
-                assertNotNull(counterOneDV);
-                var counterTwoDV = leaf.getSortedNumericDocValues("counter_2");
-                assertNotNull(counterTwoDV);
-                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
-                assertNotNull(gaugeOneDV);
-                var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
-                assertNotNull(gaugeTwoDV);
-                var tagsDV = leaf.getSortedSetDocValues("tags");
-                assertNotNull(tagsDV);
-                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
-                assertNotNull(tagBytesDV);
-                for (int i = 0; i < numDocs; i++) {
-                    assertEquals(i, hostNameDV.nextDoc());
-                    int batchIndex = i / numHosts;
-                    assertEquals(batchIndex, hostNameDV.ordValue());
-                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
-                    assertEquals(expectedHostName, hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
-
-                    assertEquals(i, timestampDV.nextDoc());
-                    long timestamp = timestampDV.longValue();
-                    long lowerBound = baseTimestamp;
-                    long upperBound = baseTimestamp + (1000L * numDocs);
-                    assertTrue(
-                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
-                        timestamp >= lowerBound && timestamp < upperBound
-                    );
-
-                    assertEquals(i, counterOneDV.nextDoc());
-                    long counterOneValue = counterOneDV.longValue();
-                    assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
-
-                    assertEquals(i, counterTwoDV.nextDoc());
-                    assertEquals(1, counterTwoDV.docValueCount());
-                    long counterTwoValue = counterTwoDV.nextValue();
-                    assertTrue("unexpected counter [" + counterTwoValue + "]", counterTwoValue > 0 && counterTwoValue <= counter2);
-
-                    assertEquals(i, gaugeOneDV.nextDoc());
-                    assertEquals(1, gaugeOneDV.docValueCount());
-                    long gaugeOneValue = gaugeOneDV.nextValue();
-                    assertTrue("unexpected gauge [" + gaugeOneValue + "]", Arrays.binarySearch(gauge1Values, gaugeOneValue) >= 0);
-
-                    assertEquals(i, gaugeTwoDV.nextDoc());
-                    for (int j = 0; j < gaugeTwoDV.docValueCount(); j++) {
-                        long gaugeTwoValue = gaugeTwoDV.nextValue();
-                        assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
-                    }
-
-                    assertEquals(i, tagsDV.nextDoc());
-                    for (int j = 0; j < tagsDV.docValueCount(); j++) {
-                        long ordinal = tagsDV.nextOrd();
-                        String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
-                        assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
-                    }
-
-                    assertEquals(i, tagBytesDV.nextDoc());
-                    BytesRef tagBytesValue = tagBytesDV.binaryValue();
-                    assertTrue("unexpected bytes " + tagBytesValue, Arrays.binarySearch(tags, tagBytesValue.utf8ToString()) >= 0);
-                }
-            }
-        }
+    public void testBinaryCompressionEnabled() {
+        ES819TSDBDocValuesFormat docValueFormat = new ES819Version3TSDBDocValuesFormat();
+        assertThat(docValueFormat.formatConfig.binaryCompressionMode(), equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
     }
 
-    public void testTwoSegmentsTwoDifferentFields() throws Exception {
-        String timestampField = "@timestamp";
-        String hostnameField = "host.name";
-        long timestamp = 1704067200000L;
-
-        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long counter1 = 0;
-            long counter2 = 10_000_000;
-
-            {
-                var d = new Document();
-                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-001")));
-                d.add(new SortedNumericDocValuesField(timestampField, timestamp - 1));
-                d.add(new NumericDocValuesField("counter_1", counter1));
-                d.add(new SortedNumericDocValuesField("gauge_1", 2));
-                d.add(new BinaryDocValuesField("binary_1", new BytesRef("foo")));
-                iw.addDocument(d);
-                iw.commit();
-            }
-            {
-                var d = new Document();
-                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-001")));
-                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
-                d.add(new SortedNumericDocValuesField("counter_2", counter2));
-                d.add(new SortedNumericDocValuesField("gauge_2", -2));
-                d.add(new BinaryDocValuesField("binary_2", new BytesRef("bar")));
-                iw.addDocument(d);
-                iw.commit();
-            }
-
-            iw.forceMerge(1);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                assertEquals(2, reader.maxDoc());
-                var leaf = reader.leaves().get(0).reader();
-                var hostNameDV = leaf.getSortedDocValues(hostnameField);
-                assertNotNull(hostNameDV);
-                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
-                assertNotNull(timestampDV);
-                var counterOneDV = leaf.getNumericDocValues("counter_1");
-                assertNotNull(counterOneDV);
-                var counterTwoDV = leaf.getSortedNumericDocValues("counter_2");
-                assertNotNull(counterTwoDV);
-                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
-                assertNotNull(gaugeOneDV);
-                var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
-                assertNotNull(gaugeTwoDV);
-                var binaryOneDV = leaf.getBinaryDocValues("binary_1");
-                assertNotNull(binaryOneDV);
-                var binaryTwoDv = leaf.getBinaryDocValues("binary_2");
-                assertNotNull(binaryTwoDv);
-                for (int i = 0; i < 2; i++) {
-                    assertEquals(i, hostNameDV.nextDoc());
-                    assertEquals("host-001", hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
-
-                    assertEquals(i, timestampDV.nextDoc());
-                    long actualTimestamp = timestampDV.longValue();
-                    assertTrue(actualTimestamp == timestamp || actualTimestamp == timestamp - 1);
-
-                    if (counterOneDV.advanceExact(i)) {
-                        long counterOneValue = counterOneDV.longValue();
-                        assertEquals(counter1, counterOneValue);
-                    }
-
-                    if (counterTwoDV.advanceExact(i)) {
-                        assertEquals(1, counterTwoDV.docValueCount());
-                        long counterTwoValue = counterTwoDV.nextValue();
-                        assertEquals(counter2, counterTwoValue);
-                    }
-
-                    if (gaugeOneDV.advanceExact(i)) {
-                        assertEquals(1, gaugeOneDV.docValueCount());
-                        long gaugeOneValue = gaugeOneDV.nextValue();
-                        assertEquals(2, gaugeOneValue);
-                    }
-
-                    if (gaugeTwoDV.advanceExact(i)) {
-                        assertEquals(1, gaugeTwoDV.docValueCount());
-                        long gaugeTwoValue = gaugeTwoDV.nextValue();
-                        assertEquals(-2, gaugeTwoValue);
-                    }
-
-                    if (binaryOneDV.advanceExact(i)) {
-                        BytesRef binaryOneValue = binaryOneDV.binaryValue();
-                        assertEquals(new BytesRef("foo"), binaryOneValue);
-                    }
-
-                    if (binaryTwoDv.advanceExact(i)) {
-                        BytesRef binaryTwoValue = binaryTwoDv.binaryValue();
-                        assertEquals(new BytesRef("bar"), binaryTwoValue);
-                    }
-                }
-            }
-        }
-    }
-
-    public void testForceMergeSparseCase() throws Exception {
-        String timestampField = "@timestamp";
-        String hostnameField = "host.name";
-        long baseTimestamp = 1704067200000L;
-
-        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long counter1 = 0;
-            long counter2 = 10_000_000;
-            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
-            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
-            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
-
-            int numDocs = 256 + random().nextInt(1024);
-            int numHosts = numDocs / 20;
-            for (int i = 0; i < numDocs; i++) {
-                var d = new Document();
-
-                int batchIndex = i / numHosts;
-                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
-                long timestamp = baseTimestamp + (1000L * i);
-
-                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
-                // Index sorting doesn't work with NumericDocValuesField:
-                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
-
-                if (random().nextBoolean()) {
-                    d.add(new NumericDocValuesField("counter_1", counter1++));
-                }
-                if (random().nextBoolean()) {
-                    d.add(new SortedNumericDocValuesField("counter_2", counter2++));
-                }
-                if (random().nextBoolean()) {
-                    d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
-                }
-                if (random().nextBoolean()) {
-                    int numGauge2 = 1 + random().nextInt(8);
-                    for (int j = 0; j < numGauge2; j++) {
-                        d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[(i + j) % gauge2Values.length]));
-                    }
-                }
-                if (random().nextBoolean()) {
-                    int numTags = 1 + random().nextInt(8);
-                    for (int j = 0; j < numTags; j++) {
-                        d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
-                    }
-                }
-                if (random().nextBoolean()) {
-                    int randomIndex = random().nextInt(tags.length);
-                    d.add(new SortedDocValuesField("other_tag", new BytesRef(tags[randomIndex])));
-                }
-                if (random().nextBoolean()) {
-                    int randomIndex = random().nextInt(tags.length);
-                    d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[randomIndex])));
-                }
-
-                iw.addDocument(d);
-                if (i % 100 == 0) {
-                    iw.commit();
-                }
-            }
-            iw.commit();
-
-            iw.forceMerge(1);
-
-            // For asserting using binary search later on:
-            Arrays.sort(gauge2Values);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                assertEquals(numDocs, reader.maxDoc());
-                var leaf = reader.leaves().get(0).reader();
-                var hostNameDV = leaf.getSortedDocValues(hostnameField);
-                assertNotNull(hostNameDV);
-                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
-                assertNotNull(timestampDV);
-                var counterOneDV = leaf.getNumericDocValues("counter_1");
-                assertNotNull(counterOneDV);
-                var counterTwoDV = leaf.getSortedNumericDocValues("counter_2");
-                assertNotNull(counterTwoDV);
-                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
-                assertNotNull(gaugeOneDV);
-                var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
-                assertNotNull(gaugeTwoDV);
-                var tagsDV = leaf.getSortedSetDocValues("tags");
-                assertNotNull(tagsDV);
-                var otherTagDV = leaf.getSortedDocValues("other_tag");
-                assertNotNull(otherTagDV);
-                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
-                assertNotNull(tagBytesDV);
-                for (int i = 0; i < numDocs; i++) {
-                    assertEquals(i, hostNameDV.nextDoc());
-                    int batchIndex = i / numHosts;
-                    assertEquals(batchIndex, hostNameDV.ordValue());
-                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
-                    assertEquals(expectedHostName, hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
-
-                    assertEquals(i, timestampDV.nextDoc());
-                    long timestamp = timestampDV.longValue();
-                    long lowerBound = baseTimestamp;
-                    long upperBound = baseTimestamp + (1000L * numDocs);
-                    assertTrue(
-                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
-                        timestamp >= lowerBound && timestamp < upperBound
-                    );
-
-                    if (counterOneDV.advanceExact(i)) {
-                        long counterOneValue = counterOneDV.longValue();
-                        assertTrue("unexpected counter [" + counterOneValue + "]", counterOneValue >= 0 && counterOneValue < counter1);
-                    }
-
-                    if (counterTwoDV.advanceExact(i)) {
-                        assertEquals(1, counterTwoDV.docValueCount());
-                        long counterTwoValue = counterTwoDV.nextValue();
-                        assertTrue("unexpected counter [" + counterTwoValue + "]", counterTwoValue > 0 && counterTwoValue <= counter2);
-                    }
-
-                    if (gaugeOneDV.advanceExact(i)) {
-                        assertEquals(1, gaugeOneDV.docValueCount());
-                        long gaugeOneValue = gaugeOneDV.nextValue();
-                        assertTrue("unexpected gauge [" + gaugeOneValue + "]", Arrays.binarySearch(gauge1Values, gaugeOneValue) >= 0);
-                    }
-
-                    if (gaugeTwoDV.advanceExact(i)) {
-                        for (int j = 0; j < gaugeTwoDV.docValueCount(); j++) {
-                            long gaugeTwoValue = gaugeTwoDV.nextValue();
-                            assertTrue("unexpected gauge [" + gaugeTwoValue + "]", Arrays.binarySearch(gauge2Values, gaugeTwoValue) >= 0);
-                        }
-                    }
-
-                    if (tagsDV.advanceExact(i)) {
-                        for (int j = 0; j < tagsDV.docValueCount(); j++) {
-                            long ordinal = tagsDV.nextOrd();
-                            String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
-                            assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
-                        }
-                    }
-                    if (otherTagDV.advanceExact(i)) {
-                        int ordinal = otherTagDV.ordValue();
-                        String actualTag = otherTagDV.lookupOrd(ordinal).utf8ToString();
-                        assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
-                    }
-
-                    if (tagBytesDV.advanceExact(i)) {
-                        BytesRef tagBytesValue = tagBytesDV.binaryValue();
-                        assertTrue("unexpected bytes " + tagBytesValue, Arrays.binarySearch(tags, tagBytesValue.utf8ToString()) >= 0);
-                    }
-                }
-            }
-        }
-    }
-
-    public void testWithNoValueMultiValue() throws Exception {
-        String timestampField = "@timestamp";
-        String hostnameField = "host.name";
-        long baseTimestamp = 1704067200000L;
-        int numRounds = 32 + random().nextInt(32);
-        int numDocsPerRound = 64 + random().nextInt(64);
-
-        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
-            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
-            {
-                long timestamp = baseTimestamp;
-                for (int i = 0; i < numRounds; i++) {
-                    int r = random().nextInt(10);
-                    for (int j = 0; j < numDocsPerRound; j++) {
-                        var d = new Document();
-                        // host in reverse, otherwise merging will detect that segments are already ordered and will use sequential docid
-                        // merger:
-                        String hostName = String.format(Locale.ROOT, "host-%03d", numRounds - i);
-                        d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
-                        // Index sorting doesn't work with NumericDocValuesField:
-                        d.add(new SortedNumericDocValuesField(timestampField, timestamp++));
-
-                        if (r % 10 == 5) {
-                            // sometimes no values
-                        } else if (r % 10 > 5) {
-                            // often single value:
-                            d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[j % gauge1Values.length]));
-                            d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j % tags.length])));
-                        } else {
-                            // otherwise multiple values:
-                            int numValues = 2 + random().nextInt(4);
-                            for (int k = 0; k < numValues; k++) {
-                                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[(j + k) % gauge1Values.length]));
-                                d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(j + k) % tags.length])));
-                            }
-                        }
-                        iw.addDocument(d);
-                    }
-                    iw.commit();
-                }
-                iw.forceMerge(1);
-            }
-
-            int numDocs = numRounds * numDocsPerRound;
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                assertEquals(numDocs, reader.maxDoc());
-                var leaf = reader.leaves().get(0).reader();
-                var hostNameDV = leaf.getSortedDocValues(hostnameField);
-                assertNotNull(hostNameDV);
-                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
-                assertNotNull(timestampDV);
-                var gaugeOneDV = leaf.getSortedNumericDocValues("gauge_1");
-                assertNotNull(gaugeOneDV);
-                var tagsDV = leaf.getSortedSetDocValues("tags");
-                assertNotNull(tagsDV);
-                for (int i = 0; i < numDocs; i++) {
-                    assertEquals(i, hostNameDV.nextDoc());
-                    String actualHostName = hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString();
-                    assertTrue("unexpected host name:" + actualHostName, actualHostName.startsWith("host-"));
-
-                    assertEquals(i, timestampDV.nextDoc());
-                    long timestamp = timestampDV.longValue();
-                    long lowerBound = baseTimestamp;
-                    long upperBound = baseTimestamp + numDocs;
-                    assertTrue(
-                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
-                        timestamp >= lowerBound && timestamp < upperBound
-                    );
-                    if (gaugeOneDV.advanceExact(i)) {
-                        for (int j = 0; j < gaugeOneDV.docValueCount(); j++) {
-                            long value = gaugeOneDV.nextValue();
-                            assertTrue("unexpected gauge [" + value + "]", Arrays.binarySearch(gauge1Values, value) >= 0);
-                        }
-                    }
-                    if (tagsDV.advanceExact(i)) {
-                        for (int j = 0; j < tagsDV.docValueCount(); j++) {
-                            long ordinal = tagsDV.nextOrd();
-                            String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
-                            assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
-        var config = new IndexWriterConfig();
-        config.setIndexSort(
-            new Sort(
-                new SortField(hostnameField, SortField.Type.STRING, false),
-                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+    public void testAddIndices() throws IOException {
+        doTestAddIndices(
+            List.of(
+                new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16)),
+                new ES819TSDBDocValuesFormat(),
+                new ES819Version3TSDBDocValuesFormat(),
+                new Lucene90DocValuesFormat()
             )
         );
-        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+    }
+
+    // These tests require ES819-specific codec configuration (forced range encoding or specific
+    // binary compression modes) and are not part of the shared test suite.
+
+    public void testLoadKeywordFieldWithIndexSorts() throws IOException {
+        String primaryField = "sorted_first";
+        String secondField = "sorted_second";
+        String unsortedField = "no_sort";
+        String sparseField = "sparse";
+        var config = getIndexWriterConfig(primaryField);
+        Map<Integer, String> hostnames = new HashMap<>();
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            int numDocs = randomIntBetween(100, 5000);
+            for (int i = 0; i < numDocs; i++) {
+                hostnames.put(i, "h" + random().nextInt(10));
+            }
+            List<Integer> ids = new ArrayList<>(hostnames.keySet());
+            Randomness.shuffle(ids);
+            Set<Integer> sparseIds = new HashSet<>(ESTestCase.randomSubsetOf(ESTestCase.between(1, ids.size() / 2), ids));
+            for (Integer id : ids) {
+                var d = new Document();
+                String hostname = hostnames.get(id);
+                d.add(new NumericDocValuesField("id", id));
+                d.add(new SortedDocValuesField(primaryField, new BytesRef(hostname)));
+                d.add(new SortedDocValuesField(secondField, new BytesRef(hostname)));
+                d.add(new SortedDocValuesField(unsortedField, new BytesRef(hostname)));
+                if (sparseIds.contains(id)) {
+                    d.add(new SortedDocValuesField(sparseField, new BytesRef(hostname)));
+                }
+                writer.addDocument(d);
+                if (random().nextInt(100) < 10) {
+                    writer.flush();
+                }
+            }
+            for (int iter = 0; iter < 2; iter++) {
+                var factory = TestBlock.factory();
+                try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        BlockLoader.Docs docs = TestBlock.docs(leaf);
+                        var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
+                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false);
+                        assertNotNull(idBlock);
+
+                        {
+                            var reader2 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(secondField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader2.getValueCount() == 1) {
+                                block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset, false, null, false, false);
+                            }
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
+                        {
+                            var reader3 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(unsortedField)
+                            );
+                            int randomOffset = ESTestCase.between(0, docs.count() - 1);
+                            TestBlock block;
+                            if (reader3.getValueCount() == 1) {
+                                block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
+                            } else {
+                                assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset, false, null, false, false);
+                            }
+                            assertNotNull(reader3);
+                            assertNotNull(block);
+                            assertThat(block.size(), equalTo(docs.count() - randomOffset));
+                            for (int i = 0; i < block.size(); i++) {
+                                String actualHostName = BytesRefs.toString(block.get(i));
+                                int id = ((Number) idBlock.get(i + randomOffset)).intValue();
+                                String expectedHostName = hostnames.get(id);
+                                assertEquals(expectedHostName, actualHostName);
+                            }
+                        }
+                        for (int offset = 0; offset < idBlock.size(); offset += ESTestCase.between(1, numDocs)) {
+                            int start = offset;
+                            var reader1 = (BaseSortedDocValues) ESTestCase.asInstanceOf(
+                                OptionalColumnAtATimeReader.class,
+                                leaf.reader().getSortedDocValues(primaryField)
+                            );
+                            while (start < idBlock.size()) {
+                                int end = start + random().nextInt(idBlock.size() - start);
+                                TestBlock hostBlock = (TestBlock) reader1.tryReadAHead(factory, new BlockLoader.Docs() {
+                                    @Override
+                                    public int count() {
+                                        return end + 1;
+                                    }
+
+                                    @Override
+                                    public int get(int docId) {
+                                        return docId;
+                                    }
+
+                                    @Override
+                                    public boolean mayContainDuplicates() {
+                                        return false;
+                                    }
+                                }, start);
+                                assertNotNull(hostBlock);
+                                assertThat(hostBlock.size(), equalTo(end - start + 1));
+                                for (int i = 0; i < hostBlock.size(); i++) {
+                                    String actualHostName = BytesRefs.toString(hostBlock.get(i));
+                                    assertThat(actualHostName, equalTo(hostnames.get(((Number) idBlock.get(i + start)).intValue())));
+                                }
+                                if (start == idBlock.size() - 1) {
+                                    break;
+                                }
+                                start = end + ESTestCase.between(0, 10);
+                            }
+                        }
+                        writer.forceMerge(1);
+                    }
+                }
+            }
+        }
+    }
+
+    private static IndexWriterConfig getIndexWriterConfig(String primaryField) {
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
         config.setMergePolicy(new LogByteSizeMergePolicy());
-        config.setCodec(getCodec());
+        final var codec = new Elasticsearch93Lucene104Codec() {
+            final ES819Version3TSDBDocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
+                randomIntBetween(2, 4096),
+                1,
+                random().nextBoolean(),
+                TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
+                randomBoolean(),
+                TSDBDocValuesTestUtil.randomNumericBlockSize(),
+                randomBoolean()
+            );
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
+        config.setCodec(codec);
         return config;
     }
 
+    public void testOptionalLengthReaderLengthIterator() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        // Use a few distinct lengths so that we get both matching and non-matching docs,
+        // and consecutive runs of matching docs.
+        final int[] possibleLengths = new int[] { 5, 10, 20 };
+        final int targetLength = possibleLengths[randomIntBetween(0, possibleLengths.length - 1)];
+
+        // tryLengthIterator is supported on all binary doc values implementation,
+        // and so randomize between compressed and uncompressed implementation to test both implementations.
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            randomBoolean() ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(compressedCodec);
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(4096);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+
+                int length = possibleLengths[random().nextInt(possibleLengths.length)];
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLength(length))));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                // Build expected set of matching doc IDs by reading actual binary values
+                // (avoids issues with doc ID reordering from index sort)
+                Set<Integer> expectedDocIds = new HashSet<>();
+                {
+                    var refDV = getTSDBBinaryValues(leafReader, binaryField);
+                    for (int docId = 0; docId < numDocs; docId++) {
+                        assertTrue(refDV.advanceExact(docId));
+                        if (refDV.binaryValue().length == targetLength) {
+                            expectedDocIds.add(docId);
+                        }
+                    }
+                }
+
+                // Test tryLengthIterator
+                var binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                DocIdSetIterator lengthIter = binaryDV.tryLengthIterator(targetLength);
+                assertNotNull(lengthIter);
+                assertEquals(-1, lengthIter.docID());
+
+                // Collect all docs from the iterator and verify they match expected
+                Set<Integer> actualDocIds = new HashSet<>();
+                int doc;
+                while ((doc = lengthIter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue("Iterator returned unexpected doc " + doc, expectedDocIds.contains(doc));
+                    actualDocIds.add(doc);
+
+                    // Validate docIDRunEnd contract
+                    int runEnd = lengthIter.docIDRunEnd();
+                    assertTrue("docIDRunEnd (" + runEnd + ") must be > docID (" + doc + ")", runEnd > doc);
+
+                    // All docs in [docID, docIDRunEnd) must match
+                    for (int d = doc; d < runEnd; d++) {
+                        assertTrue("doc " + d + " in run [" + doc + ", " + runEnd + ") should match", expectedDocIds.contains(d));
+                    }
+
+                    // Advance through the run to verify advance within run works correctly
+                    for (int d = doc + 1; d < runEnd; d++) {
+                        assertEquals(d, lengthIter.advance(d));
+                        actualDocIds.add(d);
+                        assertEquals("docIDRunEnd should be stable within a run", runEnd, lengthIter.docIDRunEnd());
+                    }
+                }
+
+                assertEquals("Iterator should return exactly the matching docs", expectedDocIds, actualDocIds);
+
+                // Test advance past existing docs
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                lengthIter = binaryDV.tryLengthIterator(targetLength);
+                assertNotNull(lengthIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.advance(numDocs));
+
+                // Test with a length that no doc has:iterator should be immediately exhausted
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                lengthIter = binaryDV.tryLengthIterator(9999);
+                assertNotNull(lengthIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.nextDoc());
+            }
+        }
+    }
+
+    public void testContainsIterator() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        long currentTimestamp = BASE_TIMESTAMP;
+
+        final String containsTerm = randomUnicodeOfCodepointLengthBetween(1, 10);
+        int numMatchingValues = randomIntBetween(5, 100);
+        final String[] matchingValues = new String[numMatchingValues];
+        for (int i = 0; i < numMatchingValues; i++) {
+            String prefix = randomUnicodeOfCodepointLengthBetween(0, 20);
+            String suffix = randomUnicodeOfCodepointLengthBetween(0, 20);
+            matchingValues[i] = prefix + containsTerm + suffix;
+        }
+
+        // tryContainsIterator is only implemented for the compressed binary doc values path
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(compressedCodec);
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(4096);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+
+                String value = randomBoolean()
+                    ? matchingValues[random().nextInt(matchingValues.length)]
+                    : randomUnicodeOfCodepointLengthBetween(1, 100);
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(value)));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            BytesRef containsTermRef = new BytesRef(containsTerm);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().getFirst().reader();
+
+                // Build expected set of matching doc IDs by reading actual binary values
+                Set<Integer> expectedDocIds = new HashSet<>();
+                {
+                    var refDV = getTSDBBinaryValues(leafReader, binaryField);
+                    for (int docId = 0; docId < numDocs; docId++) {
+                        assertTrue(refDV.advanceExact(docId));
+                        if (BinaryDocValuesContainsTermQuery.contains(refDV.binaryValue(), containsTermRef)) {
+                            expectedDocIds.add(docId);
+                        }
+                    }
+                }
+                assertFalse("expected some matching docs", expectedDocIds.isEmpty());
+
+                // Test tryContainsIterator via nextDoc
+                var binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                DocIdSetIterator containsIter = binaryDV.tryContainsIterator(containsTermRef);
+                assertNotNull(containsIter);
+                assertEquals(-1, containsIter.docID());
+
+                Set<Integer> actualDocIds = new HashSet<>();
+                int doc;
+                while ((doc = containsIter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue("Iterator returned unexpected doc " + doc, expectedDocIds.contains(doc));
+                    actualDocIds.add(doc);
+                }
+                assertEquals("Iterator should return exactly the matching docs", expectedDocIds, actualDocIds);
+
+                // Test advance past existing docs
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                containsIter = binaryDV.tryContainsIterator(containsTermRef);
+                assertNotNull(containsIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, containsIter.advance(numDocs));
+
+                // Test with a term that no doc contains:iterator should be immediately exhausted
+                String notFoundTerm = randomUnicodeOfCodepointLengthBetween(101, 200);
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                containsIter = binaryDV.tryContainsIterator(new BytesRef(notFoundTerm));
+                assertNotNull(containsIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, containsIter.nextDoc());
+
+                // Test advance to specific matching docs
+                binaryDV = getTSDBBinaryValues(leafReader, binaryField);
+                containsIter = binaryDV.tryContainsIterator(containsTermRef);
+                for (int expected : expectedDocIds.stream().sorted().toList()) {
+                    int result = containsIter.advance(expected);
+                    assertEquals("advance(" + expected + ") should land on that doc", expected, result);
+                }
+            }
+        }
+    }
+
+    /**
+     * Lock the {@link TwoPhaseIterator}-backed shape of {@code tryContainsIterator} and
+     * {@code tryLengthIterator} so a future refactor that bakes the per-doc check into
+     * {@code advance(target)} (which over-scans past the caller's {@code max} when matches are
+     * sparse — breaking linear scaling under sub-segment slicing) fails this test instead of
+     * regressing silently.
+     */
+    public void testIteratorsExposeTwoPhase() throws Exception {
+        final String timestampField = TIMESTAMP_FIELD;
+        final String binaryField = "binary_field";
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT,
+            randomBoolean()
+        );
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(TestUtil.alwaysDocValuesFormat(dvFormat));
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 64 + random().nextInt(256);
+            long ts = BASE_TIMESTAMP;
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, ts++));
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomUnicodeOfCodepointLengthBetween(1, 64))));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().getFirst().reader();
+                var dv = getTSDBBinaryValues(leaf, binaryField);
+                DocIdSetIterator contains = dv.tryContainsIterator(new BytesRef("anything"));
+                assertNotNull("optimized contains iterator should be available", contains);
+                assertNotNull(
+                    "tryContainsIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
+                        + "see the rationale on BlockLoader.OptionalColumnAtATimeReader#tryContainsIterator",
+                    TwoPhaseIterator.unwrap(contains)
+                );
+                DocIdSetIterator lengths = dv.tryLengthIterator(8);
+                assertNotNull("optimized length iterator should be available", lengths);
+                assertNotNull(
+                    "tryLengthIterator must return a TwoPhaseIterator-backed DocIdSetIterator — "
+                        + "see the rationale on BlockLoader.OptionalLengthReader#tryLengthIterator",
+                    TwoPhaseIterator.unwrap(lengths)
+                );
+            }
+        }
+    }
 }

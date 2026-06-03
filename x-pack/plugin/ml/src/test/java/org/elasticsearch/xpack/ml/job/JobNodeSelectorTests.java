@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -49,10 +51,12 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.ReferenceDocs.MACHINE_LEARNING_SETTINGS;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.nodeFilter;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.jobWithRules;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -257,7 +261,103 @@ public class JobNodeSelectorTests extends ESTestCase {
                     + JOB_MEMORY_REQUIREMENT.getBytes()
                     + " ("
                     + ByteSizeValue.ofBytes(JOB_MEMORY_REQUIREMENT.getBytes())
-                    + ")]"
+                    + ")]. If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: ["
+                    + MACHINE_LEARNING_SETTINGS
+                    + "]."
+            )
+        );
+    }
+
+    public void testSelectNodeWhenOutOfMemoryAndAutoMemoryPercentageSettingNotSet_shouldContainFixSuggestionMessage() {
+        long machineMemory = ByteSizeValue.ofGb(1).getBytes();
+
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
+        );
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        nodes.add(DiscoveryNodeUtils.create("node1", "node1", address, nodeAttr, ROLES_WITH_ML));
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("test"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("test_job", ByteSizeValue.ofGb(10)).build(new Date());
+        when(memoryTracker.getJobMemoryRequirement(anyString(), eq("test_job"))).thenReturn(ByteSizeValue.ofGb(10).getBytes());
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            List.copyOf(cs.nodes().getAllNodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            0,
+            node -> nodeFilter(node, job)
+        );
+
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, false);
+
+        assertNull(result.getExecutorNode());
+        assertThat(
+            result.getExplanation(),
+            containsString(
+                Strings.format(
+                    "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                    MACHINE_LEARNING_SETTINGS
+                )
+            )
+        );
+    }
+
+    public void testSelectNodeWhenOutOfMemoryAndAutoMemoryPercentageSettingSet_shouldNotContainFixSuggestionMessage() {
+        long machineMemory = ByteSizeValue.ofGb(1).getBytes();
+
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(machineMemory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            Long.toString(machineMemory / 2),
+            MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
+            MlConfigVersion.CURRENT.toString()
+        );
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
+        TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        nodes.add(DiscoveryNodeUtils.create("node1", "node1", address, nodeAttr, ROLES_WITH_ML));
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("test"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("test_job", ByteSizeValue.ofGb(10)).build(new Date());
+        when(memoryTracker.getJobMemoryRequirement(anyString(), eq("test_job"))).thenReturn(ByteSizeValue.ofGb(10).getBytes());
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            List.copyOf(cs.nodes().getAllNodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            0,
+            node -> nodeFilter(node, job)
+        );
+
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, true);
+
+        assertNull(result.getExecutorNode());
+        assertThat(
+            result.getExplanation(),
+            not(
+                containsString(
+                    Strings.format(
+                        "If you can, consider setting `xpack.ml.use_auto_machine_memory_percent` to true: [%s]",
+                        MACHINE_LEARNING_SETTINGS
+                    )
+                )
             )
         );
     }
@@ -1197,6 +1297,55 @@ public class JobNodeSelectorTests extends ESTestCase {
             ByteSizeValue.ofGb(64).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testEffectiveMaxLazyNodesGivenNoCapAndLazyAssignmentShouldBeUnbounded() {
+        assertEquals(Integer.MAX_VALUE, JobNodeSelector.effectiveMaxLazyNodes(0, true));
+    }
+
+    public void testEffectiveMaxLazyNodesGivenPositiveCapShouldHonourCap() {
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, true));
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, false));
+    }
+
+    public void testConsiderLazyAssignmentGivenNodeCapShouldFail() {
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.create(
+                    "trial_ml_node",
+                    "trial_ml_node_id",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Map.of(
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes),
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes / 2)
+                    ),
+                    ROLES_WITH_ML
+                )
+            )
+            .build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            shuffled(cs.nodes().getAllNodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            1,
+            node -> nodeFilter(node, job)
+        );
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(4).getBytes()
+        );
+        assertEquals("foo", result.getExplanation());
         assertNull(result.getExecutorNode());
     }
 

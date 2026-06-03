@@ -8,27 +8,32 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 
 public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-    private final EvalOperator.ExpressionEvaluator field;
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+        ToStringFromAggregateMetricDoubleEvaluator.class
+    );
 
-    public ToStringFromAggregateMetricDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+    private final ExpressionEvaluator field;
+
+    public ToStringFromAggregateMetricDoubleEvaluator(Source source, ExpressionEvaluator field, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator next() {
+    protected ExpressionEvaluator next() {
         return field;
     }
 
@@ -63,22 +68,32 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+    }
+
+    @Override
     public void close() {
         Releasables.closeExpectNoException(field);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory field;
+        private final ExpressionEvaluator.Factory field;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+        public Factory(Source source, ExpressionEvaluator.Factory field) {
             this.source = source;
             this.field = field;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new ToStringFromAggregateMetricDoubleEvaluator(source, field.get(context), context);
+        }
+
+        @Override
+        public String toString() {
+            return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + "]";
         }
     }
 }

@@ -1,5 +1,82 @@
 ---
 "Rollover with max_size condition":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /logs_search/_rollover
+          capabilities: [ max_size_deprecation ]
+      test_runner_features: [ warnings, capabilities ]
+      reason: Capability required to run test
+
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index a document
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with a large max_size, no action.
+  - do:
+      warnings:
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 100mb
+
+  - match: { conditions: { "[max_size: 100mb]": false } }
+  - match: { rolled_over: false }
+
+  # perform alias rollover with a small max_size, got action.
+  - do:
+      warnings:
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 10b
+
+  - match: { conditions: { "[max_size: 10b]": true } }
+  - match: { rolled_over: true }
+
+  # perform alias rollover on an empty index, no action.
+  - do:
+      warnings:
+        - 'Use of the [max_size] rollover condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version'
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 1b
+
+  - match: { conditions: { "[max_size: 1b]": false } }
+  - match: { rolled_over: false }
+
+---
+"Rollover with max_size condition (BWC - Pre Deprecation)":
+  - requires:
+      test_runner_features: [ capabilities ]
+  - skip:
+      capabilities:
+        - method: POST
+          path: /logs_search/_rollover
+          capabilities: [ max_size_deprecation ]
+      reason: Capability must be missing to run test
 
   # create index with alias and replica
   - do:

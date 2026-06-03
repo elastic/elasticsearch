@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -69,6 +70,7 @@ import static org.hamcrest.Matchers.is;
  * {@link SecurityIntegTestCase} due to simplicity and improved speed from not needing to start
  * multiple nodes and wait for the cluster to form.
  */
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-12382
 public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
@@ -95,17 +97,15 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         tearDownRestClient();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void setupSecurityIndex() throws Exception {
         deleteSecurityIndexIfExists();
         createSecurityIndexWithWaitForActiveShards();
     }
 
-    @Override
-    public void tearDown() throws Exception {
+    @After
+    public void cleanupSecurity() throws Exception {
         awaitSecurityMigration();
-        super.tearDown();
         if (resetNodeAfterTest()) {
             tearDownRestClient();
         }

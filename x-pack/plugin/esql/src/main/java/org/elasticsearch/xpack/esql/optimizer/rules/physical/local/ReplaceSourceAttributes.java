@@ -11,9 +11,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.ArrayList;
@@ -21,47 +25,88 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 
-public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule<EsSourceExec> {
+/**
+ * Strips source leaf nodes down to their minimal output attributes so that {@link InsertFieldExtraction}
+ * can later add only the fields that the rest of the plan actually needs.
+ * <p>
+ * Handles both {@link EsSourceExec} (data node path, replaced with {@link EsQueryExec}) and
+ * {@link ParameterizedQueryExec} (lookup node path, output stripped to {@code [_doc, _positions]}).
+ */
+public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRule<LeafExec> {
 
     public ReplaceSourceAttributes() {
         super(UP);
     }
 
     @Override
-    protected PhysicalPlan rule(EsSourceExec plan) {
-        var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+    protected PhysicalPlan rule(LeafExec plan) {
+        if (plan instanceof EsSourceExec esSource) {
+            return replaceEsSource(esSource);
+        }
+        if (plan instanceof ParameterizedQueryExec pqExec) {
+            return replaceParameterizedQuery(pqExec);
+        }
+        return plan;
+    }
+
+    private static PhysicalPlan replaceEsSource(EsSourceExec plan) {
         final List<Attribute> attributes = new ArrayList<>();
-        attributes.add(docId);
+        attributes.add(getDocAttribute(plan));
 
-        var outputIterator = plan.output().iterator();
-        var isTimeSeries = plan.indexMode() == IndexMode.TIME_SERIES;
-        var keepIterating = true;
-        Attribute tsid = null, timestamp = null, score = null;
-
-        while (keepIterating && outputIterator.hasNext()) {
-            Attribute attr = outputIterator.next();
-            if (attr instanceof MetadataAttribute ma) {
-                if (ma.name().equals(MetadataAttribute.SCORE)) {
-                    score = attr;
-                } else if (isTimeSeries && ma.name().equals(MetadataAttribute.TSID_FIELD)) {
-                    tsid = attr;
+        if (plan.indexMode() == IndexMode.TIME_SERIES) {
+            for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
+                attributes.add(new FieldAttribute(plan.source(), null, null, field.getName(), field));
+            }
+        } else {
+            for (Attribute attr : plan.output()) {
+                if (attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE)) {
+                    attributes.add(attr);
+                    break;
                 }
-            } else if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                timestamp = attr;
             }
-            keepIterating = score == null || (isTimeSeries && (tsid == null || timestamp == null));
-        }
-        if (isTimeSeries) {
-            if (tsid == null || timestamp == null) {
-                throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
-            }
-            attributes.add(tsid);
-            attributes.add(timestamp);
-        }
-        if (score != null) {
-            attributes.add(score);
         }
 
-        return new EsQueryExec(plan.source(), plan.indexPattern(), plan.indexMode(), plan.indexNameWithModes(), attributes, plan.query());
+        return new EsQueryExec(
+            plan.source(),
+            plan.indexPattern(),
+            plan.indexMode(),
+            attributes,
+            null,
+            null,
+            null,
+            List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
+        );
+    }
+
+    private static PhysicalPlan replaceParameterizedQuery(ParameterizedQueryExec plan) {
+        List<Attribute> strippedOutput = new ArrayList<>(2);
+        for (Attribute attr : plan.output()) {
+            if (EsQueryExec.isDocAttribute(attr) || AbstractLookupService.LOOKUP_POSITIONS_FIELD.name().equals(attr.name())) {
+                strippedOutput.add(attr);
+            }
+        }
+        return new ParameterizedQueryExec(
+            plan.source(),
+            strippedOutput,
+            plan.matchFields(),
+            plan.joinOnConditions(),
+            plan.query(),
+            plan.emptyResult(),
+            plan.bulkLookupLeft(),
+            plan.bulkLookupRight()
+        );
+    }
+
+    private static Attribute getDocAttribute(EsSourceExec plan) {
+        // Reuse the existing doc attribute from the relation output when present, rather than creating a new one,
+        // to ensure the same attribute instance is used throughout the plan (needed for late materialization in the reduce driver).
+        var sourceAttributes = plan.output().stream().filter(EsQueryExec::isDocAttribute).toList();
+        if (sourceAttributes.size() > 1) {
+            throw new IllegalStateException("Expected at most one source attribute, found: " + sourceAttributes);
+        }
+        if (sourceAttributes.isEmpty()) {
+            return new FieldAttribute(plan.source(), null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        }
+        return sourceAttributes.getFirst();
     }
 }

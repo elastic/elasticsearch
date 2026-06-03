@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -123,12 +124,13 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // We should see that the migration is in progress even though we just started the migration.
         assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
 
-        // Now wait for the migration to finish (otherwise the test infra explodes)
+        // Now wait for the migration to finish (otherwise the test infra explodes). The feature upgrade may take longer than ten
+        // seconds when tests are running in parallel, so we give assertBusy a thirty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMigrateSystemIndex() throws Exception {
@@ -153,7 +155,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         SetOnce<Boolean> preUpgradeHookCalled = new SetOnce<>();
         SetOnce<Boolean> postUpgradeHookCalled = new SetOnce<>();
-        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(project -> {
             // Check that the ordering of these calls is correct.
             assertThat(postUpgradeHookCalled.get(), nullValue());
             Map<String, Object> metadata = new HashMap<>();
@@ -170,7 +172,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((metadata) -> {
             assertThat(preUpgradeHookCalled.get(), is(true));
 
             assertThat(metadata, hasEntry("stringKey", "stringValue"));
@@ -182,7 +184,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(innerMap, hasEntry("innerKey", "innerValue"));
 
             // We shouldn't have any results in the cluster state as no features have fully finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+            final var project = clusterService().state().metadata().getProject(ProjectId.DEFAULT);
+            FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, nullValue());
             postUpgradeHookCalled.set(true);
         });

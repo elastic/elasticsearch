@@ -2,323 +2,66 @@
 navigation_title: "Semantic text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
+applies_to:
+  stack: ga 9.0
+  serverless: ga
 ---
 
 # Semantic text field type [semantic-text]
 
-The `semantic_text` field type automatically generates embeddings for text
-content using an inference endpoint. Long passages
-are [automatically chunked](#auto-text-chunking) to smaller sections to enable
-the processing of larger corpuses of text.
+:::::{warning}
+The `semantic_text` field mapping can be added regardless of license state. However, it typically calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). In these cases, using `semantic_text` in a cluster without the appropriate license causes operations such as indexing and reindexing to fail.
+:::::
 
-The `semantic_text` field type specifies an inference endpoint identifier that
-will be used to generate embeddings. You can create the inference endpoint by
-using
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put).
-This field type and the [
-`semantic` query](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
-type make it simpler to perform semantic search on your data. The
-`semantic_text` field type may also be queried
-with [match](/reference/query-languages/query-dsl/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
-or [knn](/reference/query-languages/query-dsl/query-dsl-knn-query.md) queries.
+The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing sensible defaults that automate most of the manual work typically required for vector search. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
 
-If you don’t specify an inference endpoint, the `inference_id` field defaults to
-`.elser-2-elasticsearch`, a preconfigured endpoint for the elasticsearch
-service.
+- Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the {{infer}} endpoint.
+- Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
+- Handles chunking: Automatically chunks long text documents during indexing.
 
-Using `semantic_text`, you won’t need to specify how to generate embeddings for
-your data, or how to index it. The {{infer}} endpoint automatically determines
-the embedding generation, indexing, and query to use.
-Newly created indices with `semantic_text` fields using dense embeddings will be
-[quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
-to `bbq_hnsw` automatically.
+## Basic `semantic_text` mapping example
 
-If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
-`semantic_text` with the following API request:
+The following example creates an index mapping with a `semantic_text` field, using default values:
 
 ```console
-PUT my-index-000001
+PUT semantic-embeddings 
 {
-  "mappings": {
+  "mappings": { 
     "properties": {
-      "inference_field": {
+      "content": { 
         "type": "semantic_text"
       }
     }
   }
 }
 ```
+:::{important}
+If you don't specify an `inference_id`, like in the example above, and upgrade to a later version, newly created indices might use a different embedding model than existing ones. Queries that target these indices together can produce unexpected ranking results.
+For details, refer to [potential issues when mixing embedding models across indices](./semantic-text-setup-configuration.md#default-endpoint-considerations).
+:::
 
-To use a custom {{infer}} endpoint instead of the default
-`.elser-2-elasticsearch`, you
-must [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-and specify its `inference_id` when setting up the `semantic_text` field type.
+## Extended `semantic_text` mapping example
+
+The following example creates an index mapping with a `semantic_text` field that uses dense vectors:
 
 ```console
-PUT my-index-000002
+PUT semantic-embeddings
 {
   "mappings": {
     "properties": {
-      "inference_field": {
+      "content": {
         "type": "semantic_text",
-        "inference_id": "my-openai-endpoint" <1>
-      }
-    }
-  }
-}
-```
-
-1. The `inference_id` of the {{infer}} endpoint to use to generate embeddings.
-
-The recommended way to use `semantic_text` is by having dedicated {{infer}}
-endpoints for ingestion and search. This ensures that search speed remains
-unaffected by ingestion workloads, and vice versa. After creating dedicated
-{{infer}} endpoints for both, you can reference them using the `inference_id`
-and `search_inference_id` parameters when setting up the index mapping for an
-index that uses the `semantic_text` field.
-
-```console
-PUT my-index-000003
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text",
-        "inference_id": "my-elser-endpoint-for-ingest",
-        "search_inference_id": "my-elser-endpoint-for-search"
-      }
-    }
-  }
-}
-```
-
-## Parameters for `semantic_text` fields [semantic-text-params]
-
-`inference_id`
-:   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings for the field. By default, `.elser-2-elasticsearch` is used. This
-parameter cannot be updated. Use
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-to create the endpoint. If `search_inference_id` is specified, the {{infer}}
-endpoint will only be used at index time.
-
-`search_inference_id`
-:   (Optional, string) {{infer-cap}} endpoint that will be used to generate
-embeddings at query time. You can update this parameter by using
-the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
-Use
-the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-to create the endpoint. If not specified, the {{infer}} endpoint defined by
-`inference_id` will be used at both index and query time.
-
-`index_options`
-:   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` index options are supported.
-For text embeddings, `index_options` may match any allowed
-[dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
-
-`chunking_settings`
-:   (Optional, object) Settings for chunking text into smaller passages.
-If specified, these will override the chunking settings set in the {{infer-cap}}
-endpoint associated with `inference_id`.
-If chunking settings are updated, they will not be applied to existing documents
-until they are reindexed.
-To completely disable chunking, use the `none` chunking strategy.
-
-    **Valid values for `chunking_settings`**:
-
-    `type`
-    :   Indicates the type of chunking strategy to use. Valid values are `none`, `word` or
-    `sentence`. Required.
-
-    `max_chunk_size`
-    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
-
-    `overlap`
-    :   The number of overlapping words allowed in chunks. This cannot be defined as
-    more than half of the `max_chunk_size`. Required for `word` type chunking
-    settings.
-
-    `sentence_overlap`
-    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
-    or `1`. Required for `sentence` type chunking settings
-
-::::{warning}
-When using the `none` chunking strategy, if the input exceeds the maximum token limit of the underlying model, some
-services (such as OpenAI) may return an
-error. In contrast, the `elastic` and `elasticsearch` services will
-automatically truncate the input to fit within the
-model's limit.
-::::
-
-## {{infer-cap}} endpoint validation [infer-endpoint-validation]
-
-The `inference_id` will not be validated when the mapping is created, but when
-documents are ingested into the index. When the first document is indexed, the
-`inference_id` will be used to generate underlying indexing structures for the
-field.
-
-::::{warning}
-Removing an {{infer}} endpoint will cause ingestion of documents and semantic
-queries to fail on indices that define `semantic_text` fields with that
-{{infer}} endpoint as their `inference_id`. Trying
-to [delete an {{infer}} endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-delete)
-that is used on a `semantic_text` field will result in an error.
-::::
-
-## Text chunking [auto-text-chunking]
-
-{{infer-cap}} endpoints have a limit on the amount of text they can process. To
-allow for large amounts of text to be used in semantic search, `semantic_text`
-automatically generates smaller passages if needed, called *chunks*.
-
-Each chunk refers to a passage of the text and the corresponding embedding
-generated from it. When querying, the individual passages will be automatically
-searched for each document, and the most relevant passage will be used to
-compute a score.
-
-For more details on chunking and how to configure chunking settings,
-see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
-in the Inference API documentation.
-
-You can pre-chunk the input by sending it to Elasticsearch as an array of
-strings.
-Example:
-
-```console
-PUT test-index
-{
-  "mappings": {
-    "properties": {
-      "my_semantic_field": {
-        "type": "semantic_text",
-        "chunking_settings": {
-          "strategy": "none"    <1>
-        }
-      }
-    }
-  }
-}
-```
-
-1. Disable chunking on `my_semantic_field`.
-
-```console
-PUT test-index/_doc/1
-{
-    "my_semantic_field": ["my first chunk", "my second chunk", ...]    <1>
-    ...
-}
-```
-
-1. The text is pre-chunked and provided as an array of strings.
-   Each element in the array represents a single chunk that will be sent
-   directly to the inference service without further chunking.
-
-**Important considerations**:
-
-* When providing pre-chunked input, ensure that you set the chunking strategy to
-  `none` to avoid additional processing.
-* Each chunk should be sized carefully, staying within the token limit of the
-  inference service and the underlying model.
-* If a chunk exceeds the model's token limit, the behavior depends on the
-  service:
-    * Some services (such as OpenAI) will return an error.
-    * Others (such as `elastic` and `elasticsearch`) will automatically truncate
-      the input.
-
-Refer
-to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
-to learn more about semantic search using `semantic_text`.
-
-## Extracting relevant fragments from semantic text [semantic-text-highlighting]
-
-You can extract the most relevant fragments from a semantic text field by using
-the [highlight parameter](/reference/elasticsearch/rest-apis/highlighting.md) in
-the [Search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search).
-
-```console
-POST test-index/_search
-{
-    "query": {
-        "match": {
-            "my_semantic_field": "Which country is Paris in?"
-        }
-    },
-    "highlight": {
-        "fields": {
-            "my_semantic_field": {
-                "number_of_fragments": 2,  <1>
-                "order": "score"           <2>
-            }
-        }
-    }
-}
-```
-
-1. Specifies the maximum number of fragments to return.
-2. Sorts highlighted fragments by score when set to `score`. By default,
-   fragments will be output in the order they appear in the field (order: none).
-
-Highlighting is supported on fields other than semantic_text. However, if you
-want to restrict highlighting to the semantic highlighter and return no
-fragments when the field is not of type semantic_text, you can explicitly
-enforce the `semantic` highlighter in the query:
-
-```console
-PUT test-index
-{
-    "query": {
-        "match": {
-            "my_field": "Which country is Paris in?"
-        }
-    },
-    "highlight": {
-        "fields": {
-            "my_field": {
-                "type": "semantic",         <1>
-                "number_of_fragments": 2,
-                "order": "score"
-            }
-        }
-    }
-}
-```
-
-1. Ensures that highlighting is applied exclusively to semantic_text fields.
-
-## Customizing `semantic_text` indexing [custom-indexing]
-
-`semantic_text` uses defaults for indexing data based on the {{infer}} endpoint
-specified. It enables you to quickstart your semantic search by providing
-automatic {{infer}} and a dedicated query so you don’t need to provide further
-details.
-
-If you want to override those defaults and customize the embeddings that
-`semantic_text` indexes, you can do so by modifying [parameters](#semantic-text-params):
-
-- Use `index_options` to specify alternate index options such as specific
-  `dense_vector` quantization methods
-- Use `chunking_settings` to override the chunking strategy associated with the
-  {{infer}} endpoint, or completely disable chunking using the `none` type
-
-Here is an example of how to set these parameters for a text embedding endpoint:
-
-```console
-PUT my-index-000004
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text",
-        "inference_id": "my-text-embedding-endpoint",
-        "index_options": {
+        "inference_id": "my-inference-endpoint", <1>
+        "search_inference_id": "my-search-inference-endpoint", <2>
+        "index_options": { <3>
           "dense_vector": {
-            "type": "int4_flat"
+            "type": "bbq_disk"
           }
         },
-        "chunking_settings": {
-          "type": "none"
+        "chunking_settings": { <4>
+          "strategy": "word",
+          "max_chunk_size": 120,
+          "overlap": 40
         }
       }
     }
@@ -326,77 +69,39 @@ PUT my-index-000004
 }
 ```
 
-## Updates to `semantic_text` fields [update-script]
+1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings at index time. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-endpoints).
+2. (Optional) The {{infer}} endpoint used to generate embeddings at query time. If not specified, the endpoint defined by `inference_id` is used at both index and query time.
+3. (Optional) Configures how the underlying vector representation is indexed. In this example, [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk) is selected for dense vectors. You can configure different index options depending on whether the field uses dense or sparse vectors. Learn how to [set `index_options` for `sparse_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-sparse_vectors) and how to [set `index_options` for `dense_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-dense_vectors).
+4. (Optional) Overrides the [chunking settings](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#chunking-behavior) from the {{infer}} endpoint. In this example, the `word` strategy splits text on individual words with a maximum of 120 words per chunk and an overlap of 40 words between chunks. The default chunking strategy is `sentence`.
 
-For indices containing `semantic_text` fields, updates that use scripts have the
-following behavior:
+:::{tip}
+For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial.
+::: 
 
-* Are supported through
-  the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update).
-* Are not supported through
-  the [Bulk API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk-1)
-  and will fail. Even if the script targets non-`semantic_text` fields, the
-  update will fail when the index contains a `semantic_text` field.
+## Overview
 
-## `copy_to` and multi-fields support [copy-to-support]
+The `semantic_text` field type documentation is organized into reference content and how-to guides. 
 
-The semantic_text field type can serve as the target
-of [copy_to fields](/reference/elasticsearch/mapping-reference/copy-to.md), be
-part of
-a [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md)
-structure, or
-contain [multi-fields](/reference/elasticsearch/mapping-reference/multi-fields.md)
-internally. This means you can use a single field to collect the values of other
-fields for semantic search.
+### Reference
 
-For example, the following mapping:
+The [Reference](./semantic-text-reference.md) section provides technical reference content:
 
-```console
-PUT test-index
-{
-    "mappings": {
-        "properties": {
-            "source_field": {
-                "type": "text",
-                "copy_to": "infer_field"
-            },
-            "infer_field": {
-                "type": "semantic_text",
-                "inference_id": ".elser-2-elasticsearch"
-            }
-        }
-    }
-}
-```
+- [Parameters](./semantic-text-reference.md#semantic-text-params): Parameter descriptions for `semantic_text` fields.
+- [{{infer-cap}} endpoints](./semantic-text-reference.md#configuring-inference-endpoints): Overview of {{infer}} endpoints used with `semantic_text` fields.
+- [Chunking](./semantic-text-reference.md#chunking-behavior): How `semantic_text` automatically processes long text passages by generating smaller chunks.
+- [Pre-filtering for dense vector queries](./semantic-text-reference.md#pre-filtering-for-dense-vector-queries): Automatic pre-filtering behavior for dense vector queries on `semantic_text` fields.
+- [Limitations](./semantic-text-reference.md#limitations): Current limitations of `semantic_text` fields.
+- [Document count discrepancy](./semantic-text-reference.md#document-count-discrepancy): Understanding document counts in `_cat/indices` for indices with `semantic_text` fields.
+- [Querying `semantic_text` fields](./semantic-text-search-retrieval.md#querying-semantic-text-fields): Supported query types for `semantic_text` fields.
 
-can also be declared as multi-fields:
+### How-to guides
 
-```console
-PUT test-index
-{
-    "mappings": {
-        "properties": {
-            "source_field": {
-                "type": "text",
-                "fields": {
-                    "infer_field": {
-                        "type": "semantic_text",
-                        "inference_id": ".elser-2-elasticsearch"
-                    }
-                }
-            }
-        }
-    }
-}
-```
+The [How-to guides](./semantic-text-how-tos.md) section organizes procedure descriptions and examples into the following guides:
 
-## Limitations [limitations]
+- [Set up and configure `semantic_text` fields](./semantic-text-setup-configuration.md): Learn how to configure {{infer}} endpoints, including default and preconfigured options, ELSER on EIS, custom endpoints, and dedicated endpoints for ingestion and search operations.
 
-`semantic_text` field types have the following limitations:
+- [Ingest data with `semantic_text` fields](./semantic-text-ingestions.md): Learn how to index pre-chunked content, use `copy_to` and multi-fields to collect values from multiple fields, and perform updates and partial updates to optimize ingestion costs.
 
-* `semantic_text` fields are not currently supported as elements
-  of [nested fields](/reference/elasticsearch/mapping-reference/nested.md).
-* `semantic_text` fields can’t currently be set as part
-  of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
-* `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
-  Cross-Cluster Replication (CCR).
+- [Search and retrieve `semantic_text` fields](./semantic-text-search-retrieval.md): Learn how to query `semantic_text` fields, retrieve indexed chunks, return field embeddings, and highlight the most relevant fragments from search results.
+
+

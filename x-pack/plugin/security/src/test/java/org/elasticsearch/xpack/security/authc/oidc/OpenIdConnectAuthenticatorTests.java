@@ -108,6 +108,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.crypto.SecretKey;
@@ -964,6 +965,53 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             exception,
             TestMatchers.throwableWithMessage(
                 "Failed to get user information from the UserInfo endpoint. Code=[404], Description=[Gone away]"
+            )
+        );
+    }
+
+    public void testHandleUserinfoValidationFailsOnNotMatchingSubject() throws Exception {
+        final ProtocolVersion httpVersion = randomFrom(HttpVersion.HTTP_0_9, HttpVersion.HTTP_1_0, HttpVersion.HTTP_1_1);
+        final HttpResponse response = new BasicHttpResponse(new BasicStatusLine(httpVersion, RestStatus.OK.getStatus(), "OK"));
+
+        final String sub = randomAlphaOfLengthBetween(4, 36);
+        final String inf = randomAlphaOfLength(12);
+        final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject("it-is-a-different-subject").claim("inf", inf).build();
+        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
+        if (randomBoolean()) {
+            entity.setContentEncoding(
+                randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
+            );
+        }
+        response.setEntity(entity);
+
+        final String idx = randomAlphaOfLength(8);
+        final JWTClaimsSet idClaims = new JWTClaimsSet.Builder().subject(sub).claim("idx", idx).build();
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final PlainActionFuture<JWTClaimsSet> future = new PlainActionFuture<>() {
+
+            @Override
+            public void onResponse(JWTClaimsSet result) {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                super.onResponse(result);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
+                super.onFailure(e);
+            }
+        };
+
+        this.authenticator = buildAuthenticator();
+        OpenIdConnectAuthenticator.handleUserinfoResponse(response, idClaims, future);
+        var e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Userinfo Response is not valid as it is for subject [it-is-a-different-subject] while the ID Token was for subject ["
+                    + sub
+                    + "]"
             )
         );
     }

@@ -12,12 +12,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -35,10 +38,10 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -46,6 +49,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAppend", MvAppend::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAppend.class)
+        .binary(MvAppend::new)
+        .capabilities("flattened")
+        .name("mv_append");
 
     private final Expression field1, field2;
     private DataType dataType;
@@ -58,8 +65,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -80,8 +91,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -99,8 +114,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -137,14 +156,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field1, DataType::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType().noText();
-            return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
+            return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field2, sourceText(), SECOND);
         }
         return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }
@@ -155,14 +174,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case DOUBLE -> new MvAppendDoubleEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case INT -> new MvAppendIntEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case LONG -> new MvAppendLongEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
@@ -185,22 +204,8 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         return dataType;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(field1, field2);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvAppend other = (MvAppend) obj;
-        return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
-    }
-
     @Evaluator(extraName = "Int")
-    static void process(IntBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
+    static void process(IntBlock.Builder builder, @Position int position, IntBlock field1, IntBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -221,7 +226,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Boolean")
-    static void process(BooleanBlock.Builder builder, int position, BooleanBlock field1, BooleanBlock field2) {
+    static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -242,7 +247,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Long")
-    static void process(LongBlock.Builder builder, int position, LongBlock field1, LongBlock field2) {
+    static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -262,7 +267,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Double")
-    static void process(DoubleBlock.Builder builder, int position, DoubleBlock field1, DoubleBlock field2) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {
@@ -283,7 +288,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "BytesRef")
-    static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field1, BytesRefBlock field2) {
+    static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {

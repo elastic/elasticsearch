@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.util.Map;
 
@@ -33,8 +34,16 @@ public class EndsWithStaticTests extends ESTestCase {
     public void testLuceneQuery_NonFoldableSuffix_NonTranslatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("field", DataType.KEYWORD, Map.of(), true)),
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true))
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("field", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
@@ -43,7 +52,11 @@ public class EndsWithStaticTests extends ESTestCase {
     public void testLuceneQuery_NonFoldableSuffix_Translatable() {
         EndsWith function = new EndsWith(
             Source.EMPTY,
-            new FieldAttribute(Source.EMPTY, "field", new EsField("suffix", DataType.KEYWORD, Map.of(), true)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
             Literal.keyword(Source.EMPTY, "a*b?c\\")
         );
 
@@ -51,6 +64,47 @@ public class EndsWithStaticTests extends ESTestCase {
 
         Query query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
 
-        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\", false, false)));
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\", false, true)));
+    }
+
+    public void testLuceneQuery_OnlyEscapesWildcardChars() {
+        // Characters that are special in Lucene query-parser syntax but NOT in wildcard syntax.
+        // QueryParser.escape would escape these, but our wildcard escaping must leave them untouched.
+        for (String ch : new String[] { "+", "-", "!", "(", ")", "^", "\"", "~", "/" }) {
+            EndsWith function = new EndsWith(
+                Source.EMPTY,
+                new FieldAttribute(
+                    Source.EMPTY,
+                    "field",
+                    new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                ),
+                Literal.keyword(Source.EMPTY, "k8s" + ch + "idx")
+            );
+
+            Query query = function.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+            assertThat(
+                "character '" + ch + "' must not be escaped",
+                query,
+                equalTo(new WildcardQuery(Source.EMPTY, "field", "*k8s" + ch + "idx", false, true))
+            );
+        }
+    }
+
+    public void testLuceneQuery_StringLikeOnIndexFalse() {
+        EndsWith function = new EndsWith(
+            Source.EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("suffix", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Literal.keyword(Source.EMPTY, "test")
+        );
+
+        var predicates = LucenePushdownPredicates.forCanMatch(null, new EsqlFlags(false));
+        Query query = function.asQuery(predicates, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*test", false, false)));
     }
 }

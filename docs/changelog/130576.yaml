@@ -1,5 +1,0 @@
-pr: 130576
-summary: Avoid O(N^2) in VALUES with ordinals grouping
-area: ES|QL
-type: bug
-issues: []

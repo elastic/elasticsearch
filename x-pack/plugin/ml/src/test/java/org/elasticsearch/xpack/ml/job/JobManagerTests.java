@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -75,10 +76,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobManagerTests extends ESTestCase {
@@ -326,22 +329,37 @@ public class JobManagerTests extends ESTestCase {
         // The search will not return any results
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), Collections.emptyList());
 
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        Client mockClient = mockClientBuilder.build();
+
+        // Mock UpdateProcessAction calls - calendar updates now bypass the queue and call client.execute directly
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateProcessAction.Response> listener = (ActionListener<UpdateProcessAction.Response>) invocation
+                .getArguments()[2];
+            listener.onResponse(new UpdateProcessAction.Response());
+            return null;
+        }).when(mockClient).execute(eq(UpdateProcessAction.INSTANCE), any(UpdateProcessAction.Request.class), any());
+
+        JobManager jobManager = createJobManager(mockClient);
 
         jobManager.updateProcessOnCalendarChanged(
             Arrays.asList("job-1", "job-3", "job-4"),
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
+        // Verify that UpdateProcessAction is called directly for each open job
+        ArgumentCaptor<UpdateProcessAction.Request> requestCaptor = ArgumentCaptor.forClass(UpdateProcessAction.Request.class);
+        verify(mockClient, times(2)).execute(eq(UpdateProcessAction.INSTANCE), requestCaptor.capture(), any());
 
-        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
-        assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
-        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-3"));
-        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+        List<UpdateProcessAction.Request> capturedRequests = requestCaptor.getAllValues();
+        assertThat(capturedRequests.size(), equalTo(2));
+        assertThat(capturedRequests.get(0).getJobId(), equalTo("job-1"));
+        assertThat(capturedRequests.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedRequests.get(1).getJobId(), equalTo("job-3"));
+        assertThat(capturedRequests.get(1).isUpdateScheduledEvents(), is(true));
+
+        // Verify updateJobProcessNotifier is not called for calendar updates
+        verifyNoInteractions(updateJobProcessNotifier);
     }
 
     public void testUpdateProcessOnCalendarChanged_GivenGroups() {
@@ -373,19 +391,34 @@ public class JobManagerTests extends ESTestCase {
         );
 
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), fieldHits);
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        Client mockClient = mockClientBuilder.build();
+
+        // Mock UpdateProcessAction calls - calendar updates now bypass the queue and call client.execute directly
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<UpdateProcessAction.Response> listener = (ActionListener<UpdateProcessAction.Response>) invocation
+                .getArguments()[2];
+            listener.onResponse(new UpdateProcessAction.Response());
+            return null;
+        }).when(mockClient).execute(eq(UpdateProcessAction.INSTANCE), any(UpdateProcessAction.Request.class), any());
+
+        JobManager jobManager = createJobManager(mockClient);
 
         jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"), ActionTestUtils.assertNoFailureListener(r -> {}));
 
-        ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
+        // Verify that UpdateProcessAction is called directly for each open job in the group
+        ArgumentCaptor<UpdateProcessAction.Request> requestCaptor = ArgumentCaptor.forClass(UpdateProcessAction.Request.class);
+        verify(mockClient, times(2)).execute(eq(UpdateProcessAction.INSTANCE), requestCaptor.capture(), any());
 
-        List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
-        assertThat(capturedUpdateParams.size(), equalTo(2));
-        assertThat(capturedUpdateParams.get(0).getJobId(), equalTo("job-1"));
-        assertThat(capturedUpdateParams.get(0).isUpdateScheduledEvents(), is(true));
-        assertThat(capturedUpdateParams.get(1).getJobId(), equalTo("job-2"));
-        assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
+        List<UpdateProcessAction.Request> capturedRequests = requestCaptor.getAllValues();
+        assertThat(capturedRequests.size(), equalTo(2));
+        assertThat(capturedRequests.get(0).getJobId(), equalTo("job-1"));
+        assertThat(capturedRequests.get(0).isUpdateScheduledEvents(), is(true));
+        assertThat(capturedRequests.get(1).getJobId(), equalTo("job-2"));
+        assertThat(capturedRequests.get(1).isUpdateScheduledEvents(), is(true));
+
+        // Verify updateJobProcessNotifier is not called for calendar updates
+        verifyNoInteractions(updateJobProcessNotifier);
     }
 
     public void testValidateCategorizationAnalyzer_GivenValid() throws IOException {

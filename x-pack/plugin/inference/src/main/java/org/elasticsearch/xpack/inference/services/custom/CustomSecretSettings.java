@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,17 +17,17 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";
     public static final String SECRET_PARAMETERS = "secret_parameters";
+
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
 
     public static CustomSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -37,13 +36,10 @@ public class CustomSecretSettings implements SecretSettings {
 
         ValidationException validationException = new ValidationException();
 
-        Map<String, Object> requestSecretParamsMap = extractOptionalMap(map, SECRET_PARAMETERS, NAME, validationException);
-        removeNullValues(requestSecretParamsMap);
+        Map<String, Object> requestSecretParamsMap = extractOptionalMapRemoveNulls(map, SECRET_PARAMETERS, validationException);
         var secureStringMap = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CustomSecretSettings(secureStringMap);
     }
@@ -52,7 +48,17 @@ public class CustomSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        var validationException = new ValidationException();
+
+        var requestSecretParamsMap = extractOptionalMapRemoveNulls(newSecrets, SECRET_PARAMETERS, validationException);
+        var updatedSecretParameters = convertMapStringsToSecureString(requestSecretParamsMap, SECRET_PARAMETERS, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        if (secretParameters.equals(updatedSecretParameters) || updatedSecretParameters.isEmpty()) {
+            return this;
+        }
+        return new CustomSecretSettings(updatedSecretParameters);
     }
 
     public CustomSecretSettings(@Nullable Map<String, SecureString> secretParameters) {
@@ -91,13 +97,12 @@ public class CustomSecretSettings implements SecretSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED)
-            || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+        return version.supports(INFERENCE_CUSTOM_SERVICE_ADDED);
     }
 
     @Override

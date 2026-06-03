@@ -26,6 +26,10 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+
+        if (testCandidate.getRestTestSuite().getName().equals("290_columnar")) {
+            assumeTrue("test suite requires a trial or enterprise license", trialLicense);
+        }
     }
 
     @ParametersFactory
@@ -43,6 +47,8 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
 
+    static boolean trialLicense;
+
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
@@ -50,13 +56,23 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password")
             .feature(FeatureFlag.LOGS_STREAM)
+            .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
+            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+            .feature(FeatureFlag.INDEX_DISABLED_BY_DEFAULT)
             .systemProperty("es.queryable_built_in_roles_enabled", "false");
         if (initTestSeed().nextBoolean()) {
             clusterBuilder.setting("xpack.license.self_generated.type", "trial");
+            trialLicense = true;
         }
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);
+        }
+        // We need to disable ILM history based on a setting, to avoid errors in Serverless where the setting is not available.
+        boolean disableILMHistory = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.disable_ilm_history", "true"));
+        if (disableILMHistory) {
+            // disable ILM history, since it disturbs tests
+            clusterBuilder.setting("indices.lifecycle.history_index_enabled", "false");
         }
         return clusterBuilder.build();
     }

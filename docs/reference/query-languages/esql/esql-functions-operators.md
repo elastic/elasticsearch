@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Functions and operators"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html
@@ -11,67 +14,105 @@ mapped_pages:
 
 ## Functions overview [esql-functions]
 
-::::{dropdown} Aggregate functions
+### Aggregate functions
+
+::::{dropdown} Aggregate function list
 :open:
 :::{include} _snippets/lists/aggregation-functions.md
 :::
 ::::
 
-::::{dropdown} Grouping functions
+### Time-series aggregate functions
+
+::::{dropdown} Time-series aggregate function list
+:open:
+:::{include} _snippets/lists/time-series-aggregation-functions.md
+:::
+::::
+
+### Grouping functions
+
+::::{dropdown} Grouping function list
 :open:
 :::{include} _snippets/lists/grouping-functions.md
 :::
 ::::
 
-::::{dropdown} Conditional functions and expressions
+### Conditional functions and expressions
+
+::::{dropdown} Conditional function and expression list
 :open:
 :::{include} _snippets/lists/conditional-functions-and-expressions.md
 :::
 ::::
 
-::::{dropdown} Date and time functions
+### Date and time functions
+
+::::{dropdown} Date and time function list
 :open:
 :::{include} _snippets/lists/date-time-functions.md
 :::
 ::::
 
-::::{dropdown} IP functions
+### IP functions
+
+::::{dropdown} IP function list
 :open:
 :::{include} _snippets/lists/ip-functions.md
 :::
 ::::
 
-::::{dropdown} Math functions
+### Math functions
+
+::::{dropdown} Math function list
 :open:
 :::{include} _snippets/lists/math-functions.md
 :::
 ::::
 
-::::{dropdown} Search functions
+### Search functions
+
+::::{dropdown} Search function list
 :open:
 :::{include} _snippets/lists/search-functions.md
 :::
 ::::
 
-::::{dropdown} Spatial functions
+### Spatial functions
+
+::::{dropdown} Spatial function list
 :open:
 :::{include} _snippets/lists/spatial-functions.md
 :::
 ::::
 
-::::{dropdown} String functions
+### String functions
+
+::::{dropdown} String function list
 :open:
 :::{include} _snippets/lists/string-functions.md
 :::
 ::::
 
-::::{dropdown} Type conversion functions
+### Type conversion functions
+
+::::{dropdown} Type conversion function list
 :open:
 :::{include} _snippets/lists/type-conversion-functions.md
 :::
 ::::
 
-::::{dropdown} Multi value functions
+### Dense vector functions
+
+::::{dropdown} Dense vector function list
+:open:
+:::{include} _snippets/lists/dense-vector-functions.md
+:::
+::::
+
+### Multi value functions
+
+::::{dropdown} Multi value function list
 :open:
 :::{include} _snippets/lists/mv-functions.md
 :::
@@ -80,7 +121,7 @@ mapped_pages:
 
 ## Operators overview [esql-operators-overview]
 
-::::{dropdown} Operators
+::::{dropdown} Operator list
 :open:
 :::{include} _snippets/lists/operators.md
 :::

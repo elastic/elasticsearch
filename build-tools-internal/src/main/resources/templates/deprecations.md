@@ -26,23 +26,23 @@ for(bundle in changelogBundles) {
     if (coming) {
         print "\n"
         print "```{applies_to}\n"
-        print "stack: coming ${version}\n"
+        print "stack: ga ${version}\n"
         print "```"
     }
 %>
 ## ${unqualifiedVersion} [elasticsearch-${versionForIds}-deprecations]
 <%
     if (!changelogsByTypeByArea['deprecation']) {
-        print "\nNo deprecations in this version.\n"
+        print "\nThere are no deprecations associated with this release.\n"
     } else {
         for (team in (changelogsByTypeByArea['deprecation'] ?: [:]).keySet()) {
             print "\n${team}:\n";
 
             for (change in changelogsByTypeByArea['deprecation'][team]) {
-                print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
+                print "* ${change.summary} [#${change.pr}](${change.repoUrl}/pull/${change.pr})"
                 if (change.issues != null && change.issues.empty == false) {
                     print change.issues.size() == 1 ? " (issue: " : " (issues: "
-                    print change.issues.collect { "[#${it}](https://github.com/elastic/elasticsearch/issues/${it})" }.join(", ")
+                    print change.issues.collect { "[#${it}](${change.repoUrl}/issues/${it})" }.join(", ")
                     print ")"
                 }
                 print "\n"

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.wildcard.Wildcard;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -109,23 +110,15 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        try {
-            logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        } finally {
-            super.tearDown();
-        }
+    @After
+    public void cleanupMlFeatures() throws Exception {
+        logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     protected void waitForMlTemplates() throws Exception {
         // block until the templates are installed
-        ClusterServiceUtils.awaitClusterState(
-            logger,
-            MachineLearning::criticalTemplatesInstalled,
-            getInstanceFromNode(ClusterService.class)
-        );
+        ClusterServiceUtils.awaitClusterState(MachineLearning::criticalTemplatesInstalled, getInstanceFromNode(ClusterService.class));
     }
 
     protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)

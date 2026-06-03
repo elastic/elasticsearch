@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
@@ -23,10 +22,6 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
  *  - an expired enterprise or trial license
  */
 public class EsqlPluginWithNonEnterpriseOrExpiredLicense extends EsqlPlugin {
-    public EsqlPluginWithNonEnterpriseOrExpiredLicense(Settings settings) {
-        super(settings);
-    }
-
     protected XPackLicenseState getLicenseState() {
         License.OperationMode operationMode;
         boolean active;
@@ -48,5 +43,10 @@ public class EsqlPluginWithNonEnterpriseOrExpiredLicense extends EsqlPlugin {
             () -> System.currentTimeMillis(),
             new XPackLicenseStatus(operationMode, active, "Test license expired")
         );
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
     }
 }

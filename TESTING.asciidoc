@@ -362,6 +362,19 @@ Pass build arguments.
 ./gradlew test -Dbuild.snapshot=false -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
 ------------------------------
 
+The same flag works for `internalClusterTest` tasks (embedded cluster, same JVM as Gradle).
+For `yamlRestTest` and `javaRestTest`, the test process is a separate JVM and does not
+inherit the Gradle property.  Without it, `LocalDistributionResolver` defaults
+`build.snapshot` to `true` and tries to locate a `*-SNAPSHOT` distribution that was never
+built, causing a `NoSuchFileException` before any test runs.  Pass the flag explicitly:
+
+------------------------------
+./gradlew :some:project:yamlRestTest \
+  -Dbuild.snapshot=false \
+  -Dtests.jvm.argline=-Dbuild.snapshot=false \
+  -Dlicense.key="x-pack/license-tools/src/test/resources/public.key"
+------------------------------
+
 == Running verification tasks
 
 To run all verification tasks, including static checks, unit tests, and integration tests:
@@ -681,12 +694,15 @@ There are multiple base classes for tests:
   directly by unit tests.
 * **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
   single node.
-* **`ESIntegTestCase`**: An integration test case that creates a cluster that
-  might have multiple nodes.
-* **`ESRestTestCase`**: An integration tests that interacts with an external
-  cluster via the REST API. This is used for Java based REST tests.
-* **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run
-  YAML based REST tests.
+* **`ESIntegTestCase`**: An internal integration test that starts nodes within the same JVM as the test.
+    These allow you to test functionality that is not exposed via the REST API, or for verifying a certain internal state.
+    Additionally, you can easily simulate tricky distributed setups that are difficult to do in REST tests.
+    If you only need to start one node, use `ESSingleNodeTestCase` instead, which is a much lighter test setup.
+* **`ESRestTestCase`**: An integration test that interacts with an external
+  cluster via the REST API. This is used for Java based REST tests. This should
+  be the first choice for writing integration tests as these tests run in a much more
+  realistic setup.
+* **`ESClientYamlSuiteTestCase` **: A subclass of `ESRestTestCase` used to run YAML based REST tests.
 
 === Good practices
 

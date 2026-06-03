@@ -1,0 +1,200 @@
+---
+setup:
+  - requires:
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values", "mapper.ip.doc_values_cardinality_option"]
+      reason: "testing binary doc values search"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              keyword:
+                type: keyword
+                index: false
+                doc_values:
+                  cardinality: high
+              ip:
+                type: ip
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          keyword: "key1"
+          ip: "192.168.0.1"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          keyword: "key2"
+          ip: "192.168.0.2"
+
+  - do:
+      indices.refresh: {}
+
+---
+"Test match query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { keyword: { query: "key1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { keyword: [ "key1", "key2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { keyword: { gte: "key1" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test fuzzy query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { fuzzy: { keyword: { value: "kay1", fuzziness: 1 } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test prefix query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { prefix: { keyword: { value: "key" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test case insensitive term query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { term: { keyword: { value: "KeY1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "k*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test wildcard contains query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*ey*" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test wildcard contains query matches single doc":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*ey1*" } } } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Test wildcard contains query no match":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*xyz*" } } } }
+  - length:   { hits.hits: 0  }
+
+---
+"Test case insensitive wildcard query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "K*1", case_insensitive: true } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test case insensitive wildcard contains query":
+
+  - do:
+      search:
+        index: test
+        body: { query: { wildcard: { keyword: { value: "*EY*", case_insensitive: true } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test regexp query on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { regexp: { keyword: { value: "k.*1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test sort on keyword field where only binary doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { sort: [ { keyword: { "order": "desc" } } ] }
+  - length:   { hits.hits: 2  }
+  - match: { hits.hits.0.sort.0: key2 }
+  - match: { hits.hits.1.sort.0: key1 }
+
+
+---
+"Test match query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { ip: { query: "192.168.0.1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { ip: [ "192.168.0.1", "192.168.0.2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
+  - length:   { hits.hits: 2  }
+

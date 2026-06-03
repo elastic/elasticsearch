@@ -1,10 +1,10 @@
 {
   "connector.update_native": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/connector-apis.html",
-      "description": "Updates the is_native flag of the connector."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-native",
+      "description": "Update the connector is_native flag"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

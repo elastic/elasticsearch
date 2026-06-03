@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -30,6 +36,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
@@ -43,8 +52,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -119,7 +131,94 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstDate == null ? secondDate : firstDate)
             );
         }));
-
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.EXPONENTIAL_HISTOGRAM, DataType.EXPONENTIAL_HISTOGRAM), () -> {
+            ExponentialHistogram firstHisto = randomBoolean() ? null : EsqlTestUtils.randomExponentialHistogram();
+            ExponentialHistogram secondHisto = EsqlTestUtils.randomExponentialHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.EXPONENTIAL_HISTOGRAM, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.EXPONENTIAL_HISTOGRAM, "second")
+                ),
+                "CoalesceExponentialHistogramEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.EXPONENTIAL_HISTOGRAM,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.TDIGEST, DataType.TDIGEST), () -> {
+            TDigestHolder firstHisto = randomBoolean() ? null : EsqlTestUtils.randomTDigest();
+            TDigestHolder secondHisto = EsqlTestUtils.randomTDigest();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.TDIGEST, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.TDIGEST, "second")
+                ),
+                "CoalesceTDigestEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.TDIGEST,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DATE_RANGE, DataType.DATE_RANGE), () -> {
+            assumeTrue("Requires COALESCE_DATE_RANGE capability", EsqlCapabilities.Cap.COALESCE_DATE_RANGE.isEnabled());
+            long from1 = randomMillisUpToYear9999();
+            LongRangeBlockBuilder.LongRange first = randomBoolean()
+                ? null
+                : new LongRangeBlockBuilder.LongRange(from1, randomLongBetween(from1 + 1, MAX_MILLIS_BEFORE_9999));
+            long from2 = randomMillisUpToYear9999();
+            LongRangeBlockBuilder.LongRange second = new LongRangeBlockBuilder.LongRange(
+                from2,
+                randomLongBetween(from2 + 1, MAX_MILLIS_BEFORE_9999)
+            );
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.DATE_RANGE, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.DATE_RANGE, "second")
+                ),
+                "CoalesceLongRangeEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DATE_RANGE,
+                equalTo(first == null ? second : first)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.HISTOGRAM, DataType.HISTOGRAM), () -> {
+            BytesRef firstHisto = randomBoolean() ? null : EsqlTestUtils.randomHistogram();
+            BytesRef secondHisto = EsqlTestUtils.randomHistogram();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstHisto, DataType.HISTOGRAM, "first"),
+                    new TestCaseSupplier.TypedData(secondHisto, DataType.HISTOGRAM, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.HISTOGRAM,
+                equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> firstVector = randomBoolean() ? null : randomDenseVector(dimensions);
+            List<Float> secondVector = randomDenseVector(dimensions);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstVector, DataType.DENSE_VECTOR, "first"),
+                    new TestCaseSupplier.TypedData(secondVector, DataType.DENSE_VECTOR, "second")
+                ),
+                "CoalesceFloatEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DENSE_VECTOR,
+                equalTo(firstVector == null ? secondVector : firstVector)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+            assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+            BytesRef first = randomBoolean() ? null : FlattenedCases.RANDOM.get();
+            BytesRef second = FlattenedCases.RANDOM.get();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.FLATTENED, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.FLATTENED, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.FLATTENED,
+                equalTo(first == null ? second : first)
+            );
+        }));
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
             for (int nullUpTo = 1; nullUpTo < s.types().size(); nullUpTo++) {
@@ -153,6 +252,15 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
+        suppliers = TestCaseSupplier.mapTestCases(suppliers, tc -> tc.withData(tc.getData().stream().map(typedData -> {
+            DataType type = typedData.type();
+            if (type == DataType.HISTOGRAM || type == DataType.EXPONENTIAL_HISTOGRAM || type == DataType.TDIGEST) {
+                return typedData.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo);
+            }
+            return typedData;
+        }).toList()));
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -183,14 +291,23 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
-        for (DataType dataType : List.of(DataType.GEO_POINT, DataType.GEO_SHAPE, DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE)) {
+        for (DataType dataType : List.of(
+            DataType.GEO_POINT,
+            DataType.GEO_SHAPE,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX
+        )) {
+            String blockType = DataType.isGeoGrid(dataType) ? "Long" : "BytesRef";
             TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType, false);
             suppliers.add(
                 TestCaseSupplier.testCaseSupplier(
                     leftDataSupplier,
                     rightDataSupplier,
-                    (l, r) -> equalTo("CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    (l, r) -> equalTo("Coalesce" + blockType + "EagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
                     dataType,
                     (l, r) -> l
                 )
@@ -205,7 +322,11 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
     public void testCoalesceIsLazy() {
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
-        FieldAttribute evil = new FieldAttribute(Source.EMPTY, "evil", new EsField("evil", sub.get(0).dataType(), Map.of(), true));
+        FieldAttribute evil = new FieldAttribute(
+            Source.EMPTY,
+            "evil",
+            new EsField("evil", sub.get(0).dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         sub.add(evil);
         Coalesce exp = build(Source.EMPTY, sub);
         Layout.Builder builder = new Layout.Builder();
@@ -213,12 +334,17 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         Layout layout = builder.build();
         EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
             @Override
-            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+            public ExpressionEvaluator.Factory apply(Expression expression) {
                 if (expression == evil) {
-                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                    return dvrCtx -> new ExpressionEvaluator() {
                         @Override
                         public Block eval(Page page) {
                             throw new AssertionError("shouldn't be called");
+                        }
+
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
                         }
 
                         @Override
@@ -234,7 +360,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
             }
         };
         try (
-            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
+            ExpressionEvaluator eval = exp.toEvaluator(toEvaluator).get(driverContext());
             Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
@@ -293,10 +419,7 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 );
                 blocksIndex++;
             }
-            try (
-                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, blocks))
-            ) {
+            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(positions, blocks))) {
                 assertThat(block.getPositionCount(), is(positions));
                 assertThat(toJavaObjectUnsignedLongAware(block, realPosition), testCase.getMatcher());
                 assertThat("evaluates to tracked block", block.blockFactory(), sameInstance(context.blockFactory()));

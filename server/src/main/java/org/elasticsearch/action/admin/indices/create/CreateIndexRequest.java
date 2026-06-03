@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -35,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -87,35 +87,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            int size = in.readVInt();
-            assert size <= 1 : "Expected to read 0 or 1 mappings, but received " + size;
-            if (size == 1) {
-                String type = in.readString();
-                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-                    throw new IllegalArgumentException("Expected to receive mapping type of [_doc] but got [" + type + "]");
-                }
-                mappings = in.readString();
-            }
-        } else {
-            mappings = in.readString();
-        }
+        mappings = in.readString();
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         origin = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            requireDataStream = in.readBoolean();
-        } else {
-            requireDataStream = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            initializeFailureStore = in.readBoolean();
-        } else {
-            initializeFailureStore = true;
-        }
+        requireDataStream = in.readBoolean();
+        initializeFailureStore = in.readBoolean();
     }
 
     public CreateIndexRequest() {
@@ -246,8 +226,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * </pre>
      */
     public CreateIndexRequest mapping(String mapping) {
-        this.mappings = mapping;
-        return this;
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, false);
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
 
     /**
@@ -286,7 +266,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
         if (source.isEmpty()) {
             // If no source is provided we return empty mappings
-            return mapping(EMPTY_MAPPINGS);
+            return innerMapping(EMPTY_MAPPINGS);
         } else if (source.size() != 1 || source.containsKey(type) == false) {
             // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
@@ -297,10 +277,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(Strings.toString(builder));
+            return innerMapping(Strings.toString(builder));
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    CreateIndexRequest innerMapping(String mapping) {
+        this.mappings = mapping;
+        return this;
     }
 
     /**
@@ -510,26 +495,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         out.writeString(cause);
         out.writeString(index);
         settings.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if ("{}".equals(mappings)) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                out.writeString(mappings);
-            }
-        } else {
-            out.writeString(mappings);
-        }
+        out.writeString(mappings);
         out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         out.writeString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeBoolean(this.requireDataStream);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(this.initializeFailureStore);
-        }
+        out.writeBoolean(this.requireDataStream);
+        out.writeBoolean(this.initializeFailureStore);
     }
 
     @Override

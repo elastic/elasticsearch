@@ -32,7 +32,7 @@ public class LongHistogramAdapter extends AbstractInstrument<LongHistogram> impl
 
     @Override
     public void record(long value, Map<String, Object> attributes) {
-        getInstrument().record(value, OtelHelper.fromMap(attributes));
+        getInstrument().record(value, OtelHelper.fromMap(getName(), attributes));
     }
 
     private static class Builder extends AbstractInstrument.Builder<LongHistogram> {

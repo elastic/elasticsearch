@@ -30,6 +30,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
 import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<DatafeedConfig.Builder> {
 
@@ -111,6 +112,11 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
                 SearchRequest.DEFAULT_INDICES_OPTIONS
             )
         );
+        // Note: project_routing is intentionally not randomized here to avoid validation issues
+        // with mismatched indicesOptions. project_routing is tested separately in dedicated tests.
+
+        // Note: cloud_internal_credential is intentionally not randomized here.
+
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             settings.put("type", "keyword");
@@ -145,6 +151,25 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     @Override
     protected Writeable.Reader<DatafeedConfig.Builder> instanceReader() {
         return DatafeedConfig.Builder::new;
+    }
+
+    /**
+     * Tests that CPS mode in IndicesOptions can be set in the builder and is present in the in-memory config.
+     * Note: CPS mode is applied on-the-fly at runtime via {@link DatafeedConfig#withCrossProjectModeIfEnabled},
+     * so the CPS flag in the stored configuration is not used.
+     */
+    public void testCrossProjectModeOptionsAccepted() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
+        datafeedBuilder = datafeedBuilder.setIndicesOptions(
+            IndicesOptions.builder(datafeedBuilder.getIndicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build()
+        );
+
+        DatafeedConfig config = datafeedBuilder.build();
+        // The in-memory config has CPS enabled (as passed in)
+        assertThat(config.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
 }

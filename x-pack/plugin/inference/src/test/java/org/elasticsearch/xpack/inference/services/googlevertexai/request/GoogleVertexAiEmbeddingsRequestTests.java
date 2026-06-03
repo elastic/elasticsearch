@@ -9,16 +9,21 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +45,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, input, null, null, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -49,12 +54,15 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertToString(inputType);
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)))));
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)), "parameters", Map.of()))
+            );
         } else {
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")))));
+            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")), "parameters", Map.of())));
         }
     }
 
@@ -65,7 +73,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest(model, input, autoTruncate, null, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -96,13 +104,13 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         }
     }
 
-    public void testCreateRequest_WithTaskSettingsInputTypeSet() throws IOException {
+    public void testCreateRequest_WithDimensions() throws IOException {
         var model = "model";
         var input = "input";
-        var inputType = InputTypeTests.randomWithoutUnspecified();
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest(model, input, null, inputType, null);
-        var httpRequest = request.createHttpRequest();
+        var request = createRequestWithDimensions(model, input, 10, inputType);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -111,12 +119,52 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertToString(inputType);
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)))));
+            assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "instances",
+                        List.of(Map.of("content", "input", "task_type", convertedInputType)),
+                        "parameters",
+                        Map.of("outputDimensionality", 10)
+                    )
+                )
+            );
         } else {
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")))));
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "input")), "parameters", Map.of("outputDimensionality", 10)))
+            );
+        }
+    }
+
+    public void testCreateRequest_WithTaskSettingsInputTypeSet() throws IOException {
+        var model = "model";
+        var input = "input";
+        var inputType = InputTypeTests.randomWithoutUnspecified();
+
+        var request = createRequest(model, input, null, inputType, null);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
+
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap, aMapWithSize(2));
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = convertToString(inputType);
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)), "parameters", Map.of()))
+            );
+        } else {
+            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")), "parameters", Map.of())));
         }
     }
 
@@ -127,7 +175,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         var taskSettingsInputType = InputTypeTests.randomWithoutUnspecified();
 
         var request = createRequest(model, input, null, taskSettingsInputType, requestInputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -136,15 +184,21 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         if (InputType.isSpecified(requestInputType)) {
             var convertedInputType = convertToString(requestInputType);
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)))));
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)), "parameters", Map.of()))
+            );
         } else if (InputType.isSpecified(taskSettingsInputType)) {
             var convertedInputType = convertToString(taskSettingsInputType);
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)))));
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "input", "task_type", convertedInputType)), "parameters", Map.of()))
+            );
         } else {
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")))));
+            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "input")), "parameters", Map.of())));
         }
     }
 
@@ -155,7 +209,7 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
 
         var request = createRequest(model, input, null, null, inputType);
         var truncatedRequest = request.truncate();
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -164,13 +218,16 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is(AUTH_HEADER_VALUE));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
 
         if (InputType.isSpecified(inputType)) {
             var convertedInputType = convertToString(inputType);
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "ab", "task_type", convertedInputType)))));
+            assertThat(
+                requestMap,
+                is(Map.of("instances", List.of(Map.of("content", "ab", "task_type", convertedInputType)), "parameters", Map.of()))
+            );
         } else {
-            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "ab")))));
+            assertThat(requestMap, is(Map.of("instances", List.of(Map.of("content", "ab")), "parameters", Map.of())));
         }
     }
 
@@ -181,9 +238,28 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable InputType taskSettingsInputType,
         @Nullable InputType requestInputType
     ) {
-        var embeddingsModel = GoogleVertexAiEmbeddingsModelTests.createModel(modelId, autoTruncate, taskSettingsInputType);
+        var embeddingsModel = new GoogleVertexAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            "https://fake.abc",
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                "location",
+                "projectId",
+                modelId,
+                false,
+                null,
+                null,
+                null,
+                SimilarityMeasure.DOT_PRODUCT,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, taskSettingsInputType),
+            new GoogleVertexAiSecretSettings(new SecureString("testString".toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE)
+        );
 
-        return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
+        return new GoogleVertexAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
             requestInputType,
@@ -191,38 +267,40 @@ public class GoogleVertexAiEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
-    /**
-     * We use this class to fake the auth implementation to avoid static mocking of {@link GoogleVertexAiRequest}
-     */
-    private static class GoogleVertexAiEmbeddingsWithoutAuthRequest extends GoogleVertexAiEmbeddingsRequest {
+    private static GoogleVertexAiEmbeddingsRequest createRequestWithDimensions(
+        String modelId,
+        String input,
+        int dimensions,
+        @Nullable InputType requestInputType
+    ) {
 
-        private final InputType inputType;
+        var embeddingsModel = new GoogleVertexAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            "https://fake.abc",
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                modelId,
+                true,
+                null,
+                dimensions,
+                null,
+                null,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(null, null),
+            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE)
+        );
 
-        GoogleVertexAiEmbeddingsWithoutAuthRequest(
-            Truncator truncator,
-            Truncator.TruncationResult input,
-            InputType inputType,
-            GoogleVertexAiEmbeddingsModel model
-        ) {
-            super(truncator, input, inputType, model);
-            this.inputType = inputType;
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
-
-        @Override
-        public Request truncate() {
-            GoogleVertexAiEmbeddingsRequest embeddingsRequest = (GoogleVertexAiEmbeddingsRequest) super.truncate();
-            return new GoogleVertexAiEmbeddingsWithoutAuthRequest(
-                embeddingsRequest.truncator(),
-                embeddingsRequest.truncationResult(),
-                inputType,
-                embeddingsRequest.model()
-            );
-        }
+        return new GoogleVertexAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            requestInputType,
+            embeddingsModel
+        );
     }
 
 }

@@ -23,12 +23,6 @@ public class QueryTranslatorTests extends AbstractQueryTranslatorTestCase {
         assertThat(asQuery(plan), containsString("\"exists\":{\"field\":\"process_name\""));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63263")
-    public void testMatchOptimization() throws Exception {
-        PhysicalPlan plan = plan("process where match(process_name, \".*\") ");
-        assertThat(asQuery(plan), containsString("\"exists\":{\"field\":\"process_name\""));
-    }
-
     private static String asQuery(PhysicalPlan plan) {
         return plan.toString().replaceAll("\\s+", "");
     }

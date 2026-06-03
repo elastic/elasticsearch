@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
 // begin generated imports
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,12 +24,14 @@ import java.util.stream.IntStream;
 // end generated imports
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Coalesce}.
- * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
+ * {@link ExpressionEvaluator} implementation for {@link Coalesce}.
+ * This class is generated. Edit {@code X-CoalesceEvaluator.java.st} instead.
  */
-abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.ExpressionEvaluator permits
-    CoalesceBooleanEvaluator.CoalesceBooleanEagerEvaluator, //
+abstract sealed class CoalesceBooleanEvaluator implements ExpressionEvaluator permits // checkstyle hack
+    CoalesceBooleanEvaluator.CoalesceBooleanEagerEvaluator, // checkstyle hack
     CoalesceBooleanEvaluator.CoalesceBooleanLazyEvaluator {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CoalesceBooleanEvaluator.class);
 
     static ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator, List<Expression> children) {
         List<ExpressionEvaluator.Factory> childEvaluators = children.stream().map(toEvaluator::apply).toList();
@@ -37,7 +39,11 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
             return new ExpressionEvaluator.Factory() {
                 @Override
                 public ExpressionEvaluator get(DriverContext context) {
-                    return new CoalesceBooleanEagerEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                    return new CoalesceBooleanEagerEvaluator(
+                        // comment to make spotless happy about line breaks
+                        context,
+                        childEvaluators.stream().map(x -> x.get(context)).toList()
+                    );
                 }
 
                 @Override
@@ -49,7 +55,11 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new CoalesceBooleanLazyEvaluator(context, childEvaluators.stream().map(x -> x.get(context)).toList());
+                return new CoalesceBooleanLazyEvaluator(
+                    // comment to make spotless happy about line breaks
+                    context,
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
             }
 
             @Override
@@ -60,9 +70,9 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
     }
 
     protected final DriverContext driverContext;
-    protected final List<EvalOperator.ExpressionEvaluator> evaluators;
+    protected final List<ExpressionEvaluator> evaluators;
 
-    protected CoalesceBooleanEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+    protected CoalesceBooleanEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
         this.driverContext = driverContext;
         this.evaluators = evaluators;
     }
@@ -77,8 +87,8 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
      * {@link #perPosition} evaluation.
      * <p>
      * Entire Block evaluation is the "normal" way to run the compute engine,
-     * just calling {@link EvalOperator.ExpressionEvaluator#eval}. It's much faster so we try
-     * that first. For each evaluator, we {@linkplain EvalOperator.ExpressionEvaluator#eval} and:
+     * just calling {@link ExpressionEvaluator#eval}. It's much faster so we try
+     * that first. For each evaluator, we {@linkplain ExpressionEvaluator#eval} and:
      * </p>
      * <ul>
      *     <li>If the {@linkplain Block} doesn't have any nulls we return it. COALESCE done.</li>
@@ -131,6 +141,15 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        for (ExpressionEvaluator e : evaluators) {
+            baseRamBytesUsed += e.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
+    }
+
+    @Override
     public final void close() {
         Releasables.closeExpectNoException(() -> Releasables.close(evaluators));
     }
@@ -145,7 +164,7 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
      * in a lazy environment.
      */
     static final class CoalesceBooleanEagerEvaluator extends CoalesceBooleanEvaluator {
-        CoalesceBooleanEagerEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceBooleanEagerEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
@@ -158,7 +177,10 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
                 for (int f = 1; f < flatten.length; f++) {
                     flatten[f] = (BooleanBlock) evaluators.get(firstToEvaluate + f - 1).eval(page);
                 }
-                try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+                try (
+                    BooleanBlock.Builder result = driverContext.blockFactory() //
+                        .newBooleanBlockBuilder(positionCount)
+                ) {
                     position: for (int p = 0; p < positionCount; p++) {
                         for (BooleanBlock f : flatten) {
                             if (false == f.isNull(p)) {
@@ -188,14 +210,17 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
      * </ul>
      */
     static final class CoalesceBooleanLazyEvaluator extends CoalesceBooleanEvaluator {
-        CoalesceBooleanLazyEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> evaluators) {
+        CoalesceBooleanLazyEvaluator(DriverContext driverContext, List<ExpressionEvaluator> evaluators) {
             super(driverContext, evaluators);
         }
 
         @Override
         protected BooleanBlock perPosition(Page page, BooleanBlock lastFullBlock, int firstToEvaluate) {
             int positionCount = page.getPositionCount();
-            try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+            try (
+                BooleanBlock.Builder result = driverContext.blockFactory() //
+                    .newBooleanBlockBuilder(positionCount)
+            ) {
                 position: for (int p = 0; p < positionCount; p++) {
                     if (lastFullBlock.isNull(p) == false) {
                         result.copyFrom(lastFullBlock, p, p + 1);
@@ -204,7 +229,9 @@ abstract sealed class CoalesceBooleanEvaluator implements EvalOperator.Expressio
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (int e = firstToEvaluate; e < evaluators.size(); e++) {

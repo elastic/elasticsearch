@@ -1,5 +1,0 @@
-pr: 128805
-summary: Add "extension" attribute validation to IdP SPs
-area: IdentityProvider
-type: enhancement
-issues: []

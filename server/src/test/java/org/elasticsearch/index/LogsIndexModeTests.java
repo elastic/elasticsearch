@@ -74,7 +74,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.order:[desc], size mismatch", exception.getMessage());
+        assertEquals("setting [index.sort.order] requires [index.sort.field] to be configured", exception.getMessage());
     }
 
     public void testDefaultHostNameSortWithMode() {
@@ -90,7 +90,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.mode:[MAX], size mismatch", exception.getMessage());
+        assertEquals("setting [index.sort.mode] requires [index.sort.field] to be configured", exception.getMessage());
     }
 
     public void testDefaultHostNameSortWithMissing() {
@@ -106,7 +106,7 @@ public class LogsIndexModeTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals("index.sort.fields:[] index.sort.missing:[_first], size mismatch", exception.getMessage());
+        assertEquals("setting [index.sort.missing] requires [index.sort.field] to be configured", exception.getMessage());
     }
 
     public void testCustomSortField() {
@@ -163,6 +163,14 @@ public class LogsIndexModeTests extends ESTestCase {
         assertThat(settings.getMode(), equalTo(IndexMode.LOGSDB));
         assertThat("agent_id", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())));
         assertThat("_last", equalTo(getIndexSetting(settings, IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey())));
+    }
+
+    public void testIndexDisabledByDefault() {
+        assumeTrue(
+            "index_disabled_by_default feature flag must be enabled",
+            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
+        );
+        assertFalse(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(buildSettings()));
     }
 
     private Settings buildSettings() {

@@ -80,7 +80,6 @@ public class LifecyclePolicyUsageCalculator {
             // Find the index template with the highest priority that matches this data stream's name.
             String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(project, indexTemplates, dataStream, false);
             if (indexTemplate == null) {
-                assert false : "Data stream [" + dataStream + "] has no matching template";
                 continue;
             }
             final var policyName = templateToPolicy.get(indexTemplate);
@@ -107,11 +106,13 @@ public class LifecyclePolicyUsageCalculator {
      * Retrieves the pre-calculated indices, data streams, and composable templates that use the given policy.
      */
     public ItemUsage retrieveCalculatedUsage(String policyName) {
-        return new ItemUsage(
-            policyToIndices.getOrDefault(policyName, List.of()),
-            policyToDataStreams.getOrDefault(policyName, List.of()),
-            policyToTemplates.getOrDefault(policyName, List.of())
-        );
+        List<String> indices = policyToIndices.get(policyName);
+        List<String> dataStreams = policyToDataStreams.get(policyName);
+        List<String> composableTemplates = policyToTemplates.get(policyName);
+        if (indices == null && dataStreams == null && composableTemplates == null) {
+            return ItemUsage.EMPTY;
+        }
+        return new ItemUsage(indices, dataStreams, composableTemplates);
     }
 
     private boolean doesPolicyMatchAnyName(String policyName, List<String> names) {

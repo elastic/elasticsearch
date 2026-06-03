@@ -1,6 +1,0 @@
-pr: 123630
-summary: Limit number of suppressed S3 deletion errors
-area: Snapshot/Restore
-type: bug
-issues:
- - 123354

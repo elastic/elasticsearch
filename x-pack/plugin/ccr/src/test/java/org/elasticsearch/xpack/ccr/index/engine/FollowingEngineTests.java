@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
@@ -64,8 +65,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -75,9 +76,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.EngineTestUtils.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;
@@ -113,7 +115,7 @@ public class FollowingEngineTests extends ESTestCase {
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        indexMode = randomFrom(IndexMode.values());
+        indexMode = randomFrom(IndexMode.availableModes());
     }
 
     @Override
@@ -250,44 +252,39 @@ public class FollowingEngineTests extends ESTestCase {
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE
         );
-        final MapperService mapperService = EngineTestCase.createMapperService();
-        return new EngineConfig(
-            shardIdValue,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            indexWriterConfig.getAnalyzer(),
-            indexWriterConfig.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
-            new Engine.EventListener() {
+        final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), "{}");
+        return EngineConfig.builder()
+            .shardId(shardIdValue)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(indexWriterConfig.getAnalyzer())
+            .similarity(indexWriterConfig.getSimilarity())
+            .codecProvider(new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null))
+            .eventListener(new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
 
                 }
-            },
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.emptyList(),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            globalCheckpoint::longValue,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm.get(),
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            System::nanoTime,
-            null,
-            true,
-            mapperService,
-            new EngineResetLock(),
-            MergeMetrics.NOOP
-        );
+            })
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(globalCheckpoint::longValue)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(() -> primaryTerm.get())
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(System::nanoTime)
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     private static Store createStore(final ShardId shardId, final IndexSettings indexSettings, final Directory directory) {
@@ -777,19 +774,27 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true);
+        boolean useSyntheticId = indexMode == IndexMode.TIME_SERIES && randomBoolean();
         switch (indexMode) {
             case STANDARD:
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
+                settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
                 break;
             case LOGSDB:
-                settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+            case COLUMNAR:
+            case LOGSDB_COLUMNAR:
+                settingsBuilder.put("index.mode", indexMode.getName());
+                settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
+                break;
+            case VECTORDB_DOCUMENT:
+                settingsBuilder.put("index.mode", IndexMode.VECTORDB_DOCUMENT.getName());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
@@ -801,8 +806,18 @@ public class FollowingEngineTests extends ESTestCase {
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
-            String docId = Integer.toString(between(1, 100));
-            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
+            String docId = useSyntheticId
+                ? TsidExtractingIdFieldMapper.createSyntheticId(
+                    new BytesRef(Integer.toString(i)),
+                    Instant.now().toEpochMilli(),
+                    randomNonNegativeInt()
+                )
+                : Integer.toString(i);
+            ParsedDocument doc = randomBoolean() || useSyntheticId
+                ? EngineTestCase.createParsedDoc(docId, null, false, useSyntheticId)
+                // The nested docs uses the default mapper to create the document, and that doesn't include all the necessary
+                // fields for the synthetic id. Hence we just skip using nested docs if the synthetic id is enabled.
+                : nestedDocFunc.apply(docId, randomInt(3));
             if (randomBoolean()) {
                 operations.add(
                     new Engine.Index(

@@ -6,7 +6,7 @@ teardown:
         ignore: 404
 
 ---
-"Test set processor with template value":
+"Test set processor with a templated value":
   - do:
       ingest.put_pipeline:
         id: "1"
@@ -53,6 +53,7 @@ teardown:
         index: test
         id: "2"
   - match: { _source.foo: "hello" }
+
 ---
 "Test set processor with index change and require_alias":
   - do:
@@ -295,3 +296,89 @@ teardown:
   - match: { _source.result_2: "{{bar}}" }
   - match: { _source.old_bar: 2 }
   - match: { _source.bar: 3 }
+
+---
+"Test set processor with ignore_empty_value and a literal empty value":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "description": "we don't forbid this, even though it's a little silly",
+                  "field" : "foo",
+                  "value" : "",
+                  "ignore_empty_value" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body: {
+          foo: "hello"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "" }
+
+---
+"Test set processor with more interesting mustache":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "{{{#id_parts.p1}}}{{{ id_parts.p1 }}}{{{/id_parts.p1}}}|{{{#id_parts.p2}}}{{{ id_parts.p2 }}}{{{/id_parts.p2}}}|{{{#id_parts.p3}}}{{{ id_parts.p3 }}}{{{/id_parts.p3}}}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+            p3: "goodbye"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|goodbye" }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "1"
+        body:
+          id_parts:
+            p1: "hello"
+            p2: "world"
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.foo: "hello|world|" }

@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * Provides an immutable view of a field in a source map.
+ */
 public class SourceMapField implements Field<Object> {
     protected String path;
     protected Supplier<Map<String, Object>> rootSupplier;

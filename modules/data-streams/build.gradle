@@ -52,6 +52,10 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("data_stream/30_auto_create_data_stream/Don't initialize failure store during data stream auto-creation on successful index", "Configuring the failure store via data stream templates is not supported anymore.")
 
   task.skipTest("data_stream/150_tsdb/TSDB failures go to failure store", "Configuring the failure store via data stream templates is not supported anymore.")
+  // TODO remove these after removing exact _tsid assertions in 8.x
+  task.skipTest("data_stream/150_tsdb/dynamic templates", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
+  task.skipTest("data_stream/150_tsdb/dynamic templates - conflicting aliases", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
+  task.skipTest("data_stream/150_tsdb/dynamic templates with nesting", "The _tsid has changed in a new index version. This tests verifies the exact _tsid value with is too brittle for compatibility testing.")
 
   task.skipTest("data_stream/170_modify_data_stream/Modify a data stream's failure store", "Configuring the failure store via data stream templates is not supported anymore.")
 

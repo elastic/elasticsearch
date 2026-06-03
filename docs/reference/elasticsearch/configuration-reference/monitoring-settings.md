@@ -200,13 +200,13 @@ xpack.monitoring.exporters.my_remote:
         host: "10.1.2.3"
       example2:
         type: http
-        host: ["http://10.1.2.4"]
+        host: ["<HOST_IP>"]
       example3:
         type: http
         host: ["10.1.2.5", "10.1.2.6"]
       example4:
         type: http
-        host: ["https://10.1.2.3:9200"]
+        host: ["HOST_IP>:9200"]
     ```
 
 

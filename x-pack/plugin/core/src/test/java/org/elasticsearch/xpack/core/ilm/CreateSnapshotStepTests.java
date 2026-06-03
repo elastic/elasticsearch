@@ -154,7 +154,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
@@ -170,7 +170,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
@@ -191,7 +191,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         {
             try (var threadPool = createThreadPool()) {
-                final var client = new NoOpClient(threadPool);
+                final var client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(

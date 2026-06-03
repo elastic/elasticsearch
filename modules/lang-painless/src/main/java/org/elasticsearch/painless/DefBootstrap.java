@@ -201,7 +201,10 @@ public final class DefBootstrap {
                     try {
                         return lookup(flavor, name, receiverType).asType(type);
                     } catch (Throwable t) {
-                        Def.rethrow(t);
+                        // ClassValue.getFromHashMap wraps checked exceptions as Error, so we
+                        // use a sentinel class [PainlessWrappedException] here to work around
+                        // this issue and later unwrap the original exception
+                        Def.rethrow(t instanceof Exception ? new PainlessWrappedException((Exception) t) : t);
                         throw new AssertionError();
                     }
                 }
@@ -521,7 +524,10 @@ public final class DefBootstrap {
                     throw new BootstrapMethodError("Illegal parameter for method call: " + args[0]);
                 }
                 String recipe = (String) args[0];
-                int numLambdas = recipe.length();
+                // 'S' is a leading non-lambda sentinel set by the compiler when the call site
+                // pushed the script receiver ahead of user args; peel it before counting lambdas.
+                int recipeLambdaStart = (recipe.isEmpty() == false && recipe.charAt(0) == 'S') ? 1 : 0;
+                int numLambdas = recipe.length() - recipeLambdaStart;
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }

@@ -38,6 +38,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        flattened(cases, "mv_dedupe", "MvDedupe", t -> t, (size, values) -> getMatcher(values));
         dateTimes(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         dateNanos(cases, "mv_dedupe", "MvDedupe", DataType.DATE_NANOS, (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
@@ -47,6 +48,9 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         cartesianShape(cases, "mv_dedupe", "MvDedupe", DataType.CARTESIAN_SHAPE, (size, values) -> getMatcher(values));
         geoPoints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         geoShape(cases, "mv_dedupe", "MvDedupe", DataType.GEO_SHAPE, (size, values) -> getMatcher(values));
+        geohashGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHASH, (size, values) -> getMatcher(values));
+        geotileGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOTILE, (size, values) -> getMatcher(values));
+        geohexGrid(cases, "mv_dedupe", "MvDedupe", DataType.GEOHEX, (size, values) -> getMatcher(values));
         unsignedLongs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         return parameterSuppliersFromTypedData(anyNullIsNull(false, cases));
     }

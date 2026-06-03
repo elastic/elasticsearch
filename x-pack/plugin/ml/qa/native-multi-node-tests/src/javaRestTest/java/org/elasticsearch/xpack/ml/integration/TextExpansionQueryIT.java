@@ -276,6 +276,9 @@ public class TextExpansionQueryIT extends PyTorchModelRestTestCase {
 
         request.setJsonEntity(Strings.format("""
             {
+                "_source": {
+                    "exclude_vectors": false
+                },
                 "query": {
                   "text_expansion": {
                     "%s": {

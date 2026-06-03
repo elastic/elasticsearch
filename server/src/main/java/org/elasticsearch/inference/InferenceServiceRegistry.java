@@ -9,7 +9,6 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
 import java.io.Closeable;
@@ -40,10 +39,6 @@ public class InferenceServiceRegistry implements Closeable {
             .stream()
             .flatMap(service -> service.aliases().stream().distinct().map(alias -> Map.entry(alias, service.name())))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    }
-
-    public void init(Client client) {
-        services.values().forEach(s -> s.init(client));
     }
 
     public void onNodeStarted() {

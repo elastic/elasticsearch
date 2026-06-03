@@ -20,6 +20,7 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
@@ -53,14 +55,18 @@ public class ValuesTests extends AbstractAggregationTestCase {
             // Lower values for strings, as they take more space and may trigger the circuit breaker
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 20, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 20),
             // For spatial types, we can have many rows for points, but reduce rows for shapes to avoid circuit breaker
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
             MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.geohashCases(1, 100),
+            MultiRowTestCaseSupplier.geotileCases(1, 100),
+            MultiRowTestCaseSupplier.geohexCases(1, 100)
         ).flatMap(List::stream).map(ValuesTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -71,10 +77,10 @@ public class ValuesTests extends AbstractAggregationTestCase {
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
-            var expected = new HashSet<>(fieldTypedData.multiRowData());
+            var expected = new HashSet<>(fieldTypedData.originalMultiRowData());
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "Values[field=Attribute[channel=0]]",
+                standardAggregatorNameAllBytesTheSame("Values", fieldSupplier.type()),
                 fieldSupplier.type(),
                 valuesInAnyOrder(expected)
             );

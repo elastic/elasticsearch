@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,11 +25,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * An unresolved function call. We build these while walking the syntax
+ * tree and then resolve them into other {@link Function} subclasses during
+ * {@link Analyzer analysis}.
+ */
 public class UnresolvedFunction extends Function implements Unresolvable {
 
     private final String name;
     private final String unresolvedMsg;
-    private final FunctionResolutionStrategy resolution;
 
     /**
      * Flag to indicate analysis has been applied and there's no point in
@@ -37,8 +42,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      */
     private final boolean analyzed;
 
-    public UnresolvedFunction(Source source, String name, FunctionResolutionStrategy resolutionStrategy, List<Expression> children) {
-        this(source, name, resolutionStrategy, children, false, null);
+    public UnresolvedFunction(Source source, String name, List<Expression> children) {
+        this(source, name, children, false, null);
     }
 
     @Override
@@ -57,40 +62,32 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      *
      * @see #withMessage(String)
      */
-    public UnresolvedFunction(
-        Source source,
-        String name,
-        FunctionResolutionStrategy resolutionStrategy,
-        List<Expression> children,
-        boolean analyzed,
-        String unresolvedMessage
-    ) {
+    public UnresolvedFunction(Source source, String name, List<Expression> children, boolean analyzed, String unresolvedMessage) {
         super(source, children);
         this.name = name;
-        this.resolution = resolutionStrategy;
         this.analyzed = analyzed;
-        this.unresolvedMsg = unresolvedMessage == null ? "Unknown " + resolutionStrategy.kind() + " [" + name + "]" : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? "Unknown function [" + name + "]" : unresolvedMessage;
     }
 
     @Override
     protected NodeInfo<UnresolvedFunction> info() {
-        return NodeInfo.create(this, UnresolvedFunction::new, name, resolution, children(), analyzed, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedFunction::new, name, children(), analyzed, unresolvedMsg);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UnresolvedFunction(source(), name, resolution, newChildren, analyzed, unresolvedMsg);
+        return new UnresolvedFunction(source(), name, newChildren, analyzed, unresolvedMsg);
     }
 
     public UnresolvedFunction withMessage(String message) {
-        return new UnresolvedFunction(source(), name(), resolution, children(), true, message);
+        return new UnresolvedFunction(source(), name(), children(), true, message);
     }
 
     /**
      * Build a function to replace this one after resolving the function.
      */
     public Function buildResolved(Configuration configuration, FunctionDefinition def) {
-        return resolution.buildResolved(this, configuration, def);
+        return def.build(this, configuration);
     }
 
     /**
@@ -101,10 +98,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         // try to find alternatives
         Set<String> names = new LinkedHashSet<>();
         for (FunctionDefinition def : alternatives) {
-            if (resolution.isValidAlternative(def)) {
-                names.add(def.name());
-                names.addAll(def.aliases());
-            }
+            names.add(def.name());
+            names.addAll(def.aliases());
         }
 
         List<String> matches = StringUtils.findSimilar(normalizedName, names);
@@ -112,7 +107,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
             return this;
         }
         String matchesMessage = matches.size() == 1 ? "[" + matches.get(0) + "]" : "any of " + matches;
-        return withMessage("Unknown " + resolution.kind() + " [" + name + "], did you mean " + matchesMessage + "?");
+        return withMessage("Unknown function [" + name + "], did you mean " + matchesMessage + "?");
     }
 
     @Override
@@ -122,10 +117,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     public String name() {
         return name;
-    }
-
-    public FunctionResolutionStrategy resolutionStrategy() {
-        return resolution;
     }
 
     public boolean analyzed() {
@@ -158,8 +149,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public String nodeString() {
-        return toString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(toString());
     }
 
     @Override
@@ -169,7 +160,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         }
         UnresolvedFunction other = (UnresolvedFunction) obj;
         return name.equals(other.name)
-            && resolution.equals(other.resolution)
             && children().equals(other.children())
             && analyzed == other.analyzed
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
@@ -177,6 +167,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, resolution, children(), analyzed, unresolvedMsg);
+        return Objects.hash(name, children(), analyzed, unresolvedMsg);
     }
 }

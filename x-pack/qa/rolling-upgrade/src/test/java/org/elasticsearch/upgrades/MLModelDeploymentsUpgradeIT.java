@@ -73,10 +73,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity("""
             {
               "persistent": {
-                "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
-                "logger.org.elasticsearch.xpack.ml.action": "TRACE"
+                "logger.org.elasticsearch.xpack.ml.action": "DEBUG"
               }
             }
             """);
@@ -107,10 +107,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 waitForDeploymentStarted(modelId);
                 // attempt inference on new and old nodes multiple times
                 for (int i = 0; i < 10; i++) {
@@ -118,10 +115,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
 
                 waitForDeploymentStarted(modelId);
                 assertInfer(modelId);
@@ -140,17 +134,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                 assertInfer(modelId);
             }
             case MIXED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 stopDeployment(modelId);
             }
             case UPGRADED -> {
-                ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                    request.addParameter("wait_for_status", "yellow");
-                    request.addParameter("timeout", "70s");
-                }));
+                ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
                 assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

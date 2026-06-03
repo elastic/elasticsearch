@@ -7,24 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -34,36 +43,68 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     );
     public static final String NAME = "LIKE";
 
-    @FunctionInfo(returnType = "boolean", description = """
-        Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
-        usually acts on a field placed on the left-hand side of the operator, but it can
-        also act on a constant (literal) expression. The right-hand side of the operator
-        represents the pattern.
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
+            usually acts on a field placed on the left-hand side of the operator, but it can
+            also act on a constant (literal) expression. The right-hand side of the operator
+            represents the pattern.
 
-        The following wildcard characters are supported:
+            The following wildcard characters are supported:
 
-        * `*` matches zero or more characters.
-        * `?` matches one character.""", detailedDescription = """
-        Matching the exact characters `*` and `.` will require escaping.
-        The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-        it will require further escaping.
+            * `*` matches zero or more characters.
+            * `?` matches one character.""",
 
-        <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
+        // we use an inline example here because ?pattern not supported in csv-spec test
+        detailedDescription = """
+            When used on `text` fields, `LIKE` treats the field as a `keyword` and does not use the analyzer.
+            This means the pattern matching is case-sensitive and must match the exact string indexed.
+            To perform full-text search, use the `MATCH` or `QSTR` functions.
 
-        To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
+            Matching the exact characters `*` and `?` will require escaping.
+            The escape character is backslash `\\`. Since backslash is also special in string literals,
+            it will require further escaping. To match a literal backslash in the data, write `\\\\`
+            in the pattern (escape plus backslash). Windows-style paths such as `C:\\Windows\\System32`
+            are much easier with triple-quoted string literals (three consecutive `"` characters as delimiters):
+            the value can contain single backslashes as in `C:\\Windows\\...`, and a pattern that matches
+            `C:\\Windows` followed by anything uses `\\\\` before `Windows` inside that literal (see the example below).
+            When you send ES|QL inside a JSON request body (for example with cURL), JSON string escaping
+            adds another layer: each backslash in the ES|QL text is often written as `\\\\` in JSON, so a
+            single literal backslash in the pattern can require many backslashes by the time it reaches the parser.
 
-        <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+            <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
-        ```{applies_to}
-        stack: ga 9.1
-        serverless: ga
-        ```
-        Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
-        the expression will return true if any of the patterns match.
+            To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
-        <<load-esql-example, file=where-like tag=likeListDocExample>>
+            <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
 
-        """, operator = NAME, examples = @Example(file = "docs", tag = "like"))
+            <<load-esql-example, file=string tag=likeEscapingBackslashWindowsPath>>
+
+            ```{applies_to}
+            stack: ga 9.1
+            serverless: ga
+            ```
+            Both a single pattern or a list of patterns are supported. If a list of patterns is provided,
+            the expression will return true if any of the patterns match.
+
+            <<load-esql-example, file=where-like tag=likeListDocExample>>
+
+            Patterns may be specified with REST query placeholders as well
+
+            ```esql
+            FROM employees
+            | WHERE first_name LIKE ?pattern
+            | KEEP first_name, last_name
+            ```
+
+            ```{applies_to}
+            stack: ga 9.3
+            ```
+            """,
+        operator = NAME,
+        examples = @Example(file = "docs", tag = "like")
+    )
     public WildcardLike(
         Source source,
         @Param(name = "str", type = { "keyword", "text" }, description = "A literal expression.") Expression left,
@@ -113,6 +154,52 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
         return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
     }
 
+    /**
+     * Fast path for prefix, suffix, and contains wildcard shapes (e.g.
+     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"}):
+     * dispatch to byte-comparison / byte-substring-search evaluators instead
+     * of building an {@link org.apache.lucene.util.automaton.Automaton} and
+     * running {@code RunAutomaton.step} per row. The general path (other
+     * patterns, case-insensitive matching) still goes through
+     * {@code AutomataMatch}. Prefix and suffix reuse the
+     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains delegates to
+     * the SIMD-backed {@link #processContains} below.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (caseInsensitive()) {
+            return super.toEvaluator(toEvaluator);
+        }
+        return switch (pattern().shape()) {
+            case WildcardPattern.Shape.Prefix(String prefix) -> new StartsWith(source(), field(), Literal.keyword(source(), prefix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Suffix(String suffix) -> new EndsWith(source(), field(), Literal.keyword(source(), suffix))
+                .toEvaluator(toEvaluator);
+            case WildcardPattern.Shape.Contains(String literal) -> new WildcardLikeContainsEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                new BytesRef(literal)
+            );
+            case WildcardPattern.Shape.General ignored -> super.toEvaluator(toEvaluator);
+        };
+    }
+
+    /**
+     * Byte-level substring search emulating {@code LIKE "*literal*"}. Delegates
+     * to {@link ByteMatchers#containsLiteral(BytesRef, BytesRef)}, which routes
+     * through the SIMD substring primitive shared with the datasource
+     * pushdown evaluators (Panama Vector API first+last-byte filter for values
+     * &ge; 24 bytes; tight scalar loop below that). Both this path and
+     * {@code AutomataMatch} walk UTF-8 input bytes directly (UTF-8 is
+     * self-synchronizing, so a byte-level substring search is correct), so the
+     * fast path's saving comes from replacing the per-byte
+     * {@code RunAutomaton.step} state-machine walk with a vectorized search.
+     */
+    @Evaluator(extraName = "Contains")
+    static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
+        return ByteMatchers.containsLiteral(str, pattern);
+    }
+
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
@@ -131,5 +218,17 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     // TODO: see whether escaping is needed
     private Query translateField(String targetFieldName, boolean forceStringMatch) {
         return new WildcardQuery(source(), targetFieldName, pattern().asLuceneWildcard(), caseInsensitive(), forceStringMatch);
+    }
+
+    /**
+     * Pushes down string casing optimization for a single pattern using the provided predicate.
+     * Returns a new WildcardLike with case insensitivity or a Literal.FALSE if not matched.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        if (matchesCaseFn.test(pattern().pattern()) == false) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new WildcardLike(source(), unwrappedField, pattern(), true);
     }
 }

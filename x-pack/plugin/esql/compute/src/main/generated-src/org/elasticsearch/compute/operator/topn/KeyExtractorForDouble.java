@@ -33,24 +33,23 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
             : new KeyExtractorForDouble.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
+    private final TopNEncoder encoder;
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorForDouble(TopNEncoder encoder, byte nul, byte nonNul) {
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
+        this.encoder = encoder;
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, double value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, double value) {
         key.append(nonNul);
-        TopNEncoder.DEFAULT_SORTABLE.encodeDouble(value, key);
-        return Double.BYTES + 1;
+        encoder.encodeDouble(value, key);
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
     @Override
@@ -67,8 +66,8 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getDouble(position));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getDouble(position));
         }
     }
 
@@ -81,11 +80,12 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getDouble(block.getFirstValueIndex(position)));
+            nonNul(key, block.getDouble(block.getFirstValueIndex(position)));
         }
     }
 
@@ -98,11 +98,12 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getDouble(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.getDouble(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
         }
     }
 
@@ -115,10 +116,11 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -126,7 +128,7 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 min = Math.min(min, block.getDouble(i));
             }
-            return nonNul(key, min);
+            nonNul(key, min);
         }
     }
 
@@ -139,10 +141,11 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -150,7 +153,7 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.getDouble(i));
             }
-            return nonNul(key, max);
+            nonNul(key, max);
         }
     }
 }

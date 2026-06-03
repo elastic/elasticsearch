@@ -52,6 +52,25 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }
@@ -67,7 +86,7 @@ public final class FloatBigArrayVector extends AbstractVector implements FloatVe
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final FloatArray filtered = blockFactory.bigArrays().newFloatArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

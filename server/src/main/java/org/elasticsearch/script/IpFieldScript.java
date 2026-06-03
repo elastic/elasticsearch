@@ -57,6 +57,11 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         public boolean isResultDeterministic() {
             return true;
         }
+
+        @Override
+        public boolean isParsedFromSource() {
+            return true;
+        }
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
@@ -153,6 +158,16 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         BytesRef encoded = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(v)));
         // encode the address and increment the count on separate lines, to ensure that
         // we don't increment if the address is badly formed
+        values[count++] = encoded;
+    }
+
+    /**
+     * Emit the encoded ip value. Value should be encoded in the format used by {@link InetAddressPoint}.
+     */
+    protected final void emit(BytesRef encoded) {
+        if (values.length < count + 1) {
+            values = ArrayUtil.grow(values, count + 1);
+        }
         values[count++] = encoded;
     }
 

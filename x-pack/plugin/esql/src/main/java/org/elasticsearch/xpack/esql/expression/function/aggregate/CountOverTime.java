@@ -9,39 +9,66 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
  * Similar to {@link Count}, but it is used to calculate the count of values over a time series from the given field.
  */
-public class CountOverTime extends TimeSeriesAggregateFunction {
+public class CountOverTime extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        AggregateMetricDoubleNativeSupport,
+        SurrogateExpression,
+        ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountOverTime",
         CountOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
+        .binary(CountOverTime::new)
+        .name("count_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(CountOverTime::new)
+        .description("Returns the count of all values in the specified time range.")
+        .example("count_over_time(http_requests_total[5m])")
+        .name("count_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
-        description = "The count over time value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        description = "Calculates the count over time value of a field.",
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "count_over_time") }
     )
     public CountOverTime(
@@ -52,23 +79,36 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the count over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public CountOverTime(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private CountOverTime(StreamInput in) throws IOException {
@@ -82,17 +122,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
 
     @Override
     public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter);
+        return new CountOverTime(source(), field(), filter, window());
     }
 
     @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter());
+        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window());
     }
 
     @Override
     public CountOverTime replaceChildren(List<Expression> newChildren) {
-        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1));
+        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
@@ -106,7 +146,26 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
     }
 
     @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
+    }
+
+    @Override
     public Count perTimeSeriesAggregation() {
-        return new Count(source(), field(), filter());
+        return new Count(source(), field(), filter(), window());
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            return new Coalesce(
+                source(),
+                // We need to cast here because ExtractHistogramComponent returns a double.
+                new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),
+                List.of(new Literal(source(), 0L, DataType.LONG))
+            );
+        }
+        return null;
     }
 }

@@ -44,6 +44,8 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: sparse-inference-id
+              text_field:
+                type: text
 
   - do:
       indices.create:
@@ -54,6 +56,8 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id
+              text_field:
+                type: text
 
 ---
 "Exists query with no indexed documents":
@@ -142,3 +146,165 @@ setup:
               field: "inference_field"
 
   - match: { hits.total.value: 1 }
+
+---
+"Exists query with indexed documents when semantic text field doesn't have a value":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc1
+        body:
+          text_field: "foo"
+        refresh: true
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc2
+        body:
+          inference_field: "bar"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc2" }
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc1
+        body:
+          text_field: "foo"
+        refresh: true
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc2
+        body:
+          inference_field: "bar"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc2" }
+
+---
+"Exists query with indexed documents with copy_to":
+  - do:
+      indices.create:
+        index: test-sparse-index-with-copy-to
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+              text_field:
+                type: text
+
+  - do:
+      index:
+        index: test-sparse-index-with-copy-to
+        id: doc1
+        body:
+          text_field: "foo"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index-with-copy-to
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      index:
+        index: test-sparse-index-with-copy-to
+        id: doc2
+        body:
+          source_field: "bar"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index-with-copy-to
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc2" }
+
+  - do:
+      indices.create:
+        index: test-dense-index-with-copy-to
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+              text_field:
+                type: text
+
+  - do:
+      index:
+        index: test-dense-index-with-copy-to
+        id: doc1
+        body:
+          text_field: "foo"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-with-copy-to
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      index:
+        index: test-dense-index-with-copy-to
+        id: doc2
+        body:
+          source_field: "bar"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-with-copy-to
+        body:
+          query:
+            exists:
+              field: "inference_field"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc2" }

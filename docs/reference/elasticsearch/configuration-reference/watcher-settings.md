@@ -48,10 +48,10 @@ $$$xpack-watcher-encrypt-sensitive-data$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Protocol used to communicate with the proxy server. Valid values are `http` and `https`. Defaults to the protocol used in the request.
 
 `xpack.http.default_connection_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period to wait until abortion of the request, when a connection is being initiated.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period to wait until abortion of the request, when a connection is being initiated. Defaults to `10s`.
 
 `xpack.http.default_read_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period of inactivity between two data packets, before the request is aborted.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum period of inactivity between two data packets, before the request is aborted. Defaults to `10s`.
 
 `xpack.http.tcp.keep_alive`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Whether to enable TCP keepalives on HTTP connections. Defaults to `true`.
@@ -558,7 +558,7 @@ $$$pagerduty-account-attributes$$$
     :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Whether or not to provide the watch payload as context for the event by default. Valid values: `true`, `false`.
 
 `xpack.notification.webhook.additional_token_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of traffic filters for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
+:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of [network security](docs-content://deploy-manage/security/network-security.md) for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
 
     ::::{important}
     This setting only applies to the Watcher `webhook` action, not the `http` input action.

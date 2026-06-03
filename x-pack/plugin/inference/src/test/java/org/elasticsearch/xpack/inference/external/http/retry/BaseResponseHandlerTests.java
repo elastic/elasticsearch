@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -52,19 +52,18 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
         handler.validateResponse(
             mock(ThrottlerManager.class),
             mock(Logger.class),
             request,
-            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
-            true
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenMalformedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrowError_WhenStatus200_AndMalformedErrorObject() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -77,28 +76,18 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
-            )
-        );
-
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]")
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
-    public void testValidateResponse_ThrowsErrorWhenWellFormedErrorObjectExists() {
+    public void testValidateResponse_DoesNotThrow_WhenStatus200_AndWellFormedErrorObjectExists() {
         var handler = getBaseResponseHandler();
 
         String responseJson = """
@@ -112,24 +101,14 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
-        var exception = expectThrows(
-            RetryException.class,
-            () -> handler.validateResponse(
-                mock(ThrottlerManager.class),
-                mock(Logger.class),
-                request,
-                new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
-                true
-            )
-        );
-
-        assertFalse(exception.shouldRetry());
-        assertThat(
-            exception.getCause().getMessage(),
-            is("Received an error response for request from inference entity id [abc] status [200]. Error message: [a message]")
+        handler.validateResponse(
+            mock(ThrottlerManager.class),
+            mock(Logger.class),
+            request,
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
@@ -147,15 +126,14 @@ public class BaseResponseHandlerTests extends ESTestCase {
 
         var response = mock200Response();
 
-        var request = mock(Request.class);
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("abc");
 
         handler.validateResponse(
             mock(ThrottlerManager.class),
             mock(Logger.class),
             request,
-            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8)),
-            false
+            new HttpResult(response, responseJson.getBytes(StandardCharsets.UTF_8))
         );
     }
 
@@ -171,9 +149,13 @@ public class BaseResponseHandlerTests extends ESTestCase {
     }
 
     private static BaseResponseHandler getBaseResponseHandler() {
-        return new BaseResponseHandler("abc", (Request request, HttpResult result) -> null, ErrorMessageResponseEntity::fromResponse) {
+        return new BaseResponseHandler(
+            "abc",
+            (OutboundRequest outboundRequest, HttpResult result) -> null,
+            ErrorMessageResponseEntity::fromResponse
+        ) {
             @Override
-            protected void checkForFailureStatusCode(Request request, HttpResult result) {}
+            protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) {}
         };
     }
 }

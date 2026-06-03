@@ -9,30 +9,30 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import spock.lang.Specification
+import spock.lang.TempDir
+import com.github.tomakehurst.wiremock.WireMockServer
+
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.internal.test.BuildConfigurationAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
-import org.gradle.internal.component.external.model.ComponentVariant
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
+import org.junit.After
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
-import spock.lang.Specification
-import spock.lang.TempDir
 
 import java.lang.management.ManagementFactory
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-import java.io.File
-import java.nio.file.Path
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
@@ -47,6 +47,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File buildFile
     File propertiesFile
     File projectDir
+    File versionPropertiesFile
 
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
@@ -57,6 +58,18 @@ abstract class AbstractGradleFuncTest extends Specification {
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
+        File buildToolsDir = testProjectDir.newFolder("build-tools-internal")
+        versionPropertiesFile = new File(buildToolsDir, 'version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
 
@@ -83,7 +96,8 @@ abstract class AbstractGradleFuncTest extends Specification {
         if (subProjectBuild.exists() == false) {
             settingsFile << "include \"${subProjectPath}\"\n"
         }
-        subProjectBuild
+        subProjectBuild.parentFile.mkdirs()
+        return subProjectBuild
     }
 
     File subProject(String subProjectPath, Closure configAction) {
@@ -93,6 +107,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         configAction.call()
         subProjectBuild
     }
+
 
     GradleRunner gradleRunner(Object... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
@@ -108,6 +123,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 )
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
+                                .withTestKitDir(gradleUserHome)
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)
@@ -159,13 +175,13 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     File internalBuild(
-            List<String> extraPlugins = [],
-            String maintenance = "7.16.10",
-            String bugfix2 = "8.1.3",
-            String bugfix = "8.2.1",
-            String staged = "8.3.0",
-            String minor = "8.4.0",
-            String current = "9.0.0"
+        List<String> extraPlugins = [],
+        String maintenance = "7.16.10",
+        String major4 = "8.1.3",
+        String major3 = "8.2.1",
+        String major2 = "8.3.0",
+        String major1 = "8.4.0",
+        String current = "9.0.0"
     ) {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
@@ -174,38 +190,42 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.Architecture
 
         import org.elasticsearch.gradle.internal.BwcVersions
+        import org.elasticsearch.gradle.internal.info.DevelopmentBranch
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("${current}")
         def versionList = [
           Version.fromString("$maintenance"),
-          Version.fromString("$bugfix2"),
-          Version.fromString("$bugfix"),
-          Version.fromString("$staged"),
-          Version.fromString("$minor"),
+          Version.fromString("$major4"),
+          Version.fromString("$major3"),
+          Version.fromString("$major2"),
+          Version.fromString("$major1"),
           currentVersion
         ]
 
-        BwcVersions versions = new BwcVersions(currentVersion, versionList, ['main', '8.x', '8.3', '8.2', '8.1', '7.16'])
-        buildParams.setBwcVersions(project.provider { versions} )
+        BwcVersions versions = new BwcVersions(currentVersion, versionList, [
+          new DevelopmentBranch('main', Version.fromString("$current")),
+          new DevelopmentBranch('8.x', Version.fromString("$major1")),
+          new DevelopmentBranch('8.3', Version.fromString("$major2")),
+          new DevelopmentBranch('8.2', Version.fromString("$major3")),
+          new DevelopmentBranch('8.1', Version.fromString("$major4")),
+          new DevelopmentBranch('7.16', Version.fromString("$maintenance")),
+        ])
+        buildParams.setBwcVersions(project.provider { versions } )
         """
     }
 
-    void setupLocalGitRepo() {
-        execute("git init")
-        execute('git config user.email "build-tool@elastic.co"')
-        execute('git config user.name "Build tool"')
-        execute("git add .")
-        execute('git commit -m "Initial"')
-    }
-
-    void execute(String command, File workingDir = testProjectDir.root) {
+    String execute(String command, File workingDir = testProjectDir.root, boolean ignoreFailure = false) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
-        if (proc.exitValue()) {
-            System.err.println("Error running command ${command}:")
-            System.err.println("Syserr: " + proc.errorStream.text)
+        if (proc.exitValue() && ignoreFailure == false) {
+            String msg = """Error running command ${command}:
+                Sysout: ${proc.inputStream.text}
+                Syserr: ${proc.errorStream.text}
+            """
+            throw new RuntimeException(msg)
         }
+        return proc.inputStream.text
     }
 
     File dir(String path) {
@@ -228,14 +248,74 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
+    }
 
+    /**
+     * Parses the Gradle Problems API report and returns the diagnostics as a list of maps.
+     * Each diagnostic has: problemId (list of {name, displayName}), severity, contextualLabel, solutions, locations.
+     */
+    List<Map> problemsReportDiagnostics() {
+        def reportFile = new File(projectDir, "build/reports/problems/problems-report.html")
+        if (!reportFile.exists()) {
+            return []
+        }
+        def content = reportFile.text
+        def matcher = content =~ /\/\/ begin-report-data\n(.*)\n\/\/ end-report-data/
+        if (!matcher.find()) {
+            return []
+        }
+        def json = new groovy.json.JsonSlurper().parseText(matcher.group(1))
+        return json.diagnostics ?: []
+    }
+
+    /**
+     * Asserts that problems were reported with the given group name in the problem ID hierarchy.
+     */
+    def assertProblemsReportContains(String groupName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.any { id -> id.name == groupName }
+        } : "Expected problems report to contain group '${groupName}', but found: ${diagnostics.collect { it.problemId*.name }.flatten().unique()}"
+        true
+    }
+
+    /**
+     * Asserts that problems were reported with the given problem name (leaf ID) in the report.
+     */
+    def assertProblemsReportContainsProblem(String problemName) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.any { diag ->
+            diag.problemId.last().name == problemName
+        } : "Expected problems report to contain problem '${problemName}', but found: ${diagnostics.collect { it.problemId.last().name }.unique()}"
+        true
+    }
+
+    /**
+     * Asserts that the problems report contains at least the expected number of diagnostics.
+     */
+    def assertProblemsReportHasAtLeast(int expectedCount) {
+        def diagnostics = problemsReportDiagnostics()
+        assert diagnostics.size() >= expectedCount : "Expected at least ${expectedCount} problems, but found ${diagnostics.size()}"
+        true
+    }
+
+    /**
+     * Asserts that problems have the expected severity.
+     */
+    def assertProblemsReportSeverity(String problemName, String expectedSeverity) {
+        def diagnostics = problemsReportDiagnostics()
+        def matching = diagnostics.findAll { diag -> diag.problemId.last().name == problemName }
+        assert matching.every { it.severity == expectedSeverity } : \
+            "Expected severity '${expectedSeverity}' for problem '${problemName}', but found: ${matching.collect { it.severity }.unique()}"
+        true
     }
 
     boolean featureFailed() {
         specificationContext.currentSpec.listeners
             .findAll { it instanceof TestResultExtension.ErrorListener }
             .any {
-                (it as TestResultExtension.ErrorListener).errorInfo != null }
+                (it as TestResultExtension.ErrorListener).errorInfo != null
+            }
     }
 
     ZipAssertion zip(String relativePath) {
@@ -287,7 +367,7 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         }
 
         String read() {
-            try(ZipFile zipFile1 = new ZipFile(zipFile)) {
+            try (ZipFile zipFile1 = new ZipFile(zipFile)) {
                 def inputStream = zipFile1.getInputStream(entry)
                 return IOUtils.toString(inputStream, StandardCharsets.UTF_8.name())
             } catch (IOException e) {
@@ -313,5 +393,72 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
         File getBuildFile() {
             return new File(projectDir, 'build.gradle')
         };
+
+        File file(String path) {
+            def file = new File(projectDir, path)
+            file.parentFile.mkdirs()
+            file
+        }
+
+        File createTest(String clazzName, String content = testMethodContent(false, false, 1)) {
+            def file = new File(projectDir, "src/test/java/org/acme/${clazzName}.java")
+            file.parentFile.mkdirs()
+            file << """
+            package org.acme;
+
+            import org.junit.Test;
+            import org.junit.Before;
+            import org.junit.After;
+            import org.junit.Assert;
+            import java.nio.*;
+            import java.nio.file.*;
+            import java.io.IOException;
+
+            public class $clazzName {
+
+                @Before
+                public void beforeTest() {
+                }
+
+                @After
+                public void afterTest() {
+                }
+
+                @Test
+                public void someTest1() {
+                    ${content}
+                }
+
+                @Test
+                public void someTest2() {
+                    ${content}
+                }
+            }
+        """
+        }
+
+        String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
+            return """
+            System.out.println(getClass().getSimpleName() + " executing");
+
+            ${withSystemExit ? """
+                    if(count <= ${timesFailing}) {
+                        System.exit(1);
+                    }
+                    """ : ''
+            }
+
+            ${fail ? """
+                    if(count <= ${timesFailing}) {
+                        try {
+                            Thread.sleep(2000);
+                        } catch(Exception e) {}
+                        Assert.fail();
+                    }
+                    """ : ''
+            }
+        """
+        }
+
     }
 }

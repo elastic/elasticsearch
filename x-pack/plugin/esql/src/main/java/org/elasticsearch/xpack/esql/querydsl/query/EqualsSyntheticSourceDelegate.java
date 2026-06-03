@@ -48,7 +48,7 @@ public class EqualsSyntheticSourceDelegate extends Query {
         @Override
         protected org.apache.lucene.search.Query doToQuery(SearchExecutionContext context) {
             TextFieldMapper.TextFieldType ft = (TextFieldMapper.TextFieldType) context.getFieldType(fieldName);
-            return ft.syntheticSourceDelegate().termQuery(value, context);
+            return ft.syntheticSourceDelegate().orElse(null).termQuery(value, context);
         }
 
         @Override

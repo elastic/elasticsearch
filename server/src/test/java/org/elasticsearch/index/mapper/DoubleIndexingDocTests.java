@@ -10,10 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DoubleIndexingDocTests extends MapperServiceTestCase {
     public void testDoubleIndexingSameDoc() throws Exception {
@@ -28,9 +30,10 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
             b.startArray("field5").value(1).value(2).value(3).endArray();
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.indexVersionCreated()).thenReturn(IndexVersion.current());
 
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(doc.rootDoc());

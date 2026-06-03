@@ -38,7 +38,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
     }
 
     public String setUpIndex(String indexName) throws IOException {
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
@@ -166,7 +166,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testRegexQuery() throws Exception {
         String indexName = "test_regex";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1")
@@ -216,11 +216,40 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
                 assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
             }
         );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", ".*").caseInsensitive(true)),
+            response -> {
+                assertEquals(5, response.getHits().getTotalHits().value());
+            }
+        );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2\\.1\\.0").caseInsensitive(false)),
+            response -> {
+                assertEquals(1, response.getHits().getTotalHits().value());
+            }
+        );
+
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2\\.1\\.1").caseInsensitive(false)),
+            response -> {
+                assertEquals(0, response.getHits().getTotalHits().value());
+            }
+        );
+
+        // empty regex should not match anything
+        assertResponse(
+            client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "").caseInsensitive(false)),
+            response -> {
+                assertEquals(0, response.getHits().getTotalHits().value());
+            }
+        );
     }
 
     public void testFuzzyQuery() throws Exception {
         String indexName = "test_fuzzy";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1")
@@ -246,7 +275,6 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(
             indexName,
             Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
             "version",
             "type=version",
             "foo",
@@ -311,7 +339,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
      */
     public void testStoreMalformed() throws Exception {
         String indexName = "test_malformed";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.invalid.0").endObject()).get();
@@ -378,7 +406,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testAggs() throws Exception {
         String indexName = "test_aggs";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
@@ -426,7 +454,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
 
     public void testMultiValues() throws Exception {
         String indexName = "test_multi";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "version", "type=version");
         ensureGreen(indexName);
 
         prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject()).get();

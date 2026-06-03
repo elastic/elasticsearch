@@ -9,16 +9,22 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -36,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -48,11 +55,18 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
+    private static final String ROUTING_AND_SLICE_COMBINATION_ERROR =
+        "[routing] and [_slice] cannot be combined in the same _msearch request";
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    @Nullable
+    private String projectRouting;
+
+    private static final TransportVersion MSEARCH_PROJECT_ROUTING = TransportVersion.fromName("msearch_project_routing");
 
     public MultiSearchRequest() {}
 
@@ -133,6 +147,11 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             SearchRequest request = new SearchRequest(in);
             requests.add(request);
         }
+        if (in.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     @Override
@@ -140,6 +159,9 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeCollection(requests);
+        if (out.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
     }
 
     @Override
@@ -164,10 +186,16 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
         IndicesOptions indicesOptions,
-        String routing,
+        @Nullable SliceIndexing.ParsedRouting routingOrSlice,
         String searchType,
         Boolean ccsMinimizeRoundtrips,
-        boolean allowExplicitIndex
+        boolean allowExplicitIndex,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
     ) throws IOException {
         readMultiLineFormat(
             xContent,
@@ -176,11 +204,13 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             consumer,
             indices,
             indicesOptions,
-            routing,
+            routingOrSlice,
             searchType,
             ccsMinimizeRoundtrips,
             allowExplicitIndex,
-            (s, o, r) -> false
+            (s, o, r) -> false,
+            crossProjectEnabled,
+            projectRouting
         );
 
     }
@@ -192,14 +222,25 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
         IndicesOptions indicesOptions,
-        String routing,
+        @Nullable SliceIndexing.ParsedRouting routingOrSlice,
         String searchType,
         Boolean ccsMinimizeRoundtrips,
         boolean allowExplicitIndex,
-        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
     ) throws IOException {
         int from = 0;
         byte marker = xContent.bulkSeparator();
+        boolean warnedMrtForCps = false;
+        final boolean topLevelFromSlice = routingOrSlice != null && routingOrSlice.fromSlice();
+        final boolean topLevelHasRouting = routingOrSlice != null
+            && routingOrSlice.fromSlice() == false
+            && routingOrSlice.routing() != null;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -213,12 +254,15 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             if (indicesOptions != null) {
                 searchRequest.indicesOptions(indicesOptions);
             }
-            if (routing != null) {
-                searchRequest.routing(routing);
-            }
+            applySearchRoutingOrSlice(searchRequest, routingOrSlice);
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
+            /*
+             * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
+             * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
+             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }
@@ -240,9 +284,14 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
                     Object allowNoIndices = null;
+                    boolean routingProvided = false;
+                    boolean sliceProvided = false;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                        if (crossProjectEnabled.orElse(false)
+                            && ("project_routing".equals(entry.getKey()) || "projectRouting".equals(entry.getKey()))) {
+                            searchRequest.setProjectRouting(nodeStringValue(value));
+                        } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                             if (allowExplicitIndex == false) {
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
@@ -250,13 +299,28 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
+                            if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
+                                HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+                                warnedMrtForCps = true;
+                            }
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {
+                            if (sliceProvided || topLevelFromSlice) {
+                                throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
+                            }
                             searchRequest.routing(nodeStringValue(value, null));
+                            searchRequest.searchSlice(null);
+                            routingProvided = true;
+                        } else if (SliceIndexing.PARAM_NAME.equals(entry.getKey())) {
+                            if (routingProvided || topLevelHasRouting) {
+                                throw new IllegalArgumentException(ROUTING_AND_SLICE_COMBINATION_ERROR);
+                            }
+                            applySearchRoutingOrSlice(searchRequest, parseSearchRoutingOrSlice(nodeStringValue(value, null)));
+                            sliceProvided = true;
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
                         } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
@@ -284,6 +348,21 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             }
             searchRequest.indicesOptions(defaultOptions);
 
+            /*
+             * There are 2 different places where project_routing can appear:
+             * 1. As a query parameter, i.e. top-level, and,
+             * 2. Within the request's body.
+             *
+             * When it appears within the request's body, we override the query parameter: this is how msearch options and params
+             * work.
+             *
+             * At this point, if search#getProjectRouting() returns `null`, it means that we did not see any specific value within
+             * the request's body. So we'll pick up whatever that was provided in the top-level.
+             */
+            if (crossProjectEnabled.orElse(false) && searchRequest.getProjectRouting() == null && projectRouting != null) {
+                searchRequest.setProjectRouting(projectRouting);
+            }
+
             // move pointers
             from = nextMarker + 1;
             // now for the body
@@ -306,6 +385,33 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
             // move pointers
             from = nextMarker + 1;
         }
+    }
+
+    private static void applySearchRoutingOrSlice(SearchRequest searchRequest, @Nullable SliceIndexing.ParsedRouting parsedRouting) {
+        if (parsedRouting == null) {
+            return;
+        }
+        searchRequest.routing(parsedRouting.routing());
+        searchRequest.searchSlice(
+            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+        );
+    }
+
+    private static SliceIndexing.ParsedRouting parseSearchRoutingOrSlice(String sliceValue) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException("request does not support [_slice]");
+        }
+        if (SliceIndexing.SLICE_ALL.equals(sliceValue)) {
+            return new SliceIndexing.ParsedRouting(null, true);
+        }
+        final String[] slices = Strings.splitStringByCommaToArray(sliceValue);
+        if (slices.length == 0) {
+            throw new IllegalArgumentException("invalid [_slice] value: value must be non-empty");
+        }
+        for (String slice : slices) {
+            SliceIndexing.validateUserSliceValue(slice);
+        }
+        return new SliceIndexing.ParsedRouting(String.join(",", slices), true);
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -361,7 +467,9 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
         if (request.preference() != null) {
             xContentBuilder.field("preference", request.preference());
         }
-        if (request.routing() != null) {
+        if (request.isRoutingFromSlice()) {
+            xContentBuilder.field(SliceIndexing.PARAM_NAME, request.searchSlice());
+        } else if (request.routing() != null) {
             xContentBuilder.field("routing", request.routing());
         }
         if (request.allowPartialSearchResults() != null) {
@@ -381,5 +489,17 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
+    }
+
+    public void setProjectRouting(String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    public String getProjectRouting() {
+        return projectRouting;
     }
 }

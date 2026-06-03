@@ -18,15 +18,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 import org.elasticsearch.health.node.selection.HealthNode;
 
 import java.util.List;
-
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING;
 
 /**
  * Provides the infrastructure to send errors encountered by indices managed by data stream lifecycle service to the health node.
@@ -59,13 +57,16 @@ public class DataStreamLifecycleHealthInfoPublisher {
         this.client = client;
         this.clusterService = clusterService;
         this.errorStore = errorStore;
-        this.signallingErrorRetryInterval = DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.signallingErrorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
         this.maxNumberOfErrorsToPublish = DATA_STREAM_LIFECYCLE_MAX_ERRORS_TO_PUBLISH_SETTING.get(settings);
     }
 
     public void init() {
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING, this::updateSignallingRetryThreshold);
+            .addSettingsUpdateConsumer(
+                DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
+                this::updateSignallingRetryThreshold
+            );
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DATA_STREAM_LIFECYCLE_MAX_ERRORS_TO_PUBLISH_SETTING, this::updateNumberOfErrorsToPublish);
     }
@@ -80,7 +81,7 @@ public class DataStreamLifecycleHealthInfoPublisher {
 
     /**
      * Publishes the DSL errors that have passed the signaling threshold (as defined by
-     * {@link org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
+     * {@link DataStreamLifecycleErrorStore#DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING}
      */
     public void publishDslErrorEntries(ActionListener<AcknowledgedResponse> actionListener) {
         DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterService.state());

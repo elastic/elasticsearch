@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -29,6 +30,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -143,6 +146,23 @@ public class RLikeList extends RegexMatch<RLikePatternList> {
             context,
             getLuceneQueryDescription()
         );
+    }
+
+    /**
+     * Pushes down string casing optimization by filtering patterns using the provided predicate.
+     * Returns a new RegexMatch or a Literal.FALSE if none match.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        List<RLikePattern> filtered = pattern().patternList()
+            .stream()
+            .filter(p -> matchesCaseFn.test(p.pattern()))
+            .collect(Collectors.toList());
+        // none of the patterns matches the case of the field, return false
+        if (filtered.isEmpty()) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new RLikeList(source(), unwrappedField, new RLikePatternList(filtered), true);
     }
 
     @Override

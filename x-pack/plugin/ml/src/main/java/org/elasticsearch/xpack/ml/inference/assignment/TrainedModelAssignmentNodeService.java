@@ -62,7 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
@@ -274,20 +274,27 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
         logger.debug(() -> format("[%s] Forcefully stopping deployment due to reason %s", task.getDeploymentId(), reason));
 
-        stopAndNotifyHelper(task, reason, listener, deploymentManager::stopDeployment);
+        stopAndNotifyHelper(task, reason, listener, (t, l) -> {
+            deploymentManager.stopDeployment(t);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        });
     }
 
     private void stopAndNotifyHelper(
         TrainedModelDeploymentTask task,
         String reason,
         ActionListener<AcknowledgedResponse> listener,
-        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc
+        BiConsumer<TrainedModelDeploymentTask, ActionListener<AcknowledgedResponse>> stopDeploymentFunc
     ) {
         // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful stopping of the
         // process while we are attempting to forcefully stop the native process
         // The graceful stopping will only occur if there is an entry in the map
-        deploymentIdToTask.remove(task.getDeploymentId());
-        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(task.getDeploymentId(), reason, listener);
+        unregisterTaskAndRemoveFromMap(task);
+        ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
+            task.getDeploymentId(),
+            reason,
+            listener
+        );
 
         updateStoredState(
             task.getDeploymentId(),
@@ -375,12 +382,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
         TrainedModelAssignmentMetadata modelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
         final String currentNode = event.state().nodes().getLocalNodeId();
-        final boolean isNewAllocationSupported = event.state()
-            .getMinTransportVersion()
-            .onOrAfter(TrainedModelAssignmentClusterService.DISTRIBUTED_MODEL_ALLOCATION_TRANSPORT_VERSION);
         final Set<String> shuttingDownNodes = Collections.unmodifiableSet(event.state().metadata().nodeShutdowns().getAllNodeIds());
 
-        if (isResetMode == false && isNewAllocationSupported) {
+        if (isResetMode == false) {
             updateNumberOfAllocations(modelAssignmentMetadata);
         }
 
@@ -388,7 +392,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
             if (routingInfo != null) {
                 // Add new models to start loading if the assignment is not stopping
-                if (isNewAllocationSupported && trainedModelAssignment.getAssignmentState() != AssignmentState.STOPPING) {
+                if (trainedModelAssignment.getAssignmentState() != AssignmentState.STOPPING) {
                     if (shouldAssignmentBeRestarted(routingInfo, trainedModelAssignment.getDeploymentId())) {
                         prepareAssignmentForRestart(trainedModelAssignment);
                     }
@@ -441,8 +445,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void prepareAssignmentForRestart(TrainedModelAssignment trainedModelAssignment) {
         // This is a failed assignment and we are restarting it. For this we need to remove the task first.
-        taskManager.unregister(deploymentIdToTask.get(trainedModelAssignment.getDeploymentId()));
-        deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
+        TrainedModelDeploymentTask task = deploymentIdToTask.get(trainedModelAssignment.getDeploymentId());
+        if (task != null) {
+            unregisterTaskAndRemoveFromMap(task);
+        }
     }
 
     private boolean shouldLoadModel(RoutingInfo routingInfo, String deploymentId, boolean isResetMode) {
@@ -526,7 +532,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (task == null) {
             logger.debug(
                 () -> format(
-                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exit",
+                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exist",
                     deploymentId,
                     currentNode
                 )
@@ -544,16 +550,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             )
         );
 
-        ActionListener<Void> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
+        ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
             task.getDeploymentId(),
             NODE_IS_SHUTTING_DOWN,
             routingStateListener
         );
 
-        stopDeploymentAfterCompletingPendingWorkAsync(task, notifyDeploymentOfStopped);
+        stopDeploymentAfterCompletingPendingWorkAsync(task, NODE_IS_SHUTTING_DOWN, notifyDeploymentOfStopped);
     }
 
-    private ActionListener<Void> updateRoutingStateToStoppedListener(
+    private ActionListener<AcknowledgedResponse> updateRoutingStateToStoppedListener(
         String deploymentId,
         String reason,
         ActionListener<AcknowledgedResponse> listener
@@ -576,11 +582,18 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         // This model is not routed to the current node at all
         TrainedModelDeploymentTask task = deploymentIdToTask.remove(deploymentId);
         if (task == null) {
+            logger.debug(
+                () -> format(
+                    "[%s] Unable to stop unreferenced deployment for node %s because task does not exist",
+                    deploymentId,
+                    currentNode
+                )
+            );
             return;
         }
 
         logger.debug(() -> format("[%s] Stopping unreferenced deployment for node %s", deploymentId, currentNode));
-        stopDeploymentAsync(
+        stopDeploymentAfterCompletingPendingWorkAsync(
             task,
             NODE_NO_LONGER_REFERENCED,
             ActionListener.wrap(
@@ -590,35 +603,49 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
-        stopDeploymentHelper(task, reason, deploymentManager::stopDeployment, listener);
+    private void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<AcknowledgedResponse> listener) {
+        stopDeploymentHelper(task, reason, (t, l) -> {
+            deploymentManager.stopDeployment(t);
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }, listener);
     }
 
     private void stopDeploymentHelper(
         TrainedModelDeploymentTask task,
         String reason,
-        Consumer<TrainedModelDeploymentTask> stopDeploymentFunc,
-        ActionListener<Void> listener
+        BiConsumer<TrainedModelDeploymentTask, ActionListener<AcknowledgedResponse>> stopDeploymentFunc,
+        ActionListener<AcknowledgedResponse> listener
     ) {
         if (stopped) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
             return;
         }
         task.markAsStopped(reason);
+        unregisterTaskAndRemoveFromMap(task);
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeploymentFunc.accept(task);
-                taskManager.unregister(task);
-                deploymentIdToTask.remove(task.getDeploymentId());
-                listener.onResponse(null);
+                stopDeploymentFunc.accept(task, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         });
     }
 
-    private void stopDeploymentAfterCompletingPendingWorkAsync(TrainedModelDeploymentTask task, ActionListener<Void> listener) {
-        stopDeploymentHelper(task, NODE_IS_SHUTTING_DOWN, deploymentManager::stopAfterCompletingPendingWork, listener);
+    private void stopDeploymentAfterCompletingPendingWorkAsync(
+        TrainedModelDeploymentTask task,
+        String reason,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
+    }
+
+    private void unregisterTaskAndRemoveFromMap(TrainedModelDeploymentTask task) {
+        // Unregister synchronously to maintain the invariant: if deploymentIdToTask has no entry for a deployment,
+        // then taskManager has no task for that deployment. This prevents a subsequent clusterChanged() from
+        // creating a duplicate task while the old one is still registered.
+        taskManager.unregister(task);
+        deploymentIdToTask.remove(task.getDeploymentId());
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {
@@ -702,7 +729,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (deploymentIdToTask.putIfAbsent(taskParams.getDeploymentId(), task) == null) {
             loadingModels.offer(task);
         } else {
-            // If there is already a task for the deployment, unregister the new task
+            logger.warn(
+                () -> format(
+                    "[%s] attempted to load model [%s] but a task already exists for this deployment; unregistering duplicate",
+                    taskParams.getDeploymentId(),
+                    taskParams.getModelId()
+                )
+            );
             taskManager.unregister(task);
         }
     }
@@ -761,6 +794,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void updateStoredState(String deploymentId, RoutingInfoUpdate update, ActionListener<AcknowledgedResponse> listener) {
         if (stopped) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
             return;
         }
         trainedModelAssignmentService.updateModelAssignmentState(

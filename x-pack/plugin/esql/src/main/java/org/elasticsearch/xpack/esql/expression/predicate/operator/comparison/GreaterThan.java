@@ -40,10 +40,10 @@ public class GreaterThan extends EsqlBinaryComparison
         Map.entry(DataType.UNSIGNED_LONG, GreaterThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, GreaterThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, GreaterThanLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, GreaterThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, GreaterThanKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, GreaterThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, GreaterThanBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -58,12 +58,34 @@ public class GreaterThan extends EsqlBinaryComparison
         Source source,
         @Param(
             name = "lhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression left,
         @Param(
             name = "rhs",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            type = {
+                "aggregate_metric_double",
+                "boolean",
+                "date",
+                "double",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "An expression."
         ) Expression right
     ) {
@@ -152,8 +174,8 @@ public class GreaterThan extends EsqlBinaryComparison
         return lhs > rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) > 0;
     }
 }

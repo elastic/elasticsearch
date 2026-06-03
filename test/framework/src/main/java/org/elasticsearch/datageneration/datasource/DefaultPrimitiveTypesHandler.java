@@ -59,7 +59,7 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
-        return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
+        return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween(0, 50));
     }
 
     @Override

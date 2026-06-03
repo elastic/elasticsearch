@@ -18,7 +18,17 @@ public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiv
 
     @Override
     Query getDiversifyingChildrenKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
-        return new DiversifyingChildrenIVFKnnFloatVectorQuery(fieldName, queryVector, k, k, childFilter, parentBitSet, -1);
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            fieldName,
+            queryVector,
+            k,
+            k,
+            childFilter,
+            parentBitSet,
+            0,
+            random().nextBoolean(),
+            1.0f
+        );
     }
 
     @Override

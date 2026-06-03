@@ -37,7 +37,7 @@ public class CohereRerankModel extends CohereModel {
             modelId,
             CohereRerankServiceSettings.fromMap(serviceSettings, context),
             CohereRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -47,11 +47,18 @@ public class CohereRerankModel extends CohereModel {
         CohereRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(modelId, TaskType.RERANK, CohereService.NAME, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public CohereRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((CohereRerankServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 

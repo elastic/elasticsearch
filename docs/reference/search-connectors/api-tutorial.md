@@ -6,7 +6,6 @@ applies_to:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
-description: Use APIs to synchronize data from a PostgreSQL data source into Elasticsearch.
 ---
 
 # Connector API tutorial [es-connectors-tutorial-api]
@@ -35,13 +34,13 @@ If you’re just getting started with connectors, you might want to start in the
 If you already have an {{es}} deployment on Elastic Cloud (*Hosted deployment* or *Serverless project*), you’re good to go. To spin up {{es}} in local dev mode in Docker for testing purposes, open the collapsible section below.
 
 :::::{dropdown} Run local {{es}} in Docker
-```sh
+```sh subs=true
 docker run -p 9200:9200 -d --name elasticsearch \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}}
 ```
 
 ::::{warning}
@@ -63,6 +62,7 @@ Let’s test that we can access {{es}}:
 ```sh
 curl -s -X GET -u elastic:$ELASTIC_PASSWORD http://localhost:9200
 ```
+% NOTCONSOLE
 
 Note: With {{es}} running locally, you will need to pass the username and password to authenticate against {{es}} in the configuration file for the connector service.
 
@@ -85,6 +85,7 @@ curl -s -X PUT http://localhost:9200/_connector/my-connector-id \
   "service_type": "postgresql"
 }'
 ```
+% NOTCONSOLE
 
 Refer to [](/reference/search-connectors/es-postgresql-connector-client-tutorial.md) for instructions on creating an API key.
 
@@ -116,6 +117,7 @@ Run the following command to download the file to the `~/data` directory:
 ```sh
 curl -L https://raw.githubusercontent.com/lerocha/chinook-database/master/ChinookDatabase/DataSources/Chinook_PostgreSql.sql -o ~/data/Chinook_PostgreSql.sql
 ```
+% NOTCONSOLE
 
 Now we need to import the example data into the PostgreSQL container and create the tables.
 
@@ -136,9 +138,6 @@ The `album` table should contain **347** entries and the `artist` table should c
 
 ::::
 
-
-This tutorial uses a very basic setup. To use advanced functionality such as filtering rules and incremental syncs, enable `track_commit_timestamp` on your PostgreSQL database. Refer to postgresql-connector-client-tutorial for more details.
-
 Now it’s time for the real fun! We’ll set up a connector to create a searchable mirror of our PostgreSQL data in {{es}}.
 
 ## Create a connector [es-connectors-tutorial-api-create-connector]
@@ -155,10 +154,10 @@ PUT _connector/my-connector-id
   "service_type": "postgresql"
 }
 ```
+% TEST[skip:TODO]
 
 ::::{tip}
 `service_type` refers to the third-party data source you’re connecting to.
-
 ::::
 
 
@@ -210,6 +209,7 @@ POST /_security/api_key
   }
 }
 ```
+% TEST[skip:TODO]
 
 You’ll need to use the `encoded` value from the response as the `elasticsearch.api_key` in your configuration file.
 
@@ -238,21 +238,22 @@ connectors:
     service_type: "postgresql"
 ```
 
-We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example) in the `elastic/connectors` repository for reference.
+We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example) in the `elastic/connectors` repository for reference.
 
-### Run the service [es-connectors-tutorial-api-run-connector-service]
+
+#### Run the connector service [es-connectors-tutorial-api-run-connector-service]
 
 Now that we have the configuration file set up, we can run the connector service locally. This will point your connector instance at your {{es}} deployment.
 
 Run the following Docker command to start the connector service:
 
-```sh
+```sh subs=true
 docker run \
 -v "$HOME/connectors-config:/config" \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -262,6 +263,8 @@ Verify your connector is connected by getting the connector status (should be `n
 ```console
 GET _connector/my-connector-id
 ```
+% TEST[skip:TODO]
+
 
 ## Configure the connector [es-connectors-tutorial-api-update-connector-configuration]
 
@@ -277,7 +280,7 @@ Configuration updates via the API are possible only *after schema registration*.
 ::::
 
 
-Run the following API call to configure the connector with our connectors-postgresql-client-configuration,PostgreSQL configuration details:
+Run the following API call to configure the connector with our PostgreSQL configuration details:
 
 ```console
 PUT _connector/my-connector-id/_configuration
@@ -293,10 +296,10 @@ PUT _connector/my-connector-id/_configuration
   }
 }
 ```
+% TEST[skip:TODO]
 
 ::::{note}
-Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual connectors-references,connector references for these configuration details.
-
+Configuration details are specific to the connector type. The keys and values will differ depending on which third-party data source you’re connecting to. Refer to the individual [connector references](/reference/search-connectors/connector-reference.md) for these configuration details.
 ::::
 
 ## Sync your data [es-connectors-tutorial-api-sync]
@@ -310,6 +313,7 @@ POST _connector/_sync_job
     "job_type": "full"
 }
 ```
+% TEST[skip:TODO]
 
 To store data in {{es}}, the connector needs to create an index. When we created the connector, we specified the `music` index. The connector will create and configure this {{es}} index before launching the sync job.
 
@@ -325,6 +329,7 @@ Use the [get sync job API]({{es-apis}}operation/operation-connector-sync-job-get
 ```console
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ```
+% TEST[skip:TODO]
 
 The job document will be updated as the sync progresses, you can check it as often as you’d like to poll for updates.
 
@@ -337,12 +342,15 @@ Verify that data is present in the `music` index with the following API call:
 ```console
 GET music/_count
 ```
+% TEST[skip:TODO]
 
 {{es}} stores data in documents, which are JSON objects. List the individual documents with the following API call:
 
 ```console
 GET music/_search
 ```
+% TEST[skip:TODO]
+
 
 ## Troubleshoot [es-connectors-tutorial-api-troubleshooting]
 
@@ -351,6 +359,7 @@ Use the following command to inspect the latest sync job’s status:
 ```console
 GET _connector/_sync_job?connector_id=my-connector-id&size=1
 ```
+% TEST[skip:TODO]
 
 If the connector encountered any errors during the sync, you’ll find these in the `error` field.
 
@@ -362,12 +371,14 @@ To delete the connector and its associated sync jobs run this command:
 ```console
 DELETE _connector/my-connector-id&delete_sync_jobs=true
 ```
+% TEST[skip:TODO]
 
 This won’t delete the Elasticsearch index that was created by the connector to store the data. Delete the `music` index by running the following command:
 
 ```console
 DELETE music
 ```
+% TEST[skip:TODO]
 
 To remove the PostgreSQL container, run the following commands:
 

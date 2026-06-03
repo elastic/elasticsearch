@@ -3,10 +3,28 @@ import { readFileSync, readdirSync } from "fs";
 import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
-import { BuildkitePipeline, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types";
-import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions";
+import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
+import { getBwcVersions, getSnapshotBwcVersions } from "./bwc-versions.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../..`);
+// Auto-retry configuration for PR pipelines.
+// - exit_status "-1": Agent/infrastructure failures (2 retries)
+// - signal_reason agent_stop: Agent stops (2 retries)
+// - exit_status "1": Test/build failures (1 retry with smart filtering)
+const AUTO_RETRY_CONFIG: BuildkiteRetry = {
+  automatic: [
+    { exit_status: "-1", limit: 2, signal_reason: "none" },
+    { exit_status: process.env.GCP_PREEMPTION_EXIT_CODE ?? "47", limit: 3, signal_reason: "none" }, // This is the spot preemption exit code
+    { signal_reason: "agent_stop", limit: 2 },
+    { exit_status: "1", limit: 1 },
+  ],
+  manual: {
+    allowed: true,
+    permit_on_passed: false,
+    reason: "Retry with smart test selection if desired",
+  },
+};
+
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../..`);
 
 const getArray = (strOrArray: string | string[] | undefined): string[] => {
   if (typeof strOrArray === "undefined") {
@@ -17,7 +35,7 @@ const getArray = (strOrArray: string | string[] | undefined): string[] => {
 };
 
 const labelCheckAllow = (pipeline: EsPipeline, labels: string[]): boolean => {
-  if (pipeline.config?.["allow-labels"]) {
+  if (pipeline.config?.["allow-labels"]?.length) {
     return getArray(pipeline.config["allow-labels"]).some((label) => labels.includes(label));
   }
   return true;
@@ -34,7 +52,7 @@ const labelCheckSkip = (pipeline: EsPipeline, labels: string[]): boolean => {
 const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["excluded-regions"]) {
     return !changedFiles.every((file) =>
-      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["excluded-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
@@ -44,10 +62,18 @@ const changedFilesExcludedCheck = (pipeline: EsPipeline, changedFiles: string[])
 const changedFilesIncludedCheck = (pipeline: EsPipeline, changedFiles: string[]): boolean => {
   if (pipeline.config?.["included-regions"]) {
     return changedFiles.every((file) =>
-      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region))
+      getArray(pipeline.config?.["included-regions"]).some((region) => file.match(region)),
     );
   }
   return true;
+};
+
+const checkTargetBranch = (pipeline: EsPipeline, targetBranch: string | undefined) => {
+  if (!targetBranch || !pipeline.config?.["skip-target-branches"]) {
+    return true;
+  }
+
+  return !getArray(pipeline.config["skip-target-branches"]).some((branch) => branch === targetBranch);
 };
 
 const triggerCommentCheck = (pipeline: EsPipeline): boolean => {
@@ -81,9 +107,31 @@ const doBwcTransforms = (step: BuildkitePipeline | BuildkiteStep) => {
   }
 };
 
+// Recursively inject retry configuration into all leaf steps (steps with a command, not group containers)
+const injectRetryIntoSteps = (steps: BuildkiteStep[]) => {
+  for (const step of steps) {
+    if (step.steps?.length) {
+      injectRetryIntoSteps(step.steps);
+    } else if (step.command && !step.retry) {
+      step.retry = AUTO_RETRY_CONFIG;
+    }
+  }
+};
+
+// Inject retry blocks into a pipeline when auto-retry config is explicitly enabled
+const injectAutoRetry = (pipeline: EsPipeline) => {
+  if (pipeline.config?.["auto-retry"] === false) {
+    return;
+  }
+
+  if (pipeline.steps) {
+    injectRetryIntoSteps(pipeline.steps);
+  }
+};
+
 export const generatePipelines = (
   directory: string = `${PROJECT_ROOT}/.buildkite/pipelines/pull-request`,
-  changedFiles: string[] = []
+  changedFiles: string[] = [],
 ) => {
   let defaults: EsPipelineConfig = { config: {} };
   defaults = parse(readFileSync(`${directory}/.defaults.yml`, "utf-8"));
@@ -119,7 +167,7 @@ export const generatePipelines = (
     console.log("Doing git fetch and getting merge-base");
     const mergeBase = execSync(
       `git fetch origin ${process.env["GITHUB_PR_TARGET_BRANCH"]}; git merge-base origin/${process.env["GITHUB_PR_TARGET_BRANCH"]} HEAD`,
-      { cwd: PROJECT_ROOT }
+      { cwd: PROJECT_ROOT },
     )
       .toString()
       .trim();
@@ -138,6 +186,7 @@ export const generatePipelines = (
   }
 
   let filters: ((pipeline: EsPipeline) => boolean)[] = [
+    (pipeline) => checkTargetBranch(pipeline, process.env["GITHUB_PR_TARGET_BRANCH"]),
     (pipeline) => labelCheckAllow(pipeline, labels),
     (pipeline) => labelCheckSkip(pipeline, labels),
     (pipeline) => changedFilesExcludedCheck(pipeline, changedFiles),
@@ -149,7 +198,7 @@ export const generatePipelines = (
   if (
     process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
     !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
-      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i
+      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i,
     )
   ) {
     filters = [triggerCommentCheck];
@@ -161,6 +210,7 @@ export const generatePipelines = (
 
   for (const pipeline of pipelines) {
     doBwcTransforms(pipeline);
+    injectAutoRetry(pipeline);
   }
 
   pipelines.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));

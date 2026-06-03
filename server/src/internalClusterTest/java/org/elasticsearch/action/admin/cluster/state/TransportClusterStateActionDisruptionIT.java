@@ -157,7 +157,6 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
         final String nonMasterNode = randomValueOtherThan(masterName, () -> randomFrom(internalCluster().getNodeNames()));
         awaitClusterState(
-            logger,
             nonMasterNode,
             state -> Optional.ofNullable(state.nodes().getMasterNode()).map(m -> m.getName().equals(masterName) == false).orElse(false)
         );

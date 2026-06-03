@@ -9,22 +9,35 @@
 
 package org.elasticsearch.index.translog;
 
+import org.apache.lucene.backward_codecs.store.EndiannessReverserUtil;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersions;
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.eirf.EirfRowReader;
+import org.elasticsearch.eirf.EirfRowToXContent;
+import org.elasticsearch.eirf.EirfRowXContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogOperationAsserter;
@@ -35,6 +48,10 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -60,6 +77,8 @@ import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER_SIZE;
@@ -86,6 +105,8 @@ import static org.elasticsearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUF
  * </p>
  */
 public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
+
+    public static final TransportVersion REORDERED_TRANSLOG_OPERATIONS = TransportVersion.fromName("reordered_translog_operations");
 
     /*
      * TODO
@@ -607,9 +628,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
-            writeOperationWithSize(out, operation);
-            final BytesReference bytes = out.bytes();
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+            writeHeaderWithSize(out, operation);
+            final BytesReference header = out.bytes();
+            Serialized serialized = Serialized.create(
+                header,
+                operation instanceof Index index ? ReleasableBytesReference.unwrap(index.source()) : null,
+                new CRC32()
+            );
+
             readLock.lock();
             try {
                 ensureOpen();
@@ -630,7 +657,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.add(bytes, operation.seqNo());
+                return current.add(serialized, operation.seqNo());
             } finally {
                 readLock.unlock();
             }
@@ -640,6 +667,100 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
+        }
+    }
+
+    /**
+     * Adds an EIRF row batch to the transaction log as a single record. The returned {@link Location}
+     * covers the whole batch; on read, {@link TranslogSnapshot#next()} explodes the record back into
+     * individual {@link Index} ops. Reading the batch back via {@link BaseTranslogReader#read(Location)}
+     * is not currently supported.
+     */
+    public Location add(final IndexBatch batch) throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
+            writeBatchHeaderWithSize(out, batch);
+            final BytesReference header = out.bytes();
+            Serialized serialized = Serialized.create(header, ReleasableBytesReference.unwrap(batch.batchData()), new CRC32());
+
+            readLock.lock();
+            try {
+                ensureOpen();
+                final long batchPrimaryTerm = batch.primaryTerm();
+                if (batchPrimaryTerm > current.getPrimaryTerm()) {
+                    assert false
+                        : "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]";
+                    throw new IllegalArgumentException(
+                        "Batch term is newer than the current term; "
+                            + "current term["
+                            + current.getPrimaryTerm()
+                            + "], batch term["
+                            + batchPrimaryTerm
+                            + "]"
+                    );
+                }
+                return current.addBatch(serialized, batch.ops());
+            } finally {
+                readLock.unlock();
+            }
+        } catch (final AlreadyClosedException | IOException ex) {
+            closeOnTragicEvent(ex);
+            throw ex;
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write batch [" + batch + "]", ex);
+        }
+    }
+
+    public record Serialized(BytesReference header, @Nullable BytesReference payload, int length, int checksum) {
+
+        public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
+            this(header, source, header.length() + (source == null ? 0 : source.length()) + 4, checksum);
+        }
+
+        public BytesReference toBytesReference() throws IOException {
+            byte[] checksumBytes = new byte[4];
+            DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
+            out.writeInt(checksum);
+            BytesArray checksum = new BytesArray(checksumBytes);
+            return payload == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, payload, checksum);
+        }
+
+        public static Serialized create(BytesReference header, @Nullable BytesReference source, Checksum checksum) throws IOException {
+            int length = header.length() + 4;
+            updateChecksum(header, checksum, 4);
+            if (source != null) {
+                updateChecksum(source, checksum, 0);
+                length += source.length();
+            }
+            return new Serialized(header, source, length, (int) checksum.getValue());
+        }
+
+        private static void updateChecksum(BytesReference bytes, Checksum checksum, final int bytesToSkip) throws IOException {
+            if (bytes.hasArray()) {
+                checksum.update(bytes.array(), bytes.arrayOffset() + bytesToSkip, bytes.length() - bytesToSkip);
+            } else {
+                int offset = bytesToSkip;
+                BytesRefIterator iterator = bytes.iterator();
+                BytesRef slice;
+                while ((slice = iterator.next()) != null) {
+                    int toSkip = Math.min(offset, slice.length);
+                    checksum.update(slice.bytes, slice.offset + toSkip, slice.length - toSkip);
+                    offset -= toSkip;
+                }
+            }
+        }
+
+        public void writeToTranslogBuffer(RecyclerBytesStreamOutput buffer) throws IOException {
+            header.writeTo(buffer);
+            if (payload != null) {
+                payload.writeTo(buffer);
+            }
+            buffer.writeInt(checksum);
         }
     }
 
@@ -1081,16 +1202,36 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * A generic interface representing an operation performed on the transaction log.
-     * Each is associated with a type.
+     * Marker for an entry on the transaction log. Either a single-document {@link Operation}
+     * (Index/Delete/NoOp) or an batch {@link IndexBatch} carrying N documents in one record.
      */
-    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
-        public enum Type {
+    public sealed interface Record permits Operation, IndexBatch {
+
+        long primaryTerm();
+
+        /**
+         * Wire-level tag for every record kind that can appear in a translog file. Both
+         * {@link Operation} sub-types and {@link IndexBatch} records share this single-byte tag
+         * space,.
+         * <p>
+         * Note: byte ids for the non-batch values must match the corresponding
+         * {@link Operation.Type} constants
+         */
+        enum Type {
             @Deprecated
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            BATCH((byte) 5);
+
+            // Verify that the ids shared with Operation.Type stay in sync.
+            static {
+                assert CREATE.id == Operation.Type.CREATE.id();
+                assert INDEX.id == Operation.Type.INDEX.id();
+                assert DELETE.id == Operation.Type.DELETE.id();
+                assert NO_OP.id == Operation.Type.NO_OP.id();
+            }
 
             private final byte id;
 
@@ -1108,8 +1249,53 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 2 -> INDEX;
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
+                    case 5 -> BATCH;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
+            }
+        }
+    }
+
+    /**
+     * Reads the type byte and the body of either an {@link Operation} or an {@link IndexBatch}.
+     * Does not consume a size prefix or verify a checksum — use
+     * {@link #readRecord(BufferedChecksumStreamInput)} when reading framed on-disk records.
+     */
+    public static Record readRecordBody(final StreamInput input) throws IOException {
+        final Record.Type type = Record.Type.fromId(input.readByte());
+        return switch (type) {
+            case CREATE, INDEX -> Index.readFrom(input);
+            case DELETE -> Delete.readFrom(input);
+            case NO_OP -> new NoOp(input);
+            case BATCH -> IndexBatch.readFrom(input);
+        };
+    }
+
+    /**
+     * A generic interface representing an operation performed on the transaction log.
+     * Each is associated with a type.
+     */
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
+
+        /**
+         * The type of a single-document operation.
+         */
+        // TODO: Eventually remove and migrate all usages to Record Type
+        public enum Type {
+            @Deprecated
+            CREATE((byte) 1),
+            INDEX((byte) 2),
+            DELETE((byte) 3),
+            NO_OP((byte) 4);
+
+            private final byte id;
+
+            Type(byte id) {
+                this.id = id;
+            }
+
+            public byte id() {
+                return this.id;
             }
         }
 
@@ -1130,20 +1316,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return seqNo;
         }
 
+        @Override
         public final long primaryTerm() {
             return primaryTerm;
         }
 
         /**
-         * Reads the type and the operation from the given stream.
+         * Reads the type and the operation from the given stream. Throws if the next record is an
+         * {@link IndexBatch}; use {@link Translog#readRecordBody(StreamInput)} for batch-aware reads.
          */
         public static Operation readOperation(final StreamInput input) throws IOException {
-            final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+            final Record.Type type = Record.Type.fromId(input.readByte());
             return switch (type) {
                 // the de-serialization logic in Index was identical to that of Create when create was deprecated
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case BATCH -> throw new IOException("Cannot read batch record as a single Operation");
             };
         }
 
@@ -1153,6 +1342,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             writeBody(out);
         }
 
+        /**
+         * Writes the operation header. This is the body excluding the index source. This method only differs from writeBody
+         * for the Index operation. This is because deletes and no-ops do not have a source.
+         */
+        protected abstract void writeHeader(int format, StreamOutput out) throws IOException;
+
+        /**
+         * Writes the entire operation body which comes after the byte indicating the operation type.
+         */
         protected abstract void writeBody(StreamOutput out) throws IOException;
     }
 
@@ -1161,9 +1359,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public static final int FORMAT_NO_PARENT = 9; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int FORMAT_NO_DOC_TYPE = FORMAT_NO_VERSION_TYPE + 1;
-        public static final int SERIALIZATION_FORMAT = FORMAT_NO_DOC_TYPE;
+        public static final int FORMAT_REORDERED = FORMAT_NO_DOC_TYPE + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_REORDERED;
 
-        private final String id;
+        private final BytesRef uid;
         private final long autoGeneratedIdTimestamp;
         private final long version;
         private final BytesReference source;
@@ -1172,30 +1371,47 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private static Index readFrom(StreamInput in) throws IOException {
             final int format = in.readVInt(); // SERIALIZATION_FORMAT
             assert format >= FORMAT_NO_PARENT : "format was: " + format;
-            String id = in.readString();
-            if (format < FORMAT_NO_DOC_TYPE) {
-                in.readString();
-                // can't assert that this is _doc because pre-8.0 indexes can have any name for a type
+            BytesRef uid;
+            BytesReference source;
+            String routing;
+            long version;
+            long autoGeneratedIdTimestamp;
+            long seqNo;
+            long primaryTerm;
+            if (format < FORMAT_REORDERED) {
+                uid = Uid.encodeId(in.readString());
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    in.readString();
+                    // can't assert that this is _doc because pre-8.0 indexes can have any name for a type
+                }
+                source = in.readBytesReference();
+                routing = in.readOptionalString();
+                version = in.readLong();
+                if (format < FORMAT_NO_VERSION_TYPE) {
+                    in.readByte(); // _version_type
+                }
+                autoGeneratedIdTimestamp = in.readLong();
+                seqNo = in.readLong();
+                primaryTerm = in.readLong();
+            } else {
+                version = in.readLong();
+                seqNo = in.readLong();
+                primaryTerm = in.readLong();
+                autoGeneratedIdTimestamp = in.readLong();
+                uid = in.readBytesRef();
+                routing = in.readOptionalString();
+                source = in.readBytesReference();
             }
-            BytesReference source = in.readBytesReference();
-            String routing = in.readOptionalString();
-            long version = in.readLong();
-            if (format < FORMAT_NO_VERSION_TYPE) {
-                in.readByte(); // _version_type
-            }
-            long autoGeneratedIdTimestamp = in.readLong();
-            long seqNo = in.readLong();
-            long primaryTerm = in.readLong();
-            return new Index(id, seqNo, primaryTerm, version, source, routing, autoGeneratedIdTimestamp);
+            return new Index(uid, seqNo, primaryTerm, version, source, routing, autoGeneratedIdTimestamp);
         }
 
         public Index(Engine.Index index, Engine.IndexResult indexResult) {
             this(
-                index.id(),
+                index.uid(),
                 indexResult.getSeqNo(),
                 index.primaryTerm(),
                 indexResult.getVersion(),
-                index.source(),
+                index.source().originalBytes(),
                 index.routing(),
                 index.getAutoGeneratedIdTimestamp()
             );
@@ -1210,8 +1426,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             String routing,
             long autoGeneratedIdTimestamp
         ) {
+            this(Uid.encodeId(id), seqNo, primaryTerm, version, source, routing, autoGeneratedIdTimestamp);
+        }
+
+        public Index(
+            BytesRef uid,
+            long seqNo,
+            long primaryTerm,
+            long version,
+            BytesReference source,
+            String routing,
+            long autoGeneratedIdTimestamp
+        ) {
             super(seqNo, primaryTerm);
-            this.id = id;
+            this.uid = uid;
             this.source = source;
             this.version = version;
             this.routing = routing;
@@ -1225,14 +1453,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return (2 * id.length()) + source.length() + (routing != null ? 2 * routing.length() : 0) + (4 * Long.BYTES); // timestamp,
-                                                                                                                          // seq_no,
-                                                                                                                          // primary_term,
-                                                                                                                          // and version
+            return uid.length + source.length() + (routing != null ? 2 * routing.length() : 0) + (4 * Long.BYTES); // timestamp,
+            // seq_no,
+            // primary_term,
+            // and version
         }
 
-        public String id() {
-            return this.id;
+        public BytesRef uid() {
+            return uid;
         }
 
         public String routing() {
@@ -1248,21 +1476,40 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
-                ? SERIALIZATION_FORMAT
-                : FORMAT_NO_VERSION_TYPE;
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
             out.writeVInt(format);
-            out.writeString(id);
-            if (format < FORMAT_NO_DOC_TYPE) {
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-            }
-            out.writeBytesReference(source);
-            out.writeOptionalString(routing);
             out.writeLong(version);
-            out.writeLong(autoGeneratedIdTimestamp);
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
+            out.writeLong(autoGeneratedIdTimestamp);
+            out.writeBytesRef(uid);
+            out.writeOptionalString(routing);
+            out.writeVInt(source == null ? 0 : source.length());
+        }
+
+        @Override
+        public void writeBody(final StreamOutput out) throws IOException {
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
+                ? SERIALIZATION_FORMAT
+                : FORMAT_NO_DOC_TYPE;
+            if (format < FORMAT_REORDERED) {
+                out.writeVInt(format);
+                out.writeString(Uid.decodeId(uid.bytes, uid.offset, uid.length));
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                }
+                out.writeBytesReference(source);
+                out.writeOptionalString(routing);
+                out.writeLong(version);
+                out.writeLong(autoGeneratedIdTimestamp);
+                out.writeLong(seqNo);
+                out.writeLong(primaryTerm);
+            } else {
+                writeHeader(format, out);
+                if (source != null) {
+                    source.writeTo(out);
+                }
+            }
         }
 
         @Override
@@ -1275,12 +1522,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
 
             Index other = (Index) o;
-            return autoGeneratedIdTimestamp == other.autoGeneratedIdTimestamp && equalsWithoutAutoGeneratedTimestamp(this, other);
+            return autoGeneratedIdTimestamp == other.autoGeneratedIdTimestamp && equalsWithoutAutoGeneratedTimestamp(this, other, true);
         }
 
         @Override
         public int hashCode() {
-            int result = id.hashCode();
+            int result = uid.hashCode();
             result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
@@ -1294,7 +1541,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public String toString() {
             return "Index{"
                 + "id='"
-                + id
+                + Uid.decodeId(uid.bytes, uid.offset, uid.length)
                 + '\''
                 + ", seqNo="
                 + seqNo
@@ -1311,15 +1558,43 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return autoGeneratedIdTimestamp;
         }
 
-        public static boolean equalsWithoutAutoGeneratedTimestamp(Translog.Index o1, Translog.Index o2) {
-            return o1.version == o2.version
-                && o1.seqNo == o2.seqNo
-                && o1.primaryTerm == o2.primaryTerm
-                && o1.id.equals(o2.id)
-                && o1.source.equals(o2.source)
-                && Objects.equals(o1.routing, o2.routing);
-        }
+        public static boolean equalsWithoutAutoGeneratedTimestamp(Translog.Index o1, Translog.Index o2, boolean checkSourceBytes) {
+            if (o1.version != o2.version
+                || o1.seqNo != o2.seqNo
+                || o1.primaryTerm != o2.primaryTerm
+                || o1.uid.equals(o2.uid) == false
+                || Objects.equals(o1.routing, o2.routing) == false) {
+                return false;
+            }
 
+            if (checkSourceBytes) {
+                return o1.source.equals(o2.source);
+            }
+
+            var s1 = Source.fromBytes(o1.source);
+            var s2 = Source.fromBytes(o2.source);
+            try (
+                var actualParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    s1.internalSourceRef(),
+                    s1.sourceContentType()
+                )
+            ) {
+                var actualMap = actualParser.map();
+                try (
+                    var expectedParser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        s2.internalSourceRef(),
+                        s2.sourceContentType()
+                    )
+                ) {
+                    var expectedMap = expectedParser.map();
+                    return expectedMap.equals(actualMap);
+                }
+            } catch (IOException exc) {
+                return false;
+            }
+        }
     }
 
     public static final class Delete extends Operation {
@@ -1328,35 +1603,47 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int FORMAT_NO_DOC_TYPE = FORMAT_NO_VERSION_TYPE + 1;    // since 8.0
-        public static final int SERIALIZATION_FORMAT = FORMAT_NO_DOC_TYPE;
+        public static final int FORMAT_REORDERED = FORMAT_NO_DOC_TYPE + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_REORDERED;
 
-        private final String id;
+        private final BytesRef uid;
         private final long version;
 
         private static Delete readFrom(StreamInput in) throws IOException {
             final int format = in.readVInt();// SERIALIZATION_FORMAT
             assert format >= FORMAT_6_0 : "format was: " + format;
-            if (format < FORMAT_NO_DOC_TYPE) {
-                in.readString();
-                // Can't assert that this is _doc because pre-8.0 indexes can have any name for a type
+            final BytesRef uid;
+            final long version;
+            final long seqNo;
+            final long primaryTerm;
+            if (format < FORMAT_REORDERED) {
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    in.readString();
+                    // Can't assert that this is _doc because pre-8.0 indexes can have any name for a type
+                }
+                uid = Uid.encodeId(in.readString());
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    final String docType = in.readString();
+                    assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
+                    in.readSlicedBytesReference(); // uid
+                }
+                version = in.readLong();
+                if (format < FORMAT_NO_VERSION_TYPE) {
+                    in.readByte(); // versionType
+                }
+                seqNo = in.readLong();
+                primaryTerm = in.readLong();
+            } else {
+                version = in.readLong();
+                seqNo = in.readLong();
+                primaryTerm = in.readLong();
+                uid = in.readBytesRef();
             }
-            String id = in.readString();
-            if (format < FORMAT_NO_DOC_TYPE) {
-                final String docType = in.readString();
-                assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
-                in.readSlicedBytesReference(); // uid
-            }
-            long version = in.readLong();
-            if (format < FORMAT_NO_VERSION_TYPE) {
-                in.readByte(); // versionType
-            }
-            long seqNo = in.readLong();
-            long primaryTerm = in.readLong();
-            return new Delete(id, seqNo, primaryTerm, version);
+            return new Delete(uid, seqNo, primaryTerm, version);
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
+            this(delete.uid(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
         }
 
         /** utility for testing */
@@ -1365,8 +1652,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(String id, long seqNo, long primaryTerm, long version) {
+            this(Uid.encodeId(id), seqNo, primaryTerm, version);
+        }
+
+        public Delete(BytesRef uid, long seqNo, long primaryTerm, long version) {
             super(seqNo, primaryTerm);
-            this.id = Objects.requireNonNull(id);
+            this.uid = Objects.requireNonNull(uid);
             this.version = version;
         }
 
@@ -1377,11 +1668,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long estimateSize() {
-            return (2 * id.length()) + (3 * Long.BYTES); // seq_no, primary_term, and version;
+            return uid.length + (3 * Long.BYTES); // seq_no, primary_term, and version;
         }
 
-        public String id() {
-            return id;
+        @Override
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
+            out.writeVInt(format);
+            out.writeLong(version);
+            out.writeLong(seqNo);
+            out.writeLong(primaryTerm);
+            out.writeBytesRef(uid);
+        }
+
+        public BytesRef uid() {
+            return uid;
         }
 
         public long version() {
@@ -1390,21 +1690,25 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeBody(final StreamOutput out) throws IOException {
-            final int format = out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
+            final int format = out.getTransportVersion().supports(REORDERED_TRANSLOG_OPERATIONS)
                 ? SERIALIZATION_FORMAT
-                : FORMAT_NO_VERSION_TYPE;
-            out.writeVInt(format);
-            if (format < FORMAT_NO_DOC_TYPE) {
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                : FORMAT_NO_DOC_TYPE;
+            if (format < FORMAT_REORDERED) {
+                out.writeVInt(format);
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                }
+                out.writeString(Uid.decodeId(uid));
+                if (format < FORMAT_NO_DOC_TYPE) {
+                    out.writeString(IdFieldMapper.NAME);
+                    out.writeBytesRef(uid);
+                }
+                out.writeLong(version);
+                out.writeLong(seqNo);
+                out.writeLong(primaryTerm);
+            } else {
+                writeHeader(format, out);
             }
-            out.writeString(id);
-            if (format < FORMAT_NO_DOC_TYPE) {
-                out.writeString(IdFieldMapper.NAME);
-                out.writeBytesRef(Uid.encodeId(id));
-            }
-            out.writeLong(version);
-            out.writeLong(seqNo);
-            out.writeLong(primaryTerm);
         }
 
         @Override
@@ -1418,12 +1722,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             Delete delete = (Delete) o;
 
-            return id.equals(delete.id) && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm && version == delete.version;
+            return uid.equals(delete.uid) && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm && version == delete.version;
         }
 
         @Override
         public int hashCode() {
-            int result = id.hashCode();
+            int result = uid.hashCode();
             result += 31 * Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
@@ -1432,7 +1736,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public String toString() {
-            return "Delete{" + "id='" + id + "', seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version + '}';
+            return "Delete{"
+                + "id='"
+                + Uid.decodeId(uid)
+                + "', seqNo="
+                + seqNo
+                + ", primaryTerm="
+                + primaryTerm
+                + ", version="
+                + version
+                + '}';
         }
     }
 
@@ -1456,10 +1769,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public void writeBody(final StreamOutput out) throws IOException {
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
             out.writeString(reason);
+        }
+
+        @Override
+        public void writeBody(final StreamOutput out) throws IOException {
+            // No versioning for No-op
+            writeHeader(-1, out);
         }
 
         @Override
@@ -1492,6 +1811,216 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public String toString() {
             return "NoOp{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", reason='" + reason + '\'' + '}';
+        }
+    }
+
+    /**
+     * A translog record holding an EIRF batch: a single on-disk record that carries N documents
+     * (the {@link #batchData} bytes) plus per-document metadata needed for replay.
+     */
+    public record IndexBatch(BytesReference batchData, long primaryTerm, List<Op> ops) implements Writeable, Record {
+
+        /**
+         * Wire-format version for {@link IndexBatch} records. The batch format is not yet considered
+         * stable; readers reject any value other than this constant rather than negotiating
+         * backwards compatibility.
+         */
+        public static final int EXPERIMENTAL_PRE_RELEASE = 0;
+
+        /**
+         * Per-document entry inside a batch. Either an {@link IndexOp} carrying the metadata
+         * needed to reconstruct a single {@link Index}, or a {@link NoOpOp} representing a
+         * primary-detected skip or a post-Lucene failure that consumed a seqNo.
+         */
+        public sealed interface Op extends Writeable permits IndexOp, NoOpOp {
+            byte INDEX_TAG = 0;
+            byte NO_OP_TAG = 1;
+
+            long seqNo();
+
+            static Op readFrom(StreamInput in) throws IOException {
+                byte tag = in.readByte();
+                return switch (tag) {
+                    case INDEX_TAG -> IndexOp.readFrom(in);
+                    case NO_OP_TAG -> NoOpOp.readFrom(in);
+                    default -> throw new IOException("unknown IndexBatch.Op tag [" + tag + "]");
+                };
+            }
+        }
+
+        /**
+         * {@code rowIndex} is the position of this op's source within {@link IndexBatch#batchData}.
+         */
+        public record IndexOp(
+            long version,
+            long seqNo,
+            long autoGeneratedIdTimestamp,
+            int rowIndex,
+            XContentType xContentType,
+            BytesRef uid,
+            @Nullable String routing
+        ) implements Op {
+
+            public IndexOp {
+                Objects.requireNonNull(uid, "uid");
+                Objects.requireNonNull(xContentType, "xContentType");
+                if (rowIndex < 0) {
+                    throw new IllegalArgumentException("rowIndex must be non-negative, got " + rowIndex);
+                }
+            }
+
+            static IndexOp readFrom(StreamInput in) throws IOException {
+                long version = in.readLong();
+                long seqNo = in.readLong();
+                long autoGeneratedIdTimestamp = in.readLong();
+                int rowIndex = in.readInt();
+                XContentType xContentType = XContentType.ofOrdinal(in.readByte());
+                BytesRef uid = in.readBytesRef();
+                String routing = in.readOptionalString();
+                return new IndexOp(version, seqNo, autoGeneratedIdTimestamp, rowIndex, xContentType, uid, routing);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeByte(INDEX_TAG);
+                out.writeLong(version);
+                out.writeLong(seqNo);
+                out.writeLong(autoGeneratedIdTimestamp);
+                out.writeInt(rowIndex);
+                out.writeByte((byte) xContentType.ordinal());
+                out.writeBytesRef(uid);
+                out.writeOptionalString(routing);
+            }
+        }
+
+        public record NoOpOp(long seqNo, String reason) implements Op {
+
+            public NoOpOp {
+                Objects.requireNonNull(reason, "reason");
+            }
+
+            static NoOpOp readFrom(StreamInput in) throws IOException {
+                long seqNo = in.readLong();
+                String reason = in.readString();
+                return new NoOpOp(seqNo, reason);
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeByte(NO_OP_TAG);
+                out.writeLong(seqNo);
+                out.writeString(reason);
+            }
+        }
+
+        public IndexBatch(BytesReference batchData, long primaryTerm, List<Op> ops) {
+            if (ops.isEmpty()) {
+                throw new IllegalArgumentException("a batch must contain at least one document");
+            }
+            this.batchData = Objects.requireNonNull(batchData, "batchData");
+            this.primaryTerm = primaryTerm;
+            this.ops = List.copyOf(ops);
+        }
+
+        public static IndexBatch readFrom(StreamInput in) throws IOException {
+            final int format = in.readVInt();
+            if (format != EXPERIMENTAL_PRE_RELEASE) {
+                throw new IOException("unsupported IndexBatch format [" + format + "], expected [" + EXPERIMENTAL_PRE_RELEASE + "]");
+            }
+            long primaryTerm = in.readLong();
+            int count = in.readInt();
+            List<Op> metas = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                metas.add(Op.readFrom(in));
+            }
+            BytesReference batchData = in.readBytesReference();
+            return new IndexBatch(batchData, primaryTerm, metas);
+        }
+
+        public int docCount() {
+            return ops.size();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(Record.Type.BATCH.id());
+            writeBody(out);
+        }
+
+        void writeBody(StreamOutput out) throws IOException {
+            out.writeVInt(EXPERIMENTAL_PRE_RELEASE);
+            out.writeLong(primaryTerm);
+            out.writeInt(ops.size());
+            for (Op op : ops) {
+                op.writeTo(out);
+            }
+            out.writeBytesReference(batchData);
+        }
+
+        /**
+         * Decodes this batch back into one {@link Operation} per entry, reconstructing each
+         * indexed source via {@link EirfRowToXContent#writeRowFromSchema} in the original
+         * {@link XContentType}. {@link NoOpOp} entries decode to {@link NoOp} records.
+         */
+        public List<Operation> explode() throws IOException {
+            try (EirfBatch eirf = new EirfBatch(batchData, () -> {})) {
+                EirfRowXContentParser.SchemaNode schemaTree = EirfRowXContentParser.buildSchemaTree(eirf.schema());
+                List<Operation> out = new ArrayList<>(ops.size());
+                for (int i = 0; i < ops.size(); i++) {
+                    Op meta = ops.get(i);
+                    if (meta instanceof IndexOp indexOp) {
+                        if (indexOp.rowIndex() >= eirf.docCount()) {
+                            throw new IOException(
+                                "IndexOp rowIndex [" + indexOp.rowIndex() + "] out of range for batch with [" + eirf.docCount() + "] rows"
+                            );
+                        }
+                        EirfRowReader row = eirf.getRowReader(indexOp.rowIndex());
+                        BytesReference source;
+                        try (XContentBuilder builder = XContentBuilder.builder(indexOp.xContentType().xContent())) {
+                            EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
+                            source = BytesReference.bytes(builder);
+                        }
+                        out.add(
+                            new Index(
+                                indexOp.uid,
+                                indexOp.seqNo,
+                                primaryTerm,
+                                indexOp.version,
+                                source,
+                                indexOp.routing,
+                                indexOp.autoGeneratedIdTimestamp
+                            )
+                        );
+                    } else if (meta instanceof NoOpOp noOp) {
+                        out.add(new NoOp(noOp.seqNo, primaryTerm, noOp.reason));
+                    }
+                }
+                return out;
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof IndexBatch other) {
+                return primaryTerm == other.primaryTerm && batchData.equals(other.batchData) && ops.equals(other.ops);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Long.hashCode(primaryTerm);
+            result = 31 * result + batchData.hashCode();
+            result = 31 * result + ops.hashCode();
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "IndexBatch{primaryTerm=" + primaryTerm + ", docCount=" + ops.size() + '}';
         }
     }
 
@@ -1530,16 +2059,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         ArrayList<Operation> operations = new ArrayList<>();
         int numOps = input.readInt();
         final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(input, source);
-        if (input.getTransportVersion().before(TransportVersions.V_8_8_0)) {
-            for (int i = 0; i < numOps; i++) {
-                operations.add(readOperation(checksumStreamInput));
-            }
-        } else {
-            for (int i = 0; i < numOps; i++) {
-                checksumStreamInput.resetDigest();
-                operations.add(Translog.Operation.readOperation(checksumStreamInput));
-                verifyChecksum(checksumStreamInput);
-            }
+        for (int i = 0; i < numOps; i++) {
+            checksumStreamInput.resetDigest();
+            operations.add(Operation.readOperation(checksumStreamInput));
+            verifyChecksum(checksumStreamInput);
         }
         return operations;
     }
@@ -1571,6 +2094,32 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Reads a length-prefixed translog record (Operation or IndexBatch) from a checksummed stream,
+     * verifying its trailing checksum. Mirrors {@link #readOperation(BufferedChecksumStreamInput)}.
+     */
+    public static Translog.Record readRecord(BufferedChecksumStreamInput in) throws IOException {
+        final Translog.Record record;
+        try {
+            final int opSize = in.readInt();
+            if (opSize < 4) {
+                throw new TranslogCorruptedException(in.getSource(), "operation size must be at least 4 but was: " + opSize);
+            }
+            in.resetDigest();
+            if (in.markSupported()) {
+                in.mark(opSize);
+                in.skip(opSize - 4);
+                verifyChecksum(in);
+                in.reset();
+            }
+            record = readRecordBody(in);
+            verifyChecksum(in);
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException(in.getSource(), "reached premature end of file, translog is truncated", e);
+        }
+        return record;
+    }
+
+    /**
      * Writes all operations in the given iterable to the given output stream including the size of the array
      * use {@link #readOperations(StreamInput, String)} to read it back.
      */
@@ -1580,13 +2129,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         if (size == 0) {
             return;
         }
-        if (outStream.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
-            for (Operation op : toWrite) {
-                writeOperationNoSize(checksumStreamOutput, op);
-            }
-        } else {
-            writeOperationsToStreamLegacyFormat(outStream, toWrite);
+        final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(outStream);
+        for (Operation op : toWrite) {
+            writeOperationNoSize(checksumStreamOutput, op);
         }
     }
 
@@ -1611,12 +2156,40 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeInt((int) checksum);
     }
 
-    public static void writeOperationWithSize(BytesStreamOutput out, Translog.Operation op) throws IOException {
+    public static void writeHeaderWithSize(RecyclerBytesStreamOutput out, Translog.Operation op) throws IOException {
+        switch (op) {
+            case Index index -> TranslogHeaderWriter.writeIndexHeader(out, index);
+            case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
+            case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
+        }
+    }
+
+    /**
+     * Writes a length-prefixed {@link IndexBatch} metadata header (size + BATCH type byte + all
+     * body fields except the {@code batchData} bytes themselves) to the given buffer. The
+     * {@code batchData} payload is intentionally omitted so the caller can pass it as
+     * {@link Serialized#payload}, avoiding an extra copy of the EIRF payload — mirroring how
+     * {@link TranslogHeaderWriter#writeIndexHeader} writes the {@link Index} header without the
+     * source body and the caller carries the source {@link BytesReference} separately.
+     *
+     * <p>The size prefix is back-patched to account for the deferred {@code batchData} bytes and
+     * the 4-byte trailing checksum, so on-disk layout is identical to writing the full body
+     * inline.
+     */
+    public static void writeBatchHeaderWithSize(RecyclerBytesStreamOutput out, Translog.IndexBatch batch) throws IOException {
         final long start = out.position();
         out.skip(Integer.BYTES);
-        writeOperationNoSize(new BufferedChecksumStreamOutput(out), op);
+        out.writeByte(Translog.Record.Type.BATCH.id());
+        out.writeVInt(IndexBatch.EXPERIMENTAL_PRE_RELEASE);
+        out.writeLong(batch.primaryTerm());
+        out.writeInt(batch.ops().size());
+        for (IndexBatch.Op op : batch.ops()) {
+            op.writeTo(out);
+        }
+        out.writeVInt(batch.batchData().length());
         final long end = out.position();
-        final int operationSize = (int) (end - Integer.BYTES - start);
+        // total operation size on disk = (bytes after the size int) + batchData bytes + 4-byte trailing checksum
+        final int operationSize = Math.toIntExact(end - Integer.BYTES - start) + batch.batchData().length() + Integer.BYTES;
         out.seek(start);
         out.writeInt(operationSize);
         out.seek(end);

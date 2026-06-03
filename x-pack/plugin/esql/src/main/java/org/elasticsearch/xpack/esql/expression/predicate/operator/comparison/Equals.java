@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -29,7 +31,11 @@ import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -50,10 +56,15 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.GEOHASH, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.KEYWORD, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, EqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.DENSE_VECTOR, EqualsDenseVectorEvaluator.Factory::new),
+        Map.entry(DataType.FLATTENED, EqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -69,13 +80,19 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "lhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -88,13 +105,19 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         @Param(
             name = "rhs",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -131,37 +154,52 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right() instanceof Literal rhs && left().dataType() == DataType.TEXT && left() instanceof FieldAttribute lhs) {
-            return translatableText(pushdownPredicates, lhs, ((BytesRef) rhs.value()).utf8ToString());
-        }
-        return super.translatable(pushdownPredicates);
-    }
-
-    private Translatable translatableText(LucenePushdownPredicates pushdownPredicates, FieldAttribute lhs, String rhs) {
-        if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(lhs, rhs)) {
-            return Translatable.YES_BUT_RECHECK_NEGATED;
-        }
-        if (pushdownPredicates.matchQueryYieldsCandidateMatchesForEquality(lhs)) {
-            return Translatable.RECHECK;
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
+                    return Translatable.YES_BUT_RECHECK_NEGATED;
+                }
+                if (pushdownPredicates.matchQueryYieldsCandidateMatchesForEquality(fa)) {
+                    return Translatable.RECHECK;
+                }
+            }
         }
         return super.translatable(pushdownPredicates);
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        if (right() instanceof Literal rhs && left().dataType() == DataType.TEXT && left() instanceof FieldAttribute lhs) {
-            return asQueryText(pushdownPredicates, handler, lhs, ((BytesRef) rhs.value()).utf8ToString());
-        }
-        return handler.forceToSingleValueQuery(left(), super.asQuery(pushdownPredicates, handler));
-    }
-
-    private Query asQueryText(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler, FieldAttribute lhs, String rhs) {
-        String name = handler.nameOf(lhs);
-        if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(lhs, rhs)) {
-            return new SingleValueQuery(new EqualsSyntheticSourceDelegate(source(), name, rhs), name, true);
-        }
-        if (pushdownPredicates.matchQueryYieldsCandidateMatchesForEquality(lhs)) {
-            return new MatchQuery(source(), name, rhs, Map.of(MatchQueryBuilder.OPERATOR_FIELD.getPreferredName(), "AND"));
+        if (right() instanceof Literal lit) {
+            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+                String value = ((BytesRef) lit.value()).utf8ToString();
+                if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
+                    String name = handler.nameOf(fa);
+                    return new SingleValueQuery(new EqualsSyntheticSourceDelegate(source(), name, value), name, true);
+                }
+                if (pushdownPredicates.matchQueryYieldsCandidateMatchesForEquality(fa)) {
+                    String name = handler.nameOf(fa);
+                    return new MatchQuery(source(), name, value, Map.of(MatchQueryBuilder.OPERATOR_FIELD.getPreferredName(), "AND"));
+                }
+            }
+            if (left() instanceof FieldExtract fe) {
+                Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+                if (keyedName.isPresent()) {
+                    return keyedName.map(kn -> {
+                        Object value = literalValueOf(right());
+                        if (value instanceof BytesRef br) {
+                            value = br.utf8ToString();
+                        }
+                        TermQuery termQuery = new TermQuery(source(), kn, value);
+                        return new SingleValueQuery(termQuery, kn, false);
+                    }).orElseThrow();
+                }
+            }
         }
         return super.asQuery(pushdownPredicates, handler);
     }
@@ -221,8 +259,8 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         return lhs == rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.equals(rhs);
     }
 

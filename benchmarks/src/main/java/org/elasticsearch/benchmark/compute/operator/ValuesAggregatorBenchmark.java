@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -76,12 +77,12 @@ public class ValuesAggregatorBenchmark {
         new BytesRef("Cairo") };
     static {
         assert KEYWORDS.length == UNIQUE_VALUES;
+        Utils.configureBenchmarkLogging();
     }
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
@@ -92,14 +93,10 @@ public class ValuesAggregatorBenchmark {
 
     static void selfTest() {
         // Smoke test all the expected values and force loading subclasses more like prod
-        try {
-            for (String groups : ValuesAggregatorBenchmark.class.getField("groups").getAnnotationsByType(Param.class)[0].value()) {
-                for (String dataType : ValuesAggregatorBenchmark.class.getField("dataType").getAnnotationsByType(Param.class)[0].value()) {
-                    run(Integer.parseInt(groups), dataType, 10);
-                }
+        for (String groups : Utils.possibleValues(ValuesAggregatorBenchmark.class, "groups")) {
+            for (String dataType : Utils.possibleValues(ValuesAggregatorBenchmark.class, "dataType")) {
+                run(Integer.parseInt(groups), dataType, 10);
             }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
         }
     }
 
@@ -113,24 +110,21 @@ public class ValuesAggregatorBenchmark {
     @Param({ BYTES_REF, INT, LONG })
     public String dataType;
 
-    private static Operator operator(DriverContext driverContext, int groups, String dataType) {
+    private static Operator operator(DriverContext driverContext, int groups, String dataType, AggregatorMode mode) {
         if (groups == 1) {
             return new AggregationOperator(
-                List.of(supplier(dataType).aggregatorFactory(AggregatorMode.SINGLE, List.of(0)).apply(driverContext)),
+                List.of(supplier(dataType).aggregatorFactory(mode, List.of(0)).apply(driverContext)),
                 driverContext
             );
         }
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
-        return new HashAggregationOperator(
-            List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
-            () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
-            driverContext
-        ) {
-            @Override
-            public Page getOutput() {
-                return super.getOutput();
-            }
-        };
+        return new HashAggregationOperator.Builder().mode(mode)
+            .aggregators(List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))))
+            .groups(groupSpec)
+            .partialEmit(1024, 1.0)
+            .maxPageSize(Integer.MAX_VALUE)
+            .build()
+            .get(driverContext);
     }
 
     private static AggregatorFunctionSupplier supplier(String dataType) {
@@ -177,6 +171,10 @@ public class ValuesAggregatorBenchmark {
 
                 // Check them
                 BytesRefBlock values = page.getBlock(1);
+                if (values.asOrdinals() == null) {
+                    // TODO restore ordinals results
+                    // throw new AssertionError(" expected ordinals; but got " + values);
+                }
                 for (int p = 0; p < groups; p++) {
                     checkExpectedBytesRef(prefix, values, p, expected.get(p));
                 }
@@ -341,18 +339,26 @@ public class ValuesAggregatorBenchmark {
 
     private static void run(int groups, String dataType, int opCount) {
         DriverContext driverContext = driverContext();
-        try (Operator operator = operator(driverContext, groups, dataType)) {
-            Page page = page(groups, dataType);
-            for (int i = 0; i < opCount; i++) {
-                operator.addInput(page.shallowCopy());
+        try (Operator finalAggregator = operator(driverContext, groups, dataType, AggregatorMode.FINAL)) {
+            try (Operator initialAggregator = operator(driverContext, groups, dataType, AggregatorMode.INITIAL)) {
+                Page rawPage = page(groups, dataType);
+                for (int i = 0; i < opCount; i++) {
+                    initialAggregator.addInput(rawPage.shallowCopy());
+                }
+                initialAggregator.finish();
+                Page intermediatePage = initialAggregator.getOutput();
+                for (int i = 0; i < opCount; i++) {
+                    finalAggregator.addInput(intermediatePage.shallowCopy());
+                }
             }
-            operator.finish();
-            checkExpected(groups, dataType, operator.getOutput());
+            finalAggregator.finish();
+            Page outputPage = finalAggregator.getOutput();
+            checkExpected(groups, dataType, outputPage);
         }
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 
     static int blockLength(int groups) {

@@ -40,6 +40,14 @@ gradlePlugin {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
+    taskStatusTracker {
+      id = 'elasticsearch.task-status-tracker'
+      implementationClass = 'org.elasticsearch.gradle.internal.ci.TaskStatusTrackerPlugin'
+    }
+    componentMetadataRules {
+      id = 'elasticsearch.component-metadata-rules'
+      implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -110,7 +118,7 @@ gradlePlugin {
     }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'
     }
     javaToolChainPlugin {
       id = 'elasticsearch.java-toolchain'
@@ -151,6 +159,10 @@ gradlePlugin {
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -220,6 +232,14 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
+    transportVersionReferencesPlugin {
+      id = 'elasticsearch.transport-version-references'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'
+    }
+    transportVersionResourcesPlugin {
+      id = 'elasticsearch.transport-version-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionResourcesPlugin'
+    }
   }
 }
 
@@ -273,6 +293,9 @@ dependencies {
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
     api(buildLibs.snakeyaml)
+    api("org.slf4j:slf4j-api:2.0.6") {
+      because("Align with what we use in production")
+    }
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)

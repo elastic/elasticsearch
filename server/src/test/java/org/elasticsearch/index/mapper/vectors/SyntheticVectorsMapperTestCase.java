@@ -25,13 +25,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 
-import static org.elasticsearch.index.IndexSettings.SYNTHETIC_VECTORS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
+
+    protected abstract Object getSampleValueForDocument(boolean binaryFormat);
+
     public void testSyntheticVectorsMinimalValidDocument() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, true, true, false, false, false);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -39,7 +41,6 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     public void testSyntheticVectorsFullDocument() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, true, true, true, true, false);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -47,7 +48,6 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     public void testSyntheticVectorsWithUnmappedFields() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, true, true, true, true, true);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -55,7 +55,6 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     public void testSyntheticVectorsMissingRootFields() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, false, false, false, false, false);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -63,7 +62,6 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     public void testSyntheticVectorsPartialNestedContent() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDoc(type, true, true, true, false, false);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -71,7 +69,6 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     public void testFlatPathDocument() throws IOException {
-        assumeTrue("feature flag must be enabled for synthetic vectors", SYNTHETIC_VECTORS);
         for (XContentType type : XContentType.values()) {
             BytesReference source = generateRandomDocWithFlatPath(type);
             assertSyntheticVectors(buildVectorMapping(), source, type);
@@ -168,7 +165,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
             }
 
             if (includeVector) {
-                builder.field("emb", getSampleValueForDocument());
+                builder.field("emb", getSampleValueForDocument(false));
                 // builder.array("emb", new float[] { 1, 2, 3 });
             }
 
@@ -193,13 +190,13 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
                 if (includeDoubleNested) {
                     builder.startObject();
                     // builder.array("emb", new float[] { 1, 2, 3 });
-                    builder.field("emb", getSampleValueForDocument());
+                    builder.field("emb", getSampleValueForDocument(false));
                     builder.field("field", "nested_val");
                     builder.startArray("double_nested");
                     for (int i = 0; i < 2; i++) {
                         builder.startObject();
                         // builder.array("emb", new float[] { 1, 2, 3 });
-                        builder.field("emb", getSampleValueForDocument());
+                        builder.field("emb", getSampleValueForDocument(false));
                         builder.field("field", "dn_field");
                         builder.endObject();
                     }
@@ -222,20 +219,20 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
 
             // Root-level fields
             builder.field("field", randomAlphaOfLengthBetween(1, 2));
-            builder.field("emb", getSampleValueForDocument());
+            builder.field("emb", getSampleValueForDocument(false));
             builder.field("another_field", randomAlphaOfLengthBetween(3, 5));
 
             // Simulated flattened "obj.nested"
             builder.startObject("obj.nested");
 
             builder.field("field", randomAlphaOfLengthBetween(4, 8));
-            builder.field("emb", getSampleValueForDocument());
+            builder.field("emb", getSampleValueForDocument(false));
 
             builder.startArray("double_nested");
             for (int i = 0; i < randomIntBetween(1, 2); i++) {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(4, 8));
-                builder.field("emb", getSampleValueForDocument());
+                builder.field("emb", getSampleValueForDocument(false));
                 builder.endObject();
             }
             builder.endArray();
@@ -248,7 +245,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     private void assertSyntheticVectors(String mapping, BytesReference source, XContentType xContentType) throws IOException {
-        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping);
         var parsedDoc = mapperService.documentMapper().parse(new SourceToParse("0", source, xContentType));
         try (var directory = newDirectory()) {
@@ -268,5 +265,15 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
                 assertToXContentEquivalent(source, searchSource.internalSourceRef(), xContentType);
             }
         }
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

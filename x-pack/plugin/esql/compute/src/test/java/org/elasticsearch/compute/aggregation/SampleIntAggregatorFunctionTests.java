@@ -14,9 +14,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceIntBlockSourceOperator;
 import org.elasticsearch.test.MixWithIncrement;
 
 import java.util.List;
@@ -50,8 +50,8 @@ public class SampleIntAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Set<Integer> inputValues = input.stream().flatMapToInt(AggregatorFunctionTestCase::allInts).boxed().collect(Collectors.toSet());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Set<Integer> inputValues = input.stream().flatMapToInt(p -> allInts(p.getBlock(0))).boxed().collect(Collectors.toSet());
         Integer[] resultValues = AggregatorFunctionTestCase.allInts(result).boxed().toArray(Integer[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
         assertThat(inputValues, hasItems(resultValues));
@@ -69,11 +69,9 @@ public class SampleIntAggregatorFunctionTests extends AggregatorFunctionTestCase
         // Repeat 1000x, count how often each number is sampled.
         int[] sampledCounts = new int[N];
         for (int iteration = 0; iteration < 1000; iteration++) {
-            List<Page> input = CannedSourceOperator.collectPages(
-                new SequenceIntBlockSourceOperator(driverContext().blockFactory(), IntStream.range(0, N))
-            );
-            List<Page> results = drive(operatorFactory.get(driverContext()), input.iterator(), driverContext());
-            for (Page page : results) {
+            var runner = new TestDriverRunner().builder(driverContext());
+            runner.input(new SequenceIntBlockSourceOperator(runner.blockFactory(), IntStream.range(0, N)));
+            for (Page page : runner.run(operatorFactory)) {
                 IntBlock block = page.getBlock(0);
                 for (int i = 0; i < block.getTotalValueCount(); i++) {
                     sampledCounts[block.getInt(i)]++;

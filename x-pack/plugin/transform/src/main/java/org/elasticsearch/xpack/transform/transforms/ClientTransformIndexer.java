@@ -25,11 +25,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -40,7 +43,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -49,6 +52,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
@@ -64,18 +69,22 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -85,9 +94,13 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final ParentTaskAssigningClient client;
+    private final CloudCredentialManager credentialManager;
+    private final TransformCloudCredentialManager transformCloudCredentialManager;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final boolean crossProjectEnabled;
+    private final Function<ProjectId, Boolean> hasLinkedProjects;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -128,6 +141,8 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.credentialManager = transformExtension.getCloudCredentialManager();
+        this.transformCloudCredentialManager = transformServices.cloudCredentialManager();
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
@@ -137,6 +152,13 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        this.hasLinkedProjects = transformServices.hasLinkedProjects();
+    }
+
+    private Client wrappedClient() {
+        return credentialManager.wrapClient(client, context.getPersistedCloudCredential());
     }
 
     @Override
@@ -154,9 +176,13 @@ class ClientTransformIndexer extends TransformIndexer {
         }
 
         if (getNextCheckpoint().getCheckpoint() != pitCheckpoint) {
-            closePointInTime();
+            closePointInTime(() -> doNextSearch(nextPhase));
+        } else {
+            doNextSearch(nextPhase);
         }
+    }
 
+    private void doNextSearch(ActionListener<SearchResponse> nextPhase) {
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
             ActionListener.wrap(searchRequest -> doSearch(searchRequest, nextPhase), nextPhase::onFailure)
@@ -173,7 +199,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
@@ -249,11 +275,14 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+    protected void doDeleteByQuery(
+        DeleteByQueryRequest deleteByQueryRequest,
+        ActionListener<BulkByPaginatedSearchResponse> responseListener
+    ) {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             DeleteByQueryAction.INSTANCE,
             deleteByQueryRequest,
             responseListener
@@ -294,7 +323,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             request,
             responseListener
@@ -309,7 +338,7 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
         TransformIndex.createDestinationIndex(
-            client,
+            wrappedClient(),
             auditor,
             indexNameExpressionResolver,
             clusterService.state(),
@@ -435,13 +464,54 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void afterFinishOrFailure() {
-        closePointInTime();
-        super.afterFinishOrFailure();
+        closePointInTime(super::afterFinishOrFailure);
+    }
+
+    /**
+     * Invoked from {@link TransformIndexer#onStart} after a fresh {@link TransformConfig} has been
+     * loaded from the index. If the {@code credentialId} on the config has changed since the last
+     * checkpoint, fetch the new persisted credential from storage, swap it onto the context, and
+     * then revoke + delete the prior credential at UIAM. The previous checkpoint has already
+     * drained (we're past its {@code afterFinishOrFailure}), so no in-flight call still references
+     * the credential being revoked.
+     *
+     * <p>If anything in this chain fails, propagate the failure — {@code onStart} treats it as a
+     * checkpoint failure, which {@code TransformFailureHandler} will retry per the configured
+     * {@code num_failure_retries}.
+     */
+    @Override
+    protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+        String priorId = priorConfig == null ? null : priorConfig.getCredentialId();
+        String newId = newConfig == null ? null : newConfig.getCredentialId();
+        if (Objects.equals(priorId, newId)) {
+            listener.onResponse(null);
+            return;
+        }
+
+        if (newId == null) {
+            // Config no longer carries a credentialId: drop the in-memory token and revoke + delete the prior.
+            PersistedCloudCredential displaced = context.replacePersistedCredential(null);
+            if (displaced != null) {
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            listener.onResponse(null);
+            return;
+        }
+
+        transformsConfigManager.getTransformCloudCredentialByTokenId(newId, false, listener.delegateFailureAndWrap((l, next) -> {
+            PersistedCloudCredential displaced = context.replacePersistedCredential(next);
+            if (displaced != null) {
+                // revokeCloseAndDelete revokes at UIAM, removes the storage doc, and closes the
+                // SecureString. Fire-and-forget: the new credential is already on the context.
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
+            }
+            l.onResponse(null);
+        }));
     }
 
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state())) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }
@@ -477,38 +547,54 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     protected void onStop() {
-        closePointInTime();
-        super.onStop();
+        closePointInTime(super::onStop);
     }
 
-    private void closePointInTime() {
-        for (String name : namedPits.keySet()) {
-            closePointInTime(name);
-        }
+    @Override
+    protected void onAbort() {
+        closePointInTime(super::onAbort);
     }
 
-    private void closePointInTime(String name) {
-        PointInTimeBuilder pit = namedPits.remove(name);
-
-        if (pit == null) {
-            return;
+    // visible for testing
+    void closePointInTime(Runnable runAfter) {
+        // we shouldn't need to do this, because a transform is only ever running on one thread anyway, but now that we're waiting for
+        // N PIT contexts to close, we want to make sure that the number N doesn't change in the underlying data structure so we can
+        // guarantee that we call runAfter
+        var pitEntries = new ArrayList<Entry<String, PointInTimeBuilder>>(namedPits.size());
+        var iter = namedPits.entrySet().iterator();
+        while (iter.hasNext()) {
+            pitEntries.add(iter.next());
+            iter.remove();
         }
 
+        if (pitEntries.isEmpty()) {
+            runAfter.run();
+        } else {
+            var countDownActionListener = new CountDownActionListener(pitEntries.size(), ActionListener.running(runAfter));
+            pitEntries.stream()
+                .map(Entry::getValue)
+                .filter(Objects::nonNull)
+                .forEach(pit -> closePointInTime(pit, countDownActionListener));
+        }
+
+    }
+
+    private void closePointInTime(PointInTimeBuilder pit, ActionListener<Void> listener) {
         BytesReference oldPit = pit.getEncodedId();
 
         ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportClosePointInTimeAction.TYPE,
             closePitRequest,
-            ActionListener.wrap(response -> {
+            ActionListener.runAfter(ActionListener.wrap(response -> {
                 logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
             }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
                 logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
-            })
+            }), () -> listener.onResponse(null))
         );
     }
 
@@ -519,7 +605,10 @@ class ClientTransformIndexer extends TransformIndexer {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
         // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || (crossProjectEnabled && hasLinkedProjects.apply(context.projectId()))) {
             listener.onResponse(namedSearchRequest);
             return;
         }
@@ -533,13 +622,16 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
-        // use index filter for better performance
-        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        // Only use index filter when there are no runtime mappings, because OpenPointInTimeRequest
+        // does not support runtime_mappings and the query may reference runtime fields
+        if (transformConfig.getSource().getRuntimeMappings().isEmpty()) {
+            pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        }
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
@@ -609,7 +701,7 @@ class ClientTransformIndexer extends TransformIndexer {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
-            client,
+            wrappedClient(),
             TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
@@ -635,7 +727,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener
@@ -654,7 +746,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
-                        client,
+                        wrappedClient(),
                         TransportSearchAction.TYPE,
                         originalRequest,
                         listener

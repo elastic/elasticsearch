@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -32,6 +32,8 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
         "planwrapper",
         PlanStreamWrapperQueryBuilder::new
     );
+
+    private static final TransportVersion ESQL_FIXED_INDEX_LIKE = TransportVersion.fromName("esql_fixed_index_like");
 
     private final Configuration configuration;
     private final QueryBuilder next;
@@ -55,7 +57,7 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ESQL_FIXED_INDEX_LIKE;
+        return ESQL_FIXED_INDEX_LIKE;
     }
 
     @Override
@@ -66,6 +68,15 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return next.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        Query query = next.toQuery(context, visitor);
+        if (query != null) {
+            query.visit(visitor);
+        }
+        return query;
     }
 
     @Override

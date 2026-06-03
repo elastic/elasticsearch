@@ -15,8 +15,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,13 +30,11 @@ import static org.hamcrest.Matchers.containsString;
 
 public abstract class RestEnrichTestCase extends ESRestTestCase {
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     private static final String sourceIndexName = "countries";
     private static final String policyName = "countries";
-
-    public enum Mode {
-        SYNC,
-        ASYNC
-    }
 
     protected final Mode mode;
 
@@ -195,7 +196,9 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
-        Map<String, Object> result = runEsql("from test1 | enrich countries | stats s = sum(number) by country_name");
+        Map<String, Object> result = runEsql(
+            "from test1 | enrich countries | stats s = sum(number) by country_name | sort s, country_name"
+        );
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
         assertResultMap(result, columns, values);
@@ -329,11 +332,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
             requestObject.filter(filter);
         }
         requestObject.query(query);
-        if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject);
-        } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject);
-        }
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), profileLogger, mode);
     }
 
     @Override

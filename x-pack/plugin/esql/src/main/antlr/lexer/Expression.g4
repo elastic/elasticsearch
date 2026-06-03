@@ -9,20 +9,23 @@ lexer grammar Expression;
 //
 // Expression - used by many commands
 //
-COMPLETION : 'completion'     -> pushMode(EXPRESSION_MODE);
-DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
-EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
-GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
-LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
-ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
-SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
-SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
-STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
-WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
-
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE);
-DEV_RERANK : {this.isDevVersion()}? 'rerank'           -> pushMode(EXPRESSION_MODE);
-
+COMPLETION : 'completion'               -> pushMode(EXPRESSION_MODE);
+DISSECT : 'dissect'                     -> pushMode(EXPRESSION_MODE);
+EVAL : 'eval'                           -> pushMode(EXPRESSION_MODE);
+GROK : 'grok'                           -> pushMode(EXPRESSION_MODE);
+LIMIT : 'limit'                         -> pushMode(EXPRESSION_MODE);
+RERANK : 'rerank'                       -> pushMode(EXPRESSION_MODE);
+ROW : 'row'                             -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'                       -> pushMode(EXPRESSION_MODE);
+SORT : 'sort'                           -> pushMode(EXPRESSION_MODE);
+STATS : 'stats'                         -> pushMode(EXPRESSION_MODE);
+WHERE : 'where'                         -> pushMode(EXPRESSION_MODE);
+URI_PARTS: 'uri_parts'                  -> pushMode(EXPRESSION_MODE);
+METRICS_INFO : 'metrics_info'           -> pushMode(EXPRESSION_MODE);
+REGISTERED_DOMAIN: 'registered_domain'  -> pushMode(EXPRESSION_MODE);
+TS_INFO : 'ts_info'                     -> pushMode(EXPRESSION_MODE);
+USER_AGENT : 'user_agent'               -> pushMode(EXPRESSION_MODE);
+TS_COLLAPSE : 'ts_collapse'             -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 
@@ -92,12 +95,13 @@ ASSIGN : '=';
 BY : 'by';
 CAST_OP : '::';
 COLON : ':';
+SEMICOLON : ';';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
 FIRST : 'first';
-IN: 'in';
+IN: 'in' -> pushMode(IN_MODE);
 IS: 'is';
 LAST : 'last';
 LIKE: 'like';
@@ -142,14 +146,10 @@ NAMED_OR_POSITIONAL_DOUBLE_PARAMS
     | DOUBLE_PARAMS DIGIT+
     ;
 
-// Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
-// way is to start in an explain command which then shifts us to expression
-// mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
-// the start of a multivalued field constant. To line up with the double pop
-// the explain mode needs, we double push when we see that.
+// TODO: We used to require the double expression mode to deal with EXPLAIN, but this doesn't use brackets anymore.
+// If at all, the double mode push is needed for parentheses below, as EXPLAIN and FORK use parentheses.
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
-
 LP : '(' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 RP : ')' -> popMode, popMode;
 
@@ -179,3 +179,5 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+mode IN_MODE;

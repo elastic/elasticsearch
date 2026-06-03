@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -35,7 +36,9 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
@@ -48,12 +51,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSourceTests.TestPhysicalPlanBuilder.from;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
+import static org.elasticsearch.xpack.esql.plugin.QueryPragmas.MAX_KEYWORD_SORT_FIELDS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -380,6 +385,114 @@ public class PushTopNToSourceTests extends ESTestCase {
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
 
+    public void testKeywordSortFieldsAboveLimit() {
+        // FROM index | SORT kw0, kw1, ..., kw10 | LIMIT 10
+        var builder = from("index");
+        for (int i = 0; i < 11; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        assertNoPushdownSort(builder, "when more than 10 keyword sort fields");
+    }
+
+    public void testKeywordSortFieldsBelowLimit() {
+        // FROM index | SORT kw0, kw1, ..., kw9 | LIMIT 10
+        var builder = from("index");
+        for (int i = 0; i < randomIntBetween(1, 9); i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        assertPushdownSort(builder);
+    }
+
+    public void testMixedTypeSortFieldsKeywordBelowLimit() {
+        // FROM index | SORT kw0, ..., kw9, integer | LIMIT 10
+        var builder = from("index");
+        for (int i = 0; i < 10; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.sort("integer");
+        builder.limit(10);
+        assertPushdownSort(builder);
+    }
+
+    public void testKeywordSortFieldsAboveLimitWithEval() {
+        // FROM index | EVAL x = keyword | SORT kw0, kw1, ..., kw10, x | LIMIT 10
+        var builder = from("index");
+        builder.eval("x", e -> e.field("keyword"));
+        for (int i = 0; i < 10; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.sort("x");
+        builder.limit(10);
+        assertNoPushdownSort(builder, "when more than 10 keyword sort fields with eval");
+    }
+
+    public void testKeywordSortFieldsBelowLimitWithEval() {
+        // FROM index | EVAL x = keyword | SORT kw0, kw1, ..., kw8, x | LIMIT 10
+        var builder = from("index");
+        builder.eval("x", e -> e.field("keyword"));
+        for (int i = 0; i < 9; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.sort("x");
+        builder.limit(10);
+        assertPushdownSort(builder, Map.of("x", "keyword"), List.of(EvalExec.class, EsQueryExec.class));
+    }
+
+    public void testPragmaIncreasesMaxKeywordSortFields() {
+        // 11 keyword sorts would normally be blocked, but pragma raises the limit
+        var builder = from("index");
+        for (int i = 0; i < 11; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        var pragmas = new QueryPragmas(Settings.builder().put(MAX_KEYWORD_SORT_FIELDS.getKey(), randomIntBetween(11, 20)).build());
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec, pragmas);
+        assertPushdownSort(result, builder.orders, null, List.of(EsQueryExec.class));
+    }
+
+    public void testPragmaDecreasesMaxKeywordSortFields() {
+        // 10 keyword sorts would normally be allowed, but pragma lowers the limit
+        var builder = from("index");
+        for (int i = 0; i < 10; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        var pragmas = new QueryPragmas(Settings.builder().put(MAX_KEYWORD_SORT_FIELDS.getKey(), randomIntBetween(1, 9)).build());
+
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec, pragmas);
+        assertNoPushdownSort(result, "query pragma limits keyword sorts to less than 10");
+    }
+
+    public void testPlannerSettingOverridesMaxKeywordSortFields() {
+        // 11 keyword sorts would normally be blocked, but planner setting raises the limit
+        var builder = from("index");
+        for (int i = 0; i < 11; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        var plannerSettings = PlannerSettings.DEFAULTS.maxKeywordSortFields(randomIntBetween(11, 20));
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec, QueryPragmas.EMPTY, plannerSettings);
+        assertPushdownSort(result, builder.orders, null, List.of(EsQueryExec.class));
+    }
+
+    public void testPlannerSettingLowersMaxKeywordSortFields() {
+        // 10 keyword sorts would normally be allowed, but planner setting lowers the limit
+        var builder = from("index");
+        for (int i = 0; i < 10; i++) {
+            builder.sort("kw" + i);
+        }
+        builder.limit(10);
+        var plannerSettings = PlannerSettings.DEFAULTS.maxKeywordSortFields(randomIntBetween(1, 9));
+        var topNExec = builder.build();
+        var result = pushTopNToSource(topNExec, QueryPragmas.EMPTY, plannerSettings);
+        assertNoPushdownSort(result, "planner setting limits keyword sorts to less than 10");
+    }
+
     private static void assertPushdownSort(TestPhysicalPlanBuilder builder) {
         assertPushdownSort(builder, null, List.of(EsQueryExec.class));
     }
@@ -416,8 +529,22 @@ public class PushTopNToSourceTests extends ESTestCase {
     }
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
-        var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, FoldContext.small(), SearchStats.EMPTY);
+        return pushTopNToSource(topNExec, QueryPragmas.EMPTY);
+    }
+
+    private static PhysicalPlan pushTopNToSource(TopNExec topNExec, QueryPragmas pragmas) {
+        return pushTopNToSource(topNExec, pragmas, PlannerSettings.DEFAULTS);
+    }
+
+    private static PhysicalPlan pushTopNToSource(TopNExec topNExec, QueryPragmas pragmas, PlannerSettings plannerSettings) {
+        var configuration = EsqlTestUtils.configuration(pragmas, "from test");
+        var ctx = new LocalPhysicalOptimizerContext(
+            plannerSettings,
+            new EsqlFlags(true),
+            configuration,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }
@@ -502,10 +629,16 @@ public class PushTopNToSourceTests extends ESTestCase {
             addFieldAttribute(fields, "double", DOUBLE);
             addFieldAttribute(fields, "keyword", KEYWORD);
             addFieldAttribute(fields, "location", GEO_POINT);
+            for (int i = 0; i < 20; i++) {
+                addFieldAttribute(fields, "kw" + i, KEYWORD);
+            }
         }
 
         private static void addFieldAttribute(Map<String, FieldAttribute> fields, String name, DataType type) {
-            fields.put(name, new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true)));
+            fields.put(
+                name,
+                new FieldAttribute(Source.EMPTY, name, new EsField(name, type, new HashMap<>(), true, EsField.TimeSeriesFieldType.NONE))
+            );
         }
 
         static TestPhysicalPlanBuilder from(String index) {
@@ -530,7 +663,15 @@ public class PushTopNToSourceTests extends ESTestCase {
                 }
                 refs.put(
                     alias.name(),
-                    new ReferenceAttribute(Source.EMPTY, alias.name(), alias.dataType(), Nullability.FALSE, alias.id(), alias.synthetic())
+                    new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        alias.name(),
+                        alias.dataType(),
+                        Nullability.FALSE,
+                        alias.id(),
+                        alias.synthetic()
+                    )
                 );
                 this.aliases.add(alias);
             }
@@ -582,7 +723,16 @@ public class PushTopNToSourceTests extends ESTestCase {
 
         public TopNExec build() {
             List<Attribute> attributes = new ArrayList<>(fields.values());
-            PhysicalPlan child = new EsQueryExec(Source.EMPTY, this.index, indexMode, Map.of(), attributes, null, null, List.of(), 0);
+            PhysicalPlan child = new EsQueryExec(
+                Source.EMPTY,
+                this.index,
+                indexMode,
+                attributes,
+                null,
+                List.of(),
+                0,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+            );
             if (aliases.isEmpty() == false) {
                 child = new EvalExec(Source.EMPTY, child, aliases);
             }
@@ -620,7 +770,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             }
 
             public Expression add(Expression left, Expression right) {
-                return new Add(Source.EMPTY, left, right);
+                return new Add(Source.EMPTY, left, right, TEST_CFG);
             }
 
             public Expression distance(String left, String right) {

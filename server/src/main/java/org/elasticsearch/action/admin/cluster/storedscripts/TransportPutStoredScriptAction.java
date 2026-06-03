@@ -61,7 +61,7 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        scriptService.putStoredScript(clusterService, request, listener);
+        scriptService.putStoredScript(clusterService, projectResolver.getProjectId(), request, listener);
     }
 
     @Override

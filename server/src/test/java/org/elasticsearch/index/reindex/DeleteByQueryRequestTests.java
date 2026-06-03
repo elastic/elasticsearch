@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<DeleteByQueryRequest> {
+public class DeleteByQueryRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<DeleteByQueryRequest> {
     public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
@@ -92,6 +92,21 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         ActionRequestValidationException e = deleteByQueryRequest.validate();
 
         assertThat(e, is(nullValue()));
+    }
+
+    public void testValidateGivenRemoteIndex() {
+        SearchRequest searchRequest = new SearchRequest();
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(searchRequest);
+        deleteByQueryRequest.indices("remote:index");
+        searchRequest.source().query(QueryBuilders.matchAllQuery());
+
+        ActionRequestValidationException e = deleteByQueryRequest.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-cluster calls are not supported in this context but remote indices were requested")
+        );
     }
 
     // TODO: Implement standard to/from x-content parsing tests

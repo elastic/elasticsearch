@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FilterPathTests extends ESTestCase {
@@ -402,5 +403,17 @@ public class FilterPathTests extends ESTestCase {
         assertEquals(nextFilters.size(), 0);
         assertTrue(filterPaths[0].matches("a.b.c.d", nextFilters, true));
         assertEquals(nextFilters.size(), 0);
+    }
+
+    public void testDepthChecking() {
+        final String atLimit = "x" + (".x").repeat(FilterPath.MAX_TREE_DEPTH);
+        final String aboveLimit = atLimit + ".y";
+
+        var paths = FilterPath.compile(Set.of(atLimit));
+        assertThat(paths, arrayWithSize(1));
+
+        var ex = expectThrows(IllegalArgumentException.class, () -> FilterPath.compile(Set.of(aboveLimit)));
+        assertThat(ex.getMessage(), containsString("maximum depth"));
+        assertThat(ex.getMessage(), containsString("[y]"));
     }
 }

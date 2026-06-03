@@ -11,11 +11,14 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
 
+import java.io.IOException;
 import java.nio.file.Path;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * A version of {@link EntitlementMetaTests} that tests {@link WithEntitlementsOnTestCode}.
@@ -30,13 +33,14 @@ public class WithEntitlementsOnTestCodeMetaTests extends ESTestCase {
      * is called from server code. The self-test should pass as usual.
      */
     public void testSelfTestPasses() {
-        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTest());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
         Elasticsearch.entitlementSelfTest();
     }
 
     @SuppressForbidden(reason = "Testing that a forbidden API is disallowed")
     public void testForbiddenActionDenied() {
-        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTest());
-        assertThrows(NotEntitledException.class, () -> Path.of(".").toRealPath());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
+        var e = assertThrows(IOException.class, () -> Path.of(".").toRealPath());
+        assertThat(e.getCause(), instanceOf(NotEntitledException.class));
     }
 }

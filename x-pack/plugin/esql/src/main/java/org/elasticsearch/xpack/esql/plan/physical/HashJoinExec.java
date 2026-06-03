@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,8 +32,8 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         "HashJoinExec",
         HashJoinExec::new
     );
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
-    private final List<Attribute> matchFields;
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
@@ -43,13 +44,11 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         Source source,
         PhysicalPlan left,
         PhysicalPlan hashData,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
         List<Attribute> addedFields
     ) {
         super(source, left, hashData);
-        this.matchFields = matchFields;
         this.leftFields = leftFields;
         this.rightFields = rightFields;
         this.addedFields = addedFields;
@@ -57,7 +56,9 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     private HashJoinExec(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
-        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            in.readNamedWriteableCollectionAsList(Attribute.class);
+        }
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -66,7 +67,9 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteableCollection(matchFields);
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            out.writeNamedWriteableCollection(leftFields);
+        }
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
@@ -79,10 +82,6 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     public PhysicalPlan joinData() {
         return right();
-    }
-
-    public List<Attribute> matchFields() {
-        return matchFields;
     }
 
     public List<Attribute> leftFields() {
@@ -142,12 +141,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public HashJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new HashJoinExec(source(), left, right, matchFields, leftFields, rightFields, addedFields);
+        return new HashJoinExec(source(), left, right, leftFields, rightFields, addedFields);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, HashJoinExec::new, left(), right(), matchFields, leftFields, rightFields, addedFields);
+        return NodeInfo.create(this, HashJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
     }
 
     @Override
@@ -162,14 +161,11 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
             return false;
         }
         HashJoinExec hash = (HashJoinExec) o;
-        return matchFields.equals(hash.matchFields)
-            && leftFields.equals(hash.leftFields)
-            && rightFields.equals(hash.rightFields)
-            && addedFields.equals(hash.addedFields);
+        return leftFields.equals(hash.leftFields) && rightFields.equals(hash.rightFields) && addedFields.equals(hash.addedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), matchFields, leftFields, rightFields, addedFields);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.List;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESTestCase.WithoutEntitlements // commands don't run with entitlements enforced
 public class RemoveIndexSettingsCommandIT extends ESIntegTestCase {
 
     static final Setting<Integer> FOO = Setting.intSetting("index.foo", 1, Setting.Property.IndexScope, Setting.Property.Dynamic);

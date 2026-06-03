@@ -15,15 +15,17 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -52,7 +54,7 @@ import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     public static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
+    public static final boolean DEFAULT_SKIP_UNAVAILABLE = RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE.getDefault(Settings.EMPTY);
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractMultiClustersTestCase.class);
 
@@ -94,6 +96,24 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return true;
     }
 
+    protected NodeConfigurationSource nodeConfigurationSource() {
+        return null;
+    }
+
+    protected String internalClientOrigin() {
+        return null;
+    }
+
+    private Client internalClient() {
+        return internalClient(LOCAL_CLUSTER);
+    }
+
+    private Client internalClient(String clusterAlias) {
+        String internalClientOrigin = internalClientOrigin();
+        Client client = client(clusterAlias);
+        return internalClientOrigin != null ? new OriginSettingClient(client, internalClientOrigin) : client;
+    }
+
     @Before
     public final void startClusters() throws Exception {
         if (clusterGroup != null && reuseClusters()) {
@@ -127,8 +147,9 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
                 0,
                 clusterName + "-",
                 mockPlugins,
-                Function.identity()
-            );
+                Function.identity(),
+                TEST_ENTITLEMENTS::addEntitledNodePaths
+            ).internalClientOrigin(internalClientOrigin());
             try {
                 cluster.beforeTest(random());
             } catch (Exception e) {
@@ -149,10 +170,19 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         ESIntegTestCase.awaitGlobalNettyThreadsFinish();
     }
 
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // Multi-cluster tests keep all clusters alive between test methods (only closing them in stopClusters()),
+        // so cluster-internal page caches are live when after() fires. The check runs in stopClusters() instead,
+        // after all clusters are fully shut down.
+        return false;
+    }
+
     @AfterClass
-    public static void stopClusters() throws IOException {
+    public static void stopClusters() throws Exception {
         IOUtils.close(clusterGroup);
         clusterGroup = null;
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
     }
 
     protected void disconnectFromRemoteClusters() throws Exception {
@@ -169,7 +199,12 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
-        client().admin().cluster().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).get();
+        settings.putNull("cluster.remote." + clusterAlias + ".skip_unavailable");
+        internalClient().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
         assertBusy(() -> {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
                 assertThat(transportService.getRemoteClusterService().getRegisteredRemoteClusterNames(), not(contains(clusterAlias)));
@@ -200,9 +235,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
         final List<String> seedAddresses = seedNodes.stream().map(TransportAddress::toString).toList();
-        boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
-            ? skipUnavailableForRemoteClusters().get(clusterAlias)
-            : DEFAULT_SKIP_UNAVAILABLE;
+        boolean skipUnavailable = skipUnavailableForRemoteClusters().getOrDefault(clusterAlias, DEFAULT_SKIP_UNAVAILABLE);
         Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);
@@ -221,7 +254,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
         builder.build();
 
-        ClusterUpdateSettingsResponse resp = client().admin()
+        ClusterUpdateSettingsResponse resp = internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(settings)
@@ -232,7 +265,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> remoteConnectionInfos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> remoteConnectionInfos = internalClient().execute(
+                TransportRemoteInfoAction.TYPE,
+                new RemoteInfoRequest()
+            )
                 .actionGet()
                 .getInfos()
                 .stream()
@@ -264,27 +300,40 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
     }
 
-    static NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
+    private NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
         final Settings.Builder builder = Settings.builder();
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
         builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-        builder.put(nodeSettings);
 
+        NodeConfigurationSource nodeConfigurationSource = nodeConfigurationSource();
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                if (nodeConfigurationSource != null) {
+                    builder.put(nodeConfigurationSource.nodeSettings(nodeOrdinal, otherSettings));
+                }
+                builder.put(nodeSettings);
+
                 return builder.build();
             }
 
             @Override
             public Path nodeConfigPath(int nodeOrdinal) {
-                return null;
+                return nodeConfigurationSource != null ? nodeConfigurationSource.nodeConfigPath(nodeOrdinal) : null;
             }
 
             @Override
             public Collection<Class<? extends Plugin>> nodePlugins() {
-                return nodePlugins;
+                Collection<Class<? extends Plugin>> plugins;
+                if (nodeConfigurationSource != null) {
+                    plugins = new ArrayList<>(nodeConfigurationSource.nodePlugins());
+                    plugins.addAll(nodePlugins);
+                } else {
+                    plugins = nodePlugins;
+                }
+
+                return plugins;
             }
         };
     }

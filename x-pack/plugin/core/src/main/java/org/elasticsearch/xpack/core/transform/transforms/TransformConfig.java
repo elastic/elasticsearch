@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -44,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -60,6 +65,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
+    public static final ParseField CREDENTIAL_ID = new ParseField("credential_id");
+
+    public static final FeatureFlag TRANSFORM_CROSS_PROJECT = new FeatureFlag("transform_cross_project");
+
+    public static final TransportVersion TRANSFORM_CLOUD_TOKEN = TransportVersion.fromName("transform_cloud_token");
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -77,8 +87,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
     }
 
-    private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TransformConfig, ParserContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TransformConfig, ParserContext> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
 
     private final String id;
@@ -95,6 +105,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     private Map<String, String> headers;
     private TransformConfigVersion transformVersion;
     private Instant createTime;
+    // id of the UIAM cloud credential associated with this transform, or null when the cross-project
+    // feature is off or the transform has no associated credential. The credential doc itself is
+    // keyed by this id in the .transform-internal-* system index.
+    @Nullable
+    private final String credentialId;
 
     private final PivotConfig pivotConfig;
     private final LatestConfig latestConfig;
@@ -105,11 +120,12 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
     }
 
-    private static ConstructingObjectParser<TransformConfig, String> createParser(boolean lenient) {
-        ConstructingObjectParser<TransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient, (args, optionalId) -> {
+    private static ConstructingObjectParser<TransformConfig, ParserContext> createParser(boolean lenient) {
+        ConstructingObjectParser<TransformConfig, ParserContext> parser = new ConstructingObjectParser<>(NAME, lenient, (args, context) -> {
             String id = (String) args[0];
 
             // if the id has been specified in the body and the path, they must match
+            var optionalId = context.optionalTransformId();
             if (id == null) {
                 id = optionalId;
             } else if (optionalId != null && id.equals(optionalId) == false) {
@@ -129,10 +145,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             // ignored, only for internal storage: String docType = (String) args[5];
 
             if (lenient == false) {
-                // on strict parsing do not allow injection of headers, transform version, or create time
+                // on strict parsing do not allow injection of headers, transform version, create time, or credential id
                 validateStrictParsingParams(args[6], HEADERS.getPreferredName());
                 validateStrictParsingParams(args[13], TransformField.CREATE_TIME.getPreferredName());
                 validateStrictParsingParams(args[14], TransformField.VERSION.getPreferredName());
+                validateStrictParsingParams(args[15], CREDENTIAL_ID.getPreferredName());
                 // exactly one function must be defined
                 if ((args[7] == null) == (args[8] == null)) {
                     throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT);
@@ -154,6 +171,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             RetentionPolicyConfig retentionPolicyConfig = (RetentionPolicyConfig) args[12];
             Instant createTime = (Instant) args[13];
             String version = (String) args[14];
+            String credentialId = (String) args[15];
 
             return new TransformConfig(
                 id,
@@ -169,12 +187,17 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 metadata,
                 retentionPolicyConfig,
                 createTime,
-                version
+                version,
+                credentialId
             );
         });
 
         parser.declareString(optionalConstructorArg(), TransformField.ID);
-        parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), TransformField.SOURCE);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> SourceConfig.fromXContent(p, lenient, c.transformParsingContext()),
+            TransformField.SOURCE
+        );
         parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), TransformField.DESTINATION);
         parser.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
         parser.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
@@ -197,6 +220,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             ObjectParser.ValueType.VALUE
         );
         parser.declareString(optionalConstructorArg(), TransformField.VERSION);
+        parser.declareString(optionalConstructorArg(), CREDENTIAL_ID);
         return parser;
     }
 
@@ -220,6 +244,42 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         final Instant createTime,
         final String version
     ) {
+        this(
+            id,
+            source,
+            dest,
+            frequency,
+            syncConfig,
+            headers,
+            pivotConfig,
+            latestConfig,
+            description,
+            settings,
+            metadata,
+            retentionPolicyConfig,
+            createTime,
+            version,
+            null
+        );
+    }
+
+    public TransformConfig(
+        final String id,
+        final SourceConfig source,
+        final DestConfig dest,
+        final TimeValue frequency,
+        final SyncConfig syncConfig,
+        final Map<String, String> headers,
+        final PivotConfig pivotConfig,
+        final LatestConfig latestConfig,
+        final String description,
+        final SettingsConfig settings,
+        final Map<String, Object> metadata,
+        final RetentionPolicyConfig retentionPolicyConfig,
+        final Instant createTime,
+        final String version,
+        @Nullable final String credentialId
+    ) {
         this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, TransformField.SOURCE.getPreferredName());
         this.dest = ExceptionsHelper.requireNonNull(dest, TransformField.DESTINATION.getPreferredName());
@@ -237,6 +297,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
+        this.credentialId = credentialId;
     }
 
     public TransformConfig(final StreamInput in) throws IOException {
@@ -254,6 +315,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         settings = new SettingsConfig(in);
         metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
+        credentialId = in.getTransportVersion().supports(TRANSFORM_CLOUD_TOKEN) ? in.readOptionalString() : null;
     }
 
     public String getId() {
@@ -330,6 +392,35 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         return retentionPolicyConfig;
     }
 
+    @Nullable
+    public String getCredentialId() {
+        return credentialId;
+    }
+
+    /**
+     * Returns a copy of this config with the given {@code credentialId} set. Used by PUT/UPDATE flows
+     * after minting a new UIAM cloud credential, before writing the config to storage.
+     */
+    public TransformConfig withCredentialId(@Nullable String credentialId) {
+        return new TransformConfig(
+            id,
+            source,
+            dest,
+            frequency,
+            syncConfig,
+            headers,
+            pivotConfig,
+            latestConfig,
+            description,
+            settings,
+            metadata,
+            retentionPolicyConfig,
+            createTime,
+            transformVersion == null ? null : transformVersion.toString(),
+            credentialId
+        );
+    }
+
     /**
      * Determines the minimum version of a cluster in multi-cluster setup that is needed to successfully run this transform config.
      *
@@ -351,6 +442,36 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
         if (retentionPolicyConfig != null) {
             validationException = retentionPolicyConfig.validate(validationException);
+        }
+        return validationException;
+    }
+
+    public ActionRequestValidationException validateNoCrossProjectWhenCrossProjectIsDisabled(
+        CrossProjectModeDecider crossProjectModeDecider,
+        ActionRequestValidationException validationException
+    ) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(TRANSFORM_CROSS_PROJECT.isEnabled(), validationException);
+        }
+        return validationException;
+    }
+
+    // visible for testing
+    // remove both this and validateNoCrossProjectWhenCrossProjectIsDisabled when the feature is launched
+    ActionRequestValidationException validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(
+        boolean featureEnabled,
+        ActionRequestValidationException validationException
+    ) {
+        if (featureEnabled == false) {
+            // verify there are no remote indices
+            var indices = getSource().getIndex();
+            var remoteIndices = RemoteClusterAware.getRemoteIndexExpressions(indices);
+            if (remoteIndices.isEmpty() == false) {
+                validationException = addValidationError(
+                    "Cross-project calls are not supported, but remote indices were requested: " + remoteIndices,
+                    validationException
+                );
+            }
         }
         return validationException;
     }
@@ -416,6 +537,9 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         settings.writeTo(out);
         out.writeGenericMap(metadata);
         out.writeOptionalNamedWriteable(retentionPolicyConfig);
+        if (out.getTransportVersion().supports(TRANSFORM_CLOUD_TOKEN)) {
+            out.writeOptionalString(credentialId);
+        }
     }
 
     @Override
@@ -476,6 +600,9 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             builder.field(retentionPolicyConfig.getWriteableName(), retentionPolicyConfig);
             builder.endObject();
         }
+        if (excludeGenerated == false && credentialId != null) {
+            builder.field(CREDENTIAL_ID.getPreferredName(), credentialId);
+        }
         builder.endObject();
         return builder;
     }
@@ -505,7 +632,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             && Objects.equals(this.metadata, that.metadata)
             && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
             && Objects.equals(this.createTime, that.createTime)
-            && Objects.equals(this.transformVersion, that.transformVersion);
+            && Objects.equals(this.transformVersion, that.transformVersion)
+            && Objects.equals(this.credentialId, that.credentialId);
     }
 
     @Override
@@ -524,7 +652,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             metadata,
             retentionPolicyConfig,
             createTime,
-            transformVersion
+            transformVersion,
+            credentialId
         );
     }
 
@@ -533,8 +662,14 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         return Strings.toString(this, true, true);
     }
 
-    public static TransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId, boolean lenient) {
-        return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
+    public static TransformConfig fromXContent(
+        final XContentParser parser,
+        @Nullable final String optionalTransformId,
+        boolean lenient,
+        TransformParsingContext transformParsingContext
+    ) {
+        var context = new ParserContext(optionalTransformId, transformParsingContext);
+        return lenient ? LENIENT_PARSER.apply(parser, context) : STRICT_PARSER.apply(parser, context);
     }
 
     /**
@@ -656,6 +791,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         private SettingsConfig settings;
         private Map<String, Object> metadata;
         private RetentionPolicyConfig retentionPolicyConfig;
+        private String credentialId;
 
         public Builder() {}
 
@@ -673,6 +809,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             this.settings = config.settings;
             this.metadata = config.metadata;
             this.retentionPolicyConfig = config.retentionPolicyConfig;
+            this.credentialId = config.credentialId;
         }
 
         public Builder setId(String id) {
@@ -788,6 +925,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             return this;
         }
 
+        public Builder setCredentialId(String credentialId) {
+            this.credentialId = credentialId;
+            return this;
+        }
+
         public TransformConfig build() {
             return new TransformConfig(
                 id,
@@ -803,7 +945,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 metadata,
                 retentionPolicyConfig,
                 createTime,
-                transformVersion == null ? null : transformVersion.toString()
+                transformVersion == null ? null : transformVersion.toString(),
+                credentialId
             );
         }
 
@@ -832,7 +975,8 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 && Objects.equals(this.metadata, that.metadata)
                 && Objects.equals(this.retentionPolicyConfig, that.retentionPolicyConfig)
                 && Objects.equals(this.createTime, that.createTime)
-                && Objects.equals(this.transformVersion, that.transformVersion);
+                && Objects.equals(this.transformVersion, that.transformVersion)
+                && Objects.equals(this.credentialId, that.credentialId);
         }
 
         @Override
@@ -851,8 +995,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 metadata,
                 retentionPolicyConfig,
                 createTime,
-                transformVersion
+                transformVersion,
+                credentialId
             );
         }
     }
+
+    private record ParserContext(String optionalTransformId, TransformParsingContext transformParsingContext) {}
 }

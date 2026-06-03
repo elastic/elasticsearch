@@ -68,4 +68,9 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
         request.zoneId(zoneId);
         return this;
     }
+
+    public SqlTranslateRequestBuilder projectRouting(String projectRouting) {
+        request.projectRouting(projectRouting);
+        return this;
+    }
 }

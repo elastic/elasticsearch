@@ -140,7 +140,7 @@ public final class Messages {
     public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
-        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
+        + "hyphens or underscores; must start with alphanumeric and cannot end with numbers, hyphens or underscores";
     public static final String TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY =
         "The input fields for new model [{0}] and for old model [{1}] differ significantly, model results may change drastically.";
 
@@ -165,6 +165,37 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_MINTED = "Internal cloud API key minted for cross-project datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REKEYED = "Internal cloud API key re-keyed for cross-project datafeed update";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_SKIPPED =
+        "Skipping revocation of cloud API key [{0}] — revoke primitive not yet available";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED = "Internal cloud API key revoked for cross-project datafeed";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED = "Failed to revoke internal cloud API key [{0}]";
+    public static final String JOB_AUDIT_DATAFEED_CPS_KEY_CLEARED =
+        "Internal cloud API key cleared on datafeed update with non-cloud credentials";
+    public static final String JOB_AUDIT_IDLE_JOB_CLOSED = "Job closed automatically during maintenance: datafeed was stopped"
+        + " and no data was received for [{0}]. To change the idle timeout,"
+        + " adjust the [xpack.ml.idle_job_auto_close_timeout] setting"
+        + " or set it to [-1] to disable automatic closing.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED = "Datafeed search scope changed: [{0}] linked."
+        + " Data distribution may have changed due to new data sources,"
+        + " which can cause temporary anomalies while the model adapts."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_UNLINKED = "Datafeed search scope changed: [{0}] unlinked."
+        + " Data distribution may have changed due to removed data sources,"
+        + " which can cause temporary anomalies as patterns the model learned are no longer present."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH = "Datafeed search scope changed: [{0}] linked, [{1}] unlinked."
+        + " Data distribution may have changed, which can cause temporary anomalies while the model adapts."
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES =
+        "Elevated anomaly scores detected after search scope change at [{0}]"
+            + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."
+            + " This is likely caused by the data distribution shift."
+            + " Consider reviewing model snapshots if the anomalies are not meaningful.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
@@ -286,6 +317,12 @@ public final class Messages {
     public static final String MODEL_ID_DOES_NOT_MATCH_EXISTING_MODEL_IDS_BUT_MUST_FOR_IN_CLUSTER_SERVICE =
         "Requested model ID [{}] does not have a matching trained model and thus cannot be updated.";
     public static final String INFERENCE_ENTITY_NON_EXISTANT_NO_UPDATE = "The inference endpoint [{}] does not exist and cannot be updated";
+    public static final String INFERENCE_REFERENCE_CANNOT_UPDATE_ANOTHER_ENDPOINT =
+        "Cannot update inference endpoint [{}] for model deployment [{}] as it was created by another inference endpoint. "
+            + "The model can only be updated using inference endpoint id [{}].";
+    public static final String INFERENCE_CAN_ONLY_UPDATE_MODELS_IT_CREATED =
+        "Cannot update inference endpoint [{}] using model deployment [{}]. "
+            + "The model deployment must be updated through the trained models API.";
 
     private Messages() {}
 

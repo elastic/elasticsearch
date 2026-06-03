@@ -21,23 +21,39 @@ import java.util.Collections;
 public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValuesDisabled() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.NEW_SPARSE_VECTOR,
-            IndexVersion.current()
-        );
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
-        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
+        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")));
     }
 
     public void testIsNotAggregatable() {
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
-            IndexVersions.NEW_SPARSE_VECTOR,
-            IndexVersion.current()
-        );
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.NEW_SPARSE_VECTOR, IndexVersion.current());
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType(indexVersion, "field", false, Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
+    }
+
+    public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptions() {
+        return randomSparseVectorIndexOptions(true);
+    }
+
+    public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptions(boolean includeNull) {
+        if (includeNull && randomBoolean()) {
+            return null;
+        }
+
+        Boolean prune = randomBoolean() ? null : randomBoolean();
+        if (prune == null) {
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(null, null);
+        }
+
+        if (prune == Boolean.FALSE) {
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null);
+        }
+
+        return new SparseVectorFieldMapper.SparseVectorIndexOptions(
+            true,
+            new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
+        );
     }
 }

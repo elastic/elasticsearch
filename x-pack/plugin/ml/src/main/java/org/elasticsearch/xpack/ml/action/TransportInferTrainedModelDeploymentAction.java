@@ -12,14 +12,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -37,11 +41,16 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportInferTrainedModelDeploymentAction.class);
+
+    private final ThreadPool threadPool;
+
     @Inject
     public TransportInferTrainedModelDeploymentAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ThreadPool threadPool
     ) {
         super(
             InferTrainedModelDeploymentAction.NAME,
@@ -52,6 +61,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             InferTrainedModelDeploymentAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -66,8 +76,19 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw failedNodeExceptions.get(0);
         } else if (tasks.isEmpty()) {
+            // Only warn about deployments with deployment IDs starting with '.' which are
+            // reserved for system-registered deployments (e.g., ElasticsearchInternalService's default
+            // ELSER/E5/rerank endpoints.
+            if (request.getId().startsWith(".")) {
+                logger.warn(
+                    "No deployment task found for system-registered deployment [{}] on any node when handling "
+                        + "inference request; assignment may be missing from cluster state",
+                    request.getId()
+                );
+            }
             throw new ElasticsearchStatusException(
-                "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
+                "Unable to find model deployment task [{}] please stop and start the trained model deployment "
+                    + "or try again momentarily",
                 RestStatus.NOT_FOUND,
                 request.getId()
             );
@@ -99,6 +120,9 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         // and return order the results to match the request order
         AtomicInteger count = new AtomicInteger();
         AtomicArray<InferenceResults> results = new AtomicArray<>(nlpInputs.size());
+
+        var contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+
         int slot = 0;
         for (var input : nlpInputs) {
             task.infer(
@@ -109,7 +133,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                 request.getPrefixType(),
                 actionTask,
                 request.isChunkResults(),
-                orderedListener(count, results, slot++, nlpInputs.size(), listener)
+                orderedListener(count, results, slot++, nlpInputs.size(), contextPreservingListener)
             );
         }
     }
@@ -145,7 +169,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             }
 
             private void sendResponse() {
-                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(results.asList()));
+                var orderedResults = new ArrayList<InferenceResults>(totalNumberOfResponses);
+                for (int i = 0; i < totalNumberOfResponses; i++) {
+                    InferenceResults result = results.get(i);
+                    if (result == null) {
+                        result = new ErrorInferenceResults(
+                            new IllegalStateException("Missing inference result for input index [" + i + "]")
+                        );
+                    }
+                    orderedResults.add(result);
+                }
+                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(orderedResults));
             }
         };
     }

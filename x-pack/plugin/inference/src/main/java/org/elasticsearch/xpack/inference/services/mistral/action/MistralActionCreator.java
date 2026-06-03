@@ -11,23 +11,28 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.mistral.MistralCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.services.mistral.MistralEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.azureopenai.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
+import org.elasticsearch.xpack.inference.services.mistral.response.MistralEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 /**
  * MistralActionCreator is responsible for creating executable actions for Mistral models.
@@ -38,9 +43,16 @@ public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
     public static final String USER_ROLE = "user";
-    public static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
         "mistral completions",
-        OpenAiChatCompletionResponseEntity::fromResponse
+        OpenAiChatCompletionResponseEntity::fromResponse,
+        ErrorResponse::fromResponse
+    );
+    private static final ResponseHandler EMBEDDINGS_HANDLER = new AzureMistralOpenAiExternalResponseHandler(
+        "mistral text embedding",
+        new MistralEmbeddingsResponseEntity(),
+        ErrorMessageResponseEntity::fromResponse,
+        false
     );
     private final Sender sender;
     private final ServiceComponents serviceComponents;
@@ -51,11 +63,17 @@ public class MistralActionCreator implements MistralActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
-        var requestManager = new MistralEmbeddingsRequestManager(
+    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel) {
+        var requestManager = new GenericRequestManager<>(
+            serviceComponents.threadPool(),
             embeddingsModel,
-            serviceComponents.truncator(),
-            serviceComponents.threadPool()
+            EMBEDDINGS_HANDLER,
+            (embeddingsInput) -> new MistralEmbeddingsRequest(
+                serviceComponents.truncator(),
+                truncate(embeddingsInput.getTextInputs(), embeddingsModel.getServiceSettings().maxInputTokens()),
+                embeddingsModel
+            ),
+            EmbeddingsInput.class
         );
         var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, embeddingsModel.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestManager, errorMessage);

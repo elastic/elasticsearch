@@ -310,9 +310,7 @@ class RandomizedAssignmentRounding {
         private AssignmentPlan toPlan() {
             AssignmentPlan.Builder builder = AssignmentPlan.builder(nodes, deployments);
             for (Map.Entry<Tuple<AssignmentPlan.Deployment, Node>, Integer> assignment : tryAssigningRemainingCores().entrySet()) {
-                if (builder.canAssign(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue())) {
-                    builder.assignModelToNode(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue());
-                }
+                builder.assignModelToNode(assignment.getKey().v1(), assignment.getKey().v2(), assignment.getValue());
             }
             return builder.build();
         }

@@ -62,10 +62,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             PointFieldMapper gpfm = (PointFieldMapper) m;
             assertFalse(gpfm.ignoreZValue());
         });
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "1,1"));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
     }
 
     public void testAggregationsDocValuesDisabled() throws IOException {
@@ -535,5 +537,27 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "1,1", "1,2", "1,3" };
+    }
+
+    @Override
+    protected Object[] getThreeEncodedSampleValues() {
+        return new Object[] {
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 1f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 2f).numericValue(),
+            new PointFieldMapper.XYFieldWithDocValues(FIELD_NAME, 1f, 3f).numericValue() };
+    }
+
+    @Override
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

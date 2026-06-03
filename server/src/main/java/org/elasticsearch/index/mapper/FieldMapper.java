@@ -21,10 +21,12 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -40,6 +42,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -63,7 +66,8 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+        IndexMode mode = IndexSettings.MODE.get(settings);
+        if ((mode == IndexMode.LOGSDB || mode == IndexMode.LOGSDB_COLUMNAR)
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
             return "true";
         } else {
@@ -106,6 +110,10 @@ public abstract class FieldMapper extends Mapper {
     protected final MappedFieldType mappedFieldType;
     protected final BuilderParams builderParams;
 
+    // cache fields that are accessed frequently (and which would result in megamorphic callsites at runtime)
+    private SyntheticSourceMode syntheticSourceMode; // lazily cached
+    private final String fullPath; // eagerly cached
+
     /**
      * @param simpleName        the leaf name of the mapper
      * @param params            initialization params for this field mapper
@@ -114,6 +122,8 @@ public abstract class FieldMapper extends Mapper {
         super(simpleName);
         this.mappedFieldType = mappedFieldType;
         this.builderParams = params;
+        this.syntheticSourceMode = null;
+        this.fullPath = mappedFieldType.name();
 
         // could be blank but not empty on indices created < 8.6.0
         assert mappedFieldType.name().isEmpty() == false;
@@ -122,7 +132,7 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public String fullPath() {
-        return fieldType().name();
+        return fullPath;
     }
 
     @Override
@@ -181,12 +191,27 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether this mapper can be driven through {@link #parse(DocumentParserContext)} by the
+     * bulk batch-indexing fast path (see {@code ShardBatchMapper}). The fast path pre-resolves
+     * one mapper per schema column and bypasses the normal document-level traversal, so mappers
+     * that rely on the surrounding parsing flow — scripts, {@code copy_to}, multi-fields,
+     * dimensions, compound structures, etc. — must return {@code false}. Defaults to
+     * {@code false}; supported mappers override after validating their configuration.
+     */
+    public boolean supportsBatchIndexing() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
+            }
+            if (isSingleValueEnforced()) {
+                context.enforceSingleValue(fullPath());
             }
 
             parseCreateField(context);
@@ -257,6 +282,14 @@ public abstract class FieldMapper extends Mapper {
      * current failing token
      */
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
+
+    /**
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the same
+     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     */
+    protected boolean isSingleValueEnforced() {
+        return false;
+    }
 
     /**
      * @return whether this field mapper uses a script to generate its values
@@ -380,34 +413,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    @Override
-    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-        if (mergeWith == this) {
-            return this;
-        }
-        if (mergeWith instanceof FieldMapper == false) {
-            throw new IllegalArgumentException(
-                "mapper ["
-                    + fullPath()
-                    + "] cannot be changed from type ["
-                    + contentType()
-                    + "] to ["
-                    + mergeWith.getClass().getSimpleName()
-                    + "]"
-            );
-        }
-        checkIncomingMergeType((FieldMapper) mergeWith);
-
-        Builder builder = getMergeBuilder();
-        if (builder == null) {
-            return (FieldMapper) mergeWith;
-        }
-        Conflicts conflicts = new Conflicts(fullPath());
-        builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
-        conflicts.check();
-        return builder.build(mapperMergeContext.getMapperBuilderContext());
-    }
-
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException(
@@ -480,7 +485,7 @@ public abstract class FieldMapper extends Mapper {
      * </p>
      * @return {@link SyntheticSourceMode}
      */
-    final SyntheticSourceMode syntheticSourceMode() {
+    private SyntheticSourceMode calculateSyntheticSourceMode() {
         if (hasScript()) {
             return SyntheticSourceMode.NATIVE;
         }
@@ -493,6 +498,13 @@ public abstract class FieldMapper extends Mapper {
         }
 
         return syntheticSourceSupport().mode();
+    }
+
+    final SyntheticSourceMode syntheticSourceMode() {
+        if (syntheticSourceMode == null) {
+            this.syntheticSourceMode = calculateSyntheticSourceMode();
+        }
+        return syntheticSourceMode;
     }
 
     /**
@@ -608,15 +620,16 @@ public abstract class FieldMapper extends Mapper {
 
         public static class Builder {
 
-            private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
+            private final Map<String, FieldMapper.Builder> fieldBuilders = new HashMap<>();
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.leafName(), builder::build);
+                fieldBuilders.put(builder.leafName(), builder);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -625,7 +638,27 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.leafName(), context -> mapper);
+                FieldMapper.Builder builder = mapper.getMergeBuilder();
+                if (builder != null) {
+                    fieldBuilders.put(mapper.leafName(), builder);
+                } else {
+                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
+                        @Override
+                        protected Parameter<?>[] getParameters() {
+                            return EMPTY_PARAMETERS;
+                        }
+
+                        @Override
+                        public String contentType() {
+                            return mapper.contentType();
+                        }
+
+                        @Override
+                        public FieldMapper build(MapperBuilderContext context) {
+                            return mapper;
+                        }
+                    });
+                }
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -634,19 +667,38 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
-                    if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
-                        add(toMerge);
+            void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
+                for (var entry : incoming.fieldBuilders.entrySet()) {
+                    FieldMapper.Builder incomingBuilder = entry.getValue();
+                    FieldMapper.Builder existingBuilder = fieldBuilders.get(entry.getKey());
+                    if (existingBuilder == null) {
+                        if (mergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
+                            fieldBuilders.put(entry.getKey(), incomingBuilder);
+                            updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
+                        }
+                    } else {
+                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
+                        fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
                     }
-                } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
-                    add(existing.merge(toMerge, context));
+                }
+            }
+
+            private void updateSyntheticSourceCompatibleKeywordField(FieldMapper.Builder builder) {
+                if (builder instanceof KeywordFieldMapper.Builder kwd) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
                 }
             }
 
             public boolean hasMultiFields() {
-                return mapperBuilders.isEmpty() == false;
+                return fieldBuilders.isEmpty() == false;
+            }
+
+            int size() {
+                return fieldBuilders.size();
             }
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
@@ -654,14 +706,14 @@ public abstract class FieldMapper extends Mapper {
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-                if (mapperBuilders.isEmpty()) {
+                if (fieldBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
+                    FieldMapper[] mappers = new FieldMapper[fieldBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
-                    for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        mappers[i++] = entry.getValue().apply(context);
+                    for (FieldMapper.Builder builder : fieldBuilders.values()) {
+                        mappers[i++] = builder.build(context);
                     }
                     return new MultiFields(mappers);
                 }
@@ -777,7 +829,7 @@ public abstract class FieldMapper extends Mapper {
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
      */
-    public static final class Parameter<T> implements Supplier<T> {
+    public static class Parameter<T> implements Supplier<T> {
 
         public final String name;
         private List<String> deprecatedNames = List.of();
@@ -984,8 +1036,16 @@ public abstract class FieldMapper extends Mapper {
             setValue(parser.apply(field, context, in));
         }
 
-        private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+        @SuppressWarnings("unchecked")
+        void mergeFrom(Parameter<?> other, Conflicts conflicts) {
+            mergeValue((T) other.getValue(), conflicts);
+        }
+
+        void freezeValue() {
+            setValue(getValue());
+        }
+
+        private void mergeValue(T value, Conflicts conflicts) {
             T current = getValue();
             if (mergeValidator.canMerge(current, value, conflicts)) {
                 setValue(value);
@@ -1229,6 +1289,11 @@ public abstract class FieldMapper extends Mapper {
                 for (T t : enumSet) {
                     // the string representation may differ from the actual name of the enum type (e.g. lowercase vs uppercase)
                     if (t.toString().equals(o.toString())) {
+                        if (acceptedValues.contains(t) == false) {
+                            throw new MapperParsingException(
+                                "Unknown value [" + o + "] for field [" + name + "] - accepted values are " + acceptedValues
+                            );
+                        }
                         return t;
                     }
                 }
@@ -1313,16 +1378,78 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> indexParam(
+            Function<FieldMapper, Boolean> initializer,
+            IndexSettings indexSettings,
+            Supplier<Boolean> isDimension
+        ) {
+            return Parameter.boolParam("index", false, initializer, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+                return useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false;
+            });
+        }
+
+        public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
+                if (isDimension) {
+                    return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS);
+                }
+                return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
+            }
+            return false;
+        }
+
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("store", false, initializer, defaultValue);
+            return new Parameter<>("store", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean store = XContentMapValues.nodeBooleanValue(o);
+                if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new IllegalArgumentException(
+                        "[store] cannot be enabled on field [" + n + "] in [" + c.getIndexSettings().getMode() + "] index mode"
+                    );
+                }
+                return store;
+            }, initializer, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
-            return Parameter.boolParam("store", false, initializer, defaultValue);
+            return new Parameter<>("store", false, defaultValue, (n, c, o) -> {
+                boolean store = XContentMapValues.nodeBooleanValue(o);
+                if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new IllegalArgumentException(
+                        "[store] cannot be enabled on field [" + n + "] in [" + c.getIndexSettings().getMode() + "] index mode"
+                    );
+                }
+                return store;
+            }, initializer, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValue)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         }
 
         /**
@@ -1355,6 +1482,144 @@ public abstract class FieldMapper extends Mapper {
         ) {
             return Parameter.enumParam("on_script_error", true, initializer, OnScriptError.FAIL, OnScriptError.class)
                 .requiresParameter(dependentScriptParam);
+        }
+    }
+
+    public static final class DocValuesParameter extends Parameter<DocValuesParameter.Values> {
+        public static final String PARAMETER_NAME = "doc_values";
+
+        public static FeatureFlag EXTENDED_DOC_VALUES_PARAMS_FF = new FeatureFlag("extended_doc_values_options");
+
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+            public enum Cardinality {
+                LOW,
+                HIGH;
+
+                @Override
+                public String toString() {
+                    return name().toLowerCase(Locale.ROOT);
+                }
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+        }
+
+        public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
+        public final Parameter<Boolean> multiValueParameter;
+
+        /**
+         * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
+         * etc.).
+         */
+        public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
+            return new DocValuesParameter(defaultValue, initializer, false);
+        }
+
+        /**
+         * Factory for field types that expose a user-configurable {@code cardinality} sub-parameter (keyword family and text family).
+         */
+        public static DocValuesParameter ofWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
+            return new DocValuesParameter(defaultValue, initializer, true);
+        }
+
+        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsCardinality) {
+            super(PARAMETER_NAME, false, () -> defaultValue, null, initializer, null, Values::toString);
+
+            if (supportsCardinality) {
+                cardinalityParameter = Optional.of(
+                    Parameter.enumParam(
+                        "cardinality",
+                        false,
+                        m -> initializer.apply(m).cardinality,
+                        defaultValue.cardinality,
+                        Values.Cardinality.class
+                    )
+                );
+            } else {
+                cardinalityParameter = Optional.empty();
+            }
+
+            multiValueParameter = Parameter.boolParam("multi_value", false, m -> initializer.apply(m).multiValue, defaultValue.multiValue);
+        }
+
+        /**
+         * Parses the doc_values parameter from the field mapping.
+         * <p>
+         * Doc values can be configured in the following ways:
+         * <ul>
+         *   <li>{@code "doc_values": false} - doc_values disabled</li>
+         *   <li>{@code "doc_values": true} - doc_values enabled with defaults</li>
+         *   <li>{@code "doc_values": { "cardinality": "low" }} - doc_values enabled with LOW cardinality</li>
+         *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
+         *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
+         *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         * </ul>
+         * <p>
+         * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
+         * additional cardinality and multi_value settings.
+         */
+        @Override
+        public void parse(String field, MappingParserContext context, Object value) {
+            if (value instanceof Map<?, ?> valueMap && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                cardinalityParameter.ifPresent(p -> p.parse(field, context, valueMap.get(p.name)));
+                if (valueMap.containsKey(multiValueParameter.name)) {
+                    multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
+                }
+
+                setValue(
+                    new Values(
+                        true,
+                        cardinalityParameter.map(Parameter::getValue).orElse(getDefaultValue().cardinality()),
+                        multiValueParameter.getValue()
+                    )
+                );
+            } else {
+                if (XContentMapValues.nodeBooleanValue(value, name)) {
+                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                } else {
+                    setValue(Values.DISABLED);
+                }
+            }
+        }
+
+        @Override
+        public void setValue(Values value) {
+            super.setValue(value);
+            cardinalityParameter.ifPresent(p -> p.setValue(value.cardinality));
+            multiValueParameter.setValue(value.multiValue);
+        }
+
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            Values value = getValue();
+            if (includeDefaults || isConfigured()) {
+                if (value.enabled == false) {
+                    builder.field(name, false);
+                } else if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                    builder.field(name, true);
+                } else {
+                    boolean cardinalityConfigured = cardinalityParameter.map(Parameter::isConfigured).orElse(false);
+                    boolean multiValueConfigured = multiValueParameter.isConfigured();
+                    if (includeDefaults == false && cardinalityConfigured == false && multiValueConfigured == false) {
+                        // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
+                        builder.field(name, true);
+                    } else {
+                        builder.startObject(name);
+                        cardinalityParameter.ifPresent(p -> {
+                            if (includeDefaults || p.isConfigured()) {
+                                try {
+                                    builder.field(p.name, value.cardinality);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                        });
+                        if (includeDefaults || multiValueConfigured) {
+                            builder.field(multiValueParameter.name, value.multiValue);
+                        }
+                        builder.endObject();
+                    }
+                }
+            }
         }
     }
 
@@ -1403,6 +1668,11 @@ public abstract class FieldMapper extends Mapper {
             super(name);
         }
 
+        @Override
+        int getTotalFieldsCount() {
+            return 1 + multiFieldsBuilder.size();
+        }
+
         /**
          * Initialises all parameters from an existing mapper
          */
@@ -1413,6 +1683,8 @@ public abstract class FieldMapper extends Mapper {
             for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
+            this.copyTo = initializer.builderParams.copyTo;
+            this.sourceKeepMode = initializer.builderParams.sourceKeepMode;
             return this;
         }
 
@@ -1423,19 +1695,6 @@ public abstract class FieldMapper extends Mapper {
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
-        }
-
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            for (Parameter<?> param : getParameters()) {
-                param.merge(in, conflicts);
-            }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
-            for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, childContext);
-            }
-            this.copyTo = in.builderParams.copyTo;
-            this.sourceKeepMode = in.builderParams.sourceKeepMode;
-            validate();
         }
 
         protected final void validate() {
@@ -1449,14 +1708,82 @@ public abstract class FieldMapper extends Mapper {
          */
         protected abstract Parameter<?>[] getParameters();
 
+        /**
+         * @return the content type name for this field mapper builder, matching the value
+         *         returned by {@link FieldMapper#contentType()} on the built mapper
+         */
+        public abstract String contentType();
+
+        @Override
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+            MapperBuilderContext builderContext = mergeContext.getMapperBuilderContext();
+            if (incoming instanceof NestedObjectMapper.Builder) {
+                MapperErrors.throwNestedMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            } else if (incoming instanceof ObjectMapper.Builder) {
+                MapperErrors.throwObjectMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            }
+            if (builderContext.getMergeReason() == MapperService.MergeReason.INDEX_TEMPLATE) {
+                return incoming;
+            }
+            if (incoming instanceof FieldMapper.Builder == false) {
+                throw new IllegalArgumentException(
+                    "mapper ["
+                        + builderContext.buildFullName(leafName())
+                        + "] cannot be changed from type ["
+                        + contentType()
+                        + "] to ["
+                        + incoming.getClass().getSimpleName()
+                        + "]"
+                );
+            }
+            FieldMapper.Builder incomingField = (FieldMapper.Builder) incoming;
+            String fullName = builderContext.buildFullName(leafName());
+            if (Objects.equals(this.getClass(), incomingField.getClass()) == false
+                || Objects.equals(contentType(), incomingField.contentType()) == false) {
+                if (builderContext.getMergeReason().isAutoUpdate()) {
+                    return this;
+                }
+                throwMergeTypeConflict(incomingField, fullName);
+            }
+            Conflicts conflicts = new Conflicts(fullName);
+            mergeFromBuilder(incomingField, conflicts, mergeContext);
+            conflicts.check();
+            return this;
+        }
+
+        /**
+         * Throws an error when the incoming builder has a different class or content type.
+         * Subclasses can override to provide more specific error messages.
+         */
+        protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
+            throw new IllegalArgumentException(
+                "mapper [" + fullName + "] cannot be changed from type [" + contentType() + "] to [" + incoming.contentType() + "]"
+            );
+        }
+
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Parameter<?>[] myParams = getParameters();
+            Parameter<?>[] theirParams = incoming.getParameters();
+            // Freeze parameter values before merging to prevent dynamic defaults from
+            // changing mid-merge when earlier parameters are updated (e.g., normalizer
+            // changing affects normalizer_skip_store_original_value's default)
+            for (Parameter<?> param : myParams) {
+                param.freezeValue();
+            }
+            for (int i = 0; i < myParams.length; i++) {
+                myParams[i].mergeFrom(theirParams[i], conflicts);
+            }
+            MapperMergeContext childContext = mergeContext.createChildContext(incoming.leafName(), null);
+            multiFieldsBuilder.mergeFrom(incoming.multiFieldsBuilder, childContext);
+            this.copyTo = incoming.copyTo;
+            this.sourceKeepMode = incoming.sourceKeepMode;
+            validate();
+        }
+
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);
 
-        protected void addScriptValidation(
-            Parameter<Script> scriptParam,
-            Parameter<Boolean> indexParam,
-            Parameter<Boolean> docValuesParam
-        ) {
+        protected void addScriptValidation(Parameter<Script> scriptParam, Parameter<Boolean> indexParam, Supplier<Boolean> docValuesParam) {
             scriptParam.addValidator(s -> {
                 if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
                     throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
@@ -1530,6 +1857,17 @@ public abstract class FieldMapper extends Mapper {
                         continue;
                     }
                     case SYNTHETIC_SOURCE_KEEP_PARAM -> {
+                        if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                            throw new MapperParsingException(
+                                "parameter ["
+                                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                                    + "] is not allowed on field ["
+                                    + name
+                                    + "] in index using ["
+                                    + parserContext.getIndexSettings().getMode()
+                                    + "] index mode"
+                            );
+                        }
                         sourceKeepMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;
@@ -1618,6 +1956,45 @@ public abstract class FieldMapper extends Mapper {
             }
             return DEPRECATED_PARAMS.contains(propName);
         }
+
+        /**
+         * Ensures that index sort fields don't use binary (non-sortable) doc values.
+         * If the default for a columnar index is HIGH cardinality, it is silently overridden to LOW.
+         * If the user explicitly configured HIGH cardinality, a {@link MapperParsingException} is thrown.
+         */
+        protected static void enforceIndexSortDocValuesCompatibility(
+            String fullFieldName,
+            IndexSortConfig sortConfig,
+            DocValuesParameter docValuesParameters
+        ) {
+            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                return;
+            }
+            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
+                return;
+            }
+            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
+            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
+                return;
+            }
+            boolean cardinalityExplicitlySet = docValuesParameters.cardinalityParameter.map(Parameter::isSet).orElse(false);
+            if (cardinalityExplicitlySet) {
+                throw new MapperParsingException(
+                    "field ["
+                        + fullFieldName
+                        + "] cannot use [cardinality: high] because it is configured as an index sort field,"
+                        + " which requires sortable doc values"
+                );
+            }
+            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
+            docValuesParameters.setValue(
+                new DocValuesParameter.Values(
+                    currentValues.enabled(),
+                    DocValuesParameter.Values.Cardinality.LOW,
+                    currentValues.multiValue()
+                )
+            );
+        }
     }
 
     /**
@@ -1638,6 +2015,30 @@ public abstract class FieldMapper extends Mapper {
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
+    }
+
+    /**
+     * Creates mappers for fields that require additional context for supporting synthetic source.
+     */
+    public abstract static class TextFamilyBuilder extends Builder {
+
+        private final IndexVersion indexCreatedVersion;
+        private final boolean isWithinMultiField;
+
+        protected TextFamilyBuilder(String name, IndexVersion indexCreatedVersion, boolean isWithinMultiField) {
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.isWithinMultiField = isWithinMultiField;
+        }
+
+        public IndexVersion indexCreatedVersion() {
+            return indexCreatedVersion;
+        }
+
+        public boolean isWithinMultiField() {
+            return isWithinMultiField;
+        }
+
     }
 
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {

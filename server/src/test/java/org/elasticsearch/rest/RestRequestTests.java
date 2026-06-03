@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
 import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
 import static org.hamcrest.Matchers.containsString;
@@ -170,29 +172,29 @@ public class RestRequestTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInteger(parameterKey, defaultValue));
     }
 
-    public void testContentOrSourceParam() throws IOException {
+    public void testContentOrSourceParam() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).contentOrSourceParam());
         assertEquals("request body or source parameter is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2()
+        assertThat(contentRestRequest("stuff", emptyMap()).contentOrSourceParam().v2(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).contentOrSourceParam().v2(),
+            equalBytes(new BytesArray("stuff"))
         );
-        assertEquals(
-            new BytesArray("{\"foo\": \"stuff\"}"),
+        assertThat(
             contentRestRequest("", Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
                 .contentOrSourceParam()
-                .v2()
+                .v2(),
+            equalBytes(new BytesArray("{\"foo\": \"stuff\"}"))
         );
         e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
         assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
     }
 
-    public void testHasContentOrSourceParam() throws IOException {
-        assertEquals(false, contentRestRequest("", emptyMap()).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
-        assertEquals(true, contentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
+    public void testHasContentOrSourceParam() {
+        assertFalse(contentRestRequest("", emptyMap()).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
+        assertTrue(contentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
     }
 
     public void testContentOrSourceParamParser() throws IOException {
@@ -210,7 +212,7 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testWithContentOrSourceParamParserOrNull() throws IOException {
-        contentRestRequest("", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertNull(parser));
+        contentRestRequest("", emptyMap()).withContentOrSourceParamParserOrNull(Assert::assertNull);
         contentRestRequest("{}", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
         contentRestRequest("{}", singletonMap("source", "stuff2")).withContentOrSourceParamParserOrNull(
             parser -> assertEquals(emptyMap(), parser.map())
@@ -289,10 +291,10 @@ public class RestRequestTests extends ESTestCase {
     public void testRequiredContent() {
         Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
-        assertEquals(
-            new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent()
+        assertThat(contentRestRequest("stuff", emptyMap()).requiredContent(), equalBytes(new BytesArray("stuff")));
+        assertThat(
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent(),
+            equalBytes(new BytesArray("stuff"))
         );
         e = expectThrows(
             ElasticsearchParseException.class,
@@ -307,7 +309,7 @@ public class RestRequestTests extends ESTestCase {
     public void testIsServerlessRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
         request1.markAsServerlessRequest();
-        assertEquals(request1.param(SERVERLESS_REQUEST), "true");
+        assertEquals("true", request1.param(SERVERLESS_REQUEST));
         assertTrue(request1.isServerlessRequest());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsServerlessRequest);
         assertThat(exception.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
@@ -320,7 +322,7 @@ public class RestRequestTests extends ESTestCase {
     public void testIsOperatorRequest() {
         RestRequest request1 = contentRestRequest("content", new HashMap<>());
         request1.markAsOperatorRequest();
-        assertEquals(request1.param(OPERATOR_REQUEST), "true");
+        assertEquals("true", request1.param(OPERATOR_REQUEST));
         assertTrue(request1.isOperatorRequest());
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, request1::markAsOperatorRequest);
         assertThat(exception.getMessage(), is("The parameter [" + OPERATOR_REQUEST + "] is already defined."));

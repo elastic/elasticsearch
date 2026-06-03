@@ -15,12 +15,26 @@ dependencies {
   api project(':modules:transport-netty4')
   api project(':libs:ssl-config')
   api project(":server")
+  api project(":libs:native")
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
-  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
+  api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    exclude group: "junit", module: "junit"
+  }
+
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of dependencies.
+  // Therefore we exclude mismatches in our transitive dependencies explicitly.
+  // This also avoids jarHell issues with different hamcrest related dependencies
+  // like hamcrest and hamcrest-core
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  api("junit:junit:${versions.junit}") {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+  api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
+    exclude group: "junit", module: "junit"
+    exclude group: 'com.carrotsearch.randomizedtesting', module: 'randomizedtesting-runner'
+  }
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -32,6 +46,9 @@ dependencies {
   api 'org.objenesis:objenesis:3.3'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
+
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   testImplementation project(":modules:mapper-extras")
   testImplementation project(':x-pack:plugin:core')
@@ -46,6 +63,14 @@ sourceSets {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
+}
+
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
@@ -65,17 +67,41 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
-    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
         final CompositeBlock inputBlock = page.getBlock(channels.get(0));
-        delegate.addIntermediateInput(positionOffset, groupIdVector, inputBlock.asPage());
+        return delegate.prepareProcessIntermediateInputPage(seenGroupIds, inputBlock.asPage());
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
+        delegate.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluate(blocks, offset, selectedInPage, ctx);
+    }
+
+    @Override
+    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluate(blocks, offset, selectedInPage, ctx);
+    }
+
+    private void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
         final Block[] partialBlocks = new Block[delegate.intermediateBlockCount()];
         boolean success = false;
         try {
-            delegate.evaluateIntermediate(partialBlocks, 0, selected);
+            delegate.prepareEvaluateIntermediate(selected, evaluationContext).evaluate(partialBlocks, 0, selected);
             blocks[offset] = new CompositeBlock(partialBlocks);
             success = true;
         } finally {
@@ -83,11 +109,6 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
                 Releasables.close(partialBlocks);
             }
         }
-    }
-
-    @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        evaluateIntermediate(blocks, offset, selected);
     }
 
     @Override

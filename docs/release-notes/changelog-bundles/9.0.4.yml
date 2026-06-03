@@ -1,6 +1,6 @@
 version: 9.0.4
-released: false
-generated: 2025-07-14T17:07:39.875346517Z
+released: true
+generated: 2025-07-22T14:06:39.720484275Z
 changelogs:
   - pr: 129223
     summary: Fix text similarity reranker does not propagate min score correctly
@@ -95,3 +95,8 @@ changelogs:
     type: bug
     issues:
       - 129550
+  - pr: 131113
+    summary: Including `max_tokens` through the Service API for Anthropic
+    area: Machine Learning
+    type: bug
+    issues: []

@@ -25,6 +25,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -107,16 +108,6 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     }
 
     @Override
-    public long getSnapshotThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
-    public long getRestoreThrottleTimeInNanos() {
-        throw createCreationException();
-    }
-
-    @Override
     public String startVerification() {
         throw createCreationException();
     }
@@ -178,6 +169,16 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
     @Override
     public void awaitIdle() {
 
+    }
+
+    @Override
+    public LongWithAttributes getShardSnapshotsInProgress() {
+        return null;
+    }
+
+    @Override
+    public RepositoriesStats.SnapshotStats getSnapshotStats() {
+        throw createCreationException();
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,7 +24,9 @@ import org.junit.Assert;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GoogleCloudStoragePluginTests extends ESTestCase {
 
@@ -41,7 +44,10 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
                 "gcs.client.*.token_uri",
                 "gcs.client.*.proxy.type",
                 "gcs.client.*.proxy.host",
-                "gcs.client.*.proxy.port"
+                "gcs.client.*.proxy.port",
+                "gcs.client.*.max_retries",
+                "gcs.client.*.megabytes_copied_per_chunk",
+                "gcs.client.*.tenacious_retries.enabled"
             ),
             settings.stream().map(Setting::getKey).toList()
         );
@@ -49,6 +55,10 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
 
     public void testRepositoryProjectId() {
         final var projectId = randomProjectIdOrDefault();
+        GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
+        GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
         final var repository = new GoogleCloudStorageRepository(
             projectId,
             new RepositoryMetadata(
@@ -60,11 +70,12 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
                     .build()
             ),
             NamedXContentRegistry.EMPTY,
-            mock(GoogleCloudStorageService.class),
+            storageService,
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(GcsRepositoryStatsCollector.class)
+            mock(GcsRepositoryStatsCollector.class),
+            SnapshotMetrics.NOOP
         );
         assertThat(repository.getProjectId(), equalTo(projectId));
     }

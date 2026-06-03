@@ -1,6 +1,0 @@
-pr: 130776
-summary: Fix msearch request parsing when index expression is null
-area: Search
-type: bug
-issues:
- - 129631

@@ -109,7 +109,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .nodes(2)
             .setting("path.repo", () -> repoDirectory.getRoot().getPath())
             .setting("xpack.security.enabled", "false")
@@ -118,7 +118,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .apply(() -> clusterConfig)
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("8.18.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0")) || isOldClusterDetachedVersion()) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }
@@ -918,8 +918,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             client().performRequest(createDoc);
         }
 
-        Request request = new Request("GET", docLocation);
-        assertThat(toStr(client().performRequest(request)), containsString(doc));
+        Map<String, Object> getResponse = entityAsMap(client().performRequest(new Request("GET", docLocation)));
+        assertThat(getResponse.get("_source"), equalTo(Map.of("test", "test")));
     }
 
     /**

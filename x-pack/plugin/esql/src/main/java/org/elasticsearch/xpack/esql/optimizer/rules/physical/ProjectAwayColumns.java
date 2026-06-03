@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -36,9 +38,14 @@ import static java.util.Collections.singletonList;
  * extraction.
  */
 public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
+    public static String ALL_FIELDS_PROJECTED = "<all-fields-projected>";
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
+        return apply(plan, false);
+    }
+
+    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
@@ -52,11 +59,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             // for non-unary execution plans, we apply the rule for each child
             if (currentPlanNode instanceof MergeExec mergeExec) {
                 keepTraversing.set(FALSE);
+
                 List<PhysicalPlan> newChildren = new ArrayList<>();
                 boolean changed = false;
 
                 for (var child : mergeExec.children()) {
-                    var newChild = apply(child);
+                    var newChild = apply(child, true);
 
                     if (newChild != child) {
                         changed = true;
@@ -64,7 +72,14 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
                     newChildren.add(newChild);
                 }
-                return changed ? new MergeExec(mergeExec.source(), newChildren, mergeExec.output()) : mergeExec;
+                if (changed) {
+                    // Preserve the original MergeExec output (which uses the fork's NameIds) unless it is
+                    // empty — that happens when all branches had only the <no-fields> marker, which was
+                    // stripped by PruneColumns. In that case adopt the children's output (ALL_FIELDS_PROJECTED).
+                    var newOutput = mergeExec.output().isEmpty() ? newChildren.getFirst().output() : mergeExec.output();
+                    return new MergeExec(mergeExec.source(), newChildren, newOutput);
+                }
+                return mergeExec;
             }
 
             if (currentPlanNode instanceof ExchangeExec exec) {
@@ -74,8 +89,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 if (child instanceof FragmentExec fragmentExec) {
                     var logicalFragment = fragmentExec.fragment();
 
-                    // no need for projection when dealing with aggs
-                    if (logicalFragment instanceof Aggregate == false) {
+                    // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
+                    // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
+                    // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
+                    if ((logicalFragment instanceof Aggregate == false
+                        && logicalFragment instanceof MetricsInfo == false
+                        && logicalFragment instanceof TsInfo == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {
@@ -93,8 +112,8 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
-                        if (output.isEmpty()) {
-                            var alias = new Alias(logicalFragment.source(), "<all-fields-projected>", Literal.NULL, null, true);
+                        if (output.isEmpty() && isForkBranch == false) {
+                            var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
                             output = Expressions.asAttributes(fields);

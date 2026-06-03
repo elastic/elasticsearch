@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.project;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -17,11 +18,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ProjectStateRegistrySerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
+
+    private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
 
     @Override
     protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {
@@ -56,7 +62,7 @@ public class ProjectStateRegistrySerializationTests extends SimpleDiffableWireSe
     private ProjectStateRegistry mutate(ProjectStateRegistry instance) {
         if (randomBoolean() && instance.size() > 0) {
             // Remove or mutate a project's settings or deletion flag
-            var projectId = randomFrom(instance.getProjectsSettings().keySet());
+            var projectId = randomFrom(instance.knownProjects());
             var builder = ProjectStateRegistry.builder(instance);
             builder.putProjectSettings(projectId, randomSettings());
             if (randomBoolean()) {
@@ -85,5 +91,12 @@ public class ProjectStateRegistrySerializationTests extends SimpleDiffableWireSe
         var builder = Settings.builder();
         IntStream.range(0, randomIntBetween(1, 5)).forEach(i -> builder.put(randomIdentifier(), randomIdentifier()));
         return builder.build();
+    }
+
+    public void testProjectStateRegistryBwcSerialization() throws IOException {
+        ProjectStateRegistry projectStateRegistry = randomProjectStateRegistry();
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_STATE_REGISTRY_ENTRY);
+        ClusterState.Custom serialized = copyInstance(projectStateRegistry, oldVersion);
+        assertThat(serialized, equalTo(projectStateRegistry));
     }
 }

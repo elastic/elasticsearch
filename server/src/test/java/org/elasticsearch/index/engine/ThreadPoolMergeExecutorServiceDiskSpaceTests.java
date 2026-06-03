@@ -83,7 +83,7 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
         // use 2 data paths
         String[] paths = new String[] { path.resolve(aPathPart).toString(), path.resolve(bPathPart).toString() };
         // some tests hold one merge thread blocked, and need at least one other runnable
-        mergeExecutorThreadCount = randomIntBetween(2, 9);
+        mergeExecutorThreadCount = randomIntBetween(2, 8);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
             .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
@@ -771,16 +771,8 @@ public class ThreadPoolMergeExecutorServiceDiskSpaceTests extends ESTestCase {
             while (submittedMergesCount > 0 && expectedAvailableBudget.get() > 0L) {
                 ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
                 when(mergeTask.supportsIOThrottling()).thenReturn(randomBoolean());
-                doAnswer(mock -> {
-                    Schedule schedule = randomFrom(Schedule.values());
-                    if (schedule == BACKLOG) {
-                        testThreadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                            // re-enqueue backlogged merge task
-                            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask);
-                        });
-                    }
-                    return schedule;
-                }).when(mergeTask).schedule();
+                // avoid backlogging and re-enqueing merge tasks in this test because it makes the queue's available budget unsteady
+                when(mergeTask.schedule()).thenReturn(randomFrom(RUN, ABORT));
                 // let some task complete, which will NOT hold up any budget
                 if (randomBoolean()) {
                     // this task will NOT hold up any budget because it runs quickly (it is not blocked)

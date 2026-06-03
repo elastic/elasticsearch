@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,6 +40,8 @@ public class MoveAllocationCommand implements AllocationCommand {
     public static final String NAME = "move";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     private final String index;
     private final int shardId;
     private final String fromNode;
@@ -68,7 +70,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         shardId = in.readVInt();
         fromNode = in.readString();
         toNode = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
@@ -81,7 +83,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         out.writeVInt(shardId);
         out.writeString(fromNode);
         out.writeString(toNode);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
             projectId.writeTo(out);
         } else {
             assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;

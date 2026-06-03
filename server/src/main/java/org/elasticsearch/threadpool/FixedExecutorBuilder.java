@@ -11,7 +11,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,7 +28,8 @@ import java.util.concurrent.ThreadFactory;
  * Builds an Executor with a static number of threads, as opposed to {@link ScalingExecutorBuilder} that dynamically scales the number of
  * threads in the pool up and down based on request load.
  */
-public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
+public sealed class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> permits
+    FixedScaleDownExecutorBuilder {
 
     private final Setting<Integer> sizeSetting;
     private final Setting<Integer> queueSizeSetting;
@@ -160,7 +160,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             size,
             size,
             null,
-            queueSize < 0 ? null : new SizeValue(queueSize)
+            queueSize < 0 ? null : (long) queueSize
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }
@@ -187,6 +187,16 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             this.queueSize = queueSize;
         }
 
+        int getSize() {
+            return size;
+        }
+
+        int getQueueSize() {
+            return queueSize;
+        }
     }
 
+    TaskTrackingConfig getTaskTrackingConfig() {
+        return taskTrackingConfig;
+    }
 }

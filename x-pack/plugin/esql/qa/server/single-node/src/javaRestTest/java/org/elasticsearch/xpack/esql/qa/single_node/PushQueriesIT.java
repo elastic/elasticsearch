@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -22,10 +23,12 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,6 +58,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PushQueriesIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%1s")
     public static List<Object[]> args() {
@@ -181,8 +187,12 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" OR foo == 2
             """;
+        // query rewrite optimizations apply to foo, since it's query value is always outside the range of indexed values
         List<String> luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]"
+            );
             case TEXT -> {
                 List<String> expected = new ArrayList<>();
                 for (String q : emulateLargeTextTokens(value)) {
@@ -194,7 +204,7 @@ public class PushQueriesIT extends ESRestTestCase {
                 }
                 yield expected;
             }
-            case KEYWORD -> List.of("test:%value foo:[2 TO 2]");
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
@@ -212,9 +222,12 @@ public class PushQueriesIT extends ESRestTestCase {
             FROM test
             | WHERE test == "%value" AND foo == 1
             """;
+        // query rewrite optimizations apply to foo, since it's query value is always within the range of indexed values
         List<String> luceneQueryOptions = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword #foo:[1 TO 1]");
-            case KEYWORD -> List.of("#test:%value #foo:[1 TO 1]");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "#test.keyword:%value -_ignored:test.keyword foo:[2 TO 2]"
+            );
             case TEXT -> {
                 List<String> expected = new ArrayList<>();
                 for (String q : emulateLargeTextTokens(value)) {
@@ -226,13 +239,15 @@ public class PushQueriesIT extends ESRestTestCase {
                 }
                 yield expected;
             }
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("foo:[1 TO 1]");
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT, SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
-                 * single_value_match is here because there are extra documents hiding in the index
-                 * that don't have the `foo` field.
+                 * FieldExistsQuery is because there are extra documents hiding in the index
+                 * that don't have the `foo` field. "*:*" is because sometimes we end up on
+                 * a shard where all `foo = 1`.
                  */
-                List.of("#foo:[1 TO 1] #single_value_match(foo)", "foo:[1 TO 1]");
+                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -415,7 +430,7 @@ public class PushQueriesIT extends ESRestTestCase {
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(replacedQuery + "\n| KEEP test");
         builder.profile(true);
         builder.allowPartialResults(false);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertResultMap(
             result,
             getResultMatcher(result).entry(
@@ -424,16 +439,23 @@ public class PushQueriesIT extends ESRestTestCase {
                     .entry("drivers", instanceOf(List.class))
                     .entry("plans", instanceOf(List.class))
                     .entry("planning", matchesMap().extraOk())
+                    .entry("parsing", matchesMap().extraOk())
+                    .entry("view_resolution", matchesMap().extraOk())
+                    .entry("dataset_resolution", matchesMap().extraOk())
+                    .entry("preanalysis", matchesMap().extraOk())
+                    .entry("indices_resolution", matchesMap().extraOk())
+                    .entry("enrich_resolution", matchesMap().extraOk())
+                    .entry("inference_resolution", matchesMap().extraOk())
+                    .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
+                    .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             matchesList().item(matchesMap().entry("name", "test").entry("type", anyOf(equalTo("text"), equalTo("keyword")))),
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
         Matcher<String> luceneQueryMatcher = anyOf(
-            () -> Iterators.map(
-                luceneQueryOptions.iterator(),
-                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
-            )
+            () -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue))
         );
 
         @SuppressWarnings("unchecked")
@@ -467,6 +489,14 @@ public class PushQueriesIT extends ESRestTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+    }
+
+    private Matcher<String> queryMatcher(String queryString, String value, String differentValue) {
+        queryString = queryString.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+        if (queryString.length() <= LuceneOperator.Status.QUERY_STRING_TRUNCATION) {
+            return equalTo(queryString);
+        }
+        return startsWith(queryString.substring(0, LuceneOperator.Status.QUERY_STRING_TRUNCATION));
     }
 
     private void indexValue(String value) throws IOException {
@@ -588,7 +618,7 @@ public class PushQueriesIT extends ESRestTestCase {
             }""";
     }
 
-    private static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
+    static final Pattern TO_NAME = Pattern.compile("\\[.+", Pattern.DOTALL);
 
     private static String checkOperatorProfile(Map<String, Object> o, Matcher<String> query) {
         String name = (String) o.get("operator");
@@ -620,7 +650,7 @@ public class PushQueriesIT extends ESRestTestCase {
             return;
         }
         setupEmbeddings = true;
-        Request request = new Request("PUT", "_inference/text_embedding/test");
+        Request request = new Request("PUT", "/_inference/text_embedding/test");
         request.setJsonEntity("""
                   {
                    "service": "text_embedding_test_service",

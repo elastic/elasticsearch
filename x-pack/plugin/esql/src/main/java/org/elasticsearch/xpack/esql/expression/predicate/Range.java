@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
@@ -31,15 +33,16 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
@@ -223,17 +226,67 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable() ? Translatable.YES : Translatable.NO;
+        if (lower.foldable() == false || upper.foldable() == false) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableAttribute(value)) {
+            return Translatable.YES;
+        }
+        if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+            return Translatable.YES;
+        }
+        return Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (value instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractRange(keyedName.get());
+            }
+        }
         return translate(handler);
     }
 
+    /**
+     * Translates a closed range over {@code field_extract(root, "key")} to a {@link RangeQuery}
+     * on the synthetic data-node field name {@code root.key}. The data node's
+     * {@code FieldTypeLookup} resolves that name to a {@code KeyedFlattenedFieldType} which
+     * prefixes both bounds with {@code key + "\0"} at search time, keeping the range inside the
+     * key's slice of the {@code _keyed} term space.
+     * <p>
+     * The result is wrapped in {@link SingleValueQuery} so that the multi-valued-sub-key
+     * semantics match the per-row evaluator's "multi-value compares to null" rule (consistent
+     * with how {@code Equals}/{@code NotEquals}/{@code In} on {@code field_extract} wrap their
+     * {@code TermQuery}/{@code TermsQuery}). {@code useSyntheticSourceDelegate} is {@code false}
+     * because the keyed sub-field is not addressed via a synthetic-source delegate.
+     */
+    private Query translateFieldExtractRange(String keyedName) {
+        Object lo = literalValueOf(lower);
+        Object hi = literalValueOf(upper);
+        if (lo instanceof BytesRef br) {
+            lo = br.utf8ToString();
+        }
+        if (hi instanceof BytesRef br) {
+            hi = br.utf8ToString();
+        }
+        RangeQuery rangeQuery = new RangeQuery(
+            source(),
+            keyedName,
+            lo,
+            includeLower,
+            hi,
+            includeUpper,
+            /* format */ null,
+            /* zoneId */ null
+        );
+        return new SingleValueQuery(rangeQuery, keyedName, false);
+    }
+
     private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+        Object l = literalValueOf(lower);
+        Object u = literalValueOf(upper);
         String format = null;
 
         DataType dataType = value.dataType();

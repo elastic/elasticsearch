@@ -11,15 +11,15 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
-import org.elasticsearch.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -42,71 +42,42 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        if (randomBoolean()) {
+            runner.allowDummyDocs();
+        }
     }
 
     // This is similar to BlockLoaderTestCase#testBlockLoaderOfMultiField but has customizations required to properly test the case
     // of text multi field in a keyword field.
     public void testBlockLoaderOfParentField() throws IOException {
         var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.KEYWORD.toString())));
-        var specification = buildSpecification(List.of(new DataSourceHandler() {
-            @Override
-            public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-                // This is a bit tricky meta-logic.
-                // We want to customize mapping but to do this we need the mapping for the same field type
-                // so we use name to untangle this.
-                if (request.fieldName().equals("parent") == false) {
-                    return null;
-                }
+        var specification = buildSpecification(
+            List.of(new MultifieldAddonHandler(Map.of(FieldType.KEYWORD, List.of(FieldType.TEXT)), 1f)),
+            params.indexMode()
+        );
 
-                return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
-                    var dataSource = request.dataSource();
-
-                    var keywordParentMapping = dataSource.get(
-                        new DataSourceRequest.LeafMappingParametersGenerator(
-                            dataSource,
-                            "_field",
-                            FieldType.KEYWORD.toString(),
-                            request.eligibleCopyToFields(),
-                            request.dynamicMapping()
-                        )
-                    ).mappingGenerator().get();
-
-                    var textMultiFieldMapping = dataSource.get(
-                        new DataSourceRequest.LeafMappingParametersGenerator(
-                            dataSource,
-                            "_field",
-                            FieldType.TEXT.toString(),
-                            request.eligibleCopyToFields(),
-                            request.dynamicMapping()
-                        )
-                    ).mappingGenerator().get();
-
-                    // we don't need this here
-                    keywordParentMapping.remove("copy_to");
-
-                    textMultiFieldMapping.put("type", "text");
-                    textMultiFieldMapping.remove("fields");
-
-                    keywordParentMapping.put("fields", Map.of("mf", textMultiFieldMapping));
-
-                    return keywordParentMapping;
-                });
-            }
-        }));
         var mapping = new MappingGenerator(specification).generate(template);
         var fieldMapping = mapping.lookup().get("parent");
 
-        var document = new DocumentGenerator(specification).generate(template, mapping);
-        var fieldValue = document.get("parent");
+        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        var fieldValue = runner.mapDoc().get("parent");
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource()
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        runner.mapperService(mapperServiceForParams(mappingXContent));
+        runner.fieldName("parent.subfield_text");
+        runner.run(expected);
+    }
 
-        runner.runTest(mapperService, document, expected, "parent.mf");
+    private MapperService mapperServiceForParams(XContentBuilder mappingXContent) throws IOException {
+        // Columnar index modes preserve array order via offsets recorded on the keyword parent. The text subfield delegates its block
+        // loader to that parent, so the index must actually be built in columnar mode for the offsets to exist - otherwise the delegate
+        // falls back to sorted ordinal order and no longer matches the arrival-order expectation.
+        if (params.indexMode().isColumnar()) {
+            return createMapperService(BlockLoaderTestCase.getSettingsForParams(params).build(), mappingXContent);
+        }
+        return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
     }
 
     @SuppressWarnings("unchecked")
@@ -123,7 +94,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         }
 
         // we are using block loader of the text field itself
-        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("mf");
-        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
+        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
+        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
     }
 }

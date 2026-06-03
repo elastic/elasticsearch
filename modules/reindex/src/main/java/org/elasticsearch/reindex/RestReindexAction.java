@@ -10,20 +10,26 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.rest.FilteredRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -35,10 +41,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature, CrossProjectModeDecider crossProjectModeDecider) {
         super(ReindexAction.INSTANCE);
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -68,6 +76,14 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         try (XContentParser parser = request.contentParser()) {
             internal = ReindexRequest.fromXContent(parser, clusterSupportsFeature);
         }
+        if (internal.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
+            SearchRequest searchRequest = internal.getSearchRequest();
+            searchRequest.indicesOptions(
+                IndicesOptions.builder(searchRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
+        }
 
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
@@ -75,14 +91,53 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
         }
+        if (clusterSupportsFeature.test(ReindexPlugin.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)
+            && request.paramAsBoolean("wait_for_completion", true) == false) {
+            // On shutdown, we can try to relocate an asynchronous reindex task to another node. We cannot do this for synchronous ones,
+            // where a client is waiting for a response from this node (but they should not be long-lived anyway).
+            internal.setEligibleForRelocationOnShutdown(true);
+        }
 
         return internal;
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("source.remote.host.password");
-
+    /**
+     * This method isn't used because we implement {@link #getFilteredRequest(RestRequest)} instead
+     */
     @Override
     public Set<String> getFilteredFields() {
-        return FILTERED_FIELDS;
+        assert false : "This method should never be called";
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RestRequest getFilteredRequest(RestRequest restRequest) {
+        if (restRequest.hasContent()) {
+            return new FilteredRestRequest(restRequest, Set.of()) {
+                @Override
+                @SuppressWarnings({ "rawtypes", "unchecked" })
+                protected Map<String, Object> transformBody(Map<String, Object> map) {
+                    final var source = map.get("source");
+                    if (source instanceof Map sourceMap) {
+                        final var remote = sourceMap.get("remote");
+                        if (remote instanceof Map remoteMap) {
+                            remoteMap.computeIfPresent("password", (key, value) -> "::es-redacted::");
+                            remoteMap.computeIfPresent("headers", (key, value) -> {
+                                if (value instanceof Map<?, ?> headers) {
+                                    return headers.entrySet()
+                                        .stream()
+                                        .collect(Collectors.toMap(Map.Entry::getKey, ignore -> "::es-redacted::"));
+                                } else {
+                                    return null;
+                                }
+                            });
+                        }
+                    }
+                    return map;
+                }
+            };
+        } else {
+            return restRequest;
+        }
     }
 }

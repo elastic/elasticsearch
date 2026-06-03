@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -66,9 +67,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -153,11 +151,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 new Attribute("objectClass", "top", "domain", "extensibleObject")
             );
             directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
-            // Must have privileged access because underlying server will accept socket connections
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                directoryServer.startListening();
-                return null;
-            });
+            directoryServer.startListening();
             directoryServers[i] = directoryServer;
         }
         threadPool = new TestThreadPool("active directory realm tests");
@@ -171,16 +165,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     private void tryConnect(InMemoryDirectoryServer ds) {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
-                } catch (LDAPException e) {
-                    throw new AssertionError("Failed to connect to " + ds, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        try (var c = ds.getConnection()) {
+            assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
+        } catch (LDAPException e) {
             throw new AssertionError("Failed to connect to " + ds, e);
         }
     }
@@ -439,7 +426,8 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
             @Override

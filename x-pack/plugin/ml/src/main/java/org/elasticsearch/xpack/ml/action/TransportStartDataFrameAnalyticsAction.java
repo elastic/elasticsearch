@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
@@ -389,7 +391,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                     )
                 );
-            } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows) >= Math.pow(2, 32)) {
+            } else if (tooManyDocumentsForAnalysis(dataSummary.rows, startContext.config.getAnalysis().getTrainingPercent())) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Unable to start because too many documents "
@@ -400,6 +402,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 listener.onResponse(startContext);
             }
         }, listener::onFailure));
+    }
+
+    static boolean tooManyDocumentsForAnalysis(long rows, double trainingPercent) {
+        return Math.floor(rows * trainingPercent / 100.0) >= Math.pow(2, 32);
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
@@ -690,10 +696,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            @SuppressWarnings("HiddenField") ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(
@@ -711,7 +718,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 params.getId(),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 memoryTracker,
-                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes,
+                JobNodeSelector.effectiveMaxLazyNodes(maxLazyMLNodes, params.isAllowLazyStart()),
                 node -> nodeFilter(node, params)
             );
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do

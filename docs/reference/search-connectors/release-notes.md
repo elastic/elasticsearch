@@ -13,6 +13,183 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.2 [connectors-9.4.2-release-notes]
+
+### Features and enhancements [connectors-9.4.2-features-enhancements]
+* Tuned default Elasticsearch ingestion settings to better protect content-heavy connectors against bulk timeouts. Applies to self-managed, agent-managed, and Agentless deployments. [#4009](https://github.com/elastic/connectors/pull/4009), [#14289](https://github.com/elastic/search-team/issues/14289), [#14452](https://github.com/elastic/search-team/issues/14452)
+
+### Fixes [connectors-9.4.2-fixes]
+* Fixed an issue where the Elasticsearch sink could dispatch bulk requests larger than the configured `chunk_max_mem_size`, triggering `413 Request Entity Too Large` errors or memory pressure on the cluster. [#4012](https://github.com/elastic/connectors/pull/4012), [#14453](https://github.com/elastic/search-team/issues/14453)
+* Fixed a `TypeError: Issuer (iss) must be a string` crash that prevented GitHub App authentication from working with PyJWT 2.11.0 or later. [#4027](https://github.com/elastic/connectors/pull/4027), [#1881](https://github.com/elastic/sdh-search/issues/1881)
+* Fixed a `ModuleNotFoundError: No module named 'pkg_resources'` crash that prevented the Microsoft SQL Server connector from starting a sync on the official Docker image. [#4015](https://github.com/elastic/connectors/pull/4015), [#4014](https://github.com/elastic/connectors/issues/4014)
+
+## 9.4.1 [connectors-9.4.1-release-notes]
+
+### Fixes [connectors-9.4.1-fixes]
+
+* Fixes a bug for {{connectors-app}} Document Level Security, where the generated query filter used an incorrect subfield. [#4006](https://github.com/elastic/connectors/pull/4006), [#4005](https://github.com/elastic/connectors/issues/4005)
+
+## 9.4.0 [connectors-9.4.0-release-notes]
+
+### Fixes [connectors-9.4.0-fixes]
+* Fixed a bug in the Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885), [#3884](https://github.com/elastic/connectors/issues/3884)
+
+## 9.3.5 [connectors-9.3.5-release-notes]
+
+### Features and enhancements [connectors-9.3.5-features-enhancements]
+* Tuned default Elasticsearch ingestion settings to better protect content-heavy connectors against bulk timeouts. Applies to self-managed, agent-managed, and Agentless deployments. [#4009](https://github.com/elastic/connectors/pull/4009), [#14289](https://github.com/elastic/search-team/issues/14289), [#14452](https://github.com/elastic/search-team/issues/14452)
+
+### Fixes [connectors-9.3.5-fixes]
+* Fixed a bug for {{connectors-app}} Document Level Security, where the generated query filter used an incorrect subfield. [#4006](https://github.com/elastic/connectors/pull/4006), [#4005](https://github.com/elastic/connectors/issues/4005)
+* Fixed an issue where the Elasticsearch sink could dispatch bulk requests larger than the configured `chunk_max_mem_size`, triggering `413 Request Entity Too Large` errors or memory pressure on the cluster. [#4012](https://github.com/elastic/connectors/pull/4012), [#14453](https://github.com/elastic/search-team/issues/14453)
+* Fixed a `TypeError: Issuer (iss) must be a string` crash that prevented GitHub App authentication from working with PyJWT 2.11.0 or later. [#4027](https://github.com/elastic/connectors/pull/4027), [#1881](https://github.com/elastic/sdh-search/issues/1881)
+
+## 9.3.4 [connectors-9.3.4-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.3.3 [connectors-9.3.3-release-notes]
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
+
+## 9.2.8 [connectors-9.2.8-release-notes]
+* Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973](https://github.com/elastic/connectors/pull/3973), [#3972](https://github.com/elastic/connectors/issues/3972)
+
+## 9.3.2 [connectors-9.3.2-release-notes]
+
+### Fixes [connectors-9.3.2-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count.[#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.2.7 [connectors-9.2.7-release-notes]
+
+### Fixes [connectors-9.2.7-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.3.1 [connectors-9.3.1-release-notes]
+
+### Fixes [connectors-9.3.1-fixes]
+* Fixed an issue where MultiService would enter an unresponsive state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940),[#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.2.6 [connectors-9.2.6-release-notes]
+
+### Fixes [connectors-9.2.6-fixes]
+* Fixed an issue where MultiService would enter an unresponsive  state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940), [#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.3.0 [connectors-9.3.0-release-notes]
+
+### Fixes [connectors-9.3.0-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types.[#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
+### Features and enhancements [connectors-9.3.0-features-enhancements]
+* Added a new GitLab connector to sync Projects, Issues, Epics, Merge Requests, Releases, and README files. [#3770](https://github.com/elastic/connectors/pull/3770) [#11093](https://github.com/elastic/search-team/issues/11093)
+
+## 9.2.5 [connectors-9.2.5-release-notes]
+
+### Fixes [connectors-9.2.5-fixes]
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types. [#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
+## 9.2.4 [connectors-9.2.4-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.2.3 [connectors-9.2.3-release-notes]
+
+### Fixes [connectors-9.2.3-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.2.2 [connectors-9.2.2-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.2.1 [connectors-9.2.1-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.2.0 [connectors-9.2.0-release-notes]
+
+### Features and enhancements [connectors-9.2.0-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.10 [connectors-9.1.10-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.9 [connectors-9.1.9-release-notes]
+
+### Fixes [connectors-9.1.9-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
+## 9.1.8 [connectors-9.1.8-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.7 [connectors-9.1.7-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.6 [connectors-9.1.6-release-notes]
+
+### Features and enhancements [connectors-9.1.6-features-enhancements]
+* Idle Github connectors no longer excessively query set-up repositories, which reduces the number of calls to GitHub each connector makes and makes users less likely to hit GitHub API quotas. [#3708](https://github.com/elastic/connectors/pull/3708)
+
+* In the Sharepoint Online connector, /contentstorage/ URLs are no longer synced. [#3630](https://github.com/elastic/connectors/pull/3630)
+
+## 9.1.5 [connectors-9.1.5-release-notes]
+
+### Features and enhancements [connectors-9.1.5-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.1.4 [connectors-9.1.4-release-notes]
+
+### Features and enhancements [connectors-9.1.4-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
+## 9.1.3 [connectors-9.1.3-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.2 [connectors-9.1.2-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.1.1 [connectors-9.1.1-release-notes]
+
+### Fixes [connectors-9.1.1-fixes]
+
+:::{dropdown} Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+
+Permissions granted to the `Everyone Except External Users` group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+[#3577](https://github.com/elastic/connectors/pull/3577) resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+:::
+
+## 9.1.0 [connectors-9.1.0-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+## 9.0.8 [connectors-9.0.8-release-notes]
+
+### Features and enhancements [connectors-9.0.8-features-enhancements]
+* Refactored pagination from OFFSET-based to keyset (primary-key) pagination in the MySQL connector. This delivers 3×+ faster syncs on large tables and modest gains on smaller ones. [#3719](https://github.com/elastic/connectors/pull/3719).
+
+* Updated the Jira connector to use the new `/rest/api/3/search/jql` endpoint, ensuring compatibility with Jira’s latest API. [#3710](https://github.com/elastic/connectors/pull/3710).
+
+## 9.0.7 [connectors-9.0.7-release-notes]
+
+### Features and enhancements [connectors-9.0.7-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
+## 9.0.6 [connectors-9.0.6-release-notes]
+No changes since 9.0.5
+
+## 9.0.5 [connectors-9.0.5-release-notes]
+
+### Fixes [connectors-9.0.5-fixes]
+
+:::{dropdown} Resolves missing access control for `Everyone Except External Users` in SharePoint connector
+Permissions granted to the `Everyone Except External Users` group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format. [#3577](https://github.com/elastic/connectors/pull/3577) resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+:::
+
+## 9.0.4 [connectors-9.0.4-release-notes]
+No changes since 9.0.3
+
 ## 9.0.3 [connectors-9.0.3-release-notes]
 
 ### Features and enhancements [connectors-9.0.3-features-enhancements]

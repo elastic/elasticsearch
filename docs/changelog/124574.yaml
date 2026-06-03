@@ -1,5 +1,0 @@
-pr: 124574
-summary: Allow passing several reserved state chunks in single process call
-area: Infra/Settings
-type: enhancement
-issues: []

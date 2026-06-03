@@ -33,13 +33,37 @@ public class InstrumentedSecurityActionListener {
             if (result.isAuthenticated()) {
                 metrics.recordSuccess(context);
             } else {
-                metrics.recordFailure(context, result.getMessage());
+                metrics.recordFailure(context);
             }
             listener.onResponse(result);
         }, e -> {
-            metrics.recordFailure(context, e.getMessage());
+            metrics.recordFailure(context);
             listener.onFailure(e);
         }), () -> metrics.recordTime(context, startTimeNano));
+    }
+
+    /**
+     * A simpler variant that re-uses the Authentication Result as the context. This can be handy in situations where the attributes that
+     * are of interest are available only after the authentication is completed and not before.
+     * As a natural consequence, there will be no context available at the point of recording start time and in cases of exceptional failure
+     */
+    public static <R> ActionListener<AuthenticationResult<R>> wrapForAuthc(
+        final SecurityMetrics<AuthenticationResult<R>> metrics,
+        final ActionListener<AuthenticationResult<R>> listener
+    ) {
+        assert metrics.type().group() == SecurityMetricGroup.AUTHC;
+        final long startTimeNano = metrics.relativeTimeInNanos();
+        return ActionListener.runBefore(ActionListener.wrap(result -> {
+            if (result.isAuthenticated()) {
+                metrics.recordSuccess(result);
+            } else {
+                metrics.recordFailure(result);
+            }
+            listener.onResponse(result);
+        }, e -> {
+            metrics.recordFailure(null);
+            listener.onFailure(e);
+        }), () -> metrics.recordTime(null, startTimeNano));
     }
 
 }

@@ -89,12 +89,17 @@ public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBl
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public float getFloat(int valueIndex) {
         return vector.getFloat(valueIndex);
     }
 
     @Override
-    public FloatBlock filter(int... positions) {
+    public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newFloatBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

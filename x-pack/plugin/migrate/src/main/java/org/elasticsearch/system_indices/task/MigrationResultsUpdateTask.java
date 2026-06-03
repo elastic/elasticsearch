@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -26,11 +27,18 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(MigrationResultsUpdateTask.class);
 
     private final String featureName;
+    private final ProjectId projectId;
     private final SingleFeatureMigrationResult status;
     private final ActionListener<ClusterState> listener;
 
-    private MigrationResultsUpdateTask(String featureName, SingleFeatureMigrationResult status, ActionListener<ClusterState> listener) {
+    private MigrationResultsUpdateTask(
+        String featureName,
+        ProjectId projectId,
+        SingleFeatureMigrationResult status,
+        ActionListener<ClusterState> listener
+    ) {
         this.featureName = featureName;
+        this.projectId = projectId;
         this.status = status;
         this.listener = listener;
     }
@@ -38,15 +46,17 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     /**
      * Creates a task that will update the status of a feature migration.
      * @param featureName The name of the feature whose status should be updated.
+     * @param projectId The project ID
      * @param status The status to be associated with the given feature.
      * @param listener A listener that will be called upon successfully updating the cluster state.
      */
     public static MigrationResultsUpdateTask upsert(
         String featureName,
+        ProjectId projectId,
         SingleFeatureMigrationResult status,
         ActionListener<ClusterState> listener
     ) {
-        return new MigrationResultsUpdateTask(featureName, status, listener);
+        return new MigrationResultsUpdateTask(featureName, projectId, status, listener);
     }
 
     /**
@@ -69,7 +79,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
-        final var project = currentState.metadata().getProject();
+        final var project = currentState.metadata().getProject(projectId);
         FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
         if (currentResults == null) {
             currentResults = new FeatureMigrationResults(new HashMap<>());

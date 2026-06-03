@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -43,30 +44,30 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.utils.SourceDestValidations;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.function.BooleanSupplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -85,6 +86,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final Settings destIndexSettings;
+    private final BooleanSupplier hasLinkedProjects;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -96,7 +99,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformExtensionHolder transformExtensionHolder
+        TransformExtensionHolder transformExtensionHolder,
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -120,6 +125,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             License.OperationMode.BASIC.description()
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -155,9 +162,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSource(),
                 config.getDestination().getPipeline(),
                 config.getDestination().getIndex(),
-                config.getDestination().getAliases(),
                 config.getSyncConfig(),
                 config.getSettings(),
+                request.previewAsIndexRequest(),
                 listener
             ),
             listener::onFailure
@@ -195,6 +202,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
+                hasLinkedProjects.getAsBoolean(),
                 checkPrivilegesListener
             );
         } else { // No security enabled, just move on
@@ -211,89 +219,54 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SourceConfig source,
         String pipeline,
         String dest,
-        List<DestAlias> aliases,
         SyncConfig syncConfig,
         SettingsConfig settingsConfig,
+        boolean previewAsIndexRequest,
         ActionListener<Response> listener
     ) {
-        Client parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        // Extract the caller credential once so we can both wrap the parent client with it and release its
+        // SecureString when the preview completes. extractCloudManagedCredential returns a fresh instance
+        // distinct from anything stored in the thread context, so we own its lifecycle.
+        final CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
 
-        final SetOnce<Map<String, String>> mappings = new SetOnce<>();
+        final var mappings = new SetOnce<Map<String, String>>();
 
-        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(
-            threadPool,
-            securityContext,
-            clusterService.state()
-        );
+        final var filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
 
-        ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
-            List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
-            List<Map<String, Object>> errors = new ArrayList<>();
-            for (var simulateDocumentResult : simulatePipelineResponse.getResults()) {
-                try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                    Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-                    Map<String, Object> doc = (Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap);
-                    if (doc != null) {
-                        docs.add(doc);
-                    }
-                    Map<String, Object> error = (Map<String, Object>) XContentMapValues.extractValue("error", tempMap);
-                    if (error != null) {
-                        errors.add(error);
-                    }
-                }
-            }
-            if (errors.isEmpty() == false) {
-                HeaderWarning.addWarning("Pipeline returned " + errors.size() + " errors, first error: " + errors.get(0));
-            }
-            TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                destIndexSettings,
-                mappings.get(),
-                transformId,
-                Clock.systemUTC()
-            );
-
-            List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-            warnings.forEach(HeaderWarning::addWarning);
-            listener.onResponse(new Response(docs, generatedDestIndexSettings));
-        }, listener::onFailure);
-
-        ActionListener<List<Map<String, Object>>> previewListener = ActionListener.wrap(docs -> {
-            if (pipeline == null) {
-                TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+        ActionListener<List<Map<String, Object>>> responseDocsListener = ActionListener.releaseAfter(
+            listener.delegateFailureAndWrap((l, docs) -> {
+                var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                     destIndexSettings,
                     mappings.get(),
                     transformId,
                     Clock.systemUTC()
                 );
-                List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                warnings.forEach(HeaderWarning::addWarning);
-                listener.onResponse(new Response(docs, generatedDestIndexSettings));
-            } else {
-                List<Map<String, Object>> results = docs.stream().map(doc -> {
-                    Map<String, Object> src = new HashMap<>();
-                    String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
-                    src.put("_source", doc);
-                    src.put("_id", id);
-                    src.put("_index", dest);
-                    return src;
-                }).collect(Collectors.toList());
-
-                try (XContentBuilder builder = jsonBuilder()) {
-                    builder.startObject();
-                    builder.field("docs", results);
-                    builder.endObject();
-                    var pipelineRequest = new SimulatePipelineRequest(
-                        ReleasableBytesReference.wrap(BytesReference.bytes(builder)),
-                        XContentType.JSON
+                TransformConfigLinter.getWarnings(function, source, syncConfig).forEach(HeaderWarning::addWarning);
+                if (previewAsIndexRequest) {
+                    l.onResponse(new Response(docs, generatedDestIndexSettings));
+                } else {
+                    l.onResponse(
+                        new Response(
+                            docs.stream().map(doc -> (Map<String, Object>) doc.get(TransformField.DOCUMENT_SOURCE_FIELD)).toList(),
+                            generatedDestIndexSettings
+                        )
                     );
-                    pipelineRequest.setId(pipeline);
-                    parentTaskClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
-            }
-        }, listener::onFailure);
+            }),
+            callerCredential
+        );
 
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
+        ActionListener<List<Map<String, Object>>> previewListener = responseDocsListener.delegateFailureAndWrap((l, docs) -> {
+            if (pipeline == null) {
+                l.onResponse(docs);
+            } else {
+                simulatePipeline(docs, pipeline, dest, parentTaskClient, l);
+            }
+        });
+
+        ActionListener<Map<String, String>> deduceMappingsListener = previewListener.delegateFailureAndWrap((l, deducedMappings) -> {
             if (TransformEffectiveSettings.isDeduceMappingsDisabled(settingsConfig)) {
                 mappings.set(emptyMap());
             } else {
@@ -307,10 +280,72 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 // Use deduced mappings for generating preview even if "settings.deduce_mappings" is set to false
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
-                previewListener
+                l
             );
-        }, listener::onFailure);
+        });
 
         function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void simulatePipeline(
+        List<Map<String, Object>> previewDocs,
+        String pipeline,
+        String dest,
+        Client client,
+        ActionListener<List<Map<String, Object>>> listener
+    ) throws IOException {
+        ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = listener.delegateFailureAndWrap(
+            (l, simulatePipelineResponse) -> {
+                List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
+                List<Map<String, Object>> errors = new ArrayList<>();
+                for (var simulateDocumentResult : simulatePipelineResponse.getResults()) {
+                    try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+                        XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+                        Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON)
+                            .v2();
+                        Map<String, Object> sourceDoc = (Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap);
+                        if (sourceDoc != null) {
+                            docs.add(
+                                Map.ofEntries(
+                                    Map.entry(TransformField.DOCUMENT_ID_FIELD, XContentMapValues.extractValue("doc._id", tempMap)),
+                                    Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, sourceDoc)
+                                )
+                            );
+                        }
+                        var error = (Map<String, Object>) XContentMapValues.extractValue("error", tempMap);
+                        if (error != null) {
+                            errors.add(error);
+                        }
+                    }
+                }
+                if (errors.isEmpty() == false) {
+                    HeaderWarning.addWarning("Pipeline returned " + errors.size() + " errors, first error: " + errors.getFirst());
+                }
+                l.onResponse(docs);
+            }
+        );
+
+        var results = previewDocs.stream()
+            .map(
+                doc -> Map.ofEntries(
+                    Map.entry(TransformField.DOCUMENT_SOURCE_FIELD, doc.get(TransformField.DOCUMENT_SOURCE_FIELD)),
+                    Map.entry(TransformField.DOCUMENT_ID_FIELD, doc.get(TransformField.DOCUMENT_ID_FIELD)),
+                    Map.entry("_index", dest)
+                )
+            )
+            .toList();
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            builder.field("docs", results);
+            builder.endObject();
+            var pipelineRequest = new SimulatePipelineRequest(
+                ReleasableBytesReference.wrap(BytesReference.bytes(builder)),
+                XContentType.JSON
+            );
+            pipelineRequest.setId(pipeline);
+            client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+        }
     }
 }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -38,7 +37,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -166,9 +164,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 // special case: The minimum TransportVersion in the cluster is on an old version
-                if (clusterState.getMinTransportVersion().before(TransportVersions.V_8_2_0)) {
-                    throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
-                }
 
                 String nodeId = shard.currentNodeId();
                 nodesAndShards.computeIfAbsent(nodeId, k -> new HashSet<>()).add(shard.shardId());
@@ -179,28 +174,29 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         return nodesAndShards;
     }
 
+    /**
+     * Retains only (node, shard) pairs that appear in the search shards response.
+     * <p>
+     * Here "skipped" means <em>not in the search shards response</em>: shards that would not be
+     * queried for the given request. This is unrelated to {@link SearchShardsGroup#skipped()},
+     * which indicates a different condition (e.g. pre-filtered or non-matching shards).
+     *
+     * @param nodesAndShards      primary shards per node from the cluster state
+     * @param searchShardsResponse result of the search_shards API for the same request
+     * @return map of node id to shard ids that are present in the search shards response
+     */
     static Map<String, Set<ShardId>> filterOutSkippedShards(
         Map<String, Set<ShardId>> nodesAndShards,
         SearchShardsResponse searchShardsResponse
     ) {
         Map<String, Set<ShardId>> filteredNodesAndShards = new HashMap<>(nodesAndShards.size());
-        // Create a deep copy of the given nodes and shards map.
-        for (Map.Entry<String, Set<ShardId>> nodeAndShardsEntry : nodesAndShards.entrySet()) {
-            String node = nodeAndShardsEntry.getKey();
-            Set<ShardId> shards = nodeAndShardsEntry.getValue();
-            filteredNodesAndShards.put(node, new HashSet<>(shards));
-        }
-        // Remove (node, shard) pairs for all the skipped shards.
+        // Keep only (node, shard) pairs that appear in the search shards response.
         for (SearchShardsGroup shardGroup : searchShardsResponse.getGroups()) {
-            if (shardGroup.skipped()) {
-                for (String allocatedNode : shardGroup.allocatedNodes()) {
-                    Set<ShardId> shards = filteredNodesAndShards.get(allocatedNode);
-                    if (shards != null) {
-                        shards.remove(shardGroup.shardId());
-                        if (shards.isEmpty()) {
-                            // Remove node if no shards were left.
-                            filteredNodesAndShards.remove(allocatedNode);
-                        }
+            for (String allocatedNode : shardGroup.allocatedNodes()) {
+                Set<ShardId> shards = nodesAndShards.get(allocatedNode);
+                if (shards != null) {
+                    if (shards.contains(shardGroup.shardId())) {
+                        filteredNodesAndShards.computeIfAbsent(allocatedNode, k -> new HashSet<>()).add(shardGroup.shardId());
                     }
                 }
             }

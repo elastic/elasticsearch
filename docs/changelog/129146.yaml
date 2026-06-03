@@ -1,5 +1,0 @@
-pr: 129146
-summary: "[ML] Add IBM watsonx Completion and Chat Completion support to the Inference Plugin"
-area: Machine Learning
-type: enhancement
-issues: []

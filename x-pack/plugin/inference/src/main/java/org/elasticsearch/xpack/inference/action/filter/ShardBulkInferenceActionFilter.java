@@ -18,10 +18,12 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,22 +34,30 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
-import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
@@ -55,15 +65,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,13 +85,13 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.telemetry.InferenceStats.SEMANTIC_TEXT_USE_CASE;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -92,6 +103,8 @@ import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.respons
  *
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
+    private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
+
     private static final ByteSizeValue DEFAULT_BATCH_SIZE = ByteSizeValue.ofMb(1);
 
     /**
@@ -180,74 +193,36 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     ) {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
-        boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure)
-            .run();
+        new AsyncBulkShardInferenceAction(index, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure).run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
 
-    /**
-     * A field inference request on a single input.
-     * @param bulkItemIndex The index of the item in the original bulk request.
-     * @param field The target field.
-     * @param sourceField The source field.
-     * @param input The input to run inference on.
-     * @param inputOrder The original order of the input.
-     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
-     * @param chunkingSettings Additional explicitly specified chunking settings, or null to use model defaults
-     */
-    private record FieldInferenceRequest(
-        int bulkItemIndex,
-        String field,
-        String sourceField,
-        String input,
-        int inputOrder,
-        int offsetAdjustment,
-        ChunkingSettings chunkingSettings
-    ) {}
-
-    /**
-     * The field inference response.
-     * @param field The target field.
-     * @param sourceField The input that was used to run inference.
-     * @param input The input that was used to run inference.
-     * @param inputOrder The original order of the input.
-     * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
-     * @param model The model used to run inference.
-     * @param chunkedResults The actual results.
-     */
-    private record FieldInferenceResponse(
-        String field,
-        String sourceField,
-        String input,
-        int inputOrder,
-        int offsetAdjustment,
-        Model model,
-        ChunkedInference chunkedResults
-    ) {}
-
     private record FieldInferenceResponseAccumulator(
         int id,
         Map<String, List<FieldInferenceResponse>> responses,
-        List<Exception> failures
+        AtomicReference<Exception> failure
     ) {
+        private FieldInferenceResponseAccumulator(int id) {
+            this(id, new HashMap<>(), new AtomicReference<>(null));
+        }
+
         void addOrUpdateResponse(FieldInferenceResponse response) {
             synchronized (this) {
-                var list = responses.computeIfAbsent(response.field, k -> new ArrayList<>());
+                var list = responses.computeIfAbsent(response.field(), k -> new ArrayList<>());
                 list.add(response);
             }
         }
 
-        void addFailure(Exception exc) {
-            synchronized (this) {
-                failures.add(exc);
-            }
+        void setFailure(Exception exc) {
+            // Only keep the first failure and discard all others
+            failure.compareAndSet(null, exc);
         }
     }
 
     private class AsyncBulkShardInferenceAction implements Runnable {
         private final boolean useLegacyFormat;
+        private final IndexVersion indexVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
@@ -255,13 +230,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
 
         private AsyncBulkShardInferenceAction(
-            boolean useLegacyFormat,
+            IndexMetadata indexMetadata,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion,
             IndexingPressure.Coordinating coordinatingIndexingPressure
         ) {
-            this.useLegacyFormat = useLegacyFormat;
+            this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexMetadata.getSettings()) == false;
+            this.indexVersion = indexMetadata.getCreationVersion();
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
@@ -313,142 +289,154 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
             try (var releaseOnFinish = new RefCountingRunnable(onInferenceCompletion)) {
                 for (var entry : fieldRequestsMap.entrySet()) {
-                    executeChunkedInferenceAsync(entry.getKey(), null, entry.getValue(), releaseOnFinish.acquire());
+                    startInferenceAsync(entry.getKey(), entry.getValue(), releaseOnFinish.acquire());
+                }
+            }
+        }
+
+        private void startInferenceAsync(final String inferenceId, final List<FieldInferenceRequest> requests, final Releasable onFinish) {
+            ActionListener<UnparsedModel> modelLoadingListener = ActionListener.wrap(unparsedModel -> {
+                var service = inferenceServiceRegistry.getService(unparsedModel.service());
+                if (service.isEmpty() == false) {
+                    var provider = new InferenceProvider(service.get(), service.get().parsePersistedConfig(unparsedModel));
+                    executeInferenceAsync(provider, requests, onFinish);
+                } else {
+                    try (onFinish) {
+                        for (FieldInferenceRequest request : requests) {
+                            inferenceResults.get(request.bulkItemIndex())
+                                .setFailure(
+                                    new ResourceNotFoundException(
+                                        "Inference service [{}] not found for field [{}]",
+                                        unparsedModel.service(),
+                                        request.field()
+                                    )
+                                );
+                        }
+                    }
+                }
+            }, exc -> {
+                try (onFinish) {
+                    for (FieldInferenceRequest request : requests) {
+                        Exception failure;
+                        if (ExceptionsHelper.unwrap(exc, ResourceNotFoundException.class) instanceof ResourceNotFoundException) {
+                            failure = new ResourceNotFoundException(
+                                "Inference id [{}] not found for field [{}]",
+                                inferenceId,
+                                request.field()
+                            );
+                        } else {
+                            failure = new InferenceException(
+                                "Error loading inference for inference id [{}] on field [{}]",
+                                exc,
+                                inferenceId,
+                                request.field()
+                            );
+                        }
+                        inferenceResults.get(request.bulkItemIndex()).setFailure(failure);
+                    }
+
+                    if (ExceptionsHelper.status(exc).getStatus() >= 500) {
+                        List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
+                        logger.warn("Error loading inference for inference id [" + inferenceId + "] on fields " + fields, exc);
+                    }
+                }
+            });
+
+            modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
+        }
+
+        private void executeInferenceAsync(InferenceProvider inferenceProvider, List<FieldInferenceRequest> requests, Releasable onFinish) {
+            if (InferenceLicenceCheck.isServiceLicenced(inferenceProvider.service.name(), licenseState) == false) {
+                try (onFinish) {
+                    var complianceException = InferenceLicenceCheck.complianceException(inferenceProvider.service.name());
+                    failAllInferenceRequests(requests, r -> complianceException);
+                    return;
+                }
+            }
+
+            List<ChunkedStringFieldInferenceRequest> chunkedRequests = new ArrayList<>();
+            List<InferenceStringFieldInferenceRequest> embeddingRequests = new ArrayList<>();
+            for (var r : requests) {
+                if (r instanceof ChunkedStringFieldInferenceRequest c) {
+                    chunkedRequests.add(c);
+                } else if (r instanceof InferenceStringFieldInferenceRequest e) {
+                    embeddingRequests.add(e);
+                } else {
+                    throw new IllegalStateException("Unexpected field inference request type [" + r.getClass().getName() + "]");
+                }
+            }
+
+            // Fan out to the chunked and embedding arms under a child counter that closes onFinish when both arms complete.
+            // Acquire is guarded by the non-empty checks so an absent arm does not leak a ref and orphan onInferenceCompletion.
+            try (var armCounter = new RefCountingRunnable(onFinish::close)) {
+                if (chunkedRequests.isEmpty() == false) {
+                    executeChunkedInferenceAsync(inferenceProvider, chunkedRequests, armCounter.acquire());
+                }
+                if (embeddingRequests.isEmpty() == false) {
+                    executeEmbeddingInferenceAsync(inferenceProvider, embeddingRequests, armCounter.acquire());
                 }
             }
         }
 
         private void executeChunkedInferenceAsync(
-            final String inferenceId,
-            @Nullable InferenceProvider inferenceProvider,
-            final List<FieldInferenceRequest> requests,
+            final InferenceProvider inferenceProvider,
+            final List<ChunkedStringFieldInferenceRequest> requests,
             final Releasable onFinish
         ) {
-            if (inferenceProvider == null) {
-                ActionListener<UnparsedModel> modelLoadingListener = new ActionListener<>() {
-                    @Override
-                    public void onResponse(UnparsedModel unparsedModel) {
-                        var service = inferenceServiceRegistry.getService(unparsedModel.service());
-                        if (service.isEmpty() == false) {
-                            var provider = new InferenceProvider(
-                                service.get(),
-                                service.get()
-                                    .parsePersistedConfigWithSecrets(
-                                        inferenceId,
-                                        unparsedModel.taskType(),
-                                        unparsedModel.settings(),
-                                        unparsedModel.secrets()
-                                    )
-                            );
-                            executeChunkedInferenceAsync(inferenceId, provider, requests, onFinish);
-                        } else {
-                            try (onFinish) {
-                                for (FieldInferenceRequest request : requests) {
-                                    inferenceResults.get(request.bulkItemIndex).failures.add(
-                                        new ResourceNotFoundException(
-                                            "Inference service [{}] not found for field [{}]",
-                                            unparsedModel.service(),
-                                            request.field
-                                        )
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception exc) {
-                        try (onFinish) {
-                            for (FieldInferenceRequest request : requests) {
-                                Exception failure;
-                                if (ExceptionsHelper.unwrap(exc, ResourceNotFoundException.class) instanceof ResourceNotFoundException) {
-                                    failure = new ResourceNotFoundException(
-                                        "Inference id [{}] not found for field [{}]",
-                                        inferenceId,
-                                        request.field
-                                    );
-                                } else {
-                                    failure = new InferenceException(
-                                        "Error loading inference for inference id [{}] on field [{}]",
-                                        exc,
-                                        inferenceId,
-                                        request.field
-                                    );
-                                }
-                                inferenceResults.get(request.bulkItemIndex).failures.add(failure);
-                            }
-                        }
-                    }
-                };
-                modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
-                return;
-            }
             final List<ChunkInferenceInput> inputs = requests.stream()
-                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .map(
+                    r -> new ChunkInferenceInput(
+                        new InferenceStringGroup(singletonList(InferenceString.ofText(r.input()))),
+                        r.chunkingSettings()
+                    )
+                )
                 .collect(Collectors.toList());
 
-            ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
-                @Override
-                public void onResponse(List<ChunkedInference> results) {
-                    try (onFinish) {
-                        var requestsIterator = requests.iterator();
-                        int success = 0;
-                        for (ChunkedInference result : results) {
-                            var request = requestsIterator.next();
-                            var acc = inferenceResults.get(request.bulkItemIndex);
-                            if (result instanceof ChunkedInferenceError error) {
-                                recordRequestCountMetrics(inferenceProvider.model, 1, error.exception());
-                                acc.addFailure(
-                                    new InferenceException(
-                                        "Exception when running inference id [{}] on field [{}]",
-                                        error.exception(),
-                                        inferenceProvider.model.getInferenceEntityId(),
-                                        request.field
-                                    )
-                                );
-                            } else {
-                                success++;
-                                acc.addOrUpdateResponse(
-                                    new FieldInferenceResponse(
-                                        request.field(),
-                                        request.sourceField(),
-                                        useLegacyFormat ? request.input() : null,
-                                        request.inputOrder(),
-                                        request.offsetAdjustment(),
-                                        inferenceProvider.model,
-                                        result
-                                    )
-                                );
-                            }
-                        }
-                        if (success > 0) {
-                            recordRequestCountMetrics(inferenceProvider.model, success, null);
-                        }
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception exc) {
-                    try (onFinish) {
-                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
-                        for (FieldInferenceRequest request : requests) {
-                            addInferenceResponseFailure(
-                                request.bulkItemIndex,
+            ActionListener<List<ChunkedInference>> completionListener = ActionListener.wrap(results -> {
+                try (onFinish) {
+                    var requestsIterator = requests.iterator();
+                    int success = 0;
+                    for (ChunkedInference result : results) {
+                        var request = requestsIterator.next();
+                        var acc = inferenceResults.get(request.bulkItemIndex());
+                        if (result instanceof ChunkedInferenceError error) {
+                            recordRequestCountMetrics(inferenceProvider.model, 1, error.exception());
+                            acc.setFailure(
                                 new InferenceException(
                                     "Exception when running inference id [{}] on field [{}]",
-                                    exc,
+                                    error.exception(),
                                     inferenceProvider.model.getInferenceEntityId(),
-                                    request.field
+                                    request.field()
+                                )
+                            );
+                        } else {
+                            success++;
+                            acc.addOrUpdateResponse(
+                                new ChunkedStringFieldInferenceResponse(
+                                    request.field(),
+                                    request.sourceField(),
+                                    useLegacyFormat ? request.input() : null,
+                                    request.fieldInputOrder(),
+                                    request.offsetAdjustment(),
+                                    inferenceProvider.model,
+                                    result
                                 )
                             );
                         }
                     }
+                    if (success > 0) {
+                        recordRequestCountMetrics(inferenceProvider.model, success, null);
+                    }
                 }
-            };
+            }, exc -> {
+                try (onFinish) {
+                    onInferenceServiceFailure(inferenceProvider, requests, exc);
+                }
+            });
+
             inferenceProvider.service()
                 .chunkedInfer(
                     inferenceProvider.model(),
-                    null,
                     inputs,
                     Map.of(),
                     InputType.INTERNAL_INGEST,
@@ -457,12 +445,127 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 );
         }
 
+        private void executeEmbeddingInferenceAsync(
+            final InferenceProvider inferenceProvider,
+            final List<InferenceStringFieldInferenceRequest> requests,
+            final Releasable onFinish
+        ) {
+            final List<InferenceStringGroup> inputs = requests.stream().map(r -> new InferenceStringGroup(r.input())).toList();
+
+            ActionListener<InferenceServiceResults> completionListener = ActionListener.wrap(results -> {
+                try (onFinish) {
+                    if (results instanceof EmbeddingResults<?> == false) {
+                        var typeMismatchException = new IllegalStateException(
+                            "Unexpected inference result type ["
+                                + results.getClass().getName()
+                                + "] for inference id ["
+                                + inferenceProvider.model.getInferenceEntityId()
+                                + "]"
+                        );
+                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), typeMismatchException);
+                        failAllInferenceRequests(
+                            requests,
+                            r -> new InferenceException(
+                                "Unexpected state when running inference on field [{}]",
+                                typeMismatchException,
+                                r.field()
+                            )
+                        );
+                        return;
+                    }
+
+                    EmbeddingResults<?> embeddingResults = (EmbeddingResults<?>) results;
+                    List<? extends EmbeddingResults.Embedding<?>> embeddings = embeddingResults.embeddings();
+                    if (embeddings.size() != requests.size()) {
+                        var sizeMismatchException = new IllegalStateException(
+                            "Inference result count ["
+                                + embeddings.size()
+                                + "] does not match request count ["
+                                + requests.size()
+                                + "] for inference id ["
+                                + inferenceProvider.model.getInferenceEntityId()
+                                + "]"
+                        );
+                        recordRequestCountMetrics(inferenceProvider.model, requests.size(), sizeMismatchException);
+                        failAllInferenceRequests(
+                            requests,
+                            r -> new InferenceException(
+                                "Unexpected state when running inference on field [{}]",
+                                sizeMismatchException,
+                                r.field()
+                            )
+                        );
+                        return;
+                    }
+
+                    var requestsIterator = requests.iterator();
+                    for (var embedding : embeddings) {
+                        var request = requestsIterator.next();
+                        inferenceResults.get(request.bulkItemIndex())
+                            .addOrUpdateResponse(
+                                new InferenceStringFieldInferenceResponse(
+                                    request.field(),
+                                    request.sourceField(),
+                                    request.fieldInputOrder(),
+                                    request.sourceFieldInputIndex(),
+                                    inferenceProvider.model,
+                                    embedding
+                                )
+                            );
+                    }
+                    recordRequestCountMetrics(inferenceProvider.model, requests.size(), null);
+                }
+            }, exc -> {
+                try (onFinish) {
+                    onInferenceServiceFailure(inferenceProvider, requests, exc);
+                }
+            });
+
+            EmbeddingRequest embeddingRequest = new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
+            inferenceProvider.service()
+                .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, completionListener);
+        }
+
+        private void failAllInferenceRequests(
+            List<? extends FieldInferenceRequest> requests,
+            Function<FieldInferenceRequest, Exception> failure
+        ) {
+            for (FieldInferenceRequest request : requests) {
+                setInferenceResponseFailure(request.bulkItemIndex(), failure.apply(request));
+            }
+        }
+
+        private void onInferenceServiceFailure(
+            InferenceProvider inferenceProvider,
+            List<? extends FieldInferenceRequest> requests,
+            Exception exc
+        ) {
+            recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
+            failAllInferenceRequests(
+                requests,
+                r -> new InferenceException(
+                    "Exception when running inference id [{}] on field [{}]",
+                    exc,
+                    inferenceProvider.model.getInferenceEntityId(),
+                    r.field()
+                )
+            );
+
+            if (ExceptionsHelper.status(exc).getStatus() >= 500) {
+                List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
+                logger.warn(
+                    "Exception when running inference id [" + inferenceProvider.model.getInferenceEntityId() + "] on fields " + fields,
+                    exc
+                );
+            }
+        }
+
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
-            Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(modelAttributes(model));
-            requestCountAttributes.putAll(responseAttributes(throwable));
-            requestCountAttributes.put("inference_source", "semantic_text_bulk");
-            inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
+            inferenceStats.requestCount()
+                .withModel(model)
+                .withThrowable(throwable)
+                .withProductUseCase(SEMANTIC_TEXT_USE_CASE)
+                .incrementBy(incrementBy);
         }
 
         /**
@@ -476,14 +579,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * @return The total content length of all newly added requests, or {@code 0} if no requests were added.
          */
         private long addFieldInferenceRequests(BulkItemRequest item, int itemIndex, Map<String, List<FieldInferenceRequest>> requestsMap) {
-            boolean isUpdateRequest = false;
-            final IndexRequestWithIndexingPressure indexRequest;
+            final ExtendedIndexRequest indexRequest;
             if (item.request() instanceof IndexRequest ir) {
-                indexRequest = new IndexRequestWithIndexingPressure(ir);
+                indexRequest = new ExtendedIndexRequest(ir, false);
             } else if (item.request() instanceof UpdateRequest updateRequest) {
-                isUpdateRequest = true;
                 if (updateRequest.script() != null) {
-                    addInferenceResponseFailure(
+                    setInferenceResponseFailure(
                         itemIndex,
                         new ElasticsearchStatusException(
                             "Cannot apply update with a script on indices that contain [{}] field(s)",
@@ -493,15 +594,28 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     );
                     return 0;
                 }
-                indexRequest = new IndexRequestWithIndexingPressure(updateRequest.doc());
+                indexRequest = new ExtendedIndexRequest(updateRequest.doc(), true);
             } else {
                 // ignore delete request
                 return 0;
             }
 
+            return addFieldInferenceRequests(indexRequest, itemIndex, requestsMap);
+        }
+
+        private long addFieldInferenceRequests(
+            ExtendedIndexRequest indexRequest,
+            int itemIndex,
+            Map<String, List<FieldInferenceRequest>> requestsMap
+        ) {
             final Map<String, Object> docMap = indexRequest.getIndexRequest().sourceAsMap();
+            final Map<String, List<FieldInferenceRequest>> itemRequests = new HashMap<>();
             long inputLength = 0;
             for (var entry : fieldInferenceMap.values()) {
+                if (hasInferenceResponseFailure(itemIndex)) {
+                    break;
+                }
+
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
                 ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(entry.getChunkingSettings(), false);
@@ -525,9 +639,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 int order = 0;
+                MinimalServiceSettings serviceSettings = null;
+                Boolean allowObjectValues = null;
                 for (var sourceField : entry.getSourceFields()) {
+                    if (hasInferenceResponseFailure(itemIndex)) {
+                        break;
+                    }
+
                     var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
-                    if (useLegacyFormat == false && isUpdateRequest && valueObj == EXPLICIT_NULL) {
+                    if (useLegacyFormat == false && indexRequest.isUpdateRequest() && valueObj == EXPLICIT_NULL) {
                         /**
                          * It's an update request, and the source field is explicitly set to null,
                          * so we need to propagate this information to the inference fields metadata
@@ -535,19 +655,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                          * This ensures that the field is treated as intentionally cleared,
                          * preventing any unintended carryover of prior inference results.
                          */
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
-                            return inputLength;
+                        if (incrementIndexingPressurePreInference(indexRequest, itemIndex) == false) {
+                            break;
                         }
 
                         var slot = ensureResponseAccumulatorSlot(itemIndex);
                         slot.addOrUpdateResponse(
-                            new FieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                            new ChunkedStringFieldInferenceResponse(field, sourceField, null, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                         );
                         continue;
                     }
                     if (valueObj == null || valueObj == EXPLICIT_NULL) {
-                        if (isUpdateRequest && useLegacyFormat) {
-                            addInferenceResponseFailure(
+                        if (indexRequest.isUpdateRequest() && useLegacyFormat) {
+                            setInferenceResponseFailure(
                                 itemIndex,
                                 new ElasticsearchStatusException(
                                     "Field [{}] must be specified on an update request to calculate inference for field [{}]",
@@ -561,83 +681,183 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         continue;
                     }
 
-                    var slot = ensureResponseAccumulatorSlot(itemIndex);
-                    final List<String> values;
+                    if (serviceSettings == null) {
+                        var serviceSettingsMap = modelRegistry.getMinimalServiceSettings(Set.of(inferenceId), false);
+                        if (serviceSettingsMap.isEmpty()) {
+                            setInferenceResponseFailure(
+                                itemIndex,
+                                new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, field)
+                            );
+                            break;
+                        }
+                        serviceSettings = serviceSettingsMap.get(inferenceId);
+                        allowObjectValues = indexVersion.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE)
+                            && serviceSettings.taskType() == TaskType.EMBEDDING
+                            && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
+                    }
+
+                    final List<?> values;
                     try {
-                        values = SemanticTextUtils.nodeStringValues(field, valueObj);
+                        values = allowObjectValues
+                            ? SemanticTextUtils.nodeObjectValues(field, valueObj)
+                            : SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
-                        addInferenceResponseFailure(itemIndex, exc);
+                        setInferenceResponseFailure(itemIndex, exc);
                         break;
                     }
 
-                    if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-                        addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
-                        break;
-                    }
-
-                    List<FieldInferenceRequest> requests = requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                    int offsetAdjustment = 0;
-                    for (String v : values) {
-                        if (incrementIndexingPressure(indexRequest, itemIndex) == false) {
-                            return inputLength;
-                        }
-
-                        if (v.isBlank()) {
-                            slot.addOrUpdateResponse(
-                                new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
-                            );
-                        } else {
-                            requests.add(
-                                new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
-                            );
-                            inputLength += v.length();
-                        }
-
-                        // When using the inference metadata fields format, all the input values are concatenated so that the
-                        // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-                        // to apply to account for this.
-                        offsetAdjustment += v.length() + 1; // Add one for separator char length
-                    }
+                    List<FieldInferenceRequest> requests = itemRequests.computeIfAbsent(inferenceId, k -> new ArrayList<>());
+                    inputLength += addInferenceRequestsForSourceFieldValues(
+                        itemIndex,
+                        indexRequest,
+                        field,
+                        sourceField,
+                        chunkingSettings,
+                        order,
+                        values,
+                        requests
+                    );
+                    order += values.size();
                 }
+            }
+
+            if (hasInferenceResponseFailure(itemIndex)) {
+                // Discard the staged requests. applyInferenceResponses will abort this item, so any inference work would be wasted.
+                return 0;
+            }
+
+            // Merge the item's staged requests into the requests map
+            itemRequests.forEach(
+                (inferenceId, requests) -> requestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>()).addAll(requests)
+            );
+            return inputLength;
+        }
+
+        private long addInferenceRequestsForSourceFieldValues(
+            int itemIndex,
+            ExtendedIndexRequest indexRequest,
+            String field,
+            String sourceField,
+            ChunkingSettings chunkingSettings,
+            int startOrder,
+            List<?> values,
+            List<FieldInferenceRequest> requests
+        ) {
+            int order = startOrder;
+            int offsetAdjustment = 0;
+            int inputIndex = 0;
+            long inputLength = 0;
+            var slot = ensureResponseAccumulatorSlot(itemIndex);
+
+            for (Object v : values) {
+                if (incrementIndexingPressurePreInference(indexRequest, itemIndex) == false) {
+                    break;
+                }
+
+                int inputLengthDelta = switch (v) {
+                    case String s when s.isBlank() -> addBlankStringResponse(slot, field, sourceField, s, order);
+                    case String s -> addChunkedStringRequest(
+                        requests,
+                        itemIndex,
+                        field,
+                        sourceField,
+                        s,
+                        order,
+                        offsetAdjustment,
+                        chunkingSettings
+                    );
+                    case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
+                    default -> {
+                        setInferenceResponseFailure(
+                            itemIndex,
+                            new IllegalStateException(
+                                "Unexpected parsed inference input type ["
+                                    + v.getClass().getName()
+                                    + "] for field ["
+                                    + field
+                                    + "] from source field ["
+                                    + sourceField
+                                    + "]"
+                            )
+                        );
+                        yield -1;
+                    }
+                };
+                if (inputLengthDelta < 0) {
+                    break;
+                }
+
+                if (v instanceof String s) {
+                    // When using the inference metadata fields format, all the text input values are concatenated so that the
+                    // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                    // to apply to account for this.
+                    offsetAdjustment += s.length() + 1; // Add one for separator char length
+                }
+
+                inputLength += inputLengthDelta;
+                order++;
+                inputIndex++;
             }
 
             return inputLength;
         }
 
-        private static class IndexRequestWithIndexingPressure {
-            private final IndexRequest indexRequest;
-            private boolean indexingPressureIncremented;
-
-            private IndexRequestWithIndexingPressure(IndexRequest indexRequest) {
-                this.indexRequest = indexRequest;
-                this.indexingPressureIncremented = false;
-            }
-
-            private IndexRequest getIndexRequest() {
-                return indexRequest;
-            }
-
-            private boolean isIndexingPressureIncremented() {
-                return indexingPressureIncremented;
-            }
-
-            private void setIndexingPressureIncremented() {
-                this.indexingPressureIncremented = true;
-            }
+        private int addBlankStringResponse(
+            FieldInferenceResponseAccumulator slot,
+            String field,
+            String sourceField,
+            String input,
+            int order
+        ) {
+            slot.addOrUpdateResponse(
+                new ChunkedStringFieldInferenceResponse(field, sourceField, input, order, 0, null, EMPTY_CHUNKED_INFERENCE)
+            );
+            return 0;
         }
 
-        private boolean incrementIndexingPressure(IndexRequestWithIndexingPressure indexRequest, int itemIndex) {
+        private int addChunkedStringRequest(
+            List<FieldInferenceRequest> requests,
+            int itemIndex,
+            String field,
+            String sourceField,
+            String input,
+            int order,
+            int offsetAdjustment,
+            ChunkingSettings chunkingSettings
+        ) {
+            requests.add(
+                new ChunkedStringFieldInferenceRequest(itemIndex, field, sourceField, input, order, offsetAdjustment, chunkingSettings)
+            );
+            return input.length();
+        }
+
+        private int addInferenceStringRequest(
+            List<FieldInferenceRequest> requests,
+            int itemIndex,
+            String field,
+            String sourceField,
+            InferenceString input,
+            int order,
+            int sourceFieldInputIndex
+        ) {
+            requests.add(new InferenceStringFieldInferenceRequest(itemIndex, field, sourceField, input, order, sourceFieldInputIndex));
+            return input.value().length();
+        }
+
+        private boolean incrementIndexingPressurePreInference(ExtendedIndexRequest indexRequest, int itemIndex) {
             boolean success = true;
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
-                    addInferenceResponseFailure(
+                    setInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            "Unable to insert inference results into document ["
+                                + indexRequest.getIndexRequest().id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )
                     );
@@ -651,15 +871,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
             FieldInferenceResponseAccumulator acc = inferenceResults.get(id);
             if (acc == null) {
-                acc = new FieldInferenceResponseAccumulator(id, new HashMap<>(), new ArrayList<>());
+                acc = new FieldInferenceResponseAccumulator(id);
                 inferenceResults.set(id, acc);
             }
             return acc;
         }
 
-        private void addInferenceResponseFailure(int id, Exception failure) {
+        private void setInferenceResponseFailure(int id, Exception failure) {
             var acc = ensureResponseAccumulatorSlot(id);
-            acc.addFailure(failure);
+            acc.setFailure(failure);
+        }
+
+        private boolean hasInferenceResponseFailure(int itemIndex) {
+            var acc = inferenceResults.get(itemIndex);
+            return acc != null && acc.failure().get() != null;
         }
 
         /**
@@ -668,10 +893,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * Otherwise, the source of the request is augmented with the field inference results.
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) throws IOException {
-            if (response.failures().isEmpty() == false) {
-                for (var failure : response.failures()) {
-                    item.abort(item.index(), failure);
-                }
+            Exception failure = response.failure().get();
+            if (failure != null) {
+                item.abort(item.index(), failure);
                 return;
             }
 
@@ -688,23 +912,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 // ensure that the order in the original field is consistent in case of multiple inputs
-                Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
+                Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::fieldInputOrder));
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
                 for (var resp : responses) {
                     // Get the first non-null model from the response list
                     if (model == null) {
-                        model = resp.model;
+                        model = resp.model();
                     }
 
-                    var lst = chunkMap.computeIfAbsent(resp.sourceField, k -> new ArrayList<>());
-                    var chunks = useLegacyFormat
-                        ? toSemanticTextFieldChunksLegacy(resp.input, resp.chunkedResults, indexRequest.getContentType())
-                        : toSemanticTextFieldChunks(resp.offsetAdjustment, resp.chunkedResults, indexRequest.getContentType());
-                    lst.addAll(chunks);
+                    var lst = chunkMap.computeIfAbsent(resp.sourceField(), k -> new ArrayList<>());
+                    lst.addAll(resp.toChunks(useLegacyFormat, indexRequest.getContentType()));
                 }
 
                 List<String> inputs = useLegacyFormat
-                    ? responses.stream().filter(r -> r.sourceField().equals(fieldName)).map(r -> r.input).collect(Collectors.toList())
+                    ? responses.stream().filter(r -> r.sourceField().equals(fieldName)).map(FieldInferenceResponse::legacyInput).toList()
                     : null;
 
                 // The model can be null if we are only processing update requests that clear inference results. This is ok because we will
@@ -724,32 +945,41 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            BytesReference originalSource = indexRequest.source();
+            updateIndexSource(item, inferenceFieldsMap);
+        }
+
+        private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
+            IndexRequest indexRequest = getIndexRequestOrNull(item.request());
+            IndexSource indexSource = indexRequest.indexSource();
+            int originalSourceSize = indexSource.byteLength();
+            BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexRequest.sourceAsMap();
+                var newDocMap = indexSource.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
-                    SemanticTextUtils.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
-                indexRequest.source(newDocMap, indexRequest.getContentType());
+                indexSource.source(newDocMap, indexSource.contentType());
             } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
-                    indexRequest.source(builder);
+                try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
+                    appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
+                    indexSource.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().length();
+            long modifiedSourceSize = indexSource.byteLength();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
             } catch (EsRejectedExecutionException e) {
-                indexRequest.source(originalSource, indexRequest.getContentType());
+                indexSource.source(originalSource, indexSource.contentType());
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );
@@ -794,6 +1024,34 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             return updateRequest.doc();
         } else {
             return null;
+        }
+    }
+
+    private static class ExtendedIndexRequest {
+        private final IndexRequest indexRequest;
+        private final boolean isUpdateRequest;
+        private boolean indexingPressureIncremented;
+
+        private ExtendedIndexRequest(IndexRequest indexRequest, boolean isUpdateRequest) {
+            this.indexRequest = indexRequest;
+            this.isUpdateRequest = isUpdateRequest;
+            this.indexingPressureIncremented = false;
+        }
+
+        private IndexRequest getIndexRequest() {
+            return indexRequest;
+        }
+
+        private boolean isUpdateRequest() {
+            return isUpdateRequest;
+        }
+
+        private boolean isIndexingPressureIncremented() {
+            return indexingPressureIncremented;
+        }
+
+        private void setIndexingPressureIncremented() {
+            this.indexingPressureIncremented = true;
         }
     }
 

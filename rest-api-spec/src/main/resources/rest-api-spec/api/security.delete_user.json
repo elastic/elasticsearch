@@ -1,39 +1,41 @@
 {
-  "security.delete_user":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-user.html",
-      "description":"Deletes users from the native realm."
+  "security.delete_user": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delete-user",
+      "description": "Delete users"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/user/{username}",
-          "methods":[
+          "path": "/_security/user/{username}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "username":{
-              "type":"string",
-              "description":"username"
+          "parts": {
+            "username": {
+              "type": "string",
+              "description": "username"
             }
           }
         }
       ]
     },
-    "params":{
-      "refresh":{
-        "type":"enum",
-        "options":[
+    "params": {
+      "refresh": {
+        "type": "enum",
+        "options": [
           "true",
           "false",
           "wait_for"
         ],
-        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+        "description": "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     }
   }

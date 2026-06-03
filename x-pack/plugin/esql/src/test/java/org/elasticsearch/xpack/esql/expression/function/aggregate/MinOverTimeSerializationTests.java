@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class MinOverTimeSerializationTests extends AbstractTimeSeriesAggregationSerializationTests<MinOverTime> {
     @Override
     protected MinOverTime create(Source source, Expression field, Expression filter, Expression window) {
-        return new MinOverTime(source, field, filter, window);
+        return new MinOverTime(source, field, filter, window, randomChild());
     }
 }

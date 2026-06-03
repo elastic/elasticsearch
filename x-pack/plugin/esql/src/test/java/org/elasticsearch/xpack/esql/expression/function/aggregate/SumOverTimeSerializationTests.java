@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class SumOverTimeSerializationTests extends AbstractTimeSeriesAggregationSerializationTests<SumOverTime> {
     @Override
     protected SumOverTime create(Source source, Expression field, Expression filter, Expression window) {
-        return new SumOverTime(source, field, filter, window);
+        return new SumOverTime(source, field, filter, window, randomChild());
     }
 }

@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class AvgOverTimeSerializationTests extends AbstractTimeSeriesAggregationSerializationTests<AvgOverTime> {
     @Override
     protected AvgOverTime create(Source source, Expression field, Expression filter, Expression window) {
-        return new AvgOverTime(source, field, filter, window);
+        return new AvgOverTime(source, field, filter, window, randomChild());
     }
 }

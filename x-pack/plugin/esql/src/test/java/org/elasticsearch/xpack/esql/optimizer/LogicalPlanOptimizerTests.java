@@ -7861,6 +7861,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
     }
 
+    public void testTranslateHistogramAvgOverTime() {
+        var query = "TS exp_histo_sample | STATS sum(avg_over_time(responseTime))";
+        var plan = planMetrics(query);
+        var limit = as(plan, Limit.class);
+        Aggregate finalAgg = as(limit.child(), Aggregate.class);
+        assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
+        Eval avgExtractionEval = as(finalAgg.child(), Eval.class);
+        assertThat(avgExtractionEval.fields(), hasSize(1));
+        var div = as(Alias.unwrap(avgExtractionEval.fields().get(0)), Div.class);
+        as(div.left(), ExtractHistogramComponent.class);
+        as(div.right(), ExtractHistogramComponent.class);
+
+        TimeSeriesAggregate aggsByTsid = as(avgExtractionEval.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
+        as(aggsByTsid.child(), EsRelation.class);
+
+        var crossSeriesSum = as(Alias.unwrap(finalAgg.aggregates().get(0)), Sum.class);
+
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMergeOverTime.class);
+        assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
+    }
+
     public void testTranslateTDigestSumWithImplicitMergeOverTime() {
         var query = """
             TS tdigest_timeseries_index | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10

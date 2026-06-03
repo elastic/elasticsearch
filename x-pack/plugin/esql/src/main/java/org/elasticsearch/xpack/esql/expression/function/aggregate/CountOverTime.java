@@ -26,17 +26,18 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
@@ -47,6 +48,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         OptionalArgument,
         AggregateMetricDoubleNativeSupport,
         SurrogateExpression,
+        TimestampAware,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -54,13 +56,15 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         CountOverTime::new
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
-        .binary(CountOverTime::new)
+        .ternary(CountOverTime::new)
         .name("count_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeriesOverTime(CountOverTime::new)
+        .withinSeries(CountOverTime::new)
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
         .name("count_over_time");
+
+    private final Expression timestamp;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
@@ -102,17 +106,25 @@ public class CountOverTime extends TimeSeriesAggregateFunction
             type = { "time_duration" },
             description = "the time window over which to compute the count over time",
             optional = true
-        ) Expression window
+        ) Expression window,
+        Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+    public CountOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
+        this.timestamp = timestamp;
     }
 
     private CountOverTime(StreamInput in) throws IOException {
-        super(in);
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+        );
     }
 
     @Override
@@ -122,17 +134,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter, window());
+        return new CountOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window());
+        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public CountOverTime replaceChildren(List<Expression> newChildren) {
-        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new CountOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
@@ -158,14 +170,18 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
             return new Coalesce(
                 source(),
-                // We need to cast here because ExtractHistogramComponent returns a double.
                 new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),
                 List.of(new Literal(source(), 0L, DataType.LONG))
             );
         }
         return null;
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

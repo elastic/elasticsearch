@@ -214,7 +214,6 @@ required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
- | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS avg_ot = SUM(avg_over_time(bytes_per_request)),
          min_ot = SUM(min_over_time(bytes_per_request)),
          max_ot = SUM(max_over_time(bytes_per_request)),
@@ -228,6 +227,7 @@ TS metric_temporality
 ;
 
 my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
+cumulative             | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 ;

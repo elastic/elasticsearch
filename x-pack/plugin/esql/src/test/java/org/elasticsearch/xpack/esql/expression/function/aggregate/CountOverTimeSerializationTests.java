@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class CountOverTimeSerializationTests extends AbstractTimeSeriesAggregationSerializationTests<CountOverTime> {
     @Override
     protected CountOverTime create(Source source, Expression field, Expression filter, Expression window) {
-        return new CountOverTime(source, field, filter, window);
+        return new CountOverTime(source, field, filter, window, randomChild());
     }
 }

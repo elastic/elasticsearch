@@ -26,15 +26,15 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Similar to {@link Sum}, but it is used to calculate the sum of values over a time series from the given field.
@@ -43,6 +43,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
         SurrogateExpression,
+        TimestampAware,
         AggregateMetricDoubleNativeSupport,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -51,13 +52,15 @@ public class SumOverTime extends TimeSeriesAggregateFunction
         SumOverTime::new
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
-        .binary(SumOverTime::new)
+        .ternary(SumOverTime::new)
         .name("sum_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeriesOverTime(SumOverTime::new)
+        .withinSeries(SumOverTime::new)
         .description("Returns the sum of all values in the specified time range.")
         .example("sum_over_time(http_requests_total[5m])")
         .name("sum_over_time");
+
+    private final Expression timestamp;
 
     @FunctionInfo(
         returnType = { "double", "long" },
@@ -80,17 +83,25 @@ public class SumOverTime extends TimeSeriesAggregateFunction
             type = { "time_duration" },
             description = "the time window over which to compute the sum over time",
             optional = true
-        ) Expression window
+        ) Expression window,
+        Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    public SumOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+    public SumOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
+        this.timestamp = timestamp;
     }
 
     private SumOverTime(StreamInput in) throws IOException {
-        super(in);
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
+        );
     }
 
     @Override
@@ -100,17 +111,17 @@ public class SumOverTime extends TimeSeriesAggregateFunction
 
     @Override
     public SumOverTime withFilter(Expression filter) {
-        return new SumOverTime(source(), field(), filter, window());
+        return new SumOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
     protected NodeInfo<SumOverTime> info() {
-        return NodeInfo.create(this, SumOverTime::new, field(), filter(), window());
+        return NodeInfo.create(this, SumOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public SumOverTime replaceChildren(List<Expression> newChildren) {
-        return new SumOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new SumOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
@@ -131,11 +142,8 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            return ExtractHistogramComponent.create(
-                source(),
-                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
-                HistogramBlock.Component.SUM
-            );
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            return ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM);
         }
         return null;
     }
@@ -143,5 +151,10 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     @Override
     public Sum perTimeSeriesAggregation() {
         return new Sum(source(), field(), filter(), window(), SummationMode.LOSSY_LITERAL);
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
     }
 }

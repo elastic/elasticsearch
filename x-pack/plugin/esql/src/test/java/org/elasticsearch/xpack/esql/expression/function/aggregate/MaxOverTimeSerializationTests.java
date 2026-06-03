@@ -13,6 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public class MaxOverTimeSerializationTests extends AbstractTimeSeriesAggregationSerializationTests<MaxOverTime> {
     @Override
     protected MaxOverTime create(Source source, Expression field, Expression filter, Expression window) {
-        return new MaxOverTime(source, field, filter, window);
+        return new MaxOverTime(source, field, filter, window, randomChild());
     }
 }

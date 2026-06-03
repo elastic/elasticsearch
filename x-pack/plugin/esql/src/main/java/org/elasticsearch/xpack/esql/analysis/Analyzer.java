@@ -582,35 +582,51 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            List<Attribute> schema = bindMetadataFields(plan, metadata.schema());
+            MetadataBindResult bindResult = bindMetadataFields(plan, metadata.schema());
             return new ExternalRelation(
                 plan.source(),
                 tablePath,
                 metadata,
-                schema,
+                bindResult.schema(),
                 resolvedSource.fileList(),
                 resolvedSource.schemaMap(),
-                plan.datasetName()
+                plan.datasetName(),
+                bindResult.unresolvedMetadata()
             );
         }
 
         /**
-         * Walks the user's METADATA clause and appends one {@link ExternalMetadataAttribute} per
-         * requested name to the source's natural schema. Names absent from
-         * {@link MetadataAttribute#ATTRIBUTES_MAP} AND from
-         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} pass through
-         * — the verifier flags them as "Unknown column" downstream. Names already present in the
-         * source's natural schema are skipped (the source's own column takes precedence).
+         * Result of {@link #bindMetadataFields}: the enriched schema (resolved standard /
+         * {@code _file.*} names appended to the base schema) and the list of metadata expressions
+         * the bind could not resolve. The unresolved list is threaded through to
+         * {@link ExternalRelation#metadataFields()} so the verifier's
+         * {@code checkUnresolvedAttributes} walk fires the indexed-equivalent
+         * {@code "Unresolved metadata pattern [...]"} error.
          */
-        private static List<Attribute> bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
+        private record MetadataBindResult(List<Attribute> schema, List<? extends NamedExpression> unresolvedMetadata) {}
+
+        /**
+         * Walks the user's METADATA clause. Names registered in
+         * {@link MetadataAttribute#ATTRIBUTES_MAP} or
+         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} are bound
+         * to an {@link ExternalMetadataAttribute} appended to the source's natural schema. Names
+         * registered in neither stay as {@code UnresolvedMetadataAttributeExpression} in the
+         * returned {@code unresolvedMetadata} list — the verifier picks them up via the relation's
+         * expression walk and fires its native {@code "Unresolved metadata pattern [...]"} error,
+         * matching the diagnostic indexed {@code FROM x METADATA _typo} produces. Names already
+         * present in the source's natural schema are skipped (the source's own column takes
+         * precedence).
+         */
+        private static MetadataBindResult bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
             if (plan.metadataFields().isEmpty()) {
-                return baseSchema;
+                return new MetadataBindResult(baseSchema, List.of());
             }
             Set<String> existing = new LinkedHashSet<>();
             for (Attribute a : baseSchema) {
                 existing.add(a.name());
             }
             List<Attribute> enriched = null;
+            List<NamedExpression> unresolved = null;
             for (NamedExpression requested : plan.metadataFields()) {
                 // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
                 // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
@@ -626,7 +642,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     type = FileMetadataColumns.COLUMNS.get(name);
                 }
                 if (type == null) {
-                    // Unknown name — leave it to the verifier's "Unknown column" diagnostic.
+                    // Unknown name — keep the unresolved expression so the verifier picks it up via
+                    // ExternalRelation#metadataFields() and fires its native unresolved-pattern error.
+                    if (unresolved == null) {
+                        unresolved = new ArrayList<>();
+                    }
+                    unresolved.add(requested);
                     continue;
                 }
                 if (enriched == null) {
@@ -635,7 +656,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 enriched.add(new ExternalMetadataAttribute(plan.source(), name, type));
                 existing.add(name);
             }
-            return enriched == null ? baseSchema : List.copyOf(enriched);
+            List<Attribute> resolvedSchema = enriched == null ? baseSchema : List.copyOf(enriched);
+            List<? extends NamedExpression> unresolvedList = unresolved == null ? List.of() : List.copyOf(unresolved);
+            return new MetadataBindResult(resolvedSchema, unresolvedList);
         }
 
         private String extractTablePath(Expression tablePath) {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -80,6 +81,20 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     // to the operator factory so the per-file _index synthesizer can emit the user-facing name.
     @Nullable
     private final String datasetName;
+    /**
+     * METADATA-clause expressions threaded through from the parser for the verifier to discover
+     * if any remain unresolvable after analysis. Mirrors the indexed {@code EsRelation} pattern:
+     * resolved standard / {@code _file.*} names are bound into {@link #output}; any name absent
+     * from {@code MetadataAttribute.ATTRIBUTES_MAP} and {@code FileMetadataColumns} stays here
+     * as an {@code UnresolvedMetadataAttributeExpression} so the verifier's
+     * {@code checkUnresolvedAttributes} walk fires its native {@code "Unresolved metadata pattern
+     * [...]"} error — same diagnostic users see on indexed {@code FROM x METADATA _typo}.
+     * <p>
+     * Coordinator-only: by the time this node crosses the wire, the verifier has already failed
+     * any plan containing an unresolved expression, so the field is empty on the data-node side
+     * and intentionally omitted from {@link #writeTo} / {@link #readFrom}.
+     */
+    private final List<? extends NamedExpression> metadataFields;
 
     public ExternalRelation(
         Source source,
@@ -89,7 +104,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
     ) {
-        this(source, sourcePath, metadata, output, fileList, schemaMap, null);
+        this(source, sourcePath, metadata, output, fileList, schemaMap, null, List.of());
     }
 
     public ExternalRelation(
@@ -100,6 +115,19 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         @Nullable String datasetName
+    ) {
+        this(source, sourcePath, metadata, output, fileList, schemaMap, datasetName, List.of());
+    }
+
+    public ExternalRelation(
+        Source source,
+        String sourcePath,
+        SourceMetadata metadata,
+        List<Attribute> output,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable String datasetName,
+        List<? extends NamedExpression> metadataFields
     ) {
         super(source);
         if (sourcePath == null) {
@@ -117,6 +145,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.datasetName = datasetName;
+        this.metadataFields = metadataFields != null ? metadataFields : List.of();
     }
 
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
@@ -166,7 +195,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     protected NodeInfo<ExternalRelation> info() {
-        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileList, schemaMap, datasetName);
+        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields);
     }
 
     public String sourcePath() {
@@ -201,7 +230,26 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public boolean expressionsResolved() {
+        for (NamedExpression e : metadataFields) {
+            if (e.resolved() == false) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    /**
+     * METADATA clause expressions threaded through from the parser. Resolved entries are bound
+     * into {@link #output}; unresolved entries (typo'd or unknown names) stay here so the
+     * verifier's {@code checkUnresolvedAttributes} walk picks them up and reports the
+     * indexed-equivalent {@code "Unresolved metadata pattern [...]"} error.
+     */
+    public List<? extends NamedExpression> metadataFields() {
+        return metadataFields;
+    }
+
+    public ExternalRelation withMetadataFields(List<? extends NamedExpression> newMetadataFields) {
+        return new ExternalRelation(source(), sourcePath, metadata, output, fileList, schemaMap, datasetName, newMetadataFields);
     }
 
     public String sourceType() {
@@ -251,7 +299,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName);
+        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName, metadataFields);
     }
 
     @Override
@@ -270,7 +318,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             && Objects.equals(output, other.output)
             && Objects.equals(fileList, other.fileList)
             && Objects.equals(schemaMap, other.schemaMap)
-            && Objects.equals(datasetName, other.datasetName);
+            && Objects.equals(datasetName, other.datasetName)
+            && Objects.equals(metadataFields, other.metadataFields);
     }
 
     @Override
@@ -288,6 +337,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {
-        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap, datasetName);
+        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap, datasetName, metadataFields);
     }
 }

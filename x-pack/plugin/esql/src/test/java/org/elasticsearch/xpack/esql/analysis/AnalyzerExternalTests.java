@@ -396,16 +396,34 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * Unknown METADATA names are not bound by the analyzer — they fall through to the verifier's
-     * "Unknown column" diagnostic on the downstream attribute reference.
+     * Unknown METADATA names on the {@code FROM <dataset> METADATA …} path fire the same verifier
+     * diagnostic as indexed FROM. The parser produces an
+     * {@link org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression};
+     * the structural fix on {@link ExternalRelation} carries that expression forward so
+     * {@code checkUnresolvedAttributes} surfaces it. Mirrors the indexed precedent at
+     * {@code VerifierTests.testUnsupportedMetadata}.
      */
-    public void testUnknownMetadataNameFailsVerification() {
+    public void testUnknownMetadataNameFiresVerifier() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_bogus"), "my_dataset"));
+        Expression tablePath = Literal.keyword(Source.EMPTY, S3_PATH);
+        List<NamedExpression> metadataFields = List.of(
+            new org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression(Source.EMPTY, "_bogus")
+        );
+        UnresolvedExternalRelation unresolved = new UnresolvedExternalRelation(
+            Source.EMPTY,
+            tablePath,
+            java.util.Map.of(),
+            metadataFields,
+            "my_dataset"
+        );
+        var analyzer = analyzer().externalSourceUnresolved(S3_PATH, employeesSchema());
 
-        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_bogus"));
-        assertFalse("Unknown metadata name [_bogus] must not bind", bound);
+        org.elasticsearch.xpack.esql.VerificationException e = expectThrows(
+            org.elasticsearch.xpack.esql.VerificationException.class,
+            () -> analyzer.buildAnalyzer().analyze(unresolved)
+        );
+        assertThat(e.getMessage(), containsString("Unresolved metadata pattern [_bogus]"));
     }
 
     /**

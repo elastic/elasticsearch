@@ -153,6 +153,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -299,6 +300,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
+        AtomicBoolean ambientEnabled = new AtomicBoolean(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED, ambientEnabled::set);
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
@@ -307,7 +313,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             settings,
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
-            dataSourceCredentials
+            dataSourceCredentials,
+            ambientEnabled::get
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -371,7 +378,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
-                if (formatKeyResolver != null && v instanceof FileDataSourceValidator fdv) {
+                if (effective instanceof FileDataSourceValidator fdv) {
+                    effective = fdv.withAmbientEnabled(ambientEnabled::get);
+                }
+                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {

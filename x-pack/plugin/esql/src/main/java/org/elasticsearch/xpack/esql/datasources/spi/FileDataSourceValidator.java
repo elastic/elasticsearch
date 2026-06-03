@@ -93,9 +93,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     /**
      * Returns a new validator that gates {@code auth=ambient} on the supplied boolean supplier.
-     * The supplier is called on each validation; callers that capture a node-startup snapshot
-     * (e.g. {@code () -> ambientEnabled}) will not reflect dynamic setting changes without a
-     * node restart — wire to a live {@code ClusterSettings} listener to support that.
+     * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
+     * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
+     * that operator changes to {@code esql.datasource.ambient_credentials.enabled} take effect
+     * without a node restart.
      */
     public FileDataSourceValidator withAmbientEnabled(Supplier<Boolean> supplier) {
         return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);

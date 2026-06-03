@@ -92,12 +92,13 @@ public final class ExternalSourceSettings {
      * single-tenant deployments where the node's ambient identity is the intended credential.
      * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
      * <p>
-     * This is a node-startup setting. Changes require a node restart to take effect.
+     * This is an operator-dynamic setting: changes take effect immediately without a node restart.
      */
     public static final Setting<Boolean> AMBIENT_CREDENTIALS_ENABLED = Setting.boolSetting(
         "esql.datasource.ambient_credentials.enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
     );
 
     public static List<Setting<?>> settings() {

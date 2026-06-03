@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 
 /**
  * Registry for StorageProvider implementations, keyed by URI scheme.
@@ -66,6 +67,7 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
+    private final BooleanSupplier ambientEnabled;
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
@@ -73,12 +75,17 @@ public class StorageProviderRegistry implements Closeable {
     private volatile int throttleMaxRetryDurationSeconds;
 
     public StorageProviderRegistry(Settings settings) {
-        this(settings, null);
+        this(settings, null, () -> ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
     }
 
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
+        this(settings, credentials, () -> ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
+    }
+
+    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials, BooleanSupplier ambientEnabled) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
+        this.ambientEnabled = ambientEnabled;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
@@ -161,8 +168,7 @@ public class StorageProviderRegistry implements Closeable {
         // Gate auth=ambient on the cluster setting before constructing the provider.
         // This covers the inline-WITH path where no PUT-datasource validation runs.
         Object authValue = storageConfig.get("auth");
-        if ("ambient".equalsIgnoreCase(authValue instanceof String s ? s : null)
-            && ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(this.settings) == false) {
+        if ("ambient".equalsIgnoreCase(authValue instanceof String s ? s : null) && ambientEnabled.getAsBoolean() == false) {
             throw new IllegalArgumentException(
                 "auth=ambient requires the [esql.datasource.ambient_credentials.enabled] cluster setting to be enabled; "
                     + "it is disabled by default — enable it only on single-cloud single-tenant deployments"

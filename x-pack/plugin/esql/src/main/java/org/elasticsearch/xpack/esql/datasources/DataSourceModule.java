@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -62,10 +63,11 @@ public final class DataSourceModule implements Closeable {
         Settings settings,
         BlockFactory blockFactory,
         ExecutorService executor,
-        DataSourceCredentials credentials
+        DataSourceCredentials credentials,
+        BooleanSupplier ambientEnabled
     ) {
         this.capabilities = capabilities;
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, ambientEnabled);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {

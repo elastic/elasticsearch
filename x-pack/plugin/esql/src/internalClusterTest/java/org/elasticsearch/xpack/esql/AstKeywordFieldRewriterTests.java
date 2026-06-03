@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.AstKeywordFieldRewriter.RewriteResult;
 import org.elasticsearch.xpack.esql.AstKeywordFieldRewriter.ScopeResolver;
 import org.elasticsearch.xpack.esql.AstKeywordFieldRewriter.SkipEvent;
 import org.elasticsearch.xpack.esql.AstKeywordFieldRewriter.SkipSite;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.List;
 import java.util.Set;
@@ -52,6 +53,23 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
             count++;
         }
         return count;
+    }
+
+    /**
+     * Skips the calling test on release builds, where {@code WHERE ... IN (subquery)} is unavailable.
+     * <p>
+     * The {@code IN (subquery)} grammar alternative is guarded by a {@code {this.isDevVersion()}?}
+     * predicate (see {@code Expression.g4} / {@code InExpression.g4}, tracked by
+     * {@link EsqlCapabilities.Cap#WHERE_IN_SUBQUERY}), so {@code EsqlTestUtils.TEST_PARSER} can parse
+     * such a query only in a snapshot build. In a release build the parse fails and the rewriter
+     * returns the query unmodified by contract, so the {@code assertTrue(result.modified())} checks
+     * below would fail for an environmental reason rather than a real rewrite regression.
+     */
+    private static void assumeWhereInSubquerySupported() {
+        assumeTrue(
+            "WHERE ... IN (subquery) is a snapshot-only grammar feature (EsqlCapabilities.Cap.WHERE_IN_SUBQUERY)",
+            EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled()
+        );
     }
 
     /** An empty resolved scope returns the original query with {@code modified == false}. */
@@ -192,6 +210,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
 
     /** A bare in-scope {@code IN (subquery)} left-hand side is hoisted into an {@code EVAL} before the {@code WHERE}. */
     public void testInSubqueryLeftHandSideHoistedBeforeWhere() {
+        assumeWhereInSubquerySupported();
         RewriteResult result = rewrite(
             "FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) | KEEP emp_no",
             Set.of("first_name")
@@ -206,6 +225,7 @@ public class AstKeywordFieldRewriterTests extends ESTestCase {
 
     /** The body of an {@code IN (subquery)} is rewritten with a scope re-resolved from the subquery's own source. */
     public void testInSubqueryBodyRewrittenWithReResolvedScope() {
+        assumeWhereInSubquerySupported();
         // The outer FROM employees resolves to {first_name}; the subquery FROM apps resolves to {id}. The resolver keys
         // on "employees" (present only in the outer text) so the subquery is rewritten with its own, different scope.
         ScopeResolver resolver = q -> q.contains("employees") ? Set.of("first_name") : Set.of("id");

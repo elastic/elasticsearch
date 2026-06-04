@@ -36,6 +36,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.inject.Inject;
 
@@ -88,7 +89,7 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
         project.getDependencies().add("testImplementation", project.project(":test:framework"));
         Project coreProject = project.project(":x-pack:plugin:core");
-        ProjectDependency coreTestDep = (ProjectDependency) project.getDependencies().create(coreProject);
+        ProjectDependency coreTestDep = (ProjectDependency) project.getDependencies().project(Map.of("path", coreProject.getPath()));
         coreTestDep.capabilities(caps -> caps.requireCapability(coreProject.getGroup() + ":" + coreTestDep.getName() + "-test-artifacts"));
         project.getDependencies().add("testImplementation", coreTestDep);
 

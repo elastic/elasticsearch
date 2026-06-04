@@ -218,7 +218,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
-  dependencies.add('featuresMetadata', module)
+  dependencies.add('featuresMetadata', dependencies.project(path: module.path))
   if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
@@ -239,7 +239,7 @@ xpack.subprojects.findAll { it.parent == xpack || it.parent == esqlFunctions }.e
       }
     }
     distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-    dependencies.add('featuresMetadata', xpackModule)
+    dependencies.add('featuresMetadata', dependencies.project(path: xpackModule.path))
     if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
       distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
     }

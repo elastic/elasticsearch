@@ -125,7 +125,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     0,
                     directoryData.searchExecutionContext,
                     warnings(),
-                    false
+                    false,
+                    () -> 0L
                 );
             }
 
@@ -182,7 +183,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     0,
                     noMatchDirectory.searchExecutionContext,
                     warnings(),
-                    false
+                    false,
+                    () -> 0L
                 )
             ) {
                 // Create input with non-matching terms
@@ -240,7 +242,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                false
+                false,
+                () -> 0L
             )
         ) {
             // Create input with many matching terms
@@ -287,7 +290,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                false
+                false,
+                () -> 0L
             )
         ) {
             // Mix of matching and non-matching terms
@@ -345,7 +349,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 0,
                 directoryData.searchExecutionContext,
                 warnings(),
-                true
+                true,
+                () -> 0L
             )
         ) {
             assertTrue("Should need input initially", operator.needsInput());

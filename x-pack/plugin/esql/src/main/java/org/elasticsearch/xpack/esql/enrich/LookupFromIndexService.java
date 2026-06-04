@@ -133,7 +133,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             projectResolver,
             plannerSettings
         );
-        this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings);
+        this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings, directoryBytesReadSupplier());
         this.exchangeService = exchangeService;
     }
 

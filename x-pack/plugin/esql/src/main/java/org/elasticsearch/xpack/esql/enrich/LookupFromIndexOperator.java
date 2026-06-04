@@ -358,7 +358,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
             "esql_lookup_operator_emitted_rows"
         );
-        private static final TransportVersion ESQL_ENRICH_BYTES_READ = TransportVersion.fromName("esql_enrich_bytes_read");
+        private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
 
         private final long totalRows;
         /**
@@ -396,7 +396,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             } else {
                 this.emittedRows = 0L;
             }
-            this.bytesRead = in.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ) ? in.readVLong() : 0L;
+            this.bytesRead = in.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -407,7 +407,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             if (out.getTransportVersion().supports(ESQL_LOOKUP_OPERATOR_EMITTED_ROWS)) {
                 out.writeVLong(emittedRows);
             }
-            if (out.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_BYTES_READ)) {
                 out.writeVLong(bytesRead);
             }
         }

@@ -36,13 +36,11 @@ However, as a best practice and to avoid issues when upgrading to newer versions
 
 ::::
 
-::::{applies-switch}
-:::{applies-item} stack: preview 9.5.0+
-In earlier versions, `FUSE` collected all values for each passthrough column across fork branches.
-Starting in 9.5.0, `FUSE` picks the first non-null value, or null in the absence of a value.
-Columns of type `aggregate_metric_double` and `date_range` are not yet supported and must be [`DROP`ped](/reference/query-languages/esql/commands/drop.md) before `FUSE`.
+:::{note}
+:applies_to: {"serverless": "preview", "stack": "preview =9.5"}
+Previously, `FUSE` collected all values for each passthrough column across fork branches. `FUSE` now picks the first non-null value, or null in the absence of a value.
+Columns of type `aggregate_metric_double` and `date_range` are not yet supported and must be dropped using [`DROP`](/reference/query-languages/esql/commands/drop.md) before `FUSE`.
 :::
-::::
 
 ## Syntax
 

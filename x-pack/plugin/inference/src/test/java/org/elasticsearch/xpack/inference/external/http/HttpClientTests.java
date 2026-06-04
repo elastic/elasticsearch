@@ -22,6 +22,7 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -303,7 +304,7 @@ public class HttpClientTests extends ESTestCase {
 
                 var subscriptionRef = new AtomicReference<Flow.Subscription>();
                 var subscribed = new CountDownLatch(1);
-                streamingResult.body().subscribe(new Flow.Subscriber<>() {
+                streamingResult.body().subscribe(new Flow.Subscriber<byte[]>() {
                     @Override
                     public void onSubscribe(Flow.Subscription subscription) {
                         subscriptionRef.set(subscription);

@@ -785,3 +785,6 @@ tests:
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   method: testInitialInstallProducesSingleActiveKeyWithEmptyHandlerProgress
   issue: https://github.com/elastic/elasticsearch/issues/150725
+- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
+  method: testStream_CancelAfterPauseReleasesConnection
+  issue: https://github.com/elastic/elasticsearch/issues/150742

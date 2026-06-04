@@ -161,6 +161,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150782
+- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
+  method: testExponentialHistogramValuesReader
+  issue: https://github.com/elastic/elasticsearch/issues/150795
 
 # Examples:
 #

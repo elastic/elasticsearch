@@ -920,12 +920,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             boolean success = false;
             Block nullBlock = null;
             try {
-                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
-                    for (int i = 0; i < positions; i++) {
-                        builder.appendNull();
-                    }
-                    nullBlock = builder.build();
-                }
+                nullBlock = blockFactory.newConstantNullBlock(positions);
                 for (int i = 0; i < rowPosSlot; i++) {
                     blocks[i] = innerPage.getBlock(i);
                 }

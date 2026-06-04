@@ -803,6 +803,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * overlay last in the per-file merge.
      */
     private Map<String, Object> mergeStandardMetadata(Map<String, Object> basePartitionValues) {
+        // Any new standard-metadata name must also be added to
+        // {@link ExternalMetadataColumns#PER_FILE_CONSTANT_NAMES} or this gate silently skips it.
         if (standardMetadataPerFileNames.isEmpty()) {
             return basePartitionValues;
         }

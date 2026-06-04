@@ -9,7 +9,9 @@
               "type": "long",
               "index": false
             }
-          },
+          }
+        },
+        {
           "elasticsearch_querylog_esql_profile_longs": {
             "path_match": "elasticsearch.querylog.esql.profile.*",
             "match_mapping_type": ["long", "integer", "short", "byte"],

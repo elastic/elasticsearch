@@ -443,7 +443,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
@@ -894,23 +893,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
-        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
-        Pattern.DOTALL
-    );
-
-    // https://github.com/elastic/elasticsearch/issues/134794
-    static boolean isTsOutputChangedError(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        String trimmed = query.trim().toUpperCase(Locale.ROOT);
-        return trimmed.startsWith("TS ");
     }
 
     /**

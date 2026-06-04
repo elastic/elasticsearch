@@ -96,27 +96,31 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         );
     }
 
-    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
-        // default validator has ambient disabled
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "ambient", "project_id", "proj"))
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
     }
 
-    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
-        var ambientValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withAmbientEnabled(() -> true);
-        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "project_id", "proj"));
-        assertEquals("ambient", result.get("auth").nonSecretValue());
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
-    public void testValidateDatasourceAmbientConflictWithCredentials() {
-        var ambientValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withAmbientEnabled(() -> true);
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "credentials", "{\"type\":\"service_account\"}"))
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "credentials", "{\"type\":\"service_account\"}")
+            )
         );
     }
 

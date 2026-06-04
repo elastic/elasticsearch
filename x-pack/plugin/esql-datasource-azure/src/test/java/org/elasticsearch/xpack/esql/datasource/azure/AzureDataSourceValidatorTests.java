@@ -100,29 +100,29 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         );
     }
 
-    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
-        // default validator has ambient disabled
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "ambient"))
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
     }
 
-    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
-        var ambientValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
-            .withAmbientEnabled(() -> true);
-        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "account", "myaccount"));
-        assertEquals("ambient", result.get("auth").nonSecretValue());
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
-    public void testValidateDatasourceAmbientConflictWithCredentials() {
-        var ambientValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
-            .withAmbientEnabled(() -> true);
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withWorkloadIdentityEnabled(() -> true);
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "account", "myaccount", "key", "mykey"))
+            () -> workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "account", "myaccount", "key", "mykey"))
         );
     }
 

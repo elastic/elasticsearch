@@ -52,7 +52,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
-    private final Supplier<Boolean> ambientEnabled;
+    private final Supplier<Boolean> workloadIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
@@ -68,14 +68,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        Supplier<Boolean> ambientEnabled
+        Supplier<Boolean> workloadIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
-        this.ambientEnabled = ambientEnabled;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
     }
 
     /**
@@ -88,17 +88,17 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, ambientEnabled);
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, workloadIdentityEnabled);
     }
 
     /**
-     * Returns a new validator that gates {@code auth=ambient} on the supplied boolean supplier.
+     * Returns a new validator that gates {@code auth=workload_identity} on the supplied boolean supplier.
      * The supplier is called on each validation. Pass a live supplier (e.g. backed by an
      * {@code AtomicBoolean} updated via {@code ClusterSettings.addSettingsUpdateConsumer}) so
-     * that operator changes to {@code esql.datasource.ambient_credentials.enabled} take effect
+     * that operator changes to {@code esql.datasource.workload_identity.enabled} take effect
      * without a node restart.
      */
-    public FileDataSourceValidator withAmbientEnabled(Supplier<Boolean> supplier) {
+    public FileDataSourceValidator withWorkloadIdentityEnabled(Supplier<Boolean> supplier) {
         return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
@@ -113,9 +113,9 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
-        if (config instanceof FileDataSourceConfiguration fc && fc.isAmbient() && ambientEnabled.get() == false) {
+        if (config instanceof FileDataSourceConfiguration fc && fc.isWorkloadIdentity() && workloadIdentityEnabled.get() == false) {
             throw new ValidationException().addValidationError(
-                "auth=ambient requires the [esql.datasource.ambient_credentials.enabled] cluster setting to be enabled; "
+                "auth=workload_identity requires the [esql.datasource.workload_identity.enabled] cluster setting to be enabled; "
                     + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
             );
         }

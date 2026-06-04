@@ -300,10 +300,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
-        AtomicBoolean ambientEnabled = new AtomicBoolean(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
+        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings));
         services.clusterService()
             .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED, ambientEnabled::set);
+            .addSettingsUpdateConsumer(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED, workloadIdentityEnabled::set);
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
@@ -314,7 +314,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
-            ambientEnabled::get,
+            workloadIdentityEnabled::get,
             services.threadPool()
         );
 
@@ -380,7 +380,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
                 if (effective instanceof FileDataSourceValidator fdv) {
-                    effective = fdv.withAmbientEnabled(ambientEnabled::get);
+                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
                 }
                 if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);

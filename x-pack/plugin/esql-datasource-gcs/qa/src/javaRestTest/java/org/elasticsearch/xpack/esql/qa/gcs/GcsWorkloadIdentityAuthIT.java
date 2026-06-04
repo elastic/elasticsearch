@@ -41,33 +41,33 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * End-to-end regression guard for {@code auth=ambient} on GCS external data sources.
+ * End-to-end regression guard for {@code auth=workload_identity} on GCS external data sources.
  *
  * <p>Spawns a separate ES cluster JVM with {@code GCE_METADATA_HOST} pointing at a local
- * {@link GoogleCloudStorageHttpFixture}, registers a GCS data source with {@code auth=ambient},
+ * {@link GoogleCloudStorageHttpFixture}, registers a GCS data source with {@code auth=workload_identity},
  * registers a dataset over a fixture-seeded NDJSON blob, and runs an ESQL query via REST. A
  * successful query proves the full chain end-to-end:
- * {@code PUT data_source(auth=ambient) → cluster setting gate → GCS client construction →
+ * {@code PUT data_source(auth=workload_identity) → cluster setting gate → GCS client construction →
  * ComputeEngineCredentials hits the metadata fixture → bearer token used to read the bucket →
  * NDJSON reader returns rows}.
  *
- * <p>This is the GCS analog of {@code FileSourceAmbientAuthIT} (S3) but as a REST IT rather
+ * <p>This is the GCS analog of {@code FileSourceWorkloadIdentityAuthIT} (S3) but as a REST IT rather
  * than {@code ESIntegTestCase}: the Google auth library reads {@code GCE_METADATA_HOST} from
  * environment variables only (see {@code GoogleCloudStorageService} in {@code repository-gcs}),
  * which Java cannot set on its own JVM at runtime — so the cluster must be a separate process.
  * Mirrors the pattern in {@code DefaultCredentialsRepositoryGcsClientYamlTestSuiteIT}.
  *
- * <p>Validator-level coverage of the {@code esql.datasource.ambient_credentials.enabled} gate
+ * <p>Validator-level coverage of the {@code esql.datasource.workload_identity.enabled} gate
  * lives in {@code GcsDataSourceValidatorTests}; this IT focuses on the credential-resolution
  * happy path that unit tests cannot reach.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
-public class GcsAmbientAuthIT extends ESRestTestCase {
+public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
 
-    private static final String BUCKET = "test-ambient-bucket";
+    private static final String BUCKET = "test-workload identity-bucket";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "ambient_gcs_ds";
-    private static final String DATASET_NAME = "ambient_gcs_rows";
+    private static final String DATASOURCE_NAME = "workload identity_gcs_ds";
+    private static final String DATASET_NAME = "workload identity_gcs_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Tokyo\"}\n{\"id\":2,\"city\":\"Seoul\"}\n".getBytes(
         StandardCharsets.UTF_8
     );
@@ -84,8 +84,8 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // Open the ambient gate so the validator accepts auth=ambient.
-        .setting("esql.datasource.ambient_credentials.enabled", "true")
+        // Open the workload identity gate so the validator accepts auth=workload_identity.
+        .setting("esql.datasource.workload_identity.enabled", "true")
         // Redirect the GCE metadata server to our fixture so ComputeEngineCredentials.refresh()
         // resolves a bearer token against FakeOAuth2HttpHandler instead of metadata.google.internal.
         .environment("GCE_METADATA_HOST", () -> fixture.getAddress().replace("http://", ""))
@@ -123,15 +123,15 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
     }
 
     /**
-     * Core regression guard: register an ambient GCS data source, register a dataset, run an
+     * Core regression guard: register an workload identity GCS data source, register a dataset, run an
      * ESQL query, and assert rows are returned. A non-empty result requires every step of the
-     * ambient credential chain to have worked: the validator gate accepted {@code auth=ambient},
+     * workload identity credential chain to have worked: the validator gate accepted {@code auth=workload_identity},
      * the GCS storage client constructed successfully, {@link com.google.auth.oauth2.ComputeEngineCredentials}
      * resolved a bearer token from the fixture's metadata endpoint, and that token was used to
      * read the seeded NDJSON blob.
      */
-    public void testAmbientAuthQueryReturnsRows() throws IOException {
-        putAmbientDataSource(DATASOURCE_NAME, fixture.getAddress());
+    public void testWorkloadIdentityAuthQueryReturnsRows() throws IOException {
+        putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress());
         putDataset(DATASET_NAME, DATASOURCE_NAME, "gs://" + BUCKET + "/" + OBJECT_KEY);
 
         // Trailing LIMIT 1 silences ESQL's "no limit defined, adding default limit of [1000]" warning,
@@ -139,10 +139,10 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM " + DATASET_NAME + " | STATS count = COUNT(*) | LIMIT 1");
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");
-        assertThat("auth=ambient query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
+        assertThat("auth=workload_identity query must return at least one stats row", values, hasSize(greaterThanOrEqualTo(1)));
         // STATS COUNT(*) over a 2-line NDJSON blob returns exactly one row whose first column is 2.
         Number count = (Number) values.get(0).get(0);
-        assertThat("auth=ambient query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
+        assertThat("auth=workload_identity query must count both seeded NDJSON rows", count.intValue(), equalTo(2));
     }
 
     /**
@@ -151,18 +151,21 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
      * cluster setting (not just the validator unit-test default) and that the dynamic
      * supplier in {@code EsqlPlugin} actually observes operator changes.
      */
-    public void testAmbientAuthRejectedWhenClusterSettingDisabled() throws IOException {
+    public void testWorkloadIdentityAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
-            setAmbientCredentialsEnabled(false);
-            ResponseException ex = expectThrows(ResponseException.class, () -> putAmbientDataSource(DATASOURCE_NAME, fixture.getAddress()));
+            setWorkloadIdentityCredentialsEnabled(false);
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> putWorkloadIdentityDataSource(DATASOURCE_NAME, fixture.getAddress())
+            );
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
-                containsString("esql.datasource.ambient_credentials.enabled")
+                containsString("esql.datasource.workload_identity.enabled")
             );
         } finally {
             // Restore for the rest of the suite. @Before's cleanup runs against fresh state.
-            setAmbientCredentialsEnabled(true);
+            setWorkloadIdentityCredentialsEnabled(true);
         }
     }
 
@@ -170,13 +173,13 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
     // REST helpers
     // -----------------------------------------------------------------------------------------
 
-    private static void putAmbientDataSource(String name, String endpoint) throws IOException {
+    private static void putWorkloadIdentityDataSource(String name, String endpoint) throws IOException {
         Request req = new Request("PUT", "/_query/data_source/" + name);
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject()
                 .field("type", "gcs")
                 .startObject("settings")
-                .field("auth", "ambient")
+                .field("auth", "workload_identity")
                 .field("endpoint", endpoint)
                 .field("project_id", "test-project")
                 .endObject()
@@ -228,10 +231,10 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
         }
     }
 
-    private static void setAmbientCredentialsEnabled(boolean enabled) throws IOException {
+    private static void setWorkloadIdentityCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject().startObject("persistent").field("esql.datasource.ambient_credentials.enabled", enabled).endObject().endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.workload_identity.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

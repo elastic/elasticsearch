@@ -23,8 +23,8 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>Access key + secret key (static credentials)</li>
  *   <li>Access key + secret key + session token (STS temporary credentials)</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>{@code auth=ambient} to use the node's instance credential chain (env vars, EKS IRSA, EC2 instance profile).
- *       Requires the {@code esql.datasource.ambient_credentials.enabled} cluster setting.</li>
+ *   <li>{@code auth=workload_identity} to use the node's instance credential chain (env vars, EKS IRSA, EC2 instance profile).
+ *       Requires the {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class S3Configuration extends FileDataSourceConfiguration {

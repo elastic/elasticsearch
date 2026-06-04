@@ -26,7 +26,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
 
     protected static final DataSourceConfigDefinition AUTH = plaintext("auth").asCaseInsensitive();
     private static final String AUTH_NONE = "none";
-    private static final String AUTH_AMBIENT = "ambient";
+    private static final String AUTH_WORKLOAD_IDENTITY = "workload_identity";
 
     protected FileDataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         super(raw, fieldDefs);
@@ -34,8 +34,8 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
 
     @Override
     protected final void validate(ValidationException errors) {
-        if (auth() != null && AUTH_NONE.equals(auth()) == false && AUTH_AMBIENT.equals(auth()) == false) {
-            errors.addValidationError("Unsupported auth value [" + auth() + "]; supported values: [none, ambient]");
+        if (auth() != null && AUTH_NONE.equals(auth()) == false && AUTH_WORKLOAD_IDENTITY.equals(auth()) == false) {
+            errors.addValidationError("Unsupported auth value [" + auth() + "]; supported values: [none, workload identity]");
         }
         if (isAnonymous() && hasAnySecretValue()) {
             errors.addValidationError("auth=none cannot be combined with explicit credentials; anonymous access uses no credentials");
@@ -45,11 +45,11 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
                 "auth=none cannot be combined with keyless authentication settings; anonymous access uses no credentials"
             );
         }
-        if (isAmbient() && hasAnySecretValue()) {
-            errors.addValidationError("auth=ambient cannot be combined with explicit credentials");
+        if (isWorkloadIdentity() && hasAnySecretValue()) {
+            errors.addValidationError("auth=workload_identity cannot be combined with explicit credentials");
         }
-        if (isAmbient() && hasKeylessAuth()) {
-            errors.addValidationError("auth=ambient cannot be combined with keyless authentication settings");
+        if (isWorkloadIdentity() && hasKeylessAuth()) {
+            errors.addValidationError("auth=workload_identity cannot be combined with keyless authentication settings");
         }
         if (hasAnySecretValue() && hasKeylessAuth()) {
             errors.addValidationError("explicit credentials cannot be combined with keyless authentication settings");
@@ -68,8 +68,8 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         return AUTH_NONE.equals(auth());
     }
 
-    /** Returns true when {@code auth=ambient} is set, directing the provider to use the node's instance credentials. */
-    public boolean isAmbient() {
-        return AUTH_AMBIENT.equals(auth());
+    /** Returns true when {@code auth=workload_identity} is set, directing the provider to use the node's instance credentials. */
+    public boolean isWorkloadIdentity() {
+        return AUTH_WORKLOAD_IDENTITY.equals(auth());
     }
 }

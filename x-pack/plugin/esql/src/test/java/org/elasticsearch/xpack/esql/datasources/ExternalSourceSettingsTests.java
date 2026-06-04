@@ -57,12 +57,12 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(5, ExternalSourceSettings.settings().size());
     }
 
-    public void testAmbientCredentialsDefaultFalse() {
-        assertFalse(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(Settings.EMPTY));
+    public void testWorkloadIdentityCredentialsDefaultFalse() {
+        assertFalse(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(Settings.EMPTY));
     }
 
-    public void testAmbientCredentialsCanBeEnabled() {
-        Settings settings = Settings.builder().put("esql.datasource.ambient_credentials.enabled", true).build();
-        assertTrue(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
+    public void testWorkloadIdentityCredentialsCanBeEnabled() {
+        Settings settings = Settings.builder().put("esql.datasource.workload_identity.enabled", true).build();
+        assertTrue(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings));
     }
 }

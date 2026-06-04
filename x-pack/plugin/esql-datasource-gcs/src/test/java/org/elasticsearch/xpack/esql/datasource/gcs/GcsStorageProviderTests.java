@@ -192,27 +192,27 @@ public class GcsStorageProviderTests extends ESTestCase {
     }
 
     /**
-     * auth=ambient returns {@link ComputeEngineCredentials} from the production seam.
+     * auth=workload_identity returns {@link ComputeEngineCredentials} from the production seam.
      */
-    public void testAmbientCredentialsReturnsComputeEngine() throws Exception {
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
+    public void testWorkloadIdentityCredentialsReturnsComputeEngine() throws Exception {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
         Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
         assertThat(creds, instanceOf(ComputeEngineCredentials.class));
     }
 
     /**
-     * auth=ambient routes through {@link GcsStorageProvider#buildAmbientCredentials()}, the seam tests
+     * auth=workload_identity routes through {@link GcsStorageProvider#buildWorkloadIdentityCredentials()}, the seam tests
      * use to inject a credential backed by a mock HTTP transport instead of the GCE metadata server.
      */
-    public void testAmbientCredentialsRoutesThroughBuildAmbientCredentials() throws Exception {
+    public void testWorkloadIdentityCredentialsRoutesThroughBuildWorkloadIdentityCredentials() throws Exception {
         GoogleCredentials injected = GoogleCredentials.create(new com.google.auth.oauth2.AccessToken("seam-token", null));
         GcsStorageProvider provider = new GcsStorageProvider(mockStorage) {
             @Override
-            protected Credentials buildAmbientCredentials() {
+            protected Credentials buildWorkloadIdentityCredentials() {
                 return injected;
             }
         };
-        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "workload_identity"));
         assertSame(injected, provider.credentials(config));
     }
 }

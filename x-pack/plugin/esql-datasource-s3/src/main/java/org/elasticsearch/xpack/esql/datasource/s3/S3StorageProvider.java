@@ -147,7 +147,7 @@ public final class S3StorageProvider implements StorageProvider {
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
-     *   <li>{@code auth=ambient} — node's instance credential chain: env vars, system properties,
+     *   <li>{@code auth=workload_identity} — node's instance credential chain: env vars, system properties,
      *       EC2/ECS instance profile (IMDS). Profile-file loading is excluded (blocked by
      *       entitlements). EKS IRSA ({@code WebIdentityTokenFileCredentialsProvider}) is also
      *       excluded: it reads a token file from disk, which is blocked by entitlements and cannot
@@ -162,7 +162,7 @@ public final class S3StorageProvider implements StorageProvider {
         if (config != null && config.isAnonymous()) {
             return AnonymousCredentialsProvider.create();
         }
-        if (config != null && config.isAmbient()) {
+        if (config != null && config.isWorkloadIdentity()) {
             // Explicit chain that excludes ProfileCredentialsProvider (file read, blocked by
             // entitlements) and WebIdentityTokenFileCredentialsProvider (also a file read at a
             // runtime-variable path — see Javadoc above).
@@ -190,7 +190,7 @@ public final class S3StorageProvider implements StorageProvider {
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
                 + "WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'ambient') to use the node's instance role (requires cluster setting)"
+                + "or WITH (auth = 'workload identity') to use the node's instance role (requires cluster setting)"
         );
     }
 

@@ -84,18 +84,18 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Enables {@code auth=ambient} for EXTERNAL cloud reads, which resolves credentials from the node's
-     * ambient identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
+     * Enables {@code auth=workload_identity} for EXTERNAL cloud reads, which resolves credentials from the node's
+     * workload identity (IAM instance profile / IMDS on AWS and Azure, GCE metadata server on GCP)
      * rather than requiring explicit credentials in the query or datasource.
      * <p>
      * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
-     * single-tenant deployments where the node's ambient identity is the intended credential.
-     * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
+     * single-tenant deployments where the node's workload identity is the intended credential.
+     * Never enable in serverless or multi-tenant deployments: workload identity credentials bypass tenant isolation.
      * <p>
      * This is an operator-dynamic setting: changes take effect immediately without a node restart.
      */
-    public static final Setting<Boolean> AMBIENT_CREDENTIALS_ENABLED = Setting.boolSetting(
-        "esql.datasource.ambient_credentials.enabled",
+    public static final Setting<Boolean> WORKLOAD_IDENTITY_ENABLED = Setting.boolSetting(
+        "esql.datasource.workload_identity.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
@@ -107,7 +107,7 @@ public final class ExternalSourceSettings {
             THROTTLE_MAX_RETRY_DURATION,
             MAX_DISCOVERED_FILES,
             MAX_GLOB_EXPANSION,
-            AMBIENT_CREDENTIALS_ENABLED
+            WORKLOAD_IDENTITY_ENABLED
         );
     }
 }

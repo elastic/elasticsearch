@@ -115,31 +115,31 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         );
     }
 
-    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
-        // default validator has ambient disabled
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "ambient", "region", "us-east-1"))
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
     }
 
-    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
-        var ambientValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withAmbientEnabled(
-            () -> true
-        );
-        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "region", "us-east-1"));
-        assertEquals("ambient", result.get("auth").nonSecretValue());
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
         assertFalse(result.get("auth").secret());
     }
 
-    public void testValidateDatasourceAmbientConflictWithCredentials() {
-        var ambientValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withAmbientEnabled(
-            () -> true
-        );
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "access_key", "AKIA123", "secret_key", "secret"))
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "access_key", "AKIA123", "secret_key", "secret")
+            )
         );
     }
 

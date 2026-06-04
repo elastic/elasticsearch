@@ -66,10 +66,11 @@ import java.util.NoSuchElementException;
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
  * Authentication via connection string, account+key, SAS token, {@code auth=none} for public
- * containers, or {@code auth=ambient} for env-var / managed-identity credentials. The ambient chain
- * is limited to {@code EnvironmentCredential} and {@code ManagedIdentityCredential}; broader sources
- * in {@code DefaultAzureCredential} (token-cache files, CLI, PowerShell) are excluded because file
- * reads and process spawning are blocked by entitlements.
+ * containers, or {@code auth=workload_identity} for env-var / managed-identity credentials. The
+ * workload identity chain is limited to {@code EnvironmentCredential} and
+ * {@code ManagedIdentityCredential}; broader sources in {@code DefaultAzureCredential}
+ * (token-cache files, CLI, PowerShell) are excluded because file reads and process spawning are
+ * blocked by entitlements.
  */
 public final class AzureStorageProvider implements StorageProvider {
 
@@ -148,13 +149,13 @@ public final class AzureStorageProvider implements StorageProvider {
             } else {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
-        } else if (config != null && config.isAmbient()) {
+        } else if (config != null && config.isWorkloadIdentity()) {
             // Explicit chain: EnvironmentCredential (env vars) → ManagedIdentityCredential (IMDS).
             // DefaultAzureCredential is excluded: it includes WorkloadIdentityCredential (reads a
             // token file), SharedTokenCacheCredential (reads a cache file), IntelliJCredential
             // (reads IDE config files), AzureCliCredential, AzurePowerShellCredential, and
             // AzureDeveloperCliCredential (all spawn processes) — all blocked by entitlements.
-            var ambientCredential = new ChainedTokenCredentialBuilder().addLast(new EnvironmentCredentialBuilder().build())
+            var credential = new ChainedTokenCredentialBuilder().addLast(new EnvironmentCredentialBuilder().build())
                 .addLast(new ManagedIdentityCredentialBuilder().build())
                 .build();
             String endpoint = Strings.hasText(config.endpoint())
@@ -165,17 +166,17 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             if (endpoint == null) {
                 throw new IllegalStateException(
-                    "auth=ambient requires an account from the path (wasbs://account.blob.core.windows.net/...) "
+                    "auth=workload_identity requires an account from the path (wasbs://account.blob.core.windows.net/...) "
                         + "or WITH (endpoint = '...')"
                 );
             }
-            builder.endpoint(endpoint).credential(ambientCredential);
+            builder.endpoint(endpoint).credential(credential);
         } else {
             throw new IllegalArgumentException(
                 "Azure data source requires credentials: provide WITH (connection_string = '...'), "
                     + "WITH (account = '...', key = '...'), WITH (account = '...', sas_token = '...'), "
                     + "WITH (auth = 'none') for public containers, "
-                    + "or WITH (auth = 'ambient') to use the managed/workload identity (requires cluster setting)"
+                    + "or WITH (auth = 'workload_identity') to use the node's managed identity (requires cluster setting)"
             );
         }
 

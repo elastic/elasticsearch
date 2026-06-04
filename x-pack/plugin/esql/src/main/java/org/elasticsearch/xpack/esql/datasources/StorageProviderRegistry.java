@@ -67,7 +67,7 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
-    private final BooleanSupplier ambientEnabled;
+    private final BooleanSupplier workloadIdentityEnabled;
     /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
@@ -84,7 +84,7 @@ public class StorageProviderRegistry implements Closeable {
         this(
             settings,
             credentials,
-            () -> ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings != null ? settings : Settings.EMPTY),
+            () -> ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings != null ? settings : Settings.EMPTY),
             RetryScheduler.DIRECT
         );
     }
@@ -92,12 +92,12 @@ public class StorageProviderRegistry implements Closeable {
     public StorageProviderRegistry(
         Settings settings,
         @Nullable DataSourceCredentials credentials,
-        BooleanSupplier ambientEnabled,
+        BooleanSupplier workloadIdentityEnabled,
         RetryScheduler retryScheduler
     ) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
-        this.ambientEnabled = ambientEnabled;
+        this.workloadIdentityEnabled = workloadIdentityEnabled;
         this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
@@ -178,12 +178,13 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
-        // Gate auth=ambient on the cluster setting before constructing the provider.
+        // Gate auth=workload_identity on the cluster setting before constructing the provider.
         // This covers the inline-WITH path where no PUT-datasource validation runs.
         Object authValue = storageConfig.get("auth");
-        if ("ambient".equalsIgnoreCase(authValue instanceof String s ? s : null) && ambientEnabled.getAsBoolean() == false) {
+        if ("workload_identity".equalsIgnoreCase(authValue instanceof String s ? s : null)
+            && workloadIdentityEnabled.getAsBoolean() == false) {
             throw new IllegalArgumentException(
-                "auth=ambient requires the [esql.datasource.ambient_credentials.enabled] cluster setting to be enabled; "
+                "auth=workload_identity requires the [esql.datasource.workload_identity.enabled] cluster setting to be enabled; "
                     + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
             );
         }

@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
- * The node's ambient credentials (Application Default Credentials) are never used: a data source must
+ * The node's workload identity credentials (Application Default Credentials) are never used: a data source must
  * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  */
 public class GcsConfiguration extends FileDataSourceConfiguration {

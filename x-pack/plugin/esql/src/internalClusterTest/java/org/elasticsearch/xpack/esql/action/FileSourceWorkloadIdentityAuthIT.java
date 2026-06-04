@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end regression guard for {@code auth=ambient} on S3 external data sources,
+ * End-to-end regression guard for {@code auth=workload_identity} on S3 external data sources,
  * using the registered-dataset path ({@code FROM <dataset>}).
  *
  * <p>Proof comes in two layers:
@@ -68,29 +68,29 @@ import static org.hamcrest.Matchers.notNullValue;
  *       {@code SystemPropertyCredentialsProvider} resolved from the {@code aws.accessKeyId}
  *       system property. The {@link S3HttpHandler} fixture validates the SigV4 Authorization
  *       header and rejects all others with HTTP 403, so a successful query <em>requires</em>
- *       the ambient chain to have picked up the system-property credential.</li>
+ *       the workload identity chain to have picked up the system-property credential.</li>
  *   <li><b>Row return</b>: the query must return rows, proving the full path from
- *       {@code auth=ambient} data-source registration → cluster-setting gate → S3 client
- *       construction → ambient credential resolution → actual data read.</li>
+ *       {@code auth=workload_identity} data-source registration → cluster-setting gate → S3 client
+ *       construction → workload identity credential resolution → actual data read.</li>
  * </ol>
  *
- * <p>Uses {@code SystemPropertyCredentialsProvider} (second in our explicit ambient chain)
+ * <p>Uses {@code SystemPropertyCredentialsProvider} (second in our explicit workload identity chain)
  * rather than environment variables (first) because Java tests cannot set env vars, but
  * {@code System.setProperty()} is available and sufficient to exercise the chain.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-@SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for ambient credential seeding")
-@ThreadLeakFilters(filters = { FileSourceAmbientAuthIT.AwsSdkThreadFilter.class })
-public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
+@SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for workload identity credential seeding")
+@ThreadLeakFilters(filters = { FileSourceWorkloadIdentityAuthIT.AwsSdkThreadFilter.class })
+public class FileSourceWorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    static final String AMBIENT_ACCESS_KEY = "ambient-test-access-key";
-    static final String AMBIENT_SECRET_KEY = "ambient-test-secret-key";
-    static final String BUCKET = "test-ambient-bucket";
+    static final String WORKLOAD_IDENTITY_ACCESS_KEY = "workload-identity-test-access-key";
+    static final String WORKLOAD_IDENTITY_SECRET_KEY = "workload-identity-test-secret-key";
+    static final String BUCKET = "test-workload identity-bucket";
     static final String OBJECT_KEY = "data/rows.ndjson";
-    static final String DATASOURCE_NAME = "ambient_s3";
-    static final String DATASET_NAME = "ambient_rows";
+    static final String DATASOURCE_NAME = "workload identity_s3";
+    static final String DATASET_NAME = "workload identity_rows";
 
     /** Captures the Authorization header from the most recent S3 request for assertion. */
     static final AtomicReference<String> lastAuthorizationHeader = new AtomicReference<>();
@@ -104,9 +104,9 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
         byte[] ndjson = "{\"id\": 1, \"name\": \"Alice\"}\n{\"id\": 2, \"name\": \"Bob\"}\n".getBytes(StandardCharsets.UTF_8);
         s3Handler.blobs().put("/" + BUCKET + "/" + OBJECT_KEY, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
-        // Validate SigV4 signatures: only requests signed with AMBIENT_ACCESS_KEY are accepted.
+        // Validate SigV4 signatures: only requests signed with WORKLOAD_IDENTITY_ACCESS_KEY are accepted.
         // checkAuthorization sends the 403 response itself when auth fails, so we just return.
-        var authPredicate = AwsCredentialsUtils.fixedAccessKey(AMBIENT_ACCESS_KEY, () -> "us-east-1", "s3");
+        var authPredicate = AwsCredentialsUtils.fixedAccessKey(WORKLOAD_IDENTITY_ACCESS_KEY, () -> "us-east-1", "s3");
         s3Server = HttpServer.create(new InetSocketAddress(0), 0);
         s3Server.createContext("/", exchange -> {
             lastAuthorizationHeader.set(exchange.getRequestHeaders().getFirst("Authorization"));
@@ -128,15 +128,15 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
     }
 
     @Before
-    public void seedAmbientCredentials() {
+    public void seedWorkloadIdentityCredentials() {
         // SystemPropertyCredentialsProvider reads these; they are the second provider
-        // in the ambient chain after EnvironmentVariableCredentialsProvider.
-        System.setProperty("aws.accessKeyId", AMBIENT_ACCESS_KEY);
-        System.setProperty("aws.secretAccessKey", AMBIENT_SECRET_KEY);
+        // in the workload identity chain after EnvironmentVariableCredentialsProvider.
+        System.setProperty("aws.accessKeyId", WORKLOAD_IDENTITY_ACCESS_KEY);
+        System.setProperty("aws.secretAccessKey", WORKLOAD_IDENTITY_SECRET_KEY);
     }
 
     @After
-    public void clearAmbientCredentials() {
+    public void clearWorkloadIdentityCredentials() {
         System.clearProperty("aws.accessKeyId");
         System.clearProperty("aws.secretAccessKey");
     }
@@ -164,7 +164,7 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.getKey(), true)
+            .put(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.getKey(), true)
             .build();
     }
 
@@ -202,53 +202,53 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
     // --------------------------------------------------------------------------------------------
 
     /**
-     * Core regression guard: registers an S3 data source with {@code auth=ambient}, registers
+     * Core regression guard: registers an S3 data source with {@code auth=workload_identity}, registers
      * a dataset pointing at the fixture, queries via {@code FROM <dataset>}, and asserts:
-     * (a) rows are returned, and (b) the S3 Authorization header contains the ambient access key
-     * — proving the credential came from the ambient chain (system properties) rather than
+     * (a) rows are returned, and (b) the S3 Authorization header contains the workload identity access key
+     * — proving the credential came from the workload identity chain (system properties) rather than
      * anonymous access or explicit credentials.
      */
-    public void testAmbientAuthReadsRowsAndUsesAmbientCredential() throws Exception {
-        registerAmbientDatasource();
+    public void testWorkloadIdentityAuthReadsRowsAndUsesWorkloadIdentityCredential() throws Exception {
+        registerWorkloadIdentityDatasource();
         registerDataset();
 
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
             List<List<Object>> rows = getValuesList(response);
-            assertThat("auth=ambient FROM query must return rows from fixture", rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat("auth=workload_identity FROM query must return rows from fixture", rows, hasSize(greaterThanOrEqualTo(1)));
         }
 
         String authHeader = lastAuthorizationHeader.get();
         assertThat("S3 request must carry an Authorization header", authHeader, notNullValue());
         assertThat(
-            "Authorization header must contain the ambient access key resolved from system properties",
+            "Authorization header must contain the workload identity access key resolved from system properties",
             authHeader,
-            containsString(AMBIENT_ACCESS_KEY)
+            containsString(WORKLOAD_IDENTITY_ACCESS_KEY)
         );
     }
 
     /**
-     * Verifies that {@code auth=ambient} is rejected at data-source registration time when
+     * Verifies that {@code auth=workload_identity} is rejected at data-source registration time when
      * the cluster setting is disabled.
      */
-    public void testAmbientAuthRejectedWhenSettingDisabledAtValidation() {
+    public void testWorkloadIdentityAuthRejectedWhenSettingDisabledAtValidation() {
         var validator = new org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator(
             "s3",
             org.elasticsearch.xpack.esql.datasource.s3.S3Configuration::fromMap,
             java.util.Set.of("s3", "s3a", "s3n")
-        );  // ambientEnabled defaults to () -> false
+        );  // workloadIdentityEnabled defaults to () -> false
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDatasource(Map.of("auth", "ambient", "region", "us-east-1"))
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
-        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
     }
 
     /**
      * Wrong-credential counter-test: the fixture rejects requests not signed with
-     * {@link #AMBIENT_ACCESS_KEY}, proving the auth gate is actually enforced.
+     * {@link #WORKLOAD_IDENTITY_ACCESS_KEY}, proving the auth gate is actually enforced.
      */
     public void testQueryFailsWhenWrongCredentialIsUsed() throws Exception {
-        registerAmbientDatasource();
+        registerWorkloadIdentityDatasource();
         registerDataset();
 
         lastAuthorizationHeader.set(null);
@@ -256,18 +256,18 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
         try {
             expectThrows(Exception.class, () -> {
                 try (var ignored = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
-                    fail("query must fail: fixture rejects requests not signed with AMBIENT_ACCESS_KEY");
+                    fail("query must fail: fixture rejects requests not signed with WORKLOAD_IDENTITY_ACCESS_KEY");
                 }
             });
         } finally {
-            System.setProperty("aws.accessKeyId", AMBIENT_ACCESS_KEY);
+            System.setProperty("aws.accessKeyId", WORKLOAD_IDENTITY_ACCESS_KEY);
         }
         // Prove the request reached the fixture (header captured) and carried the wrong key —
         // ruling out a setup failure as the cause of the exception above.
         String authHeader = lastAuthorizationHeader.get();
         assertThat("S3 request must have reached the fixture", authHeader, notNullValue());
         assertThat(
-            "Authorization header must contain the wrong key, not the ambient one",
+            "Authorization header must contain the wrong key, not the workload identity one",
             authHeader,
             containsString("wrong-key-that-fixture-rejects")
         );
@@ -275,7 +275,7 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
 
     /**
      * Counter-proof: the same data is reachable with explicit credentials, confirming the fixture
-     * and data are healthy. This ensures a test failure in the ambient test is a credential-chain
+     * and data are healthy. This ensures a test failure in the workload identity test is a credential-chain
      * bug, not a fixture or data problem.
      */
     public void testExplicitCredentialsAlsoWork() throws Exception {
@@ -291,9 +291,9 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
                     new HashMap<>(
                         Map.of(
                             "access_key",
-                            AMBIENT_ACCESS_KEY,
+                            WORKLOAD_IDENTITY_ACCESS_KEY,
                             "secret_key",
-                            AMBIENT_SECRET_KEY,
+                            WORKLOAD_IDENTITY_SECRET_KEY,
                             "region",
                             "us-east-1",
                             "endpoint",
@@ -314,7 +314,7 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
     // Helpers
     // --------------------------------------------------------------------------------------------
 
-    private void registerAmbientDatasource() throws Exception {
+    private void registerWorkloadIdentityDatasource() throws Exception {
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
@@ -324,7 +324,7 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(Map.of("auth", "ambient", "region", "us-east-1", "endpoint", "http://localhost:" + s3Port))
+                    new HashMap<>(Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://localhost:" + s3Port))
                 )
             )
         );

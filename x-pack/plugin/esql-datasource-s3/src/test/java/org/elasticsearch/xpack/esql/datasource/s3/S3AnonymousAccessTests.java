@@ -168,24 +168,24 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * auth=ambient should return an AwsCredentialsProviderChain (env → system props → IMDS),
+     * auth=workload_identity should return an AwsCredentialsProviderChain (env → system props → IMDS),
      * not AnonymousCredentialsProvider or StaticCredentialsProvider.
      */
-    public void testAmbientCredentialsProviderType() {
-        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "ambient");
+    public void testWorkloadIdentityCredentialsProviderType() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
         assertNotNull(config);
-        assertTrue(config.isAmbient());
+        assertTrue(config.isWorkloadIdentity());
         var provider = S3StorageProvider.credentialsProvider(config);
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
     }
 
     /**
-     * auth=ambient is mutually exclusive with explicit credentials.
+     * auth=workload_identity is mutually exclusive with explicit credentials.
      */
-    public void testAmbientModeConflictsWithCredentials() {
+    public void testWorkloadIdentityModeConflictsWithCredentials() {
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
-            () -> S3Configuration.fromFields("ak", "sk", null, null, "ambient")
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "workload_identity")
         );
     }
 }

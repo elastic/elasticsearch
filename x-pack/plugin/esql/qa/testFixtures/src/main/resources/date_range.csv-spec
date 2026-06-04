@@ -1237,6 +1237,7 @@ decade:integer | result:date_range
 2020           | 2020-01-01..2035-01-01
 ;
 
+
 ###############################################
 # Equality operators for date_range
 ###############################################
@@ -1315,4 +1316,72 @@ FROM decades
 decade:integer
 1900
 1920
+;
+
+
+###############################################
+# CASE tests
+###############################################
+
+// CASE returns the first branch date_range when the condition is true.
+caseDateRangeTrueBranch
+required_capability: date_range_field_type_v6
+required_capability: case_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL r = CASE(decade == 1900, date_range, TO_DATE_RANGE("2000-01-01..2001-01-01"))
+| KEEP decade, r
+;
+
+decade:integer | r:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// CASE returns the else date_range when the condition is false.
+caseDateRangeFalseBranch
+required_capability: date_range_field_type_v6
+required_capability: case_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL r = CASE(decade == 9999, date_range, TO_DATE_RANGE("2000-01-01..2001-01-01"))
+| KEEP decade, r
+;
+
+decade:integer | r:date_range
+1900           | 2000-01-01..2001-01-01
+;
+
+// CASE returns null when no condition matches and there is no else clause.
+caseDateRangeNoElse
+required_capability: date_range_field_type_v6
+required_capability: case_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL r = CASE(decade == 9999, date_range)
+| KEEP decade, r
+;
+
+decade:integer | r:date_range
+1900           | null
+;
+
+// CASE selects between two date_range field values based on decade parity.
+caseDateRangeSelectByDecade
+required_capability: date_range_field_type_v6
+required_capability: case_date_range
+
+FROM decades
+| WHERE decade == 1900 OR decade == 1910
+| EVAL a = TO_DATE_RANGE("2000-01-01..2001-01-01")
+| EVAL r = CASE(decade % 20 == 0, date_range, a)
+| KEEP decade, r
+| SORT decade
+;
+
+decade:integer | r:date_range
+1900           | 1900-01-01..1910-01-01
+1910           | 2000-01-01..2001-01-01
 ;

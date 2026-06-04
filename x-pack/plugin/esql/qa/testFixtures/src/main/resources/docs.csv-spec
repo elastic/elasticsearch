@@ -140,6 +140,7 @@ Vishv          |Zockler        |1.42
 ;
 
 docsSortDesc
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::sortDesc[]
 FROM employees
 | KEEP first_name, last_name, height
@@ -155,6 +156,7 @@ Saniya         |Kalloufi       |2.1
 ;
 
 docsSortTie
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::sortTie[]
 FROM employees
 | KEEP first_name, last_name, height
@@ -306,6 +308,7 @@ Bernatsky      |true
 ;
 
 docsRound
+skip_flattened_rewrite: field_extract_multivalue_null
 // tag::round[]
 FROM employees
 | KEEP first_name, last_name, height

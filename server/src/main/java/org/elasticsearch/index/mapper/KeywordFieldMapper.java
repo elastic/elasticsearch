@@ -128,6 +128,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
 
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        true,
+        DocValuesParameter.Values.Cardinality.LOW,
+        true
+    );
+
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
@@ -190,9 +196,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
-        if (indexSettings.getMode().isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
-        }
 
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
     }
@@ -491,11 +494,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
-            enforceIndexSortDocValuesCompatibility(
-                context.buildFullName(leafName()),
-                indexSettings.getIndexSortConfig(),
-                docValuesParameters
-            );
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();

@@ -40,7 +40,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -96,8 +95,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameMessageTimestampSortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-hostname-message-timestamp";
 
         final String mapping = """
@@ -114,10 +111,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "pattern_text"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -183,8 +177,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testHostnameTimestampSortConfig() throws Exception {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-hostname-timestamp";
 
         final String MAPPING = """
@@ -198,10 +190,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }
@@ -245,8 +234,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
     }
 
     public void testTimestampOnlySortConfig() throws IOException {
-        assumeTrue("test uses cardinality option", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-
         final String dataStreamName = "test-logsdb-sort-timestamp-only";
 
         final String MAPPING = """
@@ -260,10 +247,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "keyword",
-                    "doc_values": {
-                      "cardinality": "low"
-                    }
+                    "type": "keyword"
                   }
                 }
               }

@@ -32,6 +32,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
     public static final char DEFAULT_SEPARATOR = ' ';
 
     private final FingerprintAnalyzer analyzer;
+    private final Object sharingKey;
 
     FingerprintAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -41,12 +42,20 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
+        this.sharingKey = new Key(separator, maxOutputSize, new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public FingerprintAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(char separator, int maxOutputSize, Analysis.StableCharArraySet stopWords) {}
 
     public static char parseSeparator(Settings settings) throws IllegalArgumentException {
         String customSeparator = settings.get(SEPARATOR.getPreferredName());

@@ -32,4 +32,12 @@ public class KuromojiCompletionAnalyzerProvider extends AbstractIndexAnalyzerPro
     public JapaneseCompletionAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // JapaneseCompletionAnalyzer holds opaque Lucene state (user dictionary, mode)
+        // without a structural equals/hashCode contract, so we use identity on the analyzer
+        // instance itself.
+        return analyzer;
+    }
 }

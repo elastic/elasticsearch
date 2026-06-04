@@ -21,15 +21,24 @@ import org.elasticsearch.index.analysis.Analysis;
 public class StopAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopAnalyzer> {
 
     private final StopAnalyzer stopAnalyzer;
+    private final Object sharingKey;
 
     public StopAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
         this.stopAnalyzer = new StopAnalyzer(stopWords);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public StopAnalyzer get() {
         return this.stopAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords) {}
 }

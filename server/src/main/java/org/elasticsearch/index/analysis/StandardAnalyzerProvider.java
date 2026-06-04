@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
 
     private final StandardAnalyzer standardAnalyzer;
+    private final Object sharingKey;
 
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -26,10 +27,18 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
         standardAnalyzer = new StandardAnalyzer(stopWords);
         standardAnalyzer.setMaxTokenLength(maxTokenLength);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), maxTokenLength);
     }
 
     @Override
     public StandardAnalyzer get() {
         return this.standardAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, int maxTokenLength) {}
 }

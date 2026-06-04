@@ -21,16 +21,25 @@ public class LatvianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Latvi
 
     private final LatvianAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     LatvianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new LatvianAnalyzer(
-            Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, LatvianAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new LatvianAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public LatvianAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

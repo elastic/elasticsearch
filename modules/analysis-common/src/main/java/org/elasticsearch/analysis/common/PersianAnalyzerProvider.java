@@ -10,6 +10,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.StopwordAnalyzerBase;
@@ -33,15 +34,18 @@ import java.io.Reader;
 public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopwordAnalyzerBase> {
 
     private final StopwordAnalyzerBase analyzer;
+    private final Object sharingKey;
 
     PersianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet());
+        boolean modern = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        if (modern) {
             // since Lucene 10 this analyzer contains stemming by default
-            analyzer = new PersianAnalyzer(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet()));
+            analyzer = new PersianAnalyzer(stopWords);
         } else {
             // for older index versions we need the old analyzer behaviour without stemming
-            analyzer = new StopwordAnalyzerBase(Analysis.parseStopWords(env, settings, PersianAnalyzer.getDefaultStopSet())) {
+            analyzer = new StopwordAnalyzerBase(stopWords) {
 
                 protected Analyzer.TokenStreamComponents createComponents(String fieldName) {
                     final Tokenizer source = new StandardTokenizer();
@@ -71,10 +75,18 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stopw
                 }
             };
         }
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), modern);
     }
 
     @Override
     public StopwordAnalyzerBase get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, boolean modern) {}
 }

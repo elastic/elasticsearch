@@ -21,16 +21,25 @@ public class ItalianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Itali
 
     private final ItalianAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     ItalianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new ItalianAnalyzer(
-            Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, ItalianAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new ItalianAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public ItalianAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

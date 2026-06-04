@@ -49,6 +49,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
     );
 
     private final SnowballAnalyzer analyzer;
+    private final Object sharingKey;
 
     SnowballAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -58,10 +59,18 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(language, stopWords);
+        this.sharingKey = new Key(language, new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public SnowballAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String language, Analysis.StableCharArraySet stopWords) {}
 }

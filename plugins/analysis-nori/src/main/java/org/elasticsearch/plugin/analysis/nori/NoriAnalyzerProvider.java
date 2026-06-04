@@ -42,4 +42,12 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
         return analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        // KoreanAnalyzer holds opaque Lucene state (user dictionary, mode, stop tags) without
+        // a structural equals/hashCode contract, so we use identity on the analyzer instance
+        // itself.
+        return analyzer;
+    }
+
 }

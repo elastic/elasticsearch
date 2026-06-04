@@ -29,4 +29,11 @@ public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Polish
     public PolishAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return SHARING_KEY;
+    }
+
+    private static final Object SHARING_KEY = new Object();
 }

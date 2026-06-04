@@ -21,16 +21,25 @@ public class BengaliAnalyzerProvider extends AbstractIndexAnalyzerProvider<Benga
 
     private final BengaliAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     BengaliAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new BengaliAnalyzer(
-            Analysis.parseStopWords(env, settings, BengaliAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, BengaliAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new BengaliAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public BengaliAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

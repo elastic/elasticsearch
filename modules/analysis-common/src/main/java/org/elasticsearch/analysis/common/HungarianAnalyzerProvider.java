@@ -21,16 +21,25 @@ public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Hun
 
     private final HungarianAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     HungarianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new HungarianAnalyzer(
-            Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new HungarianAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public HungarianAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

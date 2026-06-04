@@ -21,16 +21,25 @@ public class SpanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Spani
 
     private final SpanishAnalyzer analyzer;
 
+    private final Object sharingKey;
+
     SpanishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new SpanishAnalyzer(
-            Analysis.parseStopWords(env, settings, SpanishAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, SpanishAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        analyzer = new SpanishAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public SpanishAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

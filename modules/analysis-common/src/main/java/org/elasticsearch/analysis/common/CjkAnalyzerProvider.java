@@ -20,16 +20,25 @@ import org.elasticsearch.index.analysis.Analysis;
 public class CjkAnalyzerProvider extends AbstractIndexAnalyzerProvider<CJKAnalyzer> {
 
     private final CJKAnalyzer analyzer;
+    private final Object sharingKey;
 
     CjkAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, CJKAnalyzer.getDefaultStopSet());
 
         analyzer = new CJKAnalyzer(stopWords);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public CJKAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords) {}
 }

@@ -60,4 +60,11 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
             }
         };
     }
+
+    @Override
+    public Object sharingKey() {
+        // Normalizer2 is an opaque ICU object without a stable equals/hashCode contract,
+        // so we use identity equality via the instance reference itself.
+        return normalizer;
+    }
 }

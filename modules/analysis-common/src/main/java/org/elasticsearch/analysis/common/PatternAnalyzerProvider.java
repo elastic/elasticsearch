@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final PatternAnalyzer analyzer;
+    private final Object sharingKey;
 
     PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -30,6 +31,9 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         boolean lowercase = settings.getAsBoolean("lowercase", true);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        // When lowercase=false the stop set matches with its own case-sensitivity, so stopwords_case
+        // is behavior-affecting and must be part of the sharing key (see Analysis.StableCharArraySet).
+        boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {
@@ -38,10 +42,19 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         Pattern pattern = Regex.compile(sPattern, settings.get("flags"));
 
         analyzer = new PatternAnalyzer(pattern, lowercase, stopWords);
+        // {@link Pattern} uses identity equality; capture (regex string, flags) for the sharing key.
+        this.sharingKey = new Key(pattern.pattern(), pattern.flags(), lowercase, new Analysis.StableCharArraySet(stopWords, stopwordsCase));
     }
 
     @Override
     public PatternAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, boolean lowercase, Analysis.StableCharArraySet stopWords) {}
 }

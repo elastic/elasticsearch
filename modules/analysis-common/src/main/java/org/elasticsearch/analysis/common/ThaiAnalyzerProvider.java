@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -19,14 +20,24 @@ import org.elasticsearch.index.analysis.Analysis;
 public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnalyzer> {
 
     private final ThaiAnalyzer analyzer;
+    private final Object sharingKey;
 
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new ThaiAnalyzer(Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet()));
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet());
+        analyzer = new ThaiAnalyzer(stopWords);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public ThaiAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords) {}
 }

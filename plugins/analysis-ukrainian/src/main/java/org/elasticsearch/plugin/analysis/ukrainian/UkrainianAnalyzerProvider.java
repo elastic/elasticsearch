@@ -34,4 +34,12 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
         return this.analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        // UkrainianMorfologikAnalyzer holds opaque Lucene state (stop words, stem exclusion)
+        // without a structural equals/hashCode contract, so we use identity on the analyzer
+        // instance itself.
+        return analyzer;
+    }
+
 }

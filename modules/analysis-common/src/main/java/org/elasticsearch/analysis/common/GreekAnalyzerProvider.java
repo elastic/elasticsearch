@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.el.GreekAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -19,14 +20,24 @@ import org.elasticsearch.index.analysis.Analysis;
 public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
     private final GreekAnalyzer analyzer;
+    private final Object sharingKey;
 
     GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        analyzer = new GreekAnalyzer(Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet()));
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet());
+        analyzer = new GreekAnalyzer(stopWords);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
     }
 
     @Override
     public GreekAnalyzer get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords) {}
 }

@@ -21,16 +21,25 @@ public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arabic
 
     private final ArabicAnalyzer arabicAnalyzer;
 
+    private final Object sharingKey;
+
     ArabicAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        arabicAnalyzer = new ArabicAnalyzer(
-            Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
-            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
-        );
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet());
+        CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        arabicAnalyzer = new ArabicAnalyzer(stopWords, stemExclusions);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override
     public ArabicAnalyzer get() {
         return this.arabicAnalyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions) {}
 }

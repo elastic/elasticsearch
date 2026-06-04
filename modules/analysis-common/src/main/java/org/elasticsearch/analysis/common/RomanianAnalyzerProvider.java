@@ -30,12 +30,14 @@ import org.elasticsearch.index.analysis.Analysis;
 public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<StopwordAnalyzerBase> {
 
     private final StopwordAnalyzerBase analyzer;
+    private final Object sharingKey;
 
     RomanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         CharArraySet stopwords = Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusionSet = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
-        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
+        boolean modernRomanian = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        if (modernRomanian) {
             // since Lucene 10, this analyzer a modern unicode form and normalizes cedilla forms to forms with commas
             analyzer = new RomanianAnalyzer(stopwords, stemExclusionSet);
         } else {
@@ -59,10 +61,24 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stop
             };
 
         }
+        // {@code modernRomanian} captures the version-dependent behavioral fork so we don't need
+        // to put indexVersionCreated in the cache key.
+        this.sharingKey = new Key(
+            new Analysis.StableCharArraySet(stopwords),
+            new Analysis.StableCharArraySet(stemExclusionSet),
+            modernRomanian
+        );
     }
 
     @Override
     public StopwordAnalyzerBase get() {
         return this.analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, Analysis.StableCharArraySet stemExclusions, boolean modern) {}
 }

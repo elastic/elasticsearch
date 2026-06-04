@@ -38,4 +38,12 @@ public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Japa
         return this.analyzer;
     }
 
+    @Override
+    public Object sharingKey() {
+        // JapaneseAnalyzer holds opaque Lucene state (user dictionary, mode, stop words/tags)
+        // without a structural equals/hashCode contract, so we use identity on the analyzer
+        // instance itself.
+        return analyzer;
+    }
+
 }

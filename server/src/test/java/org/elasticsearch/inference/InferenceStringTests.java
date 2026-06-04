@@ -10,12 +10,15 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -446,14 +449,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
         return TEST_DATA_URI + randomAlphanumericOfLength(5);
     }
 
-    public static @NonNull Map<String, String> inferenceStringToMap(InferenceString inferenceString) {
-        return Map.of(
-            "format",
-            inferenceString.dataType().toString(),
-            "type",
-            inferenceString.dataFormat().toString(),
-            "value",
-            inferenceString.value()
-        );
+    public static Map<String, Object> inferenceStringToMap(InferenceString inferenceString) {
+        try {
+            var builder = XContentFactory.contentBuilder(XContentType.JSON);
+            inferenceString.toXContent(builder, null);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        } catch (IOException ioException) {
+            throw new AssertionError("Exception when converting InferenceString to map", ioException);
+        }
     }
 }

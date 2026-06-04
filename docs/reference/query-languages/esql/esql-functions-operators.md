@@ -76,7 +76,9 @@ mapped_pages:
 :open:
 :::{include} _snippets/lists/search-functions.md
 :::
-::::
+:::
+
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).:
 
 ### Spatial functions
 

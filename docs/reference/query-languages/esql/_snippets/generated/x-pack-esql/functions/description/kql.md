@@ -4,3 +4,5 @@
 
 Performs a KQL query. Returns true if the provided KQL query string matches the row.
 
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+

@@ -4,3 +4,5 @@
 
 Performs a [query string query](/reference/query-languages/query-dsl/query-dsl-query-string-query.md). Returns true if the provided query string matches the row.
 
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+

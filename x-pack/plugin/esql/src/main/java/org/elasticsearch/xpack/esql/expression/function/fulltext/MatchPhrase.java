@@ -89,7 +89,10 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             match_phrase query.
             All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query parameters are supported.
 
-            `MATCH_PHRASE` returns true if the provided query matches the row.""",
+            `MATCH_PHRASE` returns true if the provided query matches the row.
+
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            """,
         examples = { @Example(file = "match-phrase-function", tag = "match-phrase-with-field", applies_to = "stack: ga 9.1.0") }
     )
     public MatchPhrase(

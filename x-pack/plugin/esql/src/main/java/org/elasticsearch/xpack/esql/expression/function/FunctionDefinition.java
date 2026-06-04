@@ -106,13 +106,14 @@ public class FunctionDefinition {
 
         /**
          * Adds capabilities to mark changes or fixes to the function. Use it like:
-         * {@snippet :
+         * {@snippet lang="java" :
          * public static final FunctionDefinition DEFINITION = FunctionDefinition.def(IpPrefix.class)
          *     .ternary(IpPrefix::new)
          *     // Fix a bug leading to the scratch leaking data to other rows.
          *     .capabilities("fix_dirty_scratch_leak")
          *     .name("ip_prefix");
          * }
+         * to make a capability that looks like {@code fn_ip_prefix_fix_dirty_scratch_leak}.
          */
         public Builder<T> capabilities(String... capabilities) {
             this.capabilities = List.of(capabilities);

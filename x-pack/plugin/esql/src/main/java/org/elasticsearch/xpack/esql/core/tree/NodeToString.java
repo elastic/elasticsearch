@@ -16,9 +16,11 @@ class NodeToString {
     private final StringBuilder sb = new StringBuilder();
     private final BitSet hasParentPerDepth = new BitSet();
     private final Node.NodeStringFormat format;
+    private final NodeStringMapper mapper;
 
-    NodeToString(Node.NodeStringFormat format) {
+    NodeToString(Node.NodeStringFormat format, NodeStringMapper mapper) {
         this.format = format;
+        this.mapper = mapper;
     }
 
     /**
@@ -33,7 +35,7 @@ class NodeToString {
     StringBuilder treeString(Node<?> node, int depth) {
         indent(depth);
 
-        node.nodeString(sb, format);
+        node.nodeString(sb, format, mapper);
 
         List<? extends Node<?>> children = node.children();
         if (children.isEmpty() == false) {

@@ -19,7 +19,9 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
@@ -136,9 +138,10 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
     public void testCombineSkipsUnparseableBound() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, TestWarningsSource.INSTANCE);
 
         // Prometheus warns and skips malformed `le` buckets, preserving the valid buckets for the same histogram.
-        try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
+        try (var state = new SingleState(blockFactory.breaker(), 0.5, warnings)) {
             PrometheusHistogramQuantileAggregator.combine(state, 2.0, new BytesRef("1.0"));
             PrometheusHistogramQuantileAggregator.combine(state, 1.0, new BytesRef("not_a_number"));
             PrometheusHistogramQuantileAggregator.combine(state, 4.0, new BytesRef("+Inf"));
@@ -147,6 +150,10 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
                 assertThat(result.getDouble(0), equalTo(1.0));
             }
         }
+        assertWarnings(
+            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 1:1: java.lang.NumberFormatException: bucket label [le] has a malformed value of [not_a_number]"
+        );
     }
 
     public void testBucketQuantileNaNQuantile() {

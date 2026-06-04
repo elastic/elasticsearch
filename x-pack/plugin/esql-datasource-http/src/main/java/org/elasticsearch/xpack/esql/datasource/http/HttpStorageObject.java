@@ -104,7 +104,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent()) {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
-                return response.body();
+                return new HttpTransientTypingInputStream(response.body(), path);
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
@@ -125,7 +125,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     private Exception mapReadFailure(String context, int statusCode, String detail) {
         String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
-            return new ExternalUnavailableException("HTTP store unavailable reading [{}] (HTTP {}){}", path, statusCode, suffix);
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
+            return new ExternalUnavailableException(
+                throttling,
+                "HTTP store unavailable reading [{}] (HTTP {}){}",
+                path,
+                statusCode,
+                suffix
+            );
         }
         return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
     }
@@ -168,13 +175,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
         // Bytes: response Content-Length when known, else fall back to the requested range length.
-        long[] bytesHolder = new long[] { length };
+        long[] bytesHolder = new long[] { toEnd ? 0L : length };
         try {
             return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
@@ -185,17 +193,24 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                    return response.body();
+                    return new HttpTransientTypingInputStream(response.body(), path);
                 } else if (statusCode == HttpStatus.SC_OK) {
-                    // Server doesn't support Range requests, skip to position manually
+                    // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
+                    // body (it is open-phase setup, retried by the open loop on failure); typing wraps the
+                    // delivered tail so a mid-read drop after the skip resumes byte-exactly.
                     InputStream stream = response.body();
                     long skipped = stream.skip(position);
                     if (skipped != position) {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
-                    // Wrap in a limited stream to ensure we only read 'length' bytes
-                    return new BoundedInputStream(stream, length);
+                    InputStream typed = new HttpTransientTypingInputStream(stream, path);
+                    // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
+                    return toEnd ? typed : new BoundedInputStream(typed, length);
+                } else if (toEnd && statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
+                    // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                    // contract for an open-ended read past the end is an empty stream.
+                    return InputStream.nullInputStream();
                 } else {
                     throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()));
                 }
@@ -339,9 +354,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Builds a GET request with Range header for partial content.
      */
     private HttpRequest buildRangeRequest(long position, long length) {
-        // HTTP Range uses inclusive end: "bytes=start-end"
-        long endPosition = position + length - 1;
-        String rangeValue = "bytes=" + position + "-" + endPosition;
+        // HTTP Range uses inclusive end: "bytes=start-end". READ_TO_END is the open-ended form "bytes=start-".
+        String rangeValue = length == READ_TO_END ? "bytes=" + position + "-" : "bytes=" + position + "-" + (position + length - 1);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(uri)

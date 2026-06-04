@@ -38,6 +38,8 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -248,13 +250,37 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         Request request,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
+        assert task instanceof CancellableTask;
+        if (((CancellableTask) task).notifyIfCancelled(listener)) {
+            logger.debug(
+                () -> format(
+                    "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled pre-submission.",
+                    request.getDescription(),
+                    request.shardId
+                )
+            );
+            return;
+        }
+
         executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
+                if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                    logger.debug(
+                        () -> format(
+                            "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled post-submission.",
+                            request.getDescription(),
+                            request.shardId
+                        )
+                    );
+                    return;
+                }
+
                 dispatchedShardOperationOnPrimary(request, primary, listener);
             }
 

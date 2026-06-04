@@ -159,6 +159,7 @@ y:integer | x:date
 ;
 
 renameIntertwinedWithSort
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_precision_of_scaled_float_fields
 FROM employees | eval x = salary | rename x as y | rename y as x | sort x | rename x as y | limit 10;
 

@@ -559,6 +559,15 @@ subprojects { Project subProject ->
   if (subProject.name.endsWith('-export')) {
     apply plugin: 'distribution'
 
+    def exportDockerTaskName = { String prefix, Architecture taskArchitecture, DockerBase taskBase, String suffix ->
+      prefix +
+        (taskArchitecture == Architecture.AARCH64 ? 'Aarch64' : '') +
+        (taskBase == DockerBase.DEFAULT
+          ? ""
+          : taskBase.name().split("[^a-zA-Z0-9]").collect({ it.substring(0, 1) + it.substring(1).toLowerCase(Locale.ROOT) }).join("")) +
+        suffix
+    }
+
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
     DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ironbank-')) {
@@ -580,8 +589,8 @@ subprojects { Project subProject ->
               'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
-    final String exportTaskName = dockerTaskName("export", architecture, base, 'DockerImage')
-    final String buildTaskName = dockerTaskName('build', architecture, base, 'DockerImage')
+    final String exportTaskName = exportDockerTaskName("export", architecture, base, 'DockerImage')
+    final String buildTaskName = exportDockerTaskName('build', architecture, base, 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
@@ -605,7 +614,7 @@ subprojects { Project subProject ->
       dependsOn exportTask
     }
 
-    def compressExportTask = tasks.register(dockerTaskName("compress", architecture, base, 'DockerImageExport'), Tar) {
+    def compressExportTask = tasks.register(exportDockerTaskName("compress", architecture, base, 'DockerImageExport'), Tar) {
       it.from(project.tarTree(tarFile))
       archiveExtension = 'tar.gz'
       it.setCompression(Compression.GZIP)

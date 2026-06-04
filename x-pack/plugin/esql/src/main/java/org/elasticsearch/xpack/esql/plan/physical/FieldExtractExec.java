@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -264,10 +265,18 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        NodeUtils.toString(sb, attributesToExtract, format);
-        sb.append("<").append(docValuesAttributes).append(",").append(boundsAttributes).append(",").append(centroidAttributes).append(">");
+        NodeUtils.toString(sb, attributesToExtract, format, mapper);
+        // Route the doc-values / bounds / centroid attribute sets through the mapper too — a raw
+        // append would call Attribute.toString (identity) and leak the field names under anonymization.
+        sb.append("<");
+        NodeUtils.toString(sb, docValuesAttributes, format, mapper);
+        sb.append(",");
+        NodeUtils.toString(sb, boundsAttributes, format, mapper);
+        sb.append(",");
+        NodeUtils.toString(sb, centroidAttributes, format, mapper);
+        sb.append(">");
     }
 
     public MappedFieldType.FieldExtractPreference fieldExtractPreference(Attribute attr) {

@@ -111,7 +111,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try {
-            InputStream stream = blobClient.openInputStream();
+            InputStream stream = new AzureTransientTypingInputStream(blobClient.openInputStream(), path);
             if (cachedLength != null) {
                 bytes = cachedLength;
             }
@@ -132,7 +132,14 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
      */
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof BlobStorageException bse && ExternalUnavailableException.isRetryableStatus(bse.getStatusCode())) {
-            return new ExternalUnavailableException(cause, "Azure store unavailable reading [{}] (HTTP {})", path, bse.getStatusCode());
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+            return new ExternalUnavailableException(
+                throttling,
+                cause,
+                "Azure store unavailable reading [{}] (HTTP {})",
+                path,
+                bse.getStatusCode()
+            );
         }
         return new IOException(context + " " + path, cause);
     }
@@ -154,18 +161,25 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length <= 0) {
-            throw new IllegalArgumentException("length must be positive, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
         try {
-            BlobRange range = new BlobRange(position, length);
-            return blobClient.openInputStream(range, new BlobRequestConditions());
+            // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
+            BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
+            return new AzureTransientTypingInputStream(blobClient.openInputStream(range, new BlobRequestConditions()), path);
         } catch (Exception e) {
+            if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
+                // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                // contract for an open-ended read past the end is an empty stream.
+                return InputStream.nullInputStream();
+            }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
     }
 

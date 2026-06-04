@@ -564,7 +564,8 @@ public final class DefaultDocumentParser implements DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -668,7 +669,8 @@ public final class DefaultDocumentParser implements DocumentParser {
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -908,7 +910,8 @@ public final class DefaultDocumentParser implements DocumentParser {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,

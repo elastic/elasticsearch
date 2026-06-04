@@ -112,6 +112,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.keyword.columnar_default_high_cardinality"
     );
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT = new NodeFeature("mapper.columnar.maintain_array_order_ip_text");
+    public static final NodeFeature COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS = new NodeFeature("mapper.columnar.drops_dynamic_false_fields");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -189,7 +190,8 @@ public class MapperFeatures implements FeatureSpecification {
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
             COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY,
-            COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT
+            COLUMNAR_MAINTAIN_ARRAY_ORDER_IP_TEXT,
+            COLUMNAR_DROPS_DYNAMIC_FALSE_FIELDS
         );
     }
 }

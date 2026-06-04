@@ -62,9 +62,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -380,7 +378,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
      * relocations, the other receiving 1 — must yield timeouts in a 3:1 ratio because all other inputs (remaining grace, shards on
      * source, share factor) are identical between the two calls.
      */
-    public void testSearchRecoveryRelocationSourceShutdownScalesByConcurrentRelocationsToTarget() {
+    public void testSearchRecoveryTimeoutScalesByConcurrentRelocationsToTarget() {
         try (
             var threadPool = new FakeTimeThreadPool(
                 getTestName(),
@@ -388,6 +386,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
             )
         ) {
+            threadPool.setCurrentTimeInMillis(0L);
             var service = newWarmingService(threadPool);
 
             final Index index = new Index("idx", randomUUID());
@@ -422,7 +421,8 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
             }
 
-            // startedAtMillis = now: the algorithm sees the full grace-period cap (default 14 minutes) as remaining time.
+            long shutdownStartedMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedMillis);
             final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
                 .setNodeId(sourceNodeId)
                 .setType(SingleNodeShutdownMetadata.Type.REMOVE)
@@ -458,36 +458,31 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             assertThat(state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId), is(true));
 
             final ShardRouting selfT1 = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, 0))
+                .shardRoutingTable(new ShardId(index, randomIntBetween(0, relocationsToTarget1 - 1)))
                 .shardsWithState(RELOCATING)
                 .get(0)
                 .getTargetRelocatingShard();
             final ShardRouting selfT2 = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, totalSearchShards - 1))
+                .shardRoutingTable(new ShardId(index, randomIntBetween(relocationsToTarget1, totalSearchShards - 1)))
                 .shardsWithState(RELOCATING)
                 .get(0)
                 .getTargetRelocatingShard();
             assertThat(selfT1.currentNodeId(), equalTo(targetT1));
             assertThat(selfT2.currentNodeId(), equalTo(targetT2));
 
-            final SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(state, mockIndexShard(selfT1));
-            final SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(state, mockIndexShard(selfT2));
+            // advance time
+            threadPool.setCurrentTimeInMillis(shutdownStartedMillis + randomLongBetween(1, 100_000));
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(state, mockIndexShard(selfT1));
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(state, mockIndexShard(selfT2));
 
             assertThat(planT1.awaitWarming(), is(true));
             assertThat(planT2.awaitWarming(), is(true));
-            assertThat(planT2.timeout().millis(), greaterThan(0L));
 
-            // Both computations share the same remaining grace, shardsOnSource (= totalShards) and share factor (= 1 by default), so
-            // planT1 must equal relocationsToT1 * planT2. Allow a small symmetric tolerance to absorb both Math.round differences
-            // (round(3R/S) vs 3*round(R/S) can differ by up to a couple of ms) and a possible ThreadPool cached-time tick (~200ms)
-            // between the two consecutive calls.
-            final long expectedT1Millis = planT2.timeout().millis() * relocationsToTarget1;
-            final long toleranceMillis = TimeValue.timeValueSeconds(1).millis();
-            assertThat(
-                "T1 timeout should be " + relocationsToTarget1 + "x T2 timeout (scaled by concurrent relocations from source to target)",
-                planT1.timeout().millis(),
-                allOf(greaterThanOrEqualTo(expectedT1Millis - toleranceMillis), lessThanOrEqualTo(expectedT1Millis + toleranceMillis))
-            );
+            assertThat(planT1.timeout().millis(), greaterThan(0L));
+            assertThat(planT2.timeout().millis(), greaterThan(0L));
+            // Out of a total of 4 search shards, there are 3 shards concurrently relocating to the target1 node and only one relocating to
+            // the target2 node. So, we should allow approx 3x more time for recovery for the shards recovering to target1 than target2.
+            assertThat(Math.round(((double) planT1.timeout().millis()) / planT2.timeout().millis()), is(3L));
         }
     }
 

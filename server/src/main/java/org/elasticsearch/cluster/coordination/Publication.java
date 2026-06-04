@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 public abstract class Publication {
 
-    private static final Logger logger = LogManager.getLogger(Publication.class);
+    protected final Logger logger = LogManager.getLogger(Publication.class);
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;
@@ -357,7 +357,7 @@ public abstract class Publication {
             return state == PublicationTargetState.FAILED;
         }
 
-        class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
+        private class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
 
             @Override
             public void onResponse(PublishWithJoinResponse response) {

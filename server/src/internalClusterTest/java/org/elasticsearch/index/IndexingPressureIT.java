@@ -256,6 +256,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
         }
 
         assertFalse(postSubmissionCancellationIndexCalled.get());
+        PreIndexListenerInstallerPlugin.resetPreIndexListener();
+        primaryTransportService.clearAllRules();
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {

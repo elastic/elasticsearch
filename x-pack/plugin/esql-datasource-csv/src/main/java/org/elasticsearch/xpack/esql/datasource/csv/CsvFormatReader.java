@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1535,7 +1536,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private class CsvBatchIterator implements CloseableIterator<Page> {
+    private class CsvBatchIterator extends BufferingPageIterator {
         private final BufferedReader reader;
         private final CsvLogicalRecordReader recordReader;
         private final InputStream stream;
@@ -1567,7 +1568,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
-        private Page nextPage;
+        // Inner close flag: gates hasNext() short-circuit after close and the one-shot teardown below. The base
+        // BufferingPageIterator separately gates close()/closeInternal() re-entry; this one also stops iteration.
         private boolean closed = false;
         private long errorCount = 0;
         /**
@@ -1696,7 +1698,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         @Override
-        public void close() throws IOException {
+        protected void closeInternal() throws IOException {
             if (closed == false) {
                 closed = true;
                 if (prefetchedRowsBytes > 0) {

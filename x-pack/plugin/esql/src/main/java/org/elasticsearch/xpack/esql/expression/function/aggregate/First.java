@@ -209,6 +209,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.FLATTENED
                 || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
@@ -216,6 +217,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "date",
             "dense_vector",
             "exponential_histogram",
+            "flattened",
             "ip",
             "string",
             "tdigest",
@@ -245,7 +247,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
                 case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -261,7 +263,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
                 case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllFirstBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
@@ -277,7 +279,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case FLOAT, DENSE_VECTOR -> new AllFirstFloatByIntAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByIntAggregatorFunctionSupplier();
                 case TDIGEST -> new AllFirstTDigestByIntAggregatorFunctionSupplier();
-                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
+                case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, FLATTENED ->
                     new AllFirstBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();
                 default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);

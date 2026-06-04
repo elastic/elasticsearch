@@ -39,6 +39,8 @@ import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.workload.identity.aws.AsyncWebIdentityCredentialsProvider;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
@@ -53,6 +55,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -80,6 +83,7 @@ import java.util.NoSuchElementException;
  * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
 public class S3StorageProvider implements StorageProvider {
+    private static final Logger LOGGER = LogManager.getLogger(S3StorageProvider.class);
     private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
 
     private final S3Client s3Client;
@@ -87,9 +91,21 @@ public class S3StorageProvider implements StorageProvider {
     private final S3Configuration config;
     // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
+    private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
+    /**
+     * Test-friendly constructor: no IRSA web-identity provider available. Equivalent to
+     * production behavior on a node where {@code AWS_WEB_IDENTITY_TOKEN_FILE} is unset.
+     */
     public S3StorageProvider(S3Configuration config) {
+        this(config, null);
+    }
+
+    public S3StorageProvider(S3Configuration config, CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider) {
         this.config = config;
+        // Set first so that workloadIdentityProviders() (called via credentialsProvider() ->
+        // buildWorkloadIdentityCredentialsProvider() on the auth=workload_identity path) can read it.
+        this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
         StsAsyncClient sts = null;
         S3Client s3 = null;
@@ -104,8 +120,9 @@ public class S3StorageProvider implements StorageProvider {
                 sts = buildStsAsyncClient(config);
                 credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
             } else {
-                // auth=none / auth=workload_identity (IMDS) / static creds all flow through credentialsProvider();
-                // its return type AwsCredentialsProvider is a subtype of IdentityProvider<AwsCredentialsIdentity>.
+                // auth=none / auth=workload_identity (IMDS / IRSA / Pod Identity / EC2) / static creds all flow
+                // through credentialsProvider(); its return type AwsCredentialsProvider is a subtype of
+                // IdentityProvider<AwsCredentialsIdentity>.
                 credentials = credentialsProvider(config);
             }
             s3 = buildS3Client(config, credentials);
@@ -128,12 +145,29 @@ public class S3StorageProvider implements StorageProvider {
         return closeable == null ? null : closeable::close;
     }
 
-    /** Test-only constructor that accepts pre-built clients. */
-    S3StorageProvider(S3Client s3Client, S3AsyncClient s3AsyncClient) {
+    /**
+     * Test-only constructor that accepts pre-built clients plus an IRSA provider.
+     * <p>
+     * Single 3-arg form on purpose: a 2-arg test constructor with two nullable reference args
+     * would be ambiguous against the 2-arg production constructor at {@code null, null} call
+     * sites. Tests without IRSA pass {@code null} for the third arg, or use the
+     * {@link #forTesting(S3Client, S3AsyncClient)} sugar.
+     */
+    S3StorageProvider(
+        S3Client s3Client,
+        S3AsyncClient s3AsyncClient,
+        CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
+    ) {
         this.config = null;
         this.stsAsyncClient = null;
+        this.webIdentityTokenCredentialsProvider = webIdentityTokenCredentialsProvider;
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
+    }
+
+    /** Test-only sugar: a 2-arg form with no IRSA provider. */
+    static S3StorageProvider forTesting(S3Client s3Client, S3AsyncClient s3AsyncClient) {
+        return new S3StorageProvider(s3Client, s3AsyncClient, null);
     }
 
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
@@ -213,10 +247,14 @@ public class S3StorageProvider implements StorageProvider {
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
-     *   <li>{@code auth=workload_identity} — IMDS-family chain: ECS task role (container credentials)
-     *       then EC2 instance profile. Env-var and system-property providers are excluded (dev/CI
-     *       convention, not the unattended-server posture). EKS IRSA and Pod Identity
-     *       (token-file reads) are tracked as a v2 follow-up.</li>
+     *   <li>{@code auth=workload_identity} — chain in order: EKS IRSA via the entitled
+     *       web-identity token symlink (when the node provides
+     *       {@link CustomWebIdentityTokenCredentialsProvider}), then ECS task role / EKS Pod
+     *       Identity via {@link ContainerCredentialsProvider} (with the auth-token file path
+     *       redirected to {@code ${ES_PATH_CONF}/esql-datasource-s3/eks-pod-identity-token} via
+     *       JVM sysprop in {@code S3DataSourcePlugin}), then EC2 instance profile. Env-var and
+     *       system-property providers are excluded (dev/CI convention, not the unattended-server
+     *       posture).</li>
      *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
@@ -250,20 +288,48 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Builds the credentials provider for {@code auth=workload_identity}. Default uses the
-     * IMDS-family chain (container task role then EC2 instance profile). Tests may subclass and
-     * override to inject a {@code StaticCredentialsProvider} backed by a local fixture — the same
-     * seam pattern used by {@code GcsStorageProvider#buildWorkloadIdentityCredentials()}.
+     * Builds the credentials provider for {@code auth=workload_identity}. Default chain order:
+     * <ol>
+     *   <li>EKS IRSA via {@link CustomWebIdentityTokenCredentialsProvider}, if the node-level
+     *       singleton exists and {@link CustomWebIdentityTokenCredentialsProvider#isActive()}.
+     *       Wrapped in {@link ErrorLoggingCredentialsProvider} so STS unreachability surfaces in
+     *       logs before the chain falls through.</li>
+     *   <li>{@link ContainerCredentialsProvider} — covers ECS task roles and EKS Pod Identity
+     *       (the latter requires the JVM sysprop {@code aws.containerAuthorizationTokenFile} to
+     *       be redirected at the entitled symlink, done in {@code S3DataSourcePlugin}).</li>
+     *   <li>{@link InstanceProfileCredentialsProvider} — EC2 metadata fallback.</li>
+     * </ol>
+     * Env-var and system-property providers are excluded — they are a dev/CI convention and open
+     * a JVM-global-state override on servers. Profile-file loading is excluded (file read, blocked
+     * by entitlements).
+     *
+     * <p>Tests may subclass and override to inject a {@code StaticCredentialsProvider} backed by
+     * a local fixture — the same seam pattern used by {@code GcsStorageProvider}.
      */
     protected AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
-        // IMDS-family only: ECS task role first (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-        // then EC2 instance profile. Env-var and system-property providers are excluded —
-        // they are a dev/CI convention and open a JVM-global-state override on servers.
-        // Profile-file loading is excluded (file read, blocked by entitlements).
-        // EKS IRSA + Pod Identity (token-file reads) are the v2 follow-up.
         return AwsCredentialsProviderChain.builder()
-            .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
+            // Refresh -> retry every link rather than caching the first successful provider for
+            // the lifetime of the chain. This matches repository-s3 and is necessary because the
+            // file-watcher-driven IRSA provider can transition between active/inactive states.
+            .reuseLastProviderEnabled(false)
+            .credentialsProviders(workloadIdentityProviders())
             .build();
+    }
+
+    /**
+     * The ordered providers that {@link #buildWorkloadIdentityCredentialsProvider()} wraps in an
+     * {@link AwsCredentialsProviderChain}. Exposed package-private so unit tests can assert on
+     * chain composition by inspecting the list directly rather than parsing
+     * {@link AwsCredentialsProviderChain#toString()}.
+     */
+    List<AwsCredentialsProvider> workloadIdentityProviders() {
+        List<AwsCredentialsProvider> providers = new ArrayList<>(3);
+        if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
+            providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
+        }
+        providers.add(ContainerCredentialsProvider.create());
+        providers.add(InstanceProfileCredentialsProvider.create());
+        return providers;
     }
 
     /**

@@ -14,7 +14,10 @@ import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
@@ -23,8 +26,11 @@ import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -41,12 +47,12 @@ import static org.hamcrest.Matchers.containsString;
 public class AzureStorageProviderTests extends ESTestCase {
 
     public void testSupportedSchemes() {
-        AzureStorageProvider provider = new AzureStorageProvider(null, null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null, null);
         assertEquals(List.of("wasbs", "wasb"), provider.supportedSchemes());
     }
 
     public void testInvalidSchemeThrows() {
-        AzureStorageProvider provider = new AzureStorageProvider(null, null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null, null);
         StoragePath s3Path = StoragePath.of("s3://my-bucket/path/to/file.parquet");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(s3Path));
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));
@@ -283,5 +289,80 @@ public class AzureStorageProviderTests extends ESTestCase {
         public boolean isEnabled() {
             return enabled;
         }
+    }
+
+    // -- AKS Workload Identity activation matrix -------------------------------------------------
+
+    public void testAksWorkloadIdentityInactiveWithoutEnvironment() {
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, null, null);
+        assertNull(
+            "without an Environment the workload-identity chain must fall back to ManagedIdentity-only",
+            provider.maybeBuildAksWorkloadIdentityCredential(name -> "any")
+        );
+    }
+
+    public void testAksWorkloadIdentityInactiveWhenEnvTripleMissing() throws IOException {
+        Environment env = newTestEnvironment();
+        Files.createDirectories(env.configDir().resolve("esql-datasource-azure"));
+        Files.writeString(env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION), "tok");
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        assertNull(
+            "missing AZURE_FEDERATED_TOKEN_FILE must keep the workload-identity chain at ManagedIdentity-only",
+            provider.maybeBuildAksWorkloadIdentityCredential(env(Map.of("AZURE_CLIENT_ID", "cid", "AZURE_TENANT_ID", "tid")))
+        );
+    }
+
+    public void testAksWorkloadIdentityInactiveWhenSymlinkAbsent() throws IOException {
+        Environment env = newTestEnvironment();
+        Files.createDirectories(env.configDir().resolve("esql-datasource-azure"));
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        assertNull(
+            "AKS env triple set but entitled symlink absent must fall back to ManagedIdentity-only",
+            provider.maybeBuildAksWorkloadIdentityCredential(
+                env(
+                    Map.of(
+                        "AZURE_FEDERATED_TOKEN_FILE",
+                        "/var/run/secrets/azure/tokens/azure-identity-token",
+                        "AZURE_CLIENT_ID",
+                        "cid",
+                        "AZURE_TENANT_ID",
+                        "tid"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testAksWorkloadIdentityActiveWhenFullyConfigured() throws IOException {
+        Environment env = newTestEnvironment();
+        Path tokenFile = env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "fake-federated-token");
+        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+        TokenCredential credential = provider.maybeBuildAksWorkloadIdentityCredential(
+            env(
+                Map.of(
+                    "AZURE_FEDERATED_TOKEN_FILE",
+                    "/var/run/secrets/azure/tokens/azure-identity-token",
+                    "AZURE_CLIENT_ID",
+                    "cid",
+                    "AZURE_TENANT_ID",
+                    "tid"
+                )
+            )
+        );
+        assertNotNull("fully configured AKS env triple must produce a TokenCredential", credential);
+        assertThat(credential.getClass().getName(), org.hamcrest.Matchers.containsString("WorkloadIdentityCredential"));
+    }
+
+    private static Environment newTestEnvironment() {
+        return TestEnvironment.newEnvironment(
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
+    }
+
+    private static java.util.function.Function<String, String> env(Map<String, String> values) {
+        Map<String, String> snapshot = new HashMap<>(values);
+        return snapshot::get;
     }
 }

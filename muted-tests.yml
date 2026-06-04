@@ -455,9 +455,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
   method: testOverflowFails
   issue: https://github.com/elastic/elasticsearch/issues/150455
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testDeleteIndexAfterRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150474
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesStatsWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150476

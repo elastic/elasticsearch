@@ -49,7 +49,7 @@ import org.elasticsearch.core.SuppressForbidden;
  *     Segments smaller than this are "rounded up" to this size, i.e. treated as
  *     equal (floor) size for merge selection. This is to prevent frequent
  *     flushing of tiny segments, thus preventing a long tail in the index. Default
- *     is <code>16mb</code>.
+ *     is <code>2mb</code>.
  *
  * <li><code>index.merge.policy.max_merge_at_once</code>:
  *
@@ -117,7 +117,7 @@ public final class MergePolicyConfig {
     private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
-    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(16, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 16;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = ByteSizeValue.of(5, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(

@@ -1,8 +1,7 @@
 pr: 133946
-summary: Merging is now more aggressive by default, especially for segments under 16MB.
+summary: Merging is now more aggressive by default.
 area: Engine
 type: enhancement
 issues:
  - 120624
- - 129764
  - 130328

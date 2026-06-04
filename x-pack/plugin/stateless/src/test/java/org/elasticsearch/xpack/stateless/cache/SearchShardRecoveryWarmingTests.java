@@ -10,23 +10,35 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -47,8 +59,12 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -354,6 +370,114 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                         Settings.EMPTY
                     )
                 )
+            );
+        }
+    }
+
+    /**
+     * When the relocation source is shutting down, the per-target warming timeout scales linearly with the number of search shards
+     * concurrently relocating from that source to the same target. Two targets in the same cluster state — one receiving 3 such
+     * relocations, the other receiving 1 — must yield timeouts in a 3:1 ratio because all other inputs (remaining grace, shards on
+     * source, share factor) are identical between the two calls.
+     */
+    public void testSearchRecoveryRelocationSourceShutdownScalesByConcurrentRelocationsToTarget() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            var service = newWarmingService(threadPool);
+
+            final Index index = new Index("idx", randomUUID());
+            final String sourceNodeId = "source-node";
+            final String targetT1 = "target-t1";
+            final String targetT2 = "target-t2";
+            final String masterNodeId = "master-node";
+
+            final int totalShards = 4;
+            final int relocationsToT1 = 3;
+
+            final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, totalShards))
+                .build();
+
+            final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
+            for (int s = 0; s < totalShards; s++) {
+                final ShardId sid = new ShardId(index, s);
+                final String relocationTarget = s < relocationsToT1 ? targetT1 : targetT2;
+                final ShardRouting relocating = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, RELOCATING)
+                    .withRelocatingNodeId(relocationTarget)
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build();
+                routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(relocating));
+            }
+
+            // startedAtMillis = now: the algorithm sees the full grace-period cap (default 14 minutes) as remaining time.
+            final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+                .setNodeId(sourceNodeId)
+                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                .setReason(getTestName())
+                .setStartedAtMillis(threadPool.absoluteTimeInMillis())
+                .setNodeSeen(true)
+                .build();
+
+            final ClusterState state = ClusterState.builder(new ClusterName("test"))
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(DiscoveryNodeUtils.create(masterNodeId))
+                        .masterNodeId(masterNodeId)
+                        .localNodeId(masterNodeId)
+                        .add(DiscoveryNodeUtils.create(sourceNodeId))
+                        .add(DiscoveryNodeUtils.create(targetT1))
+                        .add(DiscoveryNodeUtils.create(targetT2))
+                        .build()
+                )
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(sourceNodeId, shutdown)))
+                        .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                        .build()
+                )
+                .routingTable(
+                    GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build()
+                )
+                .build();
+
+            assertThat(state.getRoutingNodes().node(sourceNodeId).size(), equalTo(totalShards));
+            assertThat(state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId), is(true));
+
+            final ShardRouting selfT1 = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, 0))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            final ShardRouting selfT2 = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, totalShards - 1))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            assertThat(selfT1.currentNodeId(), equalTo(targetT1));
+            assertThat(selfT2.currentNodeId(), equalTo(targetT2));
+
+            final SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(state, mockIndexShard(selfT1));
+            final SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(state, mockIndexShard(selfT2));
+
+            assertThat(planT1.awaitWarming(), is(true));
+            assertThat(planT2.awaitWarming(), is(true));
+            assertThat(planT2.timeout().millis(), greaterThan(0L));
+
+            // Both computations share the same remaining grace, shardsOnSource (= totalShards) and share factor (= 1 by default), so
+            // planT1 must equal relocationsToT1 * planT2. Allow a small symmetric tolerance to absorb both Math.round differences
+            // (round(3R/S) vs 3*round(R/S) can differ by up to a couple of ms) and a possible ThreadPool cached-time tick (~200ms)
+            // between the two consecutive calls.
+            final long expectedT1Millis = planT2.timeout().millis() * relocationsToT1;
+            final long toleranceMillis = TimeValue.timeValueSeconds(1).millis();
+            assertThat(
+                "T1 timeout should be " + relocationsToT1 + "x T2 timeout (scaled by concurrent relocations from source to target)",
+                planT1.timeout().millis(),
+                allOf(greaterThanOrEqualTo(expectedT1Millis - toleranceMillis), lessThanOrEqualTo(expectedT1Millis + toleranceMillis))
             );
         }
     }

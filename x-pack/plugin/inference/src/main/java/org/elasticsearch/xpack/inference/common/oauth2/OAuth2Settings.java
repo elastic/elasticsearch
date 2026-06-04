@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.oauth2;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,7 +17,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.ValidationResult;
@@ -50,15 +48,11 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
             + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
 
+    public static final String WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE =
+        "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.";
+
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
-
-    public static ElasticsearchStatusException waitForUpgradeToCompleteException() {
-        return new ElasticsearchStatusException(
-            "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
-            RestStatus.BAD_REQUEST
-        );
-    }
 
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.

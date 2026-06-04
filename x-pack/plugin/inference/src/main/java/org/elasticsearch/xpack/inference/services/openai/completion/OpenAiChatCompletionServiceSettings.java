@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
@@ -24,7 +26,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.waitForUpgradeToCompleteException;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
@@ -237,7 +239,7 @@ public class OpenAiChatCompletionServiceSettings extends OpenAiServiceSettings {
         if (out.getTransportVersion().supports(OpenAiOAuth2Settings.OPENAI_OAUTH2_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
         } else if (oAuth2Settings != null) {
-            throw waitForUpgradeToCompleteException();
+            throw new ElasticsearchStatusException(WAIT_FOR_UPGRADE_TO_COMPLETE_ERROR_MESSAGE, RestStatus.BAD_REQUEST);
         }
     }
 

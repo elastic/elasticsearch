@@ -42,8 +42,7 @@ public interface RecoveryListener {
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
 
     /**
-     * Called when recovery is cancelled.
-     * E.g. recovering shard has been closed.
+     * Called when recovery is cancelled, which either means that shard is closing.
      */
     void onRecoveryCancelled();
 

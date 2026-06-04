@@ -17,6 +17,7 @@ import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsPro
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
@@ -114,6 +115,11 @@ public final class S3StorageProvider implements StorageProvider {
         builder.overrideConfiguration(c -> {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
+            // Pin the SDK retry strategy to Standard (deterministic: 3 attempts, jittered exponential backoff,
+            // a retry-quota token bucket) instead of leaving it to resolve from the environment (which defaults
+            // to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is the
+            // per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
+            c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
         });
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps

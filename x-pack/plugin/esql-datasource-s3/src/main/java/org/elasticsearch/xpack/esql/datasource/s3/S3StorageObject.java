@@ -51,8 +51,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
 
-    // Retries: AWS manages them via the SDK ExecutionInterceptor / RetryStrategy at the S3Client
-    // layer; intercepting them here would require wrapping the client. Not counted in this PR.
+    // Retries: the SDK RetryStrategy at the S3Client layer handles them (pinned to Standard in
+    // S3StorageProvider#configureCommon). The provider-agnostic RetryPolicy + ResumingInputStream layer that
+    // wraps this object adds cross-provider retry/resume on top.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -122,7 +123,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cachedLastModified = metadata.lastModified();
             }
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
-            return response;
+            // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
+            // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
+            return new TransientTypingInputStream(response, path);
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -139,7 +142,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      */
     private Exception mapReadFailure(String context, Throwable cause) {
         if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
-            return new ExternalUnavailableException(cause, "S3 store unavailable reading [{}] (HTTP {})", path, s3.statusCode());
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(s3.statusCode());
+            return new ExternalUnavailableException(
+                throttling,
+                cause,
+                "S3 store unavailable reading [{}] (HTTP {})",
+                path,
+                s3.statusCode()
+            );
         }
         if (cause instanceof NoSuchKeyException) {
             return new IOException("Object not found: " + path, cause);
@@ -164,14 +174,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length <= 0) {
-            throw new IllegalArgumentException("length must be positive, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
-        long endPosition = position + length - 1;
-        String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
+        // READ_TO_END -> open-ended "bytes=position-" (no up-front length() lookup); otherwise a closed range.
+        String rangeHeader = toEnd ? Strings.format("bytes=%d-", position) : Strings.format("bytes=%d-%d", position, position + length - 1);
 
         long startNanos = System.nanoTime();
+        long requestedBytes = toEnd ? 0L : length;
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -186,12 +198,19 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = metadata.lastModified();
             }
-
-            return response;
+            if (toEnd) {
+                requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
+            }
+            return new TransientTypingInputStream(response, path);
         } catch (Exception e) {
+            if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
+                // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                // contract for an open-ended read past the end is an empty stream.
+                return InputStream.nullInputStream();
+            }
             throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, requestedBytes);
         }
     }
 

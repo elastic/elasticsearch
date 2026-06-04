@@ -544,7 +544,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      * <ul>
      *   <li>{@code _ignored_source} per-field entries
      *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
-     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and normalized values</li>
+     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
+     *       normalized values</li>
      * </ul>
      *
      */

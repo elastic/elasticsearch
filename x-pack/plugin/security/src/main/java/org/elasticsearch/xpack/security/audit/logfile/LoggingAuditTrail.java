@@ -487,7 +487,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withAuthentication(authentication)
                 .withRestOrigin(threadContext)
                 .withRequestBody(request)
-                .withThreadContext(securityContext.getThreadContext())
                 .build();
         }
     }
@@ -519,7 +518,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -541,7 +539,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -556,7 +553,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -595,7 +591,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -616,7 +611,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -632,8 +626,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(PRINCIPAL_FIELD_NAME, token.principal())
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
-                .withRequestId(requestId)
-                .withThreadContext(threadContext);
+                .withRequestId(requestId);
             if (token instanceof ServiceAccountToken) {
                 logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
             }
@@ -666,7 +659,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -685,7 +677,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -725,7 +716,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(msg, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap())
                     .build();
             }
@@ -869,7 +859,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withIndices(indices)
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap());
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
                 if (restAddress != null) {
@@ -918,7 +907,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -932,7 +920,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRestUriAndMethod(request)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -953,7 +940,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -986,7 +972,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1021,7 +1006,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -1060,7 +1044,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1100,7 +1083,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withIndices(indices.orElse(null))
                     .withContext(ctx)
                     .with(authorizationInfo.asMap())
-                    .withThreadContext(threadContext)
                     .build();
             }
         }
@@ -1130,7 +1112,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .withRunAsSubject(authentication)
                 .withRestOrigin(threadContext)
                 .withRequestId(requestId)
-                .withThreadContext(threadContext)
                 .build();
         }
     }

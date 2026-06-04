@@ -10,7 +10,9 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
@@ -146,7 +148,11 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
             boolean isDense = skipper.docCount() == reader.maxDoc();
             return wrap(values, isDense);
         } else {
-            PointValues pointValues = reader.getPointValues(fieldName);
+            // Checking field info for DocumentLeafReader
+            FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
+            PointValues pointValues = fieldInfo != null && fieldInfo.getPointIndexDimensionCount() != 0
+                ? reader.getPointValues(fieldName)
+                : null;
             if (pointValues != null) {
                 boolean isDense = pointValues.getDocCount() == reader.maxDoc();
                 return wrap(values, isDense);

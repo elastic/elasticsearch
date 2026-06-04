@@ -26,6 +26,12 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
  */
 public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean usePrecondition, float rescoreOversample) {
 
+    public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
+        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        false,
+        Float.NaN
+    );
+
     public static IvfSegmentConfig fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean doPrecondition) {
         return new IvfSegmentConfig(quantEncoding, doPrecondition, Float.NaN);
     }

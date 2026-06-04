@@ -386,7 +386,7 @@ public class SearchCommitPrefetcher {
      * approximation.
      */
     private Map<BlobFile, Long> computeTimestampPerBlob(StatelessCompoundCommit compoundCommit, Set<BlobFile> blobFilesToPrefetch) {
-        final long notificationCommitTimestamp = BlobFileRanges.midpointMillis(compoundCommit.getTimestampFieldValueRange());
+        final long notificationCommitTimestamp = BlobFileRanges.midpointMillisOrUnknown(compoundCommit.getTimestampFieldValueRange());
         final Set<String> internalFiles = compoundCommit.internalFiles();
         final Map<BlobFile, Long> timestampPerBlob = new HashMap<>();
         for (Map.Entry<String, BlobLocation> commitFile : compoundCommit.commitFiles().entrySet()) {

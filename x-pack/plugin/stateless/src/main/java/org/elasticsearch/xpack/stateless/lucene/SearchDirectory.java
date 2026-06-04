@@ -482,10 +482,9 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                         // so the timestamp originally stamped from the file's originating CC is retained.
                         commitFileRanges = existingRanges;
                     } else {
-                        // Case 3: not previously tracked, or blob location changed (e.g. file rewritten
-                        // during reshard). Use newCommit's timestamp only when this file is internal to
-                        // newCommit (i.e., the commit physically wrote it). Files referenced from older
-                        // CCs have no CC context here and report unknown.
+                        // Case 3: not previously tracked, or blob location changed.
+                        // Use newCommit's timestamp only when this file is internal to newCommit (i.e., the commit physically wrote it).
+                        // Files referenced from older CCs have no CC context here and report unknown.
                         StatelessCompoundCommit.TimestampFieldValueRange ts = null;
                         if (newCommitInternalFiles != null && newCommitInternalFiles.contains(fileName)) {
                             ts = newCommitTimestamp;

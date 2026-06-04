@@ -186,7 +186,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 var cacheBlobReader = searchDirectory.getCacheBlobReaderForSearchOnlineWarming(siRange.blobLocation().blobFile());
                 // We warm the first (and possibly second) region of the compound commit; both regions are stamped with the timestamp of
                 // this compound commit, which is acceptable since the warmed regions belong to it.
-                final long timestampMillis = BlobFileRanges.midpointMillis(siRange.timestampRange());
+                final long timestampMillis = BlobFileRanges.midpointMillisOrUnknown(siRange.timestampRange());
 
                 for (int i = 0; i <= endRegion; i++) {
                     if (store.isClosing() || store.tryIncRef() == false) {

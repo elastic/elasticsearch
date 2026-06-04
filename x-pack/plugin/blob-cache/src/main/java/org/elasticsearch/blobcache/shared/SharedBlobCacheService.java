@@ -93,7 +93,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * Sentinel used when the data timestamp for a cache region is unknown or unavailable. It is a plain {@code long} at the cache layer:
      * the cache assigns no semantic meaning to it beyond "unknown".
      */
-    public static final long UNKNOWN_TIMESTAMP = Long.MAX_VALUE;
+    public static final long UNKNOWN_TIMESTAMP = -1L;
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
@@ -1068,6 +1068,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space
@@ -1177,6 +1178,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return regionKey.file();
         }
 
+        /**
+         * Representative timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
+         */
         long timestampMillis() {
             return timestampMillis;
         }

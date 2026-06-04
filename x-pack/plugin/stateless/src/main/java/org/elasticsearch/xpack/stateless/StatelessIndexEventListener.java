@@ -474,7 +474,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                                     var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                     return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
                                 });
-                                long ccTimestamp = BlobFileRanges.midpointMillis(
+                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
                                     referencedCompoundCommit.statelessCompoundCommitReference()
                                         .compoundCommit()
                                         .getTimestampFieldValueRange()

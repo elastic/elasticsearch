@@ -520,7 +520,7 @@ public class SearchDirectoryTests extends ESTestCase {
             searchDirectory.updateMetadata(Map.of("file-with-ts", withTimestamp, "file-without-ts", withoutTimestamp), 200L);
 
             // a known file resolves to the midpoint of its compound commit's timestamp range
-            assertEquals(BlobFileRanges.midpointMillis(range), searchDirectory.getTimestampMillis("file-with-ts"));
+            assertEquals(BlobFileRanges.midpointMillisOrUnknown(range), searchDirectory.getTimestampMillis("file-with-ts"));
             // a known file with no timestamp range resolves to UNKNOWN
             assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, searchDirectory.getTimestampMillis("file-without-ts"));
             // an unknown file resolves to UNKNOWN

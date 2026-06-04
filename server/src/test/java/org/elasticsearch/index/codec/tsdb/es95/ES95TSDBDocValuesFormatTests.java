@@ -30,6 +30,8 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 import org.elasticsearch.test.ESTestCase;
 
@@ -373,6 +375,183 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             }
         }
     }
+
+    public void testPerFieldBlockSizeRoundTrip() throws IOException {
+        for (int customBlockSize : BLOCK_SIZE_SWEEP) {
+            doTestPerFieldBlockSizeRoundTrip(NUMERIC_BLOCK_SHIFT, customBlockSize, 4096);
+        }
+    }
+
+    public void testPerFieldBlockSizePartialTrailingBlock() throws IOException {
+        // 100 docs leaves a single partial block at every BS in the sweep.
+        for (int customBlockSize : BLOCK_SIZE_SWEEP) {
+            doTestPerFieldBlockSizeRoundTrip(NUMERIC_BLOCK_SHIFT, customBlockSize, 100);
+        }
+    }
+
+    public void testPerFieldBlockSizeSortedNumericMultiValue() throws IOException {
+        // NOTE: multi-valued sorted numeric flows through getValues() rather than the
+        // anonymous iterators in getNumeric(), so it covers a distinct per-entry BS site.
+        final int numDocs = 2048;
+        final int valuesPerDoc = 3;
+        for (int customBlockSize : BLOCK_SIZE_SWEEP) {
+            try (Directory dir = newDirectory()) {
+                try (
+                    IndexWriter writer = new IndexWriter(
+                        dir,
+                        writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_BLOCK_SHIFT, customBlockSize))
+                    )
+                ) {
+                    for (int i = 0; i < numDocs; i++) {
+                        final Document doc = new Document();
+                        for (int j = 0; j < valuesPerDoc; j++) {
+                            doc.add(new SortedNumericDocValuesField(CUSTOM_BS_FIELD, ((long) i * valuesPerDoc + j) * 23L));
+                            doc.add(new SortedNumericDocValuesField(DEFAULT_BS_FIELD, ((long) i * valuesPerDoc + j) * 6L));
+                        }
+                        writer.addDocument(doc);
+                    }
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    for (LeafReaderContext leaf : reader.leaves()) {
+                        assertSortedNumericAscending(leaf, CUSTOM_BS_FIELD, valuesPerDoc, (i, j) -> ((long) i * valuesPerDoc + j) * 23L);
+                        assertSortedNumericAscending(leaf, DEFAULT_BS_FIELD, valuesPerDoc, (i, j) -> ((long) i * valuesPerDoc + j) * 6L);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testPerFieldBlockSizeOverridesFormatHeader() throws IOException {
+        // NOTE: locks the property that the format-level header byte is not load-bearing
+        // for navigation. The format header carries NUMERIC_LARGE_BLOCK_SHIFT (TSDB
+        // default = 512), but the resolver promotes one field above the header (BS=1024)
+        // and demotes another below it (BS=128). Both fields must round trip at their
+        // resolver-assigned BS sourced from the per-field PipelineDescriptor.
+        final int numDocs = 4096;
+        final int promotedBlockSize = 1024;
+        try (Directory dir = newDirectory()) {
+            try (
+                IndexWriter writer = new IndexWriter(
+                    dir,
+                    writerConfig(buildPerFieldBlockSizeFormat(NUMERIC_LARGE_BLOCK_SHIFT, promotedBlockSize))
+                )
+            ) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(CUSTOM_BS_FIELD, (long) i * 17L));
+                    doc.add(new NumericDocValuesField(DEMOTED_BS_FIELD, (long) i * 11L));
+                    doc.add(new NumericDocValuesField(DEFAULT_BS_FIELD, (long) i * 5L));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertNumericSequence(leaf, CUSTOM_BS_FIELD, i -> (long) i * 17L);
+                    assertNumericSequence(leaf, DEMOTED_BS_FIELD, i -> (long) i * 11L);
+                    assertNumericSequence(leaf, DEFAULT_BS_FIELD, i -> (long) i * 5L);
+                }
+            }
+        }
+    }
+
+    private void doTestPerFieldBlockSizeRoundTrip(int formatShift, int customBlockSize, int numDocs) throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, writerConfig(buildPerFieldBlockSizeFormat(formatShift, customBlockSize)))) {
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    doc.add(new NumericDocValuesField(CUSTOM_BS_FIELD, (long) i * 17L));
+                    doc.add(new NumericDocValuesField(DEFAULT_BS_FIELD, (long) i * 5L));
+                    writer.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    assertNumericSequence(leaf, CUSTOM_BS_FIELD, i -> (long) i * 17L);
+                    assertNumericSequence(leaf, DEFAULT_BS_FIELD, i -> (long) i * 5L);
+                }
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface ExpectedValue {
+        long at(int globalIndex);
+    }
+
+    @FunctionalInterface
+    private interface ExpectedMultiValue {
+        long at(int globalDocIndex, int valueIndex);
+    }
+
+    private static void assertNumericSequence(LeafReaderContext leaf, String field, ExpectedValue expected) throws IOException {
+        final NumericDocValues ndv = leaf.reader().getNumericDocValues(field);
+        assertNotNull("missing doc values for " + field, ndv);
+        int count = 0;
+        while (ndv.nextDoc() != NumericDocValues.NO_MORE_DOCS) {
+            assertEquals(
+                "field " + field + " mismatch at doc " + (leaf.docBase + count),
+                expected.at(leaf.docBase + count),
+                ndv.longValue()
+            );
+            count++;
+        }
+        assertEquals(leaf.reader().maxDoc(), count);
+    }
+
+    private static void assertSortedNumericAscending(LeafReaderContext leaf, String field, int valuesPerDoc, ExpectedMultiValue expected)
+        throws IOException {
+        // The test writes values in strictly ascending order per doc, so sorted numeric
+        // returns them in the same order with no need to pre-sort.
+        final SortedNumericDocValues sndv = leaf.reader().getSortedNumericDocValues(field);
+        assertNotNull("missing sorted numeric doc values for " + field, sndv);
+        int docCount = 0;
+        while (sndv.nextDoc() != SortedNumericDocValues.NO_MORE_DOCS) {
+            assertEquals(
+                "doc value count mismatch on field " + field + " at doc " + (leaf.docBase + docCount),
+                valuesPerDoc,
+                sndv.docValueCount()
+            );
+            final int globalDocIndex = leaf.docBase + docCount;
+            for (int j = 0; j < valuesPerDoc; j++) {
+                assertEquals("field " + field + " doc " + globalDocIndex + " value " + j, expected.at(globalDocIndex, j), sndv.nextValue());
+            }
+            docCount++;
+        }
+        assertEquals(leaf.reader().maxDoc(), docCount);
+    }
+
+    private static DocValuesFormat buildPerFieldBlockSizeFormat(int formatShift, int customBlockSize) {
+        final FieldContextResolver perFieldResolver = (fieldName, defaultBlockSize) -> {
+            final int blockSize;
+            if (CUSTOM_BS_FIELD.equals(fieldName)) {
+                blockSize = customBlockSize;
+            } else if (DEMOTED_BS_FIELD.equals(fieldName)) {
+                blockSize = 128;
+            } else {
+                blockSize = defaultBlockSize;
+            }
+            return new FieldContext(blockSize, fieldName, null, null);
+        };
+        return new ES95TSDBDocValuesFormat(
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            true,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            formatShift,
+            false,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            perFieldResolver
+        );
+    }
+
+    private static final int[] BLOCK_SIZE_SWEEP = { 128, 256, 512, 1024, 2048, 4096 };
+    private static final String CUSTOM_BS_FIELD = "custom_bs_field";
+    private static final String DEFAULT_BS_FIELD = "default_bs_field";
+    private static final String DEMOTED_BS_FIELD = "demoted_bs_field";
 
     private static IndexWriterConfig writerConfig(final DocValuesFormat format) {
         final IndexWriterConfig config = new IndexWriterConfig();

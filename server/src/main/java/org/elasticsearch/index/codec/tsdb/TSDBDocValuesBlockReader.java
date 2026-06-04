@@ -66,6 +66,7 @@ public final class TSDBDocValuesBlockReader {
     ) throws IOException {
         entry.numValues = meta.readLong();
         entry.numDocsWithField = meta.readInt();
+        entry.blockSize = 1 << numericBlockShift;
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
             if (indexBlockShift == AbstractTSDBDocValuesConsumer.INDEX_SINGLE_ORDINAL) {
@@ -77,8 +78,12 @@ public final class TSDBDocValuesBlockReader {
             } else {
                 if (fieldMetaReader != null) {
                     fieldMetaReader.read(meta);
+                    if (entry.pipelineDescriptor != null) {
+                        entry.blockSize = entry.pipelineDescriptor.blockSize();
+                    }
                 }
-                entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> numericBlockShift), indexBlockShift);
+                final int blockShift = Integer.numberOfTrailingZeros(entry.blockSize);
+                entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> blockShift), indexBlockShift);
             }
             entry.indexOffset = meta.readLong();
             entry.indexLength = meta.readLong();

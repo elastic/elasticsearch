@@ -45,7 +45,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_S
 public class ShardLimitValidator {
     public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE = Setting.intSetting(
         "cluster.max_shards_per_node",
-        1000,
+        5000,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

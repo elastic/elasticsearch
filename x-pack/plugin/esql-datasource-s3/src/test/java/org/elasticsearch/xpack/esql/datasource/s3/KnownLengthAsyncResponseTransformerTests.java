@@ -236,11 +236,9 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
     }
 
     public void testOnCompleteReleasesBufferWhenItLosesTheCompletionRace() throws Exception {
-        // A concurrent exceptionOccurred (the AtomicReference exists precisely because that can race the
-        // subscriber's terminal callbacks) can fail the result future in the window before onComplete hands
-        // the buffer off. onComplete then loses the completion race — complete() returns false — but still
-        // owns the buffer it took via getAndSet. It must release it, or the direct-memory reservation leaks.
-        // A child allocator makes that leak observable as non-zero allocated memory.
+        // If a concurrent exceptionOccurred fails the future before onComplete completes it, onComplete's
+        // complete() returns false; it then solely owns the buffer it took via getAndSet and must release it,
+        // or the direct memory leaks. The child allocator surfaces any leak as non-zero allocated bytes.
         try (BufferAllocator child = ALLOCATOR.newChildAllocator("onComplete-race", 0, Long.MAX_VALUE)) {
             DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
             byte[] payload = randomByteArrayOfLength(256);

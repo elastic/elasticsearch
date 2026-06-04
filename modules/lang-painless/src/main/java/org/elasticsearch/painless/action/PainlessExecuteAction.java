@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
@@ -98,7 +99,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterAware.QualifiedIndexExpression;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -207,9 +207,9 @@ public class PainlessExecuteAction {
             }
 
             ContextSetup(String index, BytesReference document, QueryBuilder query) {
-                var clusterAliasAndIndex = parseClusterAliasAndIndex(index);
-                this.clusterAlias = clusterAliasAndIndex.clusterAlias();
-                this.index = clusterAliasAndIndex.indexExpression();
+                Tuple<String, String> clusterAliasAndIndex = parseClusterAliasAndIndex(index);
+                this.clusterAlias = clusterAliasAndIndex.v1();
+                this.index = clusterAliasAndIndex.v2();
                 this.document = document;
                 this.query = query;
             }
@@ -235,9 +235,11 @@ public class PainlessExecuteAction {
              * @throws IllegalArgumentException if the indexExpression starts or ends with the REMOTE_CLUSTER_INDEX_SEPARATOR (":")
              *         (ignoring whitespace)
              */
-            static QualifiedIndexExpression parseClusterAliasAndIndex(String indexExpression) {
+            static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
-                    return new QualifiedIndexExpression(null, null);
+                    // TODO consider returning QualifiedIndexExpression directly.
+                    // It is required to make the second argument of the tuple non null below
+                    return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
                 var parts = RemoteClusterAware.splitIndexName(trimmed);
@@ -254,7 +256,7 @@ public class PainlessExecuteAction {
                     );
                 }
 
-                return parts;
+                return new Tuple<>(parts.clusterAlias(), parts.indexExpression());
             }
 
             public String getClusterAlias() {
@@ -587,8 +589,8 @@ public class PainlessExecuteAction {
         static void removeClusterAliasFromIndexExpression(Request request) {
             String index = request.index();
             if (index != null) {
-                var split = RemoteClusterAware.splitIndexName(index);
-                if (split.clusterAlias() != null) {
+                String[] split = RemoteClusterAware.splitIndexName(index);
+                if (split[0] != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -596,7 +598,7 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    request.index(split.indexExpression());
+                    request.index(split[1]);
                 }
             }
         }

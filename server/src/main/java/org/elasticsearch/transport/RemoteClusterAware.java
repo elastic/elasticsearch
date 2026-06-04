@@ -114,6 +114,11 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * an expression (may contain wildcards, date math, selectors, etc.), not necessarily a concrete index name.
      */
     public record QualifiedIndexExpression(@Nullable String clusterAlias, String indexExpression) {
+
+        public QualifiedIndexExpression {
+            assert indexExpression != null : "index expression must not be null";
+        }
+
         /**
          * @return clusterAlias or {@code LOCAL_CLUSTER_GROUP_KEY} if index is local
          */

@@ -158,6 +158,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
   method: testStream_CancelAfterPauseReleasesConnection
   issue: https://github.com/elastic/elasticsearch/issues/150742
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
+  method: testQuantizedXY
+  issue: https://github.com/elastic/elasticsearch/issues/150782
 
 # Examples:
 #

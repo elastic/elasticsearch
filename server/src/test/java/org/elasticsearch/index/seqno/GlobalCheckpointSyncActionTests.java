@@ -11,6 +11,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -47,6 +49,14 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private ShardStateAction shardStateAction;
+    private final ReplicationTask replicationTask = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     public void setUp() throws Exception {
         super.setUp();
@@ -123,7 +133,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
+            action.shardOperationOnPrimary(replicationTask, primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
             action.shardOperationOnReplica(
                 new GlobalCheckpointSyncAction.Request(indexShard.shardId()),

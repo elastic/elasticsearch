@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 public class MappingCharFilterFactory extends AbstractCharFilterFactory implements NormalizingCharFilterFactory {
 
     private final NormalizeCharMap normMap;
+    private final Object sharingKey;
 
     MappingCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -38,12 +39,23 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
         NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();
         parseRules(rules, normMapBuilder);
         normMap = normMapBuilder.build();
+        // NormalizeCharMap is a Lucene FST without stable equality. Capture the source rules
+        // (already a List<String> we just parsed) — same rules in the same order produce the same
+        // normMap. Two factories with identical rules share an analyzer.
+        this.sharingKey = new Key(List.copyOf(rules));
     }
 
     @Override
     public Reader create(Reader tokenStream) {
         return new MappingCharFilter(normMap, tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> mappings) {}
 
     // source => target
     private static Pattern rulePattern = Pattern.compile("(.*)\\s*=>\\s*(.*)\\s*$");

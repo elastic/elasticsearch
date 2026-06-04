@@ -24,6 +24,7 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory i
 
     private final Pattern pattern;
     private final String replacement;
+    private final Object sharingKey;
 
     PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -34,6 +35,8 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory i
         }
         pattern = Regex.compile(sPattern, settings.get("flags"));
         replacement = settings.get("replacement", ""); // when not set or set to "", use "".
+        // Pattern uses identity-equality, so capture (pattern, flags) source strings for the key.
+        this.sharingKey = new Key(pattern.pattern(), pattern.flags(), replacement);
     }
 
     public Pattern getPattern() {
@@ -49,4 +52,10 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory i
         return new PatternReplaceCharFilter(pattern, replacement, tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, String replacement) {}
 }

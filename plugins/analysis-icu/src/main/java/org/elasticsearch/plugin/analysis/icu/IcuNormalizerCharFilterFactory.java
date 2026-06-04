@@ -50,4 +50,11 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         return new ICUNormalizer2CharFilter(reader, normalizer);
     }
 
+    @Override
+    public Object sharingKey() {
+        // Normalizer2 is an opaque ICU object without a stable equals/hashCode contract,
+        // so we use identity equality via the instance reference itself.
+        return normalizer;
+    }
+
 }

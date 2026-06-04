@@ -30,4 +30,11 @@ public class MlStandardTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         return new MlStandardTokenizer();
     }
+
+    @Override
+    public Object sharingKey() {
+        return SHARING_KEY;
+    }
+
+    private static final Object SHARING_KEY = new Object();
 }

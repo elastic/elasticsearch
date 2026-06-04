@@ -31,6 +31,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
     private boolean tokenizeOnDigit = false;
     private boolean tokenizeOnPunctuation = false;
     private boolean tokenizeOnSymbol = false;
+    private final Object sharingKey;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -57,6 +58,15 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
                 }
             }
         }
+        this.sharingKey = new Key(
+            Set.copyOf(tokenizeOnChars),
+            maxTokenLength,
+            tokenizeOnSpace,
+            tokenizeOnLetter,
+            tokenizeOnDigit,
+            tokenizeOnPunctuation,
+            tokenizeOnSymbol
+        );
     }
 
     private static char parseEscapedChar(final String s) {
@@ -115,4 +125,19 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
             }
         };
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        Set<Integer> tokenizeOnChars,
+        Integer maxTokenLength,
+        boolean tokenizeOnSpace,
+        boolean tokenizeOnLetter,
+        boolean tokenizeOnDigit,
+        boolean tokenizeOnPunctuation,
+        boolean tokenizeOnSymbol
+    ) {}
 }

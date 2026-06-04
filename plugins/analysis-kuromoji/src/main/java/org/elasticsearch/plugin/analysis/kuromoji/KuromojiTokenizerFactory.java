@@ -43,17 +43,49 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
     private boolean discardPunctuation;
     private boolean discardCompoundToken;
 
+    private final Object sharingKey;
+
     public KuromojiTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         mode = getMode(settings);
-        userDictionary = getUserDictionary(env, settings);
+        List<String> userDictionaryRules = getUserDictionaryRules(env, settings);
+        userDictionary = buildUserDictionary(userDictionaryRules);
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
         discardCompoundToken = settings.getAsBoolean(DISCARD_COMPOUND_TOKEN, false);
+        // Key on the raw user-dictionary rules rather than the opaque UserDictionary instance:
+        // UserDictionary has no structural equals/hashCode, so keying on the built object would
+        // never share across indices. Keying on the rules lets two indices with the same
+        // dictionary share the tokenizer (null rules => no dictionary => still shares).
+        this.sharingKey = new Key(userDictionaryRules, mode, nBestExamples, nBestCost, discardPunctuation, discardCompoundToken);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        List<String> userDictionaryRules,
+        Mode mode,
+        String nBestExamples,
+        int nBestCost,
+        boolean discardPunctuation,
+        boolean discardCompoundToken
+    ) {}
+
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
+        return buildUserDictionary(getUserDictionaryRules(env, settings));
+    }
+
+    /**
+     * Reads the configured user-dictionary rules (inline {@code user_dictionary_rules} or the
+     * {@code user_dictionary} file), or {@code null} when none is configured. Returned verbatim so
+     * the same list both builds the {@link UserDictionary} and serves as a stable sharing-key
+     * component.
+     */
+    public static List<String> getUserDictionaryRules(Environment env, Settings settings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
@@ -68,6 +100,13 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
             false,  // typically don't want to remove comments as deduplication will provide better feedback
             true
         );
+        if (ruleList == null || ruleList.isEmpty()) {
+            return null;
+        }
+        return ruleList;
+    }
+
+    private static UserDictionary buildUserDictionary(List<String> ruleList) {
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }

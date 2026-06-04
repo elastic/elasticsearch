@@ -32,4 +32,12 @@ public class WhitespaceTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         return new WhitespaceTokenizer(TokenStream.DEFAULT_TOKEN_ATTRIBUTE_FACTORY, maxTokenLength);
     }
+
+    @Override
+    public Object sharingKey() {
+        // max_token_length is baked into the tokenizer, so it must be part of the sharing key.
+        return new Key(maxTokenLength);
+    }
+
+    private record Key(int maxTokenLength) {}
 }

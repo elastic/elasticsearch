@@ -20,14 +20,24 @@ public class SimplePatternSplitTokenizerFactory extends AbstractTokenizerFactory
 
     private final String pattern;
 
+    private final Object sharingKey;
+
     public SimplePatternSplitTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
 
         pattern = settings.get("pattern", "");
+        this.sharingKey = new Key(pattern);
     }
 
     @Override
     public Tokenizer create() {
         return new SimplePatternSplitTokenizer(pattern);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern) {}
 }

@@ -38,9 +38,21 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     private final ICUTokenizerConfig config;
     private static final String RULE_FILES = "rule_files";
 
+    private final Object sharingKey;
+
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         config = getIcuConfig(environment, settings);
+        // ICUTokenizerConfig (and any anonymous subclass holding parsed BreakIterators) is
+        // opaque, so we fall back to identity equality on the config reference itself.
+        this.sharingKey = config == null ? SHARING_KEY_NULL_CONFIG : config;
+    }
+
+    private static final Object SHARING_KEY_NULL_CONFIG = new Object();
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
     }
 
     @Override

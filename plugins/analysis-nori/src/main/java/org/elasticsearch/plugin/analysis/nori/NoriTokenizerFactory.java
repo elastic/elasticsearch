@@ -37,14 +37,40 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private final KoreanTokenizer.DecompoundMode decompoundMode;
     private final boolean discardPunctuation;
 
+    private final Object sharingKey;
+
     public NoriTokenizerFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         decompoundMode = getMode(settings);
-        userDictionary = getUserDictionary(env, settings, indexSettings);
+        List<String> userDictionaryRules = getUserDictionaryRules(env, settings, indexSettings);
+        userDictionary = buildUserDictionary(userDictionaryRules);
         discardPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        // Key on the raw user-dictionary rules rather than the opaque UserDictionary instance:
+        // UserDictionary has no structural equals/hashCode, so keying on the built object would
+        // never share across indices. Keying on the rules lets two indices with the same
+        // dictionary share the tokenizer (null rules => no dictionary => still shares).
+        this.sharingKey = new Key(userDictionaryRules, decompoundMode, discardPunctuation);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> userDictionaryRules, KoreanTokenizer.DecompoundMode decompoundMode, boolean discardPunctuation) {}
+
     public static UserDictionary getUserDictionary(Environment env, Settings settings, IndexSettings indexSettings) {
+        return buildUserDictionary(getUserDictionaryRules(env, settings, indexSettings));
+    }
+
+    /**
+     * Reads the configured user-dictionary rules (inline {@code user_dictionary_rules} or the
+     * {@code user_dictionary} file), or {@code null} when none is configured. Returned verbatim so
+     * the same list both builds the {@link UserDictionary} and serves as a stable sharing-key
+     * component. Duplicate-check behavior is index-version dependent, so the resolved rule list
+     * already reflects that.
+     */
+    public static List<String> getUserDictionaryRules(Environment env, Settings settings, IndexSettings indexSettings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
                 "It is not allowed to use [" + USER_DICT_PATH_OPTION + "] in conjunction" + " with [" + USER_DICT_RULES_OPTION + "]"
@@ -59,6 +85,13 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             false,  // typically don't want to remove comments as deduplication will provide better feedback
             isSupportDuplicateCheck(indexSettings)
         );
+        if (ruleList == null || ruleList.isEmpty()) {
+            return null;
+        }
+        return ruleList;
+    }
+
+    private static UserDictionary buildUserDictionary(List<String> ruleList) {
         if (ruleList == null || ruleList.isEmpty()) {
             return null;
         }

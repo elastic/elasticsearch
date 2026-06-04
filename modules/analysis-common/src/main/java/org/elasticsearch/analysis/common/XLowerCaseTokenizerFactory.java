@@ -19,6 +19,8 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 // NORELEASE we should prevent the usage on indices created after 7.0 in order to be able to remove in 8
 public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
 
+    private static final Object SHARING_KEY = new Object();
+
     public XLowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
     }
@@ -26,5 +28,10 @@ public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
     @Override
     public Tokenizer create() {
         return new XLowerCaseTokenizer();
+    }
+
+    @Override
+    public Object sharingKey() {
+        return SHARING_KEY;
     }
 }

@@ -35,6 +35,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     private final int maxGram;
     private final CharMatcher matcher;
 
+    private final Object sharingKey;
     static final Map<String, CharMatcher> MATCHERS;
 
     static {
@@ -111,6 +112,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             );
         }
         this.matcher = parseTokenChars(settings);
+        this.sharingKey = new Key(minGram, maxGram, matcher);
     }
 
     @Override
@@ -127,4 +129,10 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minGram, int maxGram, CharMatcher matcher) {}
 }

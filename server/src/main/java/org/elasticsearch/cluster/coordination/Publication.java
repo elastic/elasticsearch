@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 
 import java.util.ArrayList;
@@ -30,7 +32,7 @@ import java.util.stream.Collectors;
 
 public abstract class Publication {
 
-    protected final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(Publication.class);
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;
@@ -355,7 +357,7 @@ public abstract class Publication {
             return state == PublicationTargetState.FAILED;
         }
 
-        private class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
+        class PublishResponseHandler implements ActionListener<PublishWithJoinResponse> {
 
             @Override
             public void onResponse(PublishWithJoinResponse response) {
@@ -385,7 +387,15 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                // When e is an expected or transient error (network disconnect or near to a contended election) log at debug level,
+                // otherwise log at warn level
+                Level logLevel = e instanceof ConnectTransportException
+                    || (e instanceof final RemoteTransportException remoteTransportException
+                        && remoteTransportException.getRootCause() instanceof CoordinationStateRejectedException)
+                            ? Level.DEBUG
+                            : Level.WARN;
+
+                logger.log(logLevel, () -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
                 setFailed(getRootCause(e));
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();

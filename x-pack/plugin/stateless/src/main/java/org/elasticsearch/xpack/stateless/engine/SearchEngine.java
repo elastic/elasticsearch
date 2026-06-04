@@ -548,7 +548,7 @@ public class SearchEngine extends Engine {
                             .collect(Collectors.toSet());
                     }
                     searchDirectory.retainFiles(filesToRetain);
-                    logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
+                    logger.info("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                     callSegmentGenerationListeners(
                         new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())
                     );
@@ -1103,6 +1103,12 @@ public class SearchEngine extends Engine {
      * @throws AlreadyClosedException if the engine is closed
      */
     boolean addOrExecuteSegmentGenerationListener(PrimaryTermAndGeneration minPrimaryTermGeneration, ActionListener<Long> listener) {
+        logger.info(
+            "{} trying to register generation listener: need [{}], have [{}]",
+            shardId,
+            minPrimaryTermGeneration,
+            getCurrentPrimaryTermAndGeneration()
+        );
         try {
             ensureOpen();
             // check current state first - not strictly necessary, but a little more efficient than what happens next
@@ -1135,6 +1141,12 @@ public class SearchEngine extends Engine {
                 } // else someone else executed it for us.
                 return false;
             }
+            logger.info(
+                "{} registered generation listener: need [{}], have [{}]",
+                shardId,
+                minPrimaryTermGeneration,
+                getCurrentPrimaryTermAndGeneration()
+            );
             return true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -1155,6 +1167,7 @@ public class SearchEngine extends Engine {
     }
 
     private void callSegmentGenerationListeners(PrimaryTermAndGeneration currentTermGen) {
+        logger.info("{} calling generation listeners at [{}]", shardId, currentTermGen);
         final var iterator = segmentGenerationListeners.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();

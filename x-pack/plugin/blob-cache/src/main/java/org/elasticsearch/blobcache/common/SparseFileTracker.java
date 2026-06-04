@@ -189,6 +189,7 @@ public class SparseFileTracker {
         final List<Range> pendingRanges = new ArrayList<>();
         final Range targetRange = new Range(range);
         boolean hasGaps;
+        final Runnable deferred;
         synchronized (ranges) {
             hasGaps = determineStartingRangeAndSplit(range, pendingRanges, targetRange);
 
@@ -247,16 +248,19 @@ public class SparseFileTracker {
 
             assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
             assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
+
+            // Filter and subscribe inside the mutex so no concurrent waitForRange call can split an
+            // unclaimed range in pendingRanges (and steal its completion listener) before we subscribe.
+            if (range.equals(subRange) == false) {
+                pendingRanges.removeIf(
+                    pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false
+                );
+                pendingRanges.sort(RANGE_START_COMPARATOR);
+            }
+            deferred = subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
         }
 
-        // Pending ranges that needs to be filled before executing the listener
-        if (range.equals(subRange) == false) {
-            pendingRanges.removeIf(pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false);
-            pendingRanges.sort(RANGE_START_COMPARATOR);
-        }
-
-        subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
-
+        deferred.run();
         return hasGaps ? Optional.of(new Gaps(range)) : Optional.empty();
     }
 
@@ -418,6 +422,7 @@ public class SparseFileTracker {
         final List<Range> pendingRanges = new ArrayList<>();
 
         final Range targetRange = new Range(range);
+        final Runnable deferred;
         synchronized (ranges) {
             determineStartingRange(range, pendingRanges, targetRange);
 
@@ -444,34 +449,52 @@ public class SparseFileTracker {
             assert targetRange.start == targetRange.end : targetRange;
             assert targetRange.start == range.end() : targetRange;
             assert invariant();
+
+            // Subscribe inside the mutex so no concurrent waitForRange call can split an unclaimed range
+            // in pendingRanges (and steal its completion listener) between our collection and subscription.
+            deferred = subscribeToCompletionListeners(pendingRanges, range.end(), wrappedListener);
         }
 
-        subscribeToCompletionListeners(pendingRanges, range.end(), wrappedListener);
+        deferred.run();
         return true;
     }
 
-    private static void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
-        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
-        // there is no risk of concurrent modification.
-        switch (requiredRanges.size()) {
-            case 0 ->
-                // no need to wait for the gaps to be filled, the listener can be executed immediately
-                listener.onResponse(null);
+    /**
+     * Registers {@code listener} to fire once all {@code requiredRanges} have progressed past {@code rangeEnd}.
+     * Must be called while holding the ranges lock; listener execution is deferred to avoid running listeners
+     * under the lock.
+     *
+     * @return a {@link Runnable} to invoke immediately after releasing the ranges lock; it fires any listener
+     *         that is already eligible (range already complete / progress past threshold). Never {@code null}.
+     */
+    private Runnable subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
+        assert Thread.holdsLock(ranges);
+        return switch (requiredRanges.size()) {
+            case 0 -> () -> listener.onResponse(null);
             case 1 -> {
                 final Range requiredRange = requiredRanges.get(0);
-                requiredRange.completionListener.addListener(
+                final Runnable r = requiredRange.completionListener.addListenerDeferringExecution(
                     listener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, rangeEnd)
                 );
+                yield r != null ? r : () -> {};
             }
             default -> {
+                final List<Runnable> deferred = new ArrayList<>();
                 try (var listeners = new RefCountingListener(listener)) {
                     for (Range range : requiredRanges) {
-                        range.completionListener.addListener(listeners.acquire(l -> {}), Math.min(range.completionListener.end, rangeEnd));
+                        final Runnable r = range.completionListener.addListenerDeferringExecution(
+                            listeners.acquire(l -> {}),
+                            Math.min(range.completionListener.end, rangeEnd)
+                        );
+                        if (r != null) {
+                            deferred.add(r);
+                        }
                     }
                 }
+                yield deferred.isEmpty() ? () -> {} : () -> deferred.forEach(Runnable::run);
             }
-        }
+        };
     }
 
     private ActionListener<Void> wrapWithAssertions(ActionListener<Void> listener) {

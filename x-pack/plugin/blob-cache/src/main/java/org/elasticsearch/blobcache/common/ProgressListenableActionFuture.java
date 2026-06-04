@@ -173,6 +173,36 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     }
 
     /**
+     * Like {@link #addListener(ActionListener, long)}, but instead of executing the listener inline when it should
+     * fire immediately, returns a {@link Runnable} to invoke after releasing the outer lock.
+     *
+     * <p>Designed to be called while holding the enclosing {@link SparseFileTracker}'s ranges lock.
+     * That same lock gates {@link #getAndClearListeners()}, so any {@code completed == true} seen here
+     * reflects genuine completion rather than a stolen/split future, making delegation to
+     * {@link #actionResult()} safe.
+     *
+     * @return a {@link Runnable} to invoke after releasing the outer lock to fire the listener
+     *         immediately, or {@code null} if the listener was queued for future progress.
+     */
+    @Nullable
+    synchronized Runnable addListenerDeferringExecution(ActionListener<Long> listener, long value) {
+        if (completed || value <= progress) {
+            final boolean wasCompleted = completed;
+            final long capturedProgress = progress;
+            assert invariant();
+            return () -> executeListener(listener, wasCompleted ? this::actionResult : () -> capturedProgress);
+        }
+        List<PositionAndListener> list = this.listeners;
+        if (list == null) {
+            list = new ArrayList<>();
+        }
+        list.add(new PositionAndListener(value, listener));
+        this.listeners = list;
+        assert invariant();
+        return null;
+    }
+
+    /**
      * Attach a {@link ActionListener} to the current future. The listener will be executed once the future is completed or once the
      * progress reaches the given {@code value}, whichever comes first.
      *

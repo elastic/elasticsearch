@@ -127,7 +127,19 @@ public class TaskTracker implements ProgressListener {
             return new StatusReport.TaskEntry(path, outcome);
         }).toList();
 
+        // Only include individual test entries for tasks that did not complete successfully.
+        // Successful tasks can have thousands of test entries; omitting them keeps the file small.
+        Set<String> successfulTasks;
+        synchronized (tasksByPath) {
+            successfulTasks = tasksByPath.values()
+                .stream()
+                .filter(r -> r.status == TaskStatus.SUCCESS || r.status == TaskStatus.UP_TO_DATE || r.status == TaskStatus.FROM_CACHE)
+                .map(r -> r.taskPath)
+                .collect(java.util.stream.Collectors.toSet());
+        }
+
         List<StatusReport.TestEntry> testEntries = testResults.stream()
+            .filter(r -> successfulTasks.contains(r.taskPath()) == false)
             .sorted(Comparator.comparing(TestRecord::taskPath).thenComparing(TestRecord::className).thenComparing(TestRecord::methodName))
             .map(r -> new StatusReport.TestEntry(r.taskPath(), r.className(), r.methodName(), r.result()))
             .toList();

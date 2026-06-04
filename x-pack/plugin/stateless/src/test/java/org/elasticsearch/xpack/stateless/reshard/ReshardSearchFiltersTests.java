@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -406,11 +407,14 @@ public class ReshardSearchFiltersTests extends ESTestCase {
 
         var relocatedReshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
 
+        Settings cacheSettings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(cacheSettings);
+
         try (DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), sourceShardId); iw) {
             var mapperService = mock(MapperService.class);
             when(mapperService.hasNested()).thenReturn(false);
 
-            var noReshardingMetadataSource = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+            var noReshardingMetadataSource = reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
                 directoryReader,
                 sourceShardId,
                 indexMetadata,
@@ -421,7 +425,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             // No relocated resharding metadata so no filtering needed.
             assertEquals(directoryReader, noReshardingMetadataSource);
 
-            var olderSummary = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+            var olderSummary = reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
                 directoryReader,
                 sourceShardId,
                 indexMetadata,
@@ -433,7 +437,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             // shard).
             assertEquals(directoryReader, olderSummary);
 
-            var currentSummarySource = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+            var currentSummarySource = reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
                 directoryReader,
                 sourceShardId,
                 indexMetadata,
@@ -449,7 +453,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             assertTrue(sourceLiveDocs.get(0));
             assertTrue(sourceLiveDocs.get(2));
 
-            var currentSummaryTarget = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+            var currentSummaryTarget = reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
                 directoryReader,
                 targetShardId,
                 indexMetadata,
@@ -626,6 +630,12 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         assertFalse(
             ReshardSearchFilters.shouldFilter(testShardId(sourceShard), SplitShardCountSummary.fromInt(newShardCount), newShardCount, null)
         );
+    }
+
+    private static void assertLiveDocsMatchShardOwnership(Bits liveDocs, int totalDocs, Set<String> ownedIds) {
+        for (int i = 0; i < totalDocs; i++) {
+            assertEquals(ownedIds.contains(Integer.toString(i)), liveDocs.get(i));
+        }
     }
 
     private ShardId testShardId(int shardNumber) {

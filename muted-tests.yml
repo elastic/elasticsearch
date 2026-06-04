@@ -686,3 +686,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150791
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testScoringWithMultipleChildren
+  issue: https://github.com/elastic/elasticsearch/issues/150813

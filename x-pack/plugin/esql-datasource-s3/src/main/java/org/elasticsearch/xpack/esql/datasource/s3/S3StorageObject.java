@@ -34,6 +34,8 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.AsyncReadCompletion.errorSafe;
+
 /**
  * StorageObject implementation for S3 using AWS SDK v2.
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
@@ -402,7 +404,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             (int) length,
             factory
         );
-        s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
+        s3AsyncClient.getObject(request, transformer).whenComplete(errorSafe((buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
@@ -434,7 +436,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
                 throw e;
             }
-        });
+        }));
     }
 
     @Override

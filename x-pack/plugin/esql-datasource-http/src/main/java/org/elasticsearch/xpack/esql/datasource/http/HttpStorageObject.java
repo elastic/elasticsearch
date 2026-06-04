@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.AsyncReadCompletion.errorSafe;
+
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
  * Uses standard Java HttpClient and InputStream - no custom stream classes needed.
@@ -295,7 +297,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
         long startNanos = System.nanoTime();
         client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory))
-            .whenComplete((response, throwable) -> {
+            .whenComplete(errorSafe((response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Wrap with path context so stack-trace-only triage names the offending URL.
@@ -328,7 +330,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     response.body().close();
                     listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
                 }
-            });
+            }));
     }
 
     /**

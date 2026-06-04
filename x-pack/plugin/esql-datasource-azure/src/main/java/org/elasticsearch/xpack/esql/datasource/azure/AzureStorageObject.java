@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
+import static org.elasticsearch.xpack.esql.datasources.spi.AsyncReadCompletion.errorSafe;
+
 /**
  * StorageObject implementation for Azure Blob Storage.
  * Supports full and range reads, and metadata retrieval with caching.
@@ -314,7 +316,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 return buffer;
             })
             .toFuture()
-            .whenComplete((buffer, error) -> {
+            .whenComplete(errorSafe((buffer, error) -> {
                 if (error != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Release eagerly on the failure path so the breaker charge does not outlive
@@ -335,7 +337,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                         throw e;
                     }
                 }
-            });
+            }));
     }
 
     @Override

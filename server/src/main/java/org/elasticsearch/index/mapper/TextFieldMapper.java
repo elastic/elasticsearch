@@ -873,7 +873,19 @@ public final class TextFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             boolean indexPhrases
         ) {
-            this(name, indexed, stored, tsi, isSyntheticSource, isWithinMultiField, syntheticSourceDelegate, meta, eagerGlobalOrdinals, indexPhrases, true);
+            this(
+                name,
+                indexed,
+                stored,
+                tsi,
+                isSyntheticSource,
+                isWithinMultiField,
+                syntheticSourceDelegate,
+                meta,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                true
+            );
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
@@ -1650,7 +1662,24 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, false, tsi, false, false, null, meta, false, false, IndexVersion.current(), false, false, null, /* unused */ false);
+            super(
+                name,
+                indexed,
+                stored,
+                false,
+                tsi,
+                false,
+                false,
+                null,
+                meta,
+                false,
+                false,
+                IndexVersion.current(),
+                false,
+                false,
+                null,
+                /* unused */ false
+            );
         }
 
         public ConstantScoreTextFieldType(String name) {

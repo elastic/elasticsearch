@@ -557,7 +557,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             true,
             false,
-            null
+            null,
+            true
         );
 
         // when
@@ -598,7 +599,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             legacyVersion,
             false,
             false,
-            null
+            null,
+            true
         );
 
         // when
@@ -638,7 +640,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             legacyVersion,
             true,
             false,
-            null
+            null,
+            true
         );
 
         // when
@@ -668,7 +671,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            null
+            null,
+            true
         );
 
         // when
@@ -697,7 +701,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            null
+            null,
+            true
         );
 
         // when
@@ -731,7 +736,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            null
+            null,
+            true
         );
     }
 
@@ -751,7 +757,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            null
+            null,
+            true
         );
     }
 

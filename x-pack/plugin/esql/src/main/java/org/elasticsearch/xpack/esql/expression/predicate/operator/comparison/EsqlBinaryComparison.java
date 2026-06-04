@@ -71,7 +71,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTy
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
-public abstract class EsqlBinaryComparison extends BinaryComparison implements EvaluatorMapper, TranslationAware {
+public abstract class EsqlBinaryComparison extends BinaryComparison
+    implements
+        EvaluatorMapper,
+        TranslationAware.SingleValueTranslationAware {
 
     private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 

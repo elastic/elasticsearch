@@ -71,7 +71,7 @@ public class TaskTracker implements ProgressListener {
             if (testFinish.getDescriptor() instanceof JvmTestOperationDescriptor jvmDesc) {
                 if (jvmDesc.getClassName() != null) {
                     String taskPath = findOwningTaskPath(jvmDesc);
-                    String result = testResultString(testFinish);
+                    String result = testResultString(testFinish, canceller.isCancelled());
                     if (jvmDesc.getMethodName() != null) {
                         // Method-level test result
                         testResults.add(new TestRecord(taskPath, jvmDesc.getClassName(), jvmDesc.getMethodName(), result));
@@ -84,13 +84,13 @@ public class TaskTracker implements ProgressListener {
         }
     }
 
-    private static String testResultString(TestFinishEvent event) {
+    private static String testResultString(TestFinishEvent event, boolean cancelled) {
         if (event.getResult() instanceof TestSuccessResult) {
             return "SUCCESS";
         } else if (event.getResult() instanceof TestFailureResult) {
-            return "FAILURE";
+            return cancelled ? "INTERRUPTED" : "FAILURE";
         } else if (event.getResult() instanceof TestSkippedResult) {
-            return "SKIPPED";
+            return cancelled ? "INTERRUPTED" : "SKIPPED";
         }
         return "SUCCESS";
     }

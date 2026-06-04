@@ -17,14 +17,14 @@ export interface TaskEntry {
 export interface SuiteEntry {
   taskPath: string;
   className: string;
-  result: "SUCCESS" | "FAILURE" | "SKIPPED";
+  result: "SUCCESS" | "FAILURE" | "SKIPPED" | "INTERRUPTED";
 }
 
 export interface TestEntry {
   taskPath: string;
   className: string;
   methodName: string;
-  result: "SUCCESS" | "FAILURE" | "SKIPPED";
+  result: "SUCCESS" | "FAILURE" | "SKIPPED" | "INTERRUPTED";
 }
 
 /**

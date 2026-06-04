@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -15,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -29,12 +30,11 @@ import java.util.Map;
  * Lowers {@link TimeSeriesWithout} into the {@code _timeseries} metadata attribute expected by
  * the time-series aggregation pipeline.
  */
-public final class TranslateTimeSeriesWithout extends OptimizerRules.ParameterizedOptimizerRule<
-    TimeSeriesAggregate,
-    LogicalOptimizerContext> {
+public final class TranslateTimeSeriesWithout extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
-    public TranslateTimeSeriesWithout() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     private static NamedExpression replaceReferences(NamedExpression expression, Map<NameId, TimeSeriesMetadataAttribute> replacements) {
@@ -58,7 +58,7 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
         // that carries the excluded dimension names.
         Map<NameId, TimeSeriesMetadataAttribute> replacements = new LinkedHashMap<>();

@@ -125,7 +125,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -283,6 +286,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvedProjects(),
             new AddImplicitLimit(),
             new AddImplicitTimestampSort(),
+            new VerifyTimeSeries(),
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+            new TranslateTimeSeriesWithout(),
+            // translate metric aggregates early before they are converted to nested expressions
+            new TranslateTimeSeriesAggregate(),
+            new ApplyWindowFilter(),
             new UnionTypesCleanup()
         )
     );
@@ -724,6 +734,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             LocalSupplier supplier = LocalSupplier.of(blocks.length > 0 ? new Page(blocks) : new Page(0));
             return new LocalRelation(source, attributes, supplier);
+        }
+    }
+
+    private static class VerifyTimeSeries extends ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(TimeSeriesAggregate plan, AnalyzerContext context) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            Failures failures = new Failures();
+            plan.verify(failures);
+            if (failures.hasFailures()) {
+                throw new VerificationException(failures);
+            }
+            return plan;
         }
     }
 

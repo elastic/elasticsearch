@@ -214,6 +214,35 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertEquals("cannot apply index sort to field [foo.bar] under nested object [foo]", invalidNestedException.getMessage());
     }
 
+    public void testRuntimeFieldShadowingIndexSortFieldOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("@timestamp").field("type", "date").endObject())
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
+    }
+
+    public void testRuntimeFieldShadowingIndexSortField() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            createMapperService(settings, topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+                b.startObject("properties");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+            }));
+        });
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
+    }
+
     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("nested");

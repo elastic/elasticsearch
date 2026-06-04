@@ -539,6 +539,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /**
      * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
      * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
+     *
+     * <p>The following are removed:</p>
+     * <ul>
+     *   <li>{@code _ignored_source} per-field entries
+     *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
+     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and normalized values</li>
+     * </ul>
+     *
      */
     private static boolean isRedundantInColumnarStoredSource(String fieldName) {
         String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;

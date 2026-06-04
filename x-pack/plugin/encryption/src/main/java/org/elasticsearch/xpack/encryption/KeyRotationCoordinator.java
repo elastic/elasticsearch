@@ -208,9 +208,21 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     /**
      * Re-binds the coordinator to the password material in {@code settings} (after a secure-settings reload).
+     * Immediately schedules a password-id check on the generic thread pool to avoid a listener-ordering race where
+     * {@link #onClusterStateChanged} fires before the reload updates {@code cachedSettings}, causing the mismatch
+     * to go undetected until the next periodic tick.
      */
     void reload(Settings settings) {
         this.cachedSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        threadPool.generic().execute(() -> {
+            if (closed) return;
+            ClusterState state = clusterService.state();
+            if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+                || state.nodes().isLocalNodeElectedMaster() == false) {
+                return;
+            }
+            checkPasswordId(getCurrentMetadata(state), state);
+        });
     }
 
     @Override
@@ -239,10 +251,15 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (event.localNodeMaster() == false) {
             return;
         }
+        checkPasswordId(getCurrentMetadata(state), state);
+    }
 
-        ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
+    /**
+     * Checks whether the active password id in {@code cachedSettings} matches the one persisted in {@code metadata}, and schedules an
+     * install or password rotation if not.
+     */
+    private void checkPasswordId(@Nullable ProjectEncryptionKeyMetadata metadata, ClusterState state) {
         String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(cachedSettings);
-
         if (metadata == null) {
             // Install runs only if (a) all nodes support PEK, and (b) the operator has configured an active password the master can use
             // to wrap the initial key.
@@ -251,10 +268,27 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             }
             return;
         }
-
         // Password rotation: same plaintext PEK material, re-wrapped under a new password.
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
             schedulePasswordRotation(metadata, activePasswordId);
+        }
+    }
+
+    /**
+     * Drives time-based key rotation (begin a new rotation if due) and retirement of expired non-active keys.
+     */
+    private void advanceKeyLifecycle(ProjectEncryptionKeyMetadata metadata, long now) {
+        if (rotationDisabled()) {
+            return;
+        }
+        long activeKeyAge = now - metadata.getGeneratedAt(metadata.getActiveKeyId());
+        if (activeKeyAge >= rotationInterval.millis()) {
+            logger.info("project encryption key due for rotation (active key generated {} ago)", TimeValue.timeValueMillis(activeKeyAge));
+            submitBeginRotation(metadata);
+        }
+        long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
+        if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
+            submitRetireKeys(retireCutoff);
         }
     }
 
@@ -286,38 +320,14 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || state.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
-
         ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
-        String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(cachedSettings);
-
+        checkPasswordId(metadata, state);
         if (metadata == null) {
-            if (activePasswordId != null && checkPekFeatureAvailable(state)) {
-                scheduleInstall(activePasswordId);
-            }
             return;
         }
-
         long now = threadPool.absoluteTimeInMillis();
         rotate(metadata, now);
-
-        if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
-            schedulePasswordRotation(metadata, activePasswordId);
-        }
-
-        if (rotationDisabled()) {
-            return;
-        }
-
-        long activeKeyAge = now - metadata.getGeneratedAt(metadata.getActiveKeyId());
-        if (activeKeyAge >= rotationInterval.millis()) {
-            logger.info("project encryption key due for rotation (active key generated {} ago)", TimeValue.timeValueMillis(activeKeyAge));
-            submitBeginRotation(metadata);
-        }
-
-        long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
-        if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
-            submitRetireKeys(retireCutoff);
-        }
+        advanceKeyLifecycle(metadata, now);
     }
 
     private void rotate(ProjectEncryptionKeyMetadata metadata, long now) {

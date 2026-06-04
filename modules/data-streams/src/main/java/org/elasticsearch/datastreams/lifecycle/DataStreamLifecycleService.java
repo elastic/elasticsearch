@@ -740,7 +740,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
 
         if (throttledIndexCount > 0) {
-            logger.info(
+            logger.debug(
                 "Data stream lifecycle delayed downsampling for [{}] indices of [{}] because [{}] downsampling "
                     + "operations are already in progress. The remaining indices will be downsampled in a future run.",
                 throttledIndexCount,

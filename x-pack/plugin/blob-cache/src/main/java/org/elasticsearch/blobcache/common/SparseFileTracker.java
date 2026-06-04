@@ -189,7 +189,6 @@ public class SparseFileTracker {
         final List<Range> pendingRanges = new ArrayList<>();
         final Range targetRange = new Range(range);
         boolean hasGaps;
-        final Runnable deferred;
         synchronized (ranges) {
             hasGaps = determineStartingRangeAndSplit(range, pendingRanges, targetRange);
 
@@ -248,19 +247,16 @@ public class SparseFileTracker {
 
             assert ranges.containsAll(pendingRanges) : ranges + " vs " + pendingRanges;
             assert pendingRanges.stream().allMatch(Range::isPending) : pendingRanges;
-
-            // Filter and subscribe inside the mutex so no concurrent waitForRange call can split an
-            // unclaimed range in pendingRanges (and steal its completion listener) before we subscribe.
-            if (range.equals(subRange) == false) {
-                pendingRanges.removeIf(
-                    pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false
-                );
-                pendingRanges.sort(RANGE_START_COMPARATOR);
-            }
-            deferred = subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
         }
 
-        deferred.run();
+        // Pending ranges that needs to be filled before executing the listener
+        if (range.equals(subRange) == false) {
+            pendingRanges.removeIf(pendingRange -> (pendingRange.start < subRange.end() && subRange.start() < pendingRange.end) == false);
+            pendingRanges.sort(RANGE_START_COMPARATOR);
+        }
+
+        subscribeToCompletionListeners(pendingRanges, subRange.end(), wrappedListener);
+
         return hasGaps ? Optional.of(new Gaps(range)) : Optional.empty();
     }
 
@@ -329,14 +325,14 @@ public class SparseFileTracker {
 
     /**
      * Splits an unclaimed pending range at {@code splitPoint} into two new pending ranges, both added to {@link #ranges}.
-     * The original range is removed. Listeners previously registered on the original completion listener are transferred
-     * to the new sub-range futures so they receive timely progress notifications:
+     * The original range is removed. The original completion listener is preserved and wired to fire when both halves
+     * complete, so listeners already registered on it (or added concurrently outside the mutex) remain valid:
      * <ul>
-     *   <li>Listeners at thresholds {@code <= splitPoint} go directly to the lower half's future (A).</li>
-     *   <li>Listeners at thresholds {@code > splitPoint} require both halves to complete, so each is gated by a small
-     *       {@link RefCountingListener} that waits for A to reach {@code splitPoint} and B to reach the original threshold.
-     *       The B-side ref is added to the upper half's future now so that a subsequent split of B will pick it up via
-     *       {@link ProgressListenableActionFuture#getAndClearListeners()} and redistribute it correctly.</li>
+     *   <li>When A reaches {@code splitPoint}: {@code existing.completionListener.onProgress(splitPoint)} is called,
+     *       giving timely notification to listeners whose threshold falls in {@code [existing.start, splitPoint]}.</li>
+     *   <li>When both A and B complete: {@code existing.completionListener.onResponse(existing.end)} fires all
+     *       remaining listeners (thresholds in {@code (splitPoint, existing.end]}).</li>
+     *   <li>If either half fails: the failure is propagated to {@code existing.completionListener}.</li>
      * </ul>
      *
      * @param existing   the unclaimed pending range to split; must satisfy {@code existing.start < splitPoint < existing.end}
@@ -353,34 +349,47 @@ public class SparseFileTracker {
         boolean removed = ranges.remove(existing);
         assert removed;
 
-        final var completionListenerA = new ProgressListenableActionFuture(existing.start, splitPoint, progressConsumer(existing.start));
-        final var completionListenerB = new ProgressListenableActionFuture(splitPoint, existing.end, progressConsumer(splitPoint));
+        // Both A and B forward byte-level progress to existing.completionListener so that listeners fire as
+        // bytes become available rather than waiting for an entire half to complete. existing.completionListener
+        // already carries its own progressConsumer (updateCompletePointer if set at creation), so calling its
+        // onProgress also handles the complete-pointer update — no need to duplicate that here.
+        //
+        // B must not forward progress until A has finished: forwarding B's values while A's bytes are still
+        // absent would incorrectly advance existing.completionListener.progress into B's range. B therefore
+        // gates on completionListenerA.isDone(), which becomes true as part of A's onResponse before any
+        // done() callbacks fire — so when B first forwards, existing.completionListener.progress is at most
+        // splitPoint-1 and any B value (> splitPoint) is valid.
+        //
+        // isDone() is set before the done() callbacks run, so the wiring listener below and B's consumer
+        // can race: B may forward p > splitPoint before the wiring listener fires onProgressAtLeast(splitPoint).
+        // onProgressAtLeast is used (not onProgress) precisely to handle that race: it is a no-op if B has
+        // already advanced past splitPoint, so neither ordering causes an assertion failure.
+        final var completionListenerA = new ProgressListenableActionFuture(
+            existing.start,
+            splitPoint,
+            existing.completionListener::onProgress
+        );
+        final var completionListenerB = new ProgressListenableActionFuture(splitPoint, existing.end, p -> {
+            if (completionListenerA.isDone()) existing.completionListener.onProgress(p);
+        });
         final Range rangeA = new Range(existing.start, splitPoint, completionListenerA);
         final Range rangeB = new Range(splitPoint, existing.end, completionListenerB);
         ranges.add(rangeA);
         ranges.add(rangeB);
 
-        // Transfer listeners from the old completion listener to the appropriate sub-range future.
-        // Listeners whose threshold is within the lower half go directly to A. Listeners whose threshold
-        // is in the upper half must wait for BOTH halves to complete before they can fire, so a small
-        // RefCountingListener gates each one on A reaching splitPoint AND B reaching the original threshold.
-        // Adding the B-side ref to completionListenerB now (not lazily) means a subsequent split of B will
-        // pick it up via stealListeners and correctly redistribute it.
-        for (var pal : existing.completionListener.getAndClearListeners()) {
-            final long threshold = pal.position();
-            if (threshold <= splitPoint) {
-                completionListenerA.addListener(pal.listener(), threshold);
-            } else {
-                final ActionListener<Long> original = pal.listener();
-                try (
-                    var bothFiredRef = new RefCountingListener(
-                        ActionListener.wrap(v -> original.onResponse(threshold), original::onFailure)
-                    )
-                ) {
-                    completionListenerA.addListener(bothFiredRef.acquire(v -> {}), splitPoint);
-                    completionListenerB.addListener(bothFiredRef.acquire(v -> {}), threshold);
-                }
-            }
+        // When A completes, advance existing.completionListener to splitPoint (if B hasn't already done so).
+        completionListenerA.addListener(
+            ActionListener.wrap(ignored -> existing.completionListener.onProgressAtLeast(splitPoint), e -> {}),
+            splitPoint
+        );
+        // When both halves complete, complete existing.completionListener; on failure, propagate it.
+        try (
+            var bothFiredRef = new RefCountingListener(
+                ActionListener.wrap(v -> existing.completionListener.onResponse(existing.end), existing.completionListener::onFailure)
+            )
+        ) {
+            completionListenerA.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
+            completionListenerB.addListener(bothFiredRef.acquire(l -> {}), existing.end);
         }
 
         assert invariant();
@@ -422,7 +431,6 @@ public class SparseFileTracker {
         final List<Range> pendingRanges = new ArrayList<>();
 
         final Range targetRange = new Range(range);
-        final Runnable deferred;
         synchronized (ranges) {
             determineStartingRange(range, pendingRanges, targetRange);
 
@@ -449,52 +457,34 @@ public class SparseFileTracker {
             assert targetRange.start == targetRange.end : targetRange;
             assert targetRange.start == range.end() : targetRange;
             assert invariant();
-
-            // Subscribe inside the mutex so no concurrent waitForRange call can split an unclaimed range
-            // in pendingRanges (and steal its completion listener) between our collection and subscription.
-            deferred = subscribeToCompletionListeners(pendingRanges, range.end(), wrappedListener);
         }
 
-        deferred.run();
+        subscribeToCompletionListeners(pendingRanges, range.end(), wrappedListener);
         return true;
     }
 
-    /**
-     * Registers {@code listener} to fire once all {@code requiredRanges} have progressed past {@code rangeEnd}.
-     * Must be called while holding the ranges lock; listener execution is deferred to avoid running listeners
-     * under the lock.
-     *
-     * @return a {@link Runnable} to invoke immediately after releasing the ranges lock; it fires any listener
-     *         that is already eligible (range already complete / progress past threshold). Never {@code null}.
-     */
-    private Runnable subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
-        assert Thread.holdsLock(ranges);
-        return switch (requiredRanges.size()) {
-            case 0 -> () -> listener.onResponse(null);
+    private static void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
+        // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
+        // there is no risk of concurrent modification.
+        switch (requiredRanges.size()) {
+            case 0 ->
+                // no need to wait for the gaps to be filled, the listener can be executed immediately
+                listener.onResponse(null);
             case 1 -> {
                 final Range requiredRange = requiredRanges.get(0);
-                final Runnable r = requiredRange.completionListener.addListenerDeferringExecution(
+                requiredRange.completionListener.addListener(
                     listener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, rangeEnd)
                 );
-                yield r != null ? r : () -> {};
             }
             default -> {
-                final List<Runnable> deferred = new ArrayList<>();
                 try (var listeners = new RefCountingListener(listener)) {
                     for (Range range : requiredRanges) {
-                        final Runnable r = range.completionListener.addListenerDeferringExecution(
-                            listeners.acquire(l -> {}),
-                            Math.min(range.completionListener.end, rangeEnd)
-                        );
-                        if (r != null) {
-                            deferred.add(r);
-                        }
+                        range.completionListener.addListener(listeners.acquire(l -> {}), Math.min(range.completionListener.end, rangeEnd));
                     }
                 }
-                yield deferred.isEmpty() ? () -> {} : () -> deferred.forEach(Runnable::run);
             }
-        };
+        }
     }
 
     private ActionListener<Void> wrapWithAssertions(ActionListener<Void> listener) {

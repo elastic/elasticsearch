@@ -273,8 +273,45 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat("LongConsumer is not called when progress is updated to the end", consumed.contains(end), equalTo(false));
     }
 
+    public void testOnProgressAtLeastFiresListeners() {
+        final ProgressListenableActionFuture future = randomFuture();
+        assertTrue("randomFuture must produce a range of at least 2", future.end - future.start >= 2);
+
+        final long threshold = randomLongBetween(future.start + 1L, future.end - 1L);
+        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
+        future.addListener(listener, threshold);
+        assertFalse(listener.isDone());
+
+        future.onProgressAtLeast(randomLongBetween(threshold, future.end - 1L));
+        assertTrue("onProgressAtLeast should fire listener once threshold is reached", listener.isDone());
+    }
+
+    public void testOnProgressAtLeastIsNoOpWhenAlreadyAdvanced() {
+        final ProgressListenableActionFuture future = randomFuture();
+        assertTrue("randomFuture must produce a range of at least 3", future.end - future.start >= 3);
+
+        // Advance to some mid-point
+        final long mid = randomLongBetween(future.start + 1L, future.end - 2L);
+        future.onProgress(mid);
+
+        // Add a listener above the current progress — it should NOT fire via onProgressAtLeast below
+        final long aboveThreshold = randomLongBetween(mid + 1L, future.end - 1L);
+        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
+        future.addListener(listener, aboveThreshold);
+        assertFalse(listener.isDone());
+
+        // onProgressAtLeast with a value <= current progress is a no-op
+        future.onProgressAtLeast(randomLongBetween(future.start + 1L, mid));
+        assertFalse("onProgressAtLeast must be a no-op when progress already advanced past the value", listener.isDone());
+
+        future.onProgress(future.end);
+        future.onResponse(future.end);
+
+        assertTrue(listener.isDone());
+    }
+
     private static ProgressListenableActionFuture randomFuture() {
-        final long delta = randomLongBetween(1L, ByteSizeUnit.TB.toBytes(1L));
+        final long delta = randomLongBetween(3L, ByteSizeUnit.TB.toBytes(1L));
         final long start = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - delta);
         return new ProgressListenableActionFuture(start, start + delta, null);
     }

@@ -980,4 +980,84 @@ public class SparseFileTrackerTests extends ESTestCase {
         }
         gap.onCompletion();
     }
+
+    public void testSplitRangeCompletesListenersOnBothHalves() {
+        // Register a listener on [0, 100]. Leave unclaimed so a second narrower request triggers a split.
+        // Then fill A [0, 50] and B [50, 100] separately and verify the original listener fires.
+        final SparseFileTracker tracker = new SparseFileTracker("test", 100);
+
+        final AtomicBoolean fullListenerCalled = new AtomicBoolean();
+        final var fullGaps = tracker.waitForRange(
+            ByteRange.of(0, 100),
+            ByteRange.of(0, 100),
+            ActionTestUtils.assertNoFailureListener(ignored -> fullListenerCalled.set(true))
+        );
+        assertTrue(fullGaps.isPresent());
+        assertFalse(fullListenerCalled.get());
+
+        // Requesting [0, 50] while [0, 100] is unclaimed splits it into A=[0,50] and B=[50,100].
+        final AtomicBoolean midListenerCalled = new AtomicBoolean();
+        final var midGaps = tracker.waitForRange(
+            ByteRange.of(0, 50),
+            ByteRange.of(0, 50),
+            ActionTestUtils.assertNoFailureListener(ignored -> midListenerCalled.set(true))
+        );
+        assertTrue(midGaps.isPresent());
+
+        // Fill A [0, 50].
+        final var aGaps = midGaps.get().claim();
+        assertThat(aGaps, hasSize(1));
+        final var aGap = aGaps.get(0);
+        assertThat(aGap.start(), equalTo(0L));
+        assertThat(aGap.end(), equalTo(50L));
+        for (long i = 0; i < 50; i++) {
+            aGap.onProgress(i + 1L);
+        }
+        aGap.onCompletion();
+        assertTrue("Mid-range listener must fire when A completes", midListenerCalled.get());
+        assertFalse("Full listener must not fire until B also completes", fullListenerCalled.get());
+
+        // Fill B [50, 100] via the original Gaps object (which covers [0, 100]).
+        final var bGaps = fullGaps.get().claim();
+        assertThat(bGaps, hasSize(1));
+        final var bGap = bGaps.get(0);
+        assertThat(bGap.start(), equalTo(50L));
+        assertThat(bGap.end(), equalTo(100L));
+        for (long i = 50; i < 100; i++) {
+            bGap.onProgress(i + 1L);
+        }
+        bGap.onCompletion();
+        assertTrue("Full listener must fire when B also completes", fullListenerCalled.get());
+    }
+
+    public void testSplitRangeForwardsIntermediateProgressToExistingListeners() {
+        // Register a listener on [0, 100] but only waiting for the sub-range [0, 30].
+        // Split at 50. Verify the listener fires exactly when A reaches byte 30, not before.
+        final SparseFileTracker tracker = new SparseFileTracker("test", 100);
+
+        final AtomicBoolean listener30Called = new AtomicBoolean();
+        final var fullGaps = tracker.waitForRange(
+            ByteRange.of(0, 100),
+            ByteRange.of(0, 30),
+            ActionTestUtils.assertNoFailureListener(ignored -> listener30Called.set(true))
+        );
+        assertTrue(fullGaps.isPresent());
+
+        // Trigger split of [0, 100] at 50.
+        final var midGaps = tracker.waitForRange(ByteRange.of(0, 50), ByteRange.of(0, 50), ActionListener.noop());
+        assertTrue(midGaps.isPresent());
+
+        // Claim and fill A [0, 50] byte-by-byte, checking the listener fires at byte 30.
+        final var aGaps = midGaps.get().claim();
+        assertThat(aGaps, hasSize(1));
+        final var aGap = aGaps.get(0);
+        for (long i = 0; i < 50; i++) {
+            if (i < 30) {
+                assertFalse("Listener for [0,30] must not fire before byte 30 is reached", listener30Called.get());
+            }
+            aGap.onProgress(i + 1L);
+        }
+        aGap.onCompletion();
+        assertTrue("Listener for [0,30] must fire once A has filled through byte 30", listener30Called.get());
+    }
 }

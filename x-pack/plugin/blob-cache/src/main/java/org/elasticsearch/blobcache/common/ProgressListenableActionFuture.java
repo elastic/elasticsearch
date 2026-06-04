@@ -79,57 +79,13 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     /**
      * Updates the progress of the current {@link ActionFuture} with the given value, indicating that the range from {@code start}
-     * (inclusive) to {@code progress} (exclusive) is available. Calling this method potentially triggers the execution of one or
-     * more listeners that are waiting for the progress to reach a value lower than the one just updated.
+     * (inclusive) to {@code progressValue} (exclusive) is available. Fires any listeners whose threshold has been reached.
+     * Calling with {@code progressValue == end} is a no-op; reaching {@code end} is signalled via {@link #onResponse(Long)}.
      *
-     * @param progressValue the new progress value
+     * @param progressValue the new progress value; must be strictly greater than the current progress
      */
     public void onProgress(final long progressValue) {
-        ensureNotCompleted();
-
-        if (progressValue <= start) {
-            assert false : progressValue + " <= " + start;
-            throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
-        }
-        if (end < progressValue) {
-            assert false : end + " < " + progressValue;
-            throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
-        }
-        if (progressValue == end) {
-            return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
-        }
-
-        List<ActionListener<Long>> listenersToExecute = null;
-        synchronized (this) {
-            assert this.progress < progressValue : this.progress + " < " + progressValue;
-            this.progress = progressValue;
-
-            final List<PositionAndListener> listenersCopy = this.listeners;
-            if (listenersCopy != null) {
-                List<PositionAndListener> listenersToKeep = null;
-                for (PositionAndListener listener : listenersCopy) {
-                    if (progressValue < listener.position()) {
-                        if (listenersToKeep == null) {
-                            listenersToKeep = new ArrayList<>();
-                        }
-                        listenersToKeep.add(listener);
-                    } else {
-                        if (listenersToExecute == null) {
-                            listenersToExecute = new ArrayList<>();
-                        }
-                        listenersToExecute.add(listener.listener());
-                    }
-                }
-                this.listeners = listenersToKeep;
-            }
-        }
-        if (listenersToExecute != null) {
-            if (progressConsumer != null) {
-                safeAcceptProgress(progressConsumer, progressValue);
-            }
-            listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
-        }
-        assert invariant();
+        doOnProgress(progressValue, true);
     }
 
     @Override
@@ -173,33 +129,72 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
     }
 
     /**
-     * Like {@link #addListener(ActionListener, long)}, but instead of executing the listener inline when it should
-     * fire immediately, returns a {@link Runnable} to invoke after releasing the outer lock.
-     *
-     * <p>Designed to be called while holding the enclosing {@link SparseFileTracker}'s ranges lock.
-     * That same lock gates {@link #getAndClearListeners()}, so any {@code completed == true} seen here
-     * reflects genuine completion rather than a stolen/split future, making delegation to
-     * {@link #actionResult()} safe.
-     *
-     * @return a {@link Runnable} to invoke after releasing the outer lock to fire the listener
-     *         immediately, or {@code null} if the listener was queued for future progress.
+     * Like {@link #onProgress(long)} but a no-op if progress has already advanced to or past {@code progressValue}.
+     * Unlike {@link #onProgress}, this method is safe to call concurrently with other progress updates that may
+     * have already advanced past the given value — it simply returns without asserting ordering.
      */
-    @Nullable
-    synchronized Runnable addListenerDeferringExecution(ActionListener<Long> listener, long value) {
-        if (completed || value <= progress) {
-            final boolean wasCompleted = completed;
-            final long capturedProgress = progress;
-            assert invariant();
-            return () -> executeListener(listener, wasCompleted ? this::actionResult : () -> capturedProgress);
+    void onProgressAtLeast(final long progressValue) {
+        assert progressValue < end;
+        doOnProgress(progressValue, false);
+    }
+
+    /**
+     * Shared implementation for {@link #onProgress} and {@link #onProgressAtLeast}.
+     *
+     * @param strict if {@code true} the current progress must be strictly less than {@code progressValue} (normal
+     *               {@link #onProgress} contract); if {@code false} the method is a no-op when progress has already
+     *               advanced to or past {@code progressValue}, without asserting ordering.
+     */
+    private void doOnProgress(final long progressValue, final boolean strict) {
+        ensureNotCompleted();
+        if (progressValue <= start) {
+            assert false : progressValue + " <= " + start;
+            throw new IllegalArgumentException("Cannot update progress with a value less than [start=" + start + ']');
         }
-        List<PositionAndListener> list = this.listeners;
-        if (list == null) {
-            list = new ArrayList<>();
+        if (end < progressValue) {
+            assert false : end + " < " + progressValue;
+            throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
-        list.add(new PositionAndListener(value, listener));
-        this.listeners = list;
+
+        if (progressValue == end) {
+            return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
+        }
+
+        List<ActionListener<Long>> listenersToExecute = null;
+        synchronized (this) {
+            if (strict) {
+                assert this.progress < progressValue : this.progress + " < " + progressValue;
+            } else if (this.progress >= progressValue) {
+                return;
+            }
+            this.progress = progressValue;
+
+            final List<PositionAndListener> listenersCopy = this.listeners;
+            if (listenersCopy != null) {
+                List<PositionAndListener> listenersToKeep = null;
+                for (PositionAndListener listener : listenersCopy) {
+                    if (progressValue < listener.position()) {
+                        if (listenersToKeep == null) {
+                            listenersToKeep = new ArrayList<>();
+                        }
+                        listenersToKeep.add(listener);
+                    } else {
+                        if (listenersToExecute == null) {
+                            listenersToExecute = new ArrayList<>();
+                        }
+                        listenersToExecute.add(listener.listener());
+                    }
+                }
+                this.listeners = listenersToKeep;
+            }
+        }
+        if (progressConsumer != null) {
+            safeAcceptProgress(progressConsumer, progressValue);
+        }
+        if (listenersToExecute != null) {
+            listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
+        }
         assert invariant();
-        return null;
     }
 
     /**
@@ -263,22 +258,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : e;
             logger.warn("Failed to consume progress value", e);
         }
-    }
-
-    /**
-     * Atomically removes and returns all pending listeners. Used by {@link SparseFileTracker} when splitting a pending range so that
-     * its listeners can be transferred directly to the two new sub-range futures, giving them timely progress notifications instead of
-     * waiting for the whole original range to complete.
-     * <p>
-     * After this call the old future has no listeners. Callers are responsible for ensuring the old future is never completed.
-     */
-    synchronized List<PositionAndListener> getAndClearListeners() {
-        assert completed == false;
-        // ensure this object fails if completion is attempted.
-        this.completed = true;
-        final List<PositionAndListener> stolen = this.listeners;
-        this.listeners = null;
-        return stolen != null ? stolen : List.of();
     }
 
     @Override

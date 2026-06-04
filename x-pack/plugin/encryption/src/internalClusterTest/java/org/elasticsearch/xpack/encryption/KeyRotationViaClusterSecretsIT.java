@@ -68,14 +68,6 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     private final AtomicLong fileSettingsVersionCounter = new AtomicLong(1);
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false;
@@ -83,15 +75,16 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        MockSecureSettings secure = new MockSecureSettings();
-        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, INITIAL_PASSWORD_ID);
-        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + INITIAL_PASSWORD_ID, INITIAL_PASSWORD);
-        // Fast tick to catch any race conditions within the test timeout
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), "1s")
-            .setSecureSettings(secure)
-            .build();
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // The encryption settings are only registered when the feature flag is enabled
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            MockSecureSettings secure = new MockSecureSettings();
+            secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, INITIAL_PASSWORD_ID);
+            secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + INITIAL_PASSWORD_ID, INITIAL_PASSWORD);
+            // Fast tick to catch any race conditions within the test timeout
+            builder.put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), "1s").setSecureSettings(secure);
+        }
+        return builder.build();
     }
 
     @Override
@@ -104,6 +97,10 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
 
     @Before
     public void waitForInitialPekInstall() throws Exception {
+        assumeTrue(
+            "project encryption key feature flag must be enabled",
+            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
+        );
         ensureGreen();
         assertBusy(() -> assertThat(metadataOnMaster(), notNullValue()));
     }

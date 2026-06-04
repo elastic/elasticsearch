@@ -375,12 +375,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
             assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has ["));
 
+            String synonymsIndexName = ".synonyms-001";
+            SystemIndexDescriptor systemIndexDescriptor = systemIndices.findMatchingDescriptor(synonymsIndexName);
             CreateIndexClusterStateUpdateRequest systemIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
                 "test",
                 projectId,
-                ".synonyms-001",
-                ".synonyms-001"
-            );
+                synonymsIndexName,
+                synonymsIndexName
+            ).systemIndexDescriptor(systemIndexDescriptor);
             try {
                 checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
             } catch (Exception ex) {

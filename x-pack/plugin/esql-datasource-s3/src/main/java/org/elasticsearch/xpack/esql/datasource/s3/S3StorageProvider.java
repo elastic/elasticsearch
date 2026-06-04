@@ -108,7 +108,11 @@ public class S3StorageProvider implements StorageProvider {
     /**
      * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
      */
-    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(B builder, AwsCredentialsProvider creds, S3Configuration config) {
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
+        B builder,
+        AwsCredentialsProvider creds,
+        S3Configuration config
+    ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();

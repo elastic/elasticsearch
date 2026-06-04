@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.nettycommons.NettyCommonsPlugin;
+import org.elasticsearch.xpack.esql.datasource.s3.S3Configuration;
 import org.elasticsearch.xpack.esql.datasource.s3.S3DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -300,9 +302,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(
-                        Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port)
-                    )
+                    new HashMap<>(Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
                 )
             )
         );
@@ -328,11 +328,9 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * the cluster setting is disabled.
      */
     public void testWorkloadIdentityAuthRejectedWhenSettingDisabledAtValidation() {
-        var validator = new org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator(
-            "s3",
-            org.elasticsearch.xpack.esql.datasource.s3.S3Configuration::fromMap,
-            java.util.Set.of("s3", "s3a", "s3n")
-        );  // workloadIdentityEnabled defaults to () -> false
+        var validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, java.util.Set.of("s3", "s3a", "s3n"));  // workloadIdentityEnabled
+                                                                                                                            // defaults to
+                                                                                                                            // () -> false
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))

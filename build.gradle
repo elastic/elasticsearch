@@ -565,7 +565,6 @@ tasks.named("checkPart1").configure {
 [
   releaseTestCheckEsqlEngine: [
     ':x-pack:plugin:esql',
-    ':x-pack:plugin:esql:arrow',
     ':x-pack:plugin:esql:compute',
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',

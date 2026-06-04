@@ -79,8 +79,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -108,6 +110,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -149,6 +152,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -1310,7 +1314,9 @@ public abstract class EngineTestCase extends ESTestCase {
             try {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                    assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+                    var indexSettings = engine.config().getIndexSettings();
+                    var mapperService = engine.config().getMapperService();
+                    assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, searcher.getDirectoryReader());
                 }
             } catch (AlreadyClosedException ignored) {
                 // engine was closed
@@ -1318,13 +1324,19 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(IndexSettings indexSettings, DirectoryReader reader)
-        throws IOException {
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(
+        IndexSettings indexSettings,
+        MapperService mapperService,
+        DirectoryReader reader
+    ) throws IOException {
         Set<Long> seqNos = new HashSet<>();
         final DirectoryReader wrappedReader = indexSettings.isSoftDeleteEnabled() ? Lucene.wrapAllDocsLive(reader) : reader;
+        final IdLoader idLoader = IdLoader.create(indexSettings, mapperService.mappingLookup());
+        final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
         for (LeafReaderContext leaf : wrappedReader.leaves()) {
             NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
             NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            var leafIdLoader = idLoader.leaf(storedFieldLoader.getLoader(leaf, null), leaf.reader(), null);
             int docId;
             while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 assertTrue(seqNoDocValues.advanceExact(docId));
@@ -1332,8 +1344,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(seqNo, greaterThanOrEqualTo(0L));
                 if (primaryTermDocValues.advanceExact(docId)) {
                     if (seqNos.add(seqNo) == false) {
-                        IdStoredFieldLoader idLoader = new IdStoredFieldLoader(leaf.reader());
-                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId));
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + leafIdLoader.getId(docId));
                     }
                 }
             }

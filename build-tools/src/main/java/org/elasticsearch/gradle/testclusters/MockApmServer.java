@@ -51,6 +51,9 @@ import javax.annotation.concurrent.NotThreadSafe;
  * can be used as a basic APM server for testing.
  * <p>
  * The HTTP server used is the JDK embedded com.sun.net.httpserver
+ * <p>
+ * Note: automated integration tests use {@code RecordingApmServer} (in {@code test/external-modules/apm-integration}),
+ * not this class.
  */
 @NotThreadSafe
 public class MockApmServer {

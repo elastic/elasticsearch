@@ -70,7 +70,12 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException("telemetry.otel.logs.enabled=true requires telemetry.otel.logs.endpoint to be configured");
+            throw new IllegalStateException(
+                OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey()
+                    + "=true requires "
+                    + OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey()
+                    + " to be configured"
+            );
         }
 
         OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder().setEndpoint(endpoint);

@@ -73,6 +73,7 @@ public final class Case extends EsqlScalarFunction {
             "cartesian_shape",
             "date",
             "date_nanos",
+            "date_range",
             "dense_vector",
             "double",
             "flattened",
@@ -129,6 +130,7 @@ public final class Case extends EsqlScalarFunction {
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "date_range",
                 "dense_vector",
                 "double",
                 "flattened",
@@ -229,15 +231,15 @@ public final class Case extends EsqlScalarFunction {
             dataType = value.dataType().noText();
             return TypeResolutions.isType(
                 value,
-                t -> t != DataType.DATE_RANGE,
+                t -> true,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                originalWasNull ? NULL.typeName() : "any but date_range"
+                originalWasNull ? NULL.typeName() : "any type"
             );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
+            t -> t.noText() == dataType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()

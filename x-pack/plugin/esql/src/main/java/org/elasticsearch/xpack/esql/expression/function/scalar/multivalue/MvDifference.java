@@ -51,6 +51,7 @@ public class MvDifference extends MvSetOperationFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvDifference.class)
         .binary(MvDifference::new)
+        .capabilities("flattened")
         .name("mv_difference");
 
     @FunctionInfo(
@@ -61,6 +62,7 @@ public class MvDifference extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -90,6 +92,7 @@ public class MvDifference extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -113,6 +116,7 @@ public class MvDifference extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;

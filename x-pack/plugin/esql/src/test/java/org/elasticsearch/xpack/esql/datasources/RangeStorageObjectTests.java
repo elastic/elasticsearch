@@ -63,6 +63,25 @@ public class RangeStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testNewStreamReadToEndReadsToViewEnd() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6); // view = "World!"
+        // READ_TO_END within the view stops at the view's end (offset+length), not the underlying object's end.
+        try (InputStream stream = range.newStream(2, StorageObject.READ_TO_END)) {
+            byte[] result = stream.readAllBytes();
+            assertEquals("rld!", new String(result, StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testNewStreamReadToEndAtViewEndIsEmpty() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+        // position at the view's end: nothing left -> an empty stream, never a negative length to the delegate.
+        try (InputStream stream = range.newStream(6, StorageObject.READ_TO_END)) {
+            assertEquals(-1, stream.read());
+        }
+    }
+
     public void testLengthReturnsRangeLength() {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);
@@ -149,17 +168,32 @@ public class RangeStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesBufferLargerThanRemaining() throws IOException {
+        // The view is "World!" (6 bytes) with real bytes (" This is test data…") right after it in FILE_BYTES,
+        // so an oversized buffer would overrun the view if the read were not capped.
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
 
         ByteBuffer buf = ByteBuffer.allocate(20);
         int bytesRead = range.readBytes(0, buf);
-        assertTrue("Should read some bytes", bytesRead > 0);
+        assertEquals("read must be capped to the view length, not overrun into the bytes after the view", 6, bytesRead);
+        assertEquals("the caller's buffer limit must be restored after the capped read", 20, buf.limit());
         buf.flip();
         byte[] result = new byte[bytesRead];
         buf.get(result);
-        String read = new String(result, StandardCharsets.UTF_8);
-        assertTrue("Should start with 'World!'", read.startsWith("World!"));
+        assertEquals("only the view's bytes are delivered", "World!", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testNewStreamClosedRangeLargerThanViewIsCappedToView() throws IOException {
+        // A closed-range newStream asking for more than the view holds must stop at the view's end, not read the
+        // bytes that follow the view in the underlying object.
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6); // view = "World!"
+
+        byte[] read;
+        try (InputStream stream = range.newStream(0, 20)) {
+            read = stream.readAllBytes();
+        }
+        assertEquals("closed-range read must be capped to the view", "World!", new String(read, StandardCharsets.UTF_8));
     }
 
     public void testReadBytesBufferExactSize() throws IOException {

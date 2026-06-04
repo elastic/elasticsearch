@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -57,6 +56,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -3702,10 +3702,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             null[INTEGER] AS languages#1277, null[KEYWORD] AS last_name#1278, null[LONG] AS long_noidx#1279,
      *             null[INTEGER] AS salary#1280]]
      *       \_Subquery[]
-     *         \_TimeSeriesAggregate[[cluster{f}#1243, pod{f}#1244],[MAX(RATE(network.total_bytes_in{f}#1256, true[BOOLEAN],
-     *                                PT0S[TIME_DURATION],@timestamp{f}#1242),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1229,
-     *                                cluster{f}#1243, pod{f}#1244],null,null,@timestamp{f}#1242,false]
-     *           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1242, client.ip{f}#1246, cluster{f}#1..]
+     *         \_Project[[m{r}#7, cluster{r}#21, pod{r}#22]]
+     *          \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#77) AS cluster#21, UNPACKDIMENSION(group_pod_$1{r}#80) AS pod#22]]
+     *            \_Aggregate[[pack_cluster_$1{r}#76 AS group_cluster_$1#77, pack_pod_$1{r}#79 AS group_pod_$1#80],
+     *                        [MAX(RATE_$1{r}#74,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group_cluster_$1{r}#77, group_pod_$1{r}#80]]
+     *              \_Eval[[PACKDIMENSION(cluster{r}#75) AS pack_cluster_$1#76, PACKDIMENSION(pod{r}#78) AS pack_pod_$1#79]]
+     *                \_TimeSeriesAggregate[[_tsid{m}#73],[RATE(network.total_bytes_in{f}#34,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                       @timestamp{f}#20) AS RATE_$1#74, VALUES(cluster{f}#21,true[BOOLEAN],PT0S[TIME_DURATION])
+     *                                       AS cluster#75, VALUES(pod{f}#22,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#78, _tsid{m}#73],
+     *                                       null,null,@timestamp{f}#20,TS_COMMAND]
+     *                  \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#20, client.ip{f}#24, cluster{f}#21, e..]
      */
     public void testTSSubqueryWithTimeSeriesAggregate() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
@@ -3727,19 +3733,24 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("test", testRelation.indexPattern());
         assertEquals(IndexMode.STANDARD, testRelation.indexMode());
 
-        // Right leg (TS k8s | STATS): Project -> Eval[11 null evals for test fields] -> Subquery -> TimeSeriesAggregate ->
-        // EsRelation[TIME_SERIES]
+        // Right leg (TS k8s | STATS): Project -> Eval[11 null evals for test fields] -> Subquery ->
+        // Project[m, cluster, pod] -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate -> EsRelation[TIME_SERIES]
         Project tsProject = as(unionAll.children().get(1), Project.class);
         Eval tsNullEval = as(tsProject.child(), Eval.class);
         assertEquals(11, tsNullEval.fields().size());
         Subquery subquery = as(tsNullEval.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(subquery.child(), TimeSeriesAggregate.class);
-        // STATS BY cluster, pod
-        assertEquals(2, tsAggregate.groupings().size());
-        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
-        assertEquals("cluster", clusterGrouping.name());
-        FieldAttribute podGrouping = as(tsAggregate.groupings().get(1), FieldAttribute.class);
-        assertEquals("pod", podGrouping.name());
+        Project tsInnerProject = as(subquery.child(), Project.class);
+        Eval unpackEval = as(tsInnerProject.child(), Eval.class);
+        // STATS BY cluster, pod -> 2 UNPACK evals
+        assertEquals(2, unpackEval.fields().size());
+        Aggregate outerAggregate = as(unpackEval.child(), Aggregate.class);
+        assertFalse(outerAggregate instanceof TimeSeriesAggregate);
+        assertEquals(2, outerAggregate.groupings().size());
+        Eval packEval = as(outerAggregate.child(), Eval.class);
+        assertEquals(2, packEval.fields().size());
+        TimeSeriesAggregate tsAggregate = as(packEval.child(), TimeSeriesAggregate.class);
+        // Inner TimeSeriesAggregate groups only by _tsid
+        assertEquals(1, tsAggregate.groupings().size());
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -3763,10 +3774,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             null [INTEGER] AS languages#2016, null[KEYWORD] AS last_name#2017, null[LONG] AS long_noidx#2018,
      *             null[INTEGER] AS salary#2019, null[LONG] AS cnt#2020]]
      *   |   \_Subquery[]
-     *   |     \_TimeSeriesAggregate[[cluster{f}#1978],[MAX(RATE(network.total_bytes_in{f}#1991, true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                @timestamp{f}#1977),true[BOOLEAN],PT0S[TIME_DURATION]) AS rate#1962,cluster{f}#1978],null,null,
-     *                                @timestamp{f}#1977,false]
-     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1977, client.ip{f}#1981, cluster{f}#1..]
+     *   |     \_Project[[rate{r}#6, cluster{r}#22]]
+     *   |       \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#96) AS cluster#22]]
+     *   |         \_Aggregate[[pack_cluster_$1{r}#95 AS group_cluster_$1#96],[MAX(RATE_$1{r}#93,true[BOOLEAN],PT0S[TIME_DURATION])
+     *                          AS rate#6, group_cluster_$1{r}#96]]
+     *   |           \_Eval[[PACKDIMENSION(cluster{r}#94) AS pack_cluster_$1#95]]
+     *   |             \_TimeSeriesAggregate[[_tsid{m}#92],[RATE(network.total_bytes_in{f}#35,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                        @timestamp{f}#21) AS RATE_$1#93, VALUES(cluster{f}#22,true[BOOLEAN],PT0S[TIME_DURATION])
+     *                                        AS cluster#94, _tsid{m}#92],null,null,@timestamp{f}#21,TS_COMMAND]
+     *   |               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#21, client.ip{f}#25, cluster{f}#22, e..]
      *   \_Project[[_meta_field{r}#2021, emp_no{r}#2022, first_name{r}#2023, gender{r}#2024, hire_date{r}#2025, job{r}#2026,
      *              job.raw{r}#2027, languages{r}#2028, last_name{r}#2029, long_noidx{r}#2030, salary{r}#2031, rate{r}#2032,
      *              cluster{r}#2033, cnt{r}#1965]]
@@ -3797,11 +3813,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("test", testRelation.indexPattern());
         assertEquals(IndexMode.STANDARD, testRelation.indexMode());
 
-        // Branch 1: TS k8s subquery with TimeSeriesAggregate
+        // Branch 1: TS k8s subquery with TimeSeriesAggregate (Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TsAggregate)
         Project tsProject = as(unionAll.children().get(1), Project.class);
         Eval tsNullEval = as(tsProject.child(), Eval.class);
         Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -3826,8 +3847,12 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *   |_Project[[..., rate{r}#..., cluster{f}#..., cnt{r}#..., synthetic{r}#...]]
      *   | \_Eval[[..., null[LONG] AS cnt#..., null[INTEGER] AS synthetic#...]]
      *   |   \_Subquery[]
-     *   |     \_TimeSeriesAggregate[...]
-     *   |       \_EsRelation[k8s][TIME_SERIES][...]
+     *   |     \_Project[[rate{r}#, cluster{r}#]]
+     *   |       \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#) AS cluster#]]
+     *   |         \_Aggregate[[...,[MAX(RATE_$1{r}#,true[BOOLEAN],PT0S[TIME_DURATION]) AS rate#,...]]
+     *   |           \_Eval[[PACKDIMENSION(cluster{r}#114) AS pack_cluster_$1#]]
+     *   |             \_TimeSeriesAggregate[[...]]
+     *   |               \_EsRelation[k8s][TIME_SERIES][...]
      *   |_Project[[..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
      *   | \_Eval[[..., null[DOUBLE] AS rate#..., null[KEYWORD] AS cluster#..., null[INTEGER] AS synthetic#...]]
      *   |   \_Subquery[]
@@ -3859,11 +3884,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("test", testRelation.indexPattern());
         assertEquals(IndexMode.STANDARD, testRelation.indexMode());
 
-        // Branch 1: TS k8s subquery with TimeSeriesAggregate
+        // Branch 1: TS k8s subquery with TimeSeriesAggregate (Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TsAggregate)
         Project tsProject = as(unionAll.children().get(1), Project.class);
         Eval tsNullEval = as(tsProject.child(), Eval.class);
         Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -4180,20 +4210,24 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     /*
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[m{r}#2090, WITHOUT(pod){r}#2091, @timestamp{r}#2092, client_ip{r}#2093, event_duration{r}#2094, message{r}#2095]]
-     *   |_Project[[m{r}#2052, WITHOUT(pod){r}#2049, @timestamp{r}#2084, client_ip{r}#2085, event_duration{r}#2086, message{r}#2087]]
-     *   | \_Eval[[null[DATETIME] AS @timestamp#2084, null[IP] AS client_ip#2085, null[LONG] AS event_duration#2086,
-     *             null[KEYWORD] AS message#2087]]
+     * \_UnionAll[[m{r}#45, WITHOUT(pod){r}#46, @timestamp{r}#47, client_ip{r}#48, event_duration{r}#49, message{r}#50]]
+     *   |_Project[[m{r}#7, WITHOUT(pod){r}#4, @timestamp{r}#39, client_ip{r}#40, event_duration{r}#41, message{r}#42]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client_ip#40,
+     *             null[LONG] AS event_duration#41, null[KEYWORD] AS message#42]]
      *   |   \_Subquery[]
-     *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#2057) AS WITHOUT(pod)#2049],
-     *                               [MAX(RATE(network.total_bytes_in{f}#2069,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2055),
-     *                               true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2052, WITHOUT(pod){r}#2049],null,null,
-     *                               @timestamp{f}#2055,false]
-     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2055, client.ip{f}#2059, cluster{f}#2..]
-     *   \_Project[[m{r}#2088, WITHOUT(pod){r}#2089, @timestamp{f}#2079, client_ip{f}#2080, event_duration{f}#2081, message{f}#2082]]
-     *     \_Eval[[null[DOUBLE] AS m#2088, null[KEYWORD] AS WITHOUT(pod)#2089]]
+     *   |     \_Project[[m{r}#7, _timeseries{r}#4]]
+     *   |       \_Eval[[UNPACKDIMENSION(group__timeseries_$1{r}#55) AS _timeseries#4]]
+     *   |         \_Aggregate[[pack__timeseries_$1{r}#54 AS group__timeseries_$1#55],
+     *                         [MAX(RATE_$1{r}#52,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group__timeseries_$1{r}#55]]
+     *   |           \_Eval[[PACKDIMENSION(_timeseries{r}#53) AS pack__timeseries_$1#54]]
+     *   |             \_TimeSeriesAggregate[[_tsid{m}#51],[RATE(network.total_bytes_in{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                       @timestamp{f}#10) AS RATE_$1#52,VALUES(_timeseries{f}#4,true[BOOLEAN],PT0S[TIME_DURATION])
+     *                                       AS _timeseries#53,_tsid{m}#51],null,null,@timestamp{f}#10,TS_COMMAND]
+     *   |               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#10, client.ip{f}#14, cluster{f}#11, e..]
+     *   \_Project[[m{r}#43, WITHOUT(pod){r}#44, @timestamp{f}#34, client_ip{f}#35, event_duration{f}#36, message{f}#37]]
+     *     \_Eval[[null[DOUBLE] AS m#43, null[KEYWORD] AS WITHOUT(pod)#44]]
      *       \_Subquery[]
-     *         \_EsRelation[sample_data][@timestamp{f}#2079, client_ip{f}#2080, event_durati..]
+     *         \_EsRelation[sample_data][@timestamp{f}#34, client_ip{f}#35, event_duration{f..]
      */
     public void testTSSubqueryWithByWithoutAndFromSubquery() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
@@ -4228,26 +4262,18 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             as(nullAlias.child(), Literal.class);
         }
         Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
-
-        // The WITHOUT(pod) grouping survives the analyzer as an Alias wrapping a TimeSeriesWithout.
+        // BY WITHOUT(pod) is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        assertEquals(1, tsUnpackEval.fields().size());
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        assertEquals(1, tsOuterAggregate.groupings().size());
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        assertEquals(1, tsPackEval.fields().size());
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
+        // Inner TimeSeriesAggregate groups only by _tsid
         assertEquals(1, tsAggregate.groupings().size());
-        Alias withoutGrouping = as(tsAggregate.groupings().get(0), Alias.class);
-        assertEquals("WITHOUT(pod)", withoutGrouping.name());
-        TimeSeriesWithout tsWithout = as(withoutGrouping.child(), TimeSeriesWithout.class);
-        // The grouping references the excluded dimension.
-        FieldAttribute excluded = as(tsWithout.children().get(0), FieldAttribute.class);
-        assertEquals("pod", excluded.name());
-
-        // The aggregate output exposes [m, WITHOUT(pod)].
-        assertEquals(2, tsAggregate.aggregates().size());
-        Alias mAlias = as(tsAggregate.aggregates().get(0), Alias.class);
-        assertEquals("m", mAlias.name());
-        // The second aggregate is the grouping reference WITHOUT(pod).
-        ReferenceAttribute withoutRef = as(tsAggregate.aggregates().get(1), ReferenceAttribute.class);
-        assertEquals("WITHOUT(pod)", withoutRef.name());
-        // It points back at the Alias of the grouping.
-        assertEquals(withoutGrouping.toAttribute().id(), withoutRef.id());
 
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
@@ -4287,11 +4313,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             null[INTEGER] AS salary#1358, null[DATETIME] AS @timestamp#1359, null[IP] AS client_ip#1360,
      *             null[LONG] AS event_duration#1361,null[KEYWORD] AS message#1362]]
      *   |   \_Subquery[]
-     *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#1315) AS WITHOUT(pod)#1296],
-     *                                [MAX(RATE(network.total_bytes_in{f}#1327,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1313),
-     *                                true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1299, WITHOUT(pod){r}#1296],null,null,
-     *                                @timestamp{f}#1313,false]
-     *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1313, client.ip{f}#1317, cluster{f}#1..]
+     *   |     \_Project[[m{r}#7, _timeseries{r}#4]]
+     *   |       \_Eval[[UNPACKDIMENSION(group__timeseries_$1{r}#105) AS _timeseries#4]]
+     *   |         \_Aggregate[[pack__timeseries_$1{r}#104 AS group__timeseries_$1#105],
+     *                         [MAX(RATE_$1{r}#102,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#7, group__timeseries_$1{r}#105]]
+     *   |           \_Eval[[PACKDIMENSION(_timeseries{r}#103) AS pack__timeseries_$1#104]]
+     *   |             \_TimeSeriesAggregate[[_tsid{m}#101],[RATE(network.total_bytes_in{f}#35,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                       @timestamp{f}#21) AS RATE_$1#102, VALUES(_timeseries{f}#4,true[BOOLEAN],PT0S[TIME_DURATION])
+     *                                       AS _timeseries#103, _tsid{m}#101],null,null,@timestamp{f}#21,TS_COMMAND]
+     *   |               \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#21, client.ip{f}#25, cluster{f}#22, e..]
      *   \_Project[[_meta_field{r}#1363, emp_no{r}#1364, first_name{r}#1365, gender{r}#1366, hire_date{r}#1367, job{r}#1368,
      *              job.raw{r}#1369, languages{r}#1370, last_name{r}#1371, long_noidx{r}#1372, salary{r}#1373, m{r}#1374,
      *              WITHOUT(pod){r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
@@ -4354,11 +4384,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             tsNullEval.fields().stream().noneMatch(a -> a.name().equals("WITHOUT(pod)"))
         );
         Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        // BY WITHOUT(pod) is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        assertEquals(1, tsUnpackEval.fields().size());
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        assertEquals(1, tsOuterAggregate.groupings().size());
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
         assertEquals(1, tsAggregate.groupings().size());
-        Alias withoutGrouping = as(tsAggregate.groupings().get(0), Alias.class);
-        assertEquals("WITHOUT(pod)", withoutGrouping.name());
-        as(withoutGrouping.child(), TimeSeriesWithout.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -4385,10 +4420,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *   |   \_Eval[[null[DATETIME] AS @timestamp#2354, null[IP] AS client_ip#2355, null[LONG] AS event_duration#2356,
      *               null[KEYWORD] AS message#2357]]
      *   |     \_Subquery[]
-     *   |       \_TimeSeriesAggregate[[cluster{f}#2326],[MAX(RATE(network.total_bytes_in{f}#2339, true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                  @timestamp{f}#2325),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2321, cluster{f}#2326],null,null,
-     *                                  @timestamp{f}#2325,false]
-     *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2325, client.ip{f}#2329, cluster{f}#2..]
+     *   |       \_Project[[m{r}#6, cluster{r}#11]]
+     *   |         \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#56) AS cluster#11]]
+     *   |           \_Aggregate[[pack_cluster_$1{r}#55 AS group_cluster_$1#56],
+     *                           [MAX(RATE_$1{r}#53,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#56]]
+     *   |             \_Eval[[PACKDIMENSION(cluster{r}#54) AS pack_cluster_$1#55]]
+     *   |               \_TimeSeriesAggregate[[_tsid{m}#52],[RATE(network.total_bytes_in{f}#24,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                         @timestamp{f}#10) AS RATE_$1#53, DIMENSIONVALUES(cluster{f}#11,true[BOOLEAN],
+     *                                         PT0S[TIME_DURATION]) AS cluster#54, _tsid{m}#52],null,null,@timestamp{f}#10,TS_COMMAND]
+     *   |                 \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#10, client.ip{f}#14, cluster{f}#11, e..]
      *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
      *     \_Eval[[null[KEYWORD] AS m#2366]]
      *       \_Eval[[null[KEYWORD] AS cluster#2358]]
@@ -4429,10 +4469,15 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
-        assertEquals(1, tsAggregate.groupings().size());
-        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
-        assertEquals("cluster", clusterGrouping.name());
+        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        assertEquals(1, tsUnpackEval.fields().size());
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        assertEquals(1, tsOuterAggregate.groupings().size());
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -4476,10 +4521,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *         |     \_Eval[[null[DATETIME] AS @timestamp#43, null[IP] AS client_ip#44, null[LONG] AS event_duration#45,
      *                       null[KEYWORD] AS message#46]]
      *         |       \_Subquery[]
-     *         |         \_TimeSeriesAggregate[[cluster{f}#15],[MAX(RATE(network.total_bytes_in{f}#28,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                          @timestamp{f}#14),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, cluster{f}#15],null,null,
-     *                                          @timestamp{f}#14,TS_COMMAND]
-     *         |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#14, client.ip{f}#18, cluster{f}#15, e..]
+     *         |         \_Project[[m{r}#6, cluster{r}#15]]
+     *         |           \_Eval[[UNPACKDIMENSION(group_cluster_$1{r}#63) AS cluster#15]]
+     *         |             \_Aggregate[[pack_cluster_$1{r}#62 AS group_cluster_$1#63],
+     *                                   [MAX(RATE_$1{r}#60,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, group_cluster_$1{r}#63]]
+     *         |               \_Eval[[PACKDIMENSION(cluster{r}#61) AS pack_cluster_$1#62]]
+     *         |                 \_TimeSeriesAggregate[[_tsid{m}#59],[RATE(network.total_bytes_in{f}#28,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                                  @timestamp{f}#14) AS RATE_$1#60, VALUES(cluster{f}#15,true[BOOLEAN],
+     *                                                  PT0S[TIME_DURATION]) AS cluster#61, _tsid{m}#59],null,null,@timestamp{f}#14,
+     *                                                  TS_COMMAND]
+     *         |                   \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#14, client.ip{f}#18, cluster{f}#15, e..]
      *         \_Project[[m{r}#58, $$m$converted_to$keyword{r$}#55, cluster{r}#47, @timestamp{f}#38, client_ip{f}#39,
      *                    event_duration{f}#40, message{f}#41]]
      *           \_Eval[[null[KEYWORD] AS m#58]]
@@ -4538,7 +4589,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        // The TS STATS BY clause is now expanded: Project -> Eval[UNPACK] -> Aggregate -> Eval[PACK] -> TimeSeriesAggregate
+        Project tsInnerProject = as(tsSubquery.child(), Project.class);
+        Eval tsUnpackEval = as(tsInnerProject.child(), Eval.class);
+        Aggregate tsOuterAggregate = as(tsUnpackEval.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        Eval tsPackEval = as(tsOuterAggregate.child(), Eval.class);
+        TimeSeriesAggregate tsAggregate = as(tsPackEval.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
@@ -4571,9 +4628,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *   |   \_Eval[[null[DATETIME] AS @timestamp#1794, null[IP] AS client_ip#1795, null[LONG] AS event_duration#1796,
      *               null[KEYWORD] AS message#1797]]
      *   |     \_Subquery[]
-     *   |       \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#1778,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1765),
-     *                                 true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1761],
-     *                                 null,null, @timestamp{f}#1765,false]
+     *   |       \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#50,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                           long_overflow_throw[KEYWORD]) AS m#5]]
+     *   |         \_TimeSeriesAggregate[[_tsid{m}#49],[LASTOVERTIME(network.bytes_in{f}#22,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                    @timestamp{f}#9) AS LASTOVERTIME_$1#50, _tsid{m}#49],null,null,@timestamp{f}#9,TS_COMMAND]
      *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1765, client.ip{f}#1769, cluster{f}#1..]
      *   \_Project[[m{r}#1804, @timestamp{f}#1789, client_ip{f}#1790, event_duration{f}#1791, message{f}#1792]]
      *     \_Eval[[null[KEYWORD] AS m#1804]]
@@ -4594,10 +4652,12 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *         |     \_Eval[[null[DATETIME] AS @timestamp#88, null[IP] AS client_ip#89, null[LONG] AS event_duration#90,
      *                       null[KEYWORD] AS message#91]]
      *         |       \_Subquery[]
-     *         |         \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#72,true[BOOLEAN],PT0S[TIME_DURATION],
-     *                                         @timestamp{f}#59),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
-     *                                         long_overflow_throw[KEYWORD]) AS m#51],null,null,@timestamp{f}#59,TS_COMMAND]
-     *         |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#59, client.ip{f}#63, cluster{f}#60, e..]
+     *         |         \_Aggregate[[],[SUM(LASTOVERTIME_$1{r}#105,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                                   long_overflow_throw[KEYWORD]) AS m#53]]
+     *         |           \_TimeSeriesAggregate[[_tsid{m}#104],[LASTOVERTIME(network.bytes_in{f}#74,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                            @timestamp{f}#61) AS LASTOVERTIME_$1#105, _tsid{m}#104],null,null,@timestamp{f}#61,
+     *                                            TS_COMMAND]
+     *         |             \_EsRelation[k8s][@timestamp{f}#61, client.ip{f}#65, cluster{f}#62, e..]
      *         \_Project[[m{r}#101, $$m$converted_to$double{r$}#98, @timestamp{f}#83, client_ip{f}#84, event_duration{f}#85,
      *                    message{f}#86]]
      *           \_Eval[[null[KEYWORD] AS m#101]]
@@ -4632,10 +4692,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
         assertEquals(4, tsNullSampleFields.fields().size());
         Subquery tsSubquery = as(tsNullSampleFields.child(), Subquery.class);
-        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
-        assertTrue(tsAggregate.groupings().isEmpty());
+        // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
+        Aggregate tsOuterAggregate = as(tsSubquery.child(), Aggregate.class);
+        assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
+        assertTrue(tsOuterAggregate.groupings().isEmpty());
+        TimeSeriesAggregate tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
         EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
-        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+        assertEquals(IndexMode.STANDARD, tsRelation.indexMode());
 
         Project sampleProject = as(noCastUnion.children().get(1), Project.class);
         Eval sampleNullM = as(sampleProject.child(), Eval.class);
@@ -4682,9 +4745,12 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         Eval castTsNullSamples = as(castTsConvertEval.child(), Eval.class);
         assertEquals(4, castTsNullSamples.fields().size());
         Subquery castTsSubquery = as(castTsNullSamples.child(), Subquery.class);
-        TimeSeriesAggregate castTsAggregate = as(castTsSubquery.child(), TimeSeriesAggregate.class);
+        // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
+        Aggregate castTsOuterAggregate = as(castTsSubquery.child(), Aggregate.class);
+        assertFalse(castTsOuterAggregate instanceof TimeSeriesAggregate);
+        TimeSeriesAggregate castTsAggregate = as(castTsOuterAggregate.child(), TimeSeriesAggregate.class);
         EsRelation castTsRelation = as(castTsAggregate.child(), EsRelation.class);
-        assertEquals(IndexMode.TIME_SERIES, castTsRelation.indexMode());
+        assertEquals(IndexMode.STANDARD, castTsRelation.indexMode());
 
         Project castSampleProject = as(castUnion.children().get(1), Project.class);
         Eval castSampleNullM = as(castSampleProject.child(), Eval.class);
@@ -4696,6 +4762,287 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals(DOUBLE, as(castSampleInnerEval.fields().get(0).child(), Literal.class).dataType());
         EsRelation castSampleRelation = as(castSampleInnerEval.child(), EsRelation.class);
         assertEquals("sample_data", castSampleRelation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[x{r}#6]]
+     *   \_Project[[emp_no{r}#35 AS x#6]]
+     *     \_Project[[emp_no{r}#35]]
+     *       \_UnionAll[[_meta_field{r}#34, emp_no{r}#35, first_name{r}#36, gender{r}#37, hire_date{r}#38, job{r}#39, job.raw{r}#40,
+     *                   languages{r}#41, last_name{r}#42, long_noidx{r}#43, salary{r}#44, language_code{r}#45, language_name{r}#46]]
+     *         |_Project[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *                    languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13, language_code{r}#21, language_name{r}#22]]
+     *         | \_Eval[[null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
+     *         |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *         \_Project[[_meta_field{r}#23, emp_no{r}#24, first_name{r}#25, gender{r}#26, hire_date{r}#27, job{r}#28, job.raw{r}#29,
+     *                    languages{r}#30, last_name{r}#31, long_noidx{r}#32, salary{r}#33, language_code{f}#19, language_name{f}#20]]
+     *           \_Eval[[null[KEYWORD] AS _meta_field#23, null[INTEGER] AS emp_no#24, null[KEYWORD] AS first_name#25,
+     *                   null[TEXT] AS gender#26, null[DATETIME] AS hire_date#27, null[TEXT] AS job#28, null[KEYWORD] AS job.raw#29,
+     *                   null[INTEGER] AS languages#30, null[KEYWORD] AS last_name#31, null[LONG] AS long_noidx#32,
+     *                   null[INTEGER] AS salary#33]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#19, language_name{f}#20]
+     */
+    public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {
+        LogicalPlan plan = basic().addLanguages().query("""
+            FROM test, (FROM languages)
+            | KEEP emp_no
+            | RENAME emp_no AS x
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(INTEGER, x.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(INTEGER, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute emp_no = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        assertEquals(INTEGER, emp_no.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "emp_no".equals(a.name()) && INTEGER.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[x{r}#7, y{r}#10]]
+     *   \_Project[[network.total_bytes_in{r}#79 AS x#7, network.eth0.tx{r}#77 AS y#10]]
+     *     \_Project[[network.total_bytes_in{r}#79, network.eth0.tx{r}#77]]
+     *       \_UnionAll[[@timestamp{r}#61, client.ip{r}#62, cluster{r}#63, event{r}#64, event_city{r}#65, event_city_boundary{r}#66,
+     *                   event_location{r}#67, event_log{r}#68, event_shape{r}#69, events_received{r}#70, network.bytes_in{r}#71,
+     *                   network.cost{r}#72, network.eth0.currently_connected_clients{r}#73, network.eth0.firmware_version{r}#74,
+     *                   network.eth0.last_up{r}#75, network.eth0.rx{r}#76, network.eth0.tx{r}#77, network.eth0.up{r}#78,
+     *                   network.total_bytes_in{r}#79, network.total_cost{r}#80, pod{r}#81, language_code{r}#82, language_name{r}#83]]
+     *         |_Project[[@timestamp{f}#12, client.ip{f}#16, cluster{f}#13, event{f}#17, event_city{f}#20, event_city_boundary{f}#21,
+     *                    event_location{f}#23, event_log{f}#18, event_shape{f}#22, events_received{f}#19, network.bytes_in{f}#25,
+     *                    network.cost{f}#27, network.eth0.currently_connected_clients{f}#35, network.eth0.firmware_version{f}#34,
+     *                    network.eth0.last_up{f}#33, network.eth0.rx{f}#32, network.eth0.tx{f}#31, network.eth0.up{f}#30,
+     *                    network.total_bytes_in{r}#84, network.total_cost{r}#85, pod{f}#14, language_code{r}#38, language_name{r}#39]]
+     *         | \_Eval[[TOLONG(network.total_bytes_in{f}#26) AS network.total_bytes_in#84,
+     *                   TODOUBLE(network.total_cost{f}#28) AS network.total_cost#85]]
+     *         |   \_Eval[[null[INTEGER] AS language_code#38, null[KEYWORD] AS language_name#39]]
+     *         |     \_EsRelation[k8s][@timestamp{f}#12, client.ip{f}#16, cluster{f}#13, e..]
+     *         \_Project[[@timestamp{r}#40, client.ip{r}#41, cluster{r}#42, event{r}#43, event_city{r}#44, event_city_boundary{r}#45,
+     *                    event_location{r}#46, event_log{r}#47, event_shape{r}#48, events_received{r}#49, network.bytes_in{r}#50,
+     *                    network.cost{r}#51, network.eth0.currently_connected_clients{r}#52, network.eth0.firmware_version{r}#53,
+     *                    network.eth0.last_up{r}#54, network.eth0.rx{r}#55, network.eth0.tx{r}#56, network.eth0.up{r}#57,
+     *                    network.total_bytes_in{r}#58, network.total_cost{r}#59, pod{r}#60, language_code{f}#36, language_name{f}#37]]
+     *           \_Eval[[null[DATETIME] AS @timestamp#40, null[IP] AS client.ip#41, null[KEYWORD] AS cluster#42,
+     *                   null[KEYWORD] AS event#43, null[GEO_POINT] AS event_city#44, null[GEO_SHAPE] AS event_city_boundary#45,
+     *                   null[CARTESIAN_POINT] AS event_location#46, null[TEXT] AS event_log#47, null[CARTESIAN_SHAPE] AS event_shape#48,
+     *                   null[LONG] AS events_received#49, null[LONG] AS network.bytes_in#50, null[DOUBLE] AS network.cost#51,
+     *                   null[INTEGER] AS network.eth0.currently_connected_clients#52, null[VERSION] AS network.eth0.firmware_version#53,
+     *                   null[DATE_NANOS] AS network.eth0.last_up#54, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#55,
+     *                   null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#56, null[BOOLEAN] AS network.eth0.up#57,
+     *                   null[LONG] AS network.total_bytes_in#58, null[DOUBLE] AS network.total_cost#59, null[KEYWORD] AS pod#60]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#36, language_name{f}#37]
+     */
+    public void testSubqueryRenameKeepOnMissingCounterFields() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in, network.eth0.tx
+            | RENAME network.total_bytes_in AS x, network.eth0.tx AS y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        ReferenceAttribute y = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(LONG, x.dataType());
+        assertEquals("y", y.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        Alias yAlias = as(projections.get(1), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        ReferenceAttribute network_eth0_tx = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("network.eth0.tx", network_eth0_tx.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, network_eth0_tx.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+        assertTrue(
+            unionAll.output().stream().anyMatch(a -> "network.eth0.tx".equals(a.name()) && AGGREGATE_METRIC_DOUBLE.equals(a.dataType()))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[y{r}#9]]
+     *   \_Project[[network.total_bytes_in{r}#78 AS y#9]]
+     *     \_Project[[network.total_bytes_in{r}#78]]
+     *       \_UnionAll[[@timestamp{r}#60, client.ip{r}#61, cluster{r}#62, event{r}#63, event_city{r}#64, event_city_boundary{r}#65,
+     *                   event_location{r}#66, event_log{r}#67, event_shape{r}#68, events_received{r}#69, network.bytes_in{r}#70,
+     *                   network.cost{r}#71, network.eth0.currently_connected_clients{r}#72, network.eth0.firmware_version{r}#73,
+     *                   network.eth0.last_up{r}#74, network.eth0.rx{r}#75, network.eth0.tx{r}#76, network.eth0.up{r}#77,
+     *                   network.total_bytes_in{r}#78, network.total_cost{r}#79, pod{r}#80, language_code{r}#81, language_name{r}#82]]
+     *         |_Project[[@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, event{f}#16, event_city{f}#19, event_city_boundary{f}#20,
+     *                    event_location{f}#22, event_log{f}#17, event_shape{f}#21, events_received{f}#18, network.bytes_in{f}#24,
+     *                    network.cost{f}#26, network.eth0.currently_connected_clients{f}#34, network.eth0.firmware_version{f}#33,
+     *                    network.eth0.last_up{f}#32, network.eth0.rx{f}#31, network.eth0.tx{f}#30, network.eth0.up{f}#29,
+     *                    network.total_bytes_in{r}#83, network.total_cost{r}#84, pod{f}#13, language_code{r}#37, language_name{r}#38]]
+     *         | \_Eval[[TOLONG(network.total_bytes_in{f}#25) AS network.total_bytes_in#83,
+     *                   TODOUBLE(network.total_cost{f}#27) AS network.total_cost#84]]
+     *         |   \_Eval[[null[INTEGER] AS language_code#37, null[KEYWORD] AS language_name#38]]
+     *         |     \_EsRelation[k8s][@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, e..]
+     *         \_Project[[@timestamp{r}#39, client.ip{r}#40, cluster{r}#41, event{r}#42, event_city{r}#43, event_city_boundary{r}#44,
+     *         event_location{r}#45, event_log{r}#46, event_shape{r}#47, events_received{r}#48, network.bytes_in{r}#49,
+     *         network.cost{r}#50, network.eth0.currently_connected_clients{r}#51, network.eth0.firmware_version{r}#52,
+     *         network.eth0.last_up{r}#53, network.eth0.rx{r}#54, network.eth0.tx{r}#55, network.eth0.up{r}#56,
+     *         network.total_bytes_in{r}#57, network.total_cost{r}#58, pod{r}#59, language_code{f}#35, language_name{f}#36]]
+     *           \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client.ip#40, null[KEYWORD] AS cluster#41, null[KEYWORD] AS event#42,
+     *                   null[GEO_POINT] AS event_city#43, null[GEO_SHAPE] AS event_city_boundary#44,
+     *                   null[CARTESIAN_POINT] AS event_location#45, null[TEXT] AS event_log#46, null[CARTESIAN_SHAPE] AS event_shape#47,
+     *                   null[LONG] AS events_received#48, null[LONG] AS network.bytes_in#49, null[DOUBLE] AS network.cost#50,
+     *                   null[INTEGER] AS network.eth0.currently_connected_clients#51, null[VERSION] AS network.eth0.firmware_version#52,
+     *                   null[DATE_NANOS] AS network.eth0.last_up#53, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#54,
+     *                   null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#55, null[BOOLEAN] AS network.eth0.up#56,
+     *                   null[LONG] AS network.total_bytes_in#57, null[DOUBLE] AS network.total_cost#58, null[KEYWORD] AS pod#59]]
+     *             \_Subquery[]
+     *               \_EsRelation[languages][language_code{f}#35, language_name{f}#36]
+     */
+    public void testSubqueryRenameChainKeepStarOnMissingCounterField() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x, x as y
+            | KEEP y
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[y{r}#9]]
+     *   \_Project[[x{r}#6 AS y#9]]
+     *     \_Project[[network.total_bytes_in{r}#78 AS x#6]]
+     *       \_Project[[network.total_bytes_in{r}#78]]
+     *         \_UnionAll[[@timestamp{r}#60, client.ip{r}#61, cluster{r}#62, event{r}#63, event_city{r}#64, event_city_boundary{r}#65,
+     *                     event_location{r}#66, event_log{r}#67, event_shape{r}#68, events_received{r}#69, network.bytes_in{r}#70,
+     *                     network.cost{r}#71, network.eth0.currently_connected_clients{r}#72, network.eth0.firmware_version{r}#73,
+     *                     network.eth0.last_up{r}#74, network.eth0.rx{r}#75, network.eth0.tx{r}#76, network.eth0.up{r}#77,
+     *                     network.total_bytes_in{r}#78, network.total_cost{r}#79, pod{r}#80, language_code{r}#81, language_name{r}#82]]
+     *           |_Project[[@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, event{f}#16, event_city{f}#19, event_city_boundary{f}#20,
+     *                      event_location{f}#22, event_log{f}#17, event_shape{f}#21, events_received{f}#18, network.bytes_in{f}#24,
+     *                      network.cost{f}#26, network.eth0.currently_connected_clients{f}#34, network.eth0.firmware_version{f}#33,
+     *                      network.eth0.last_up{f}#32, network.eth0.rx{f}#31, network.eth0.tx{f}#30, network.eth0.up{f}#29,
+     *                      network.total_bytes_in{r}#83, network.total_cost{r}#84, pod{f}#13, language_code{r}#37, language_name{r}#38]]
+     *           | \_Eval[[TOLONG(network.total_bytes_in{f}#25) AS network.total_bytes_in#83,
+     *                     TODOUBLE(network.total_cost{f}#27) AS network.total_cost#84]]
+     *           |   \_Eval[[null[INTEGER] AS language_code#37, null[KEYWORD] AS language_name#38]]
+     *           |     \_EsRelation[k8s][@timestamp{f}#11, client.ip{f}#15, cluster{f}#12, e..]
+     *           \_Project[[@timestamp{r}#39, client.ip{r}#40, cluster{r}#41, event{r}#42, event_city{r}#43, event_city_boundary{r}#44,
+     *                      event_location{r}#45, event_log{r}#46, event_shape{r}#47, events_received{r}#48, network.bytes_in{r}#49,
+     *                      network.cost{r}#50, network.eth0.currently_connected_clients{r}#51, network.eth0.firmware_version{r}#52,
+     *                      network.eth0.last_up{r}#53, network.eth0.rx{r}#54, network.eth0.tx{r}#55, network.eth0.up{r}#56,
+     *                      network.total_bytes_in{r}#57, network.total_cost{r}#58, pod{r}#59, language_code{f}#35, language_name{f}#36]]
+     *             \_Eval[[null[DATETIME] AS @timestamp#39, null[IP] AS client.ip#40, null[KEYWORD] AS cluster#41,
+     *                     null[KEYWORD] AS event#42, null[GEO_POINT] AS event_city#43, null[GEO_SHAPE] AS event_city_boundary#44,
+     *                     null[CARTESIAN_POINT] AS event_location#45, null[TEXT] AS event_log#46, null[CARTESIAN_SHAPE] AS event_shape#47,
+     *                     null[LONG] AS events_received#48, null[LONG] AS network.bytes_in#49, null[DOUBLE] AS network.cost#50,
+     *                     null[INTEGER] AS network.eth0.currently_connected_clients#51, null[VERSION] AS network.eth0.firmware_version#52,
+     *                     null[DATE_NANOS] AS network.eth0.last_up#53, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#54,
+     *                     null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#55, null[BOOLEAN] AS network.eth0.up#56,
+     *                     null[LONG] AS network.total_bytes_in#57, null[DOUBLE] AS network.total_cost#58, null[KEYWORD] AS pod#59]]
+     *               \_Subquery[]
+     *                 \_EsRelation[languages][language_code{f}#35, language_name{f}#36]
+     */
+    public void testSubqueryDoubleRenameKeepStarOnMissingCounterField() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x
+            | RENAME x as y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
     }
 
     /**

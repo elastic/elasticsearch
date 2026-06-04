@@ -20,6 +20,7 @@ import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
@@ -28,6 +29,251 @@ import static java.util.stream.Collectors.toList;
 public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     public CommonAnalysisFactoryTests() {
         super(new CommonAnalysisPlugin());
+    }
+
+    /**
+     * Synonyms have a dedicated end-to-end sharing test (they need wired services for some sources);
+     * the hyphenation decompounder and other resource-backed factories this lightweight harness
+     * cannot feed are also covered there. Listed here so the completeness gate treats them as
+     * classified.
+     */
+    @Override
+    protected Set<String> factorySettingsExemptions() {
+        return Set.of(
+            // identity-keyed (reference other filters by name); identity mechanism tested in FactorySharingKeyTests
+            "multiplexer",
+            "condition",
+            // synonyms have dedicated end-to-end sharing tests (and need wired services for some sources)
+            "synonym",
+            "synonym_graph",
+            // needs a script service this lightweight harness does not wire; covered elsewhere
+            "predicate_token_filter",
+            // needs a hyphenation patterns file this harness cannot supply
+            "hyphenation_decompounder",
+            // deprecated camelCase aliases, rejected at index creation for current index versions
+            "nGram",
+            "edgeNGram",
+            "PathHierarchy"
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        Map<String, FactorySettings> p = new TreeMap<>();
+        // stateless — sharing key is a constant; no setting changes behavior
+        for (String s : List.of(
+            "apostrophe",
+            "arabic_normalization",
+            "arabic_stem",
+            "bengali_normalization",
+            "brazilian_stem",
+            "cjk_width",
+            "classic",
+            "czech_stem",
+            "decimal_digit",
+            "dutch_stem",
+            "flatten_graph",
+            "french_stem",
+            "german_normalization",
+            "german_stem",
+            "hindi_normalization",
+            "indic_normalization",
+            "kstem",
+            "persian_normalization",
+            "persian_stem",
+            "porter_stem",
+            "remove_duplicates",
+            "reverse",
+            "russian_stem",
+            "scandinavian_folding",
+            "scandinavian_normalization",
+            "serbian_normalization",
+            "sorani_normalization",
+            "trim",
+            "uppercase"
+        )) {
+            p.put(s, stateless());
+        }
+        // value-keyed — each declared setting must produce a distinct instance
+        p.put("asciifolding", settings().affects("preserve_original", "true"));
+        p.put("cjk_bigram", settings().affects("output_unigrams", "true").affects("ignored_scripts", List.of("hangul")));
+        p.put(
+            "common_grams",
+            settings(Map.of("common_words", List.of("the"))).affects("common_words", List.of("and"))
+                .affects("ignore_case", "true")
+                .affects("query_mode", "true")
+        );
+        p.put("delimited_payload", settings().affects("delimiter", "/").affects("encoding", "identity"));
+        p.put(
+            "dictionary_decompounder",
+            settings(Map.of("word_list", List.of("quick", "brown"))).affects("word_list", List.of("quick", "fox"))
+                .affects("word_list_case", "true")
+                .affects("min_subword_size", "3")
+                .affects("only_longest_match", "true")
+        );
+        p.put(
+            "edge_ngram",
+            settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("preserve_original", "true")
+        );
+        p.put("elision", settings(Map.of("articles", List.of("o"))).affects("articles", List.of("l")).affects("articles_case", "true"));
+        p.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "2"));
+        p.put(
+            "keep",
+            settings(Map.of("keep_words", List.of("naive"))).affects("keep_words", List.of("running")).affects("keep_words_case", "true")
+        );
+        p.put("keep_types", settings(Map.of("types", List.of("<ALPHANUM>"))).affects("types", List.of("<NUM>")).affects("mode", "exclude"));
+        p.put(
+            "keyword_marker",
+            settings(Map.of("keywords", List.of("fox"))).affects("keywords", List.of("cat")).affects("ignore_case", "true")
+        );
+        p.put("length", settings().affects("min", "2").affects("max", "5"));
+        p.put("limit", settings().affects("max_token_count", "2").affects("consume_all_tokens", "true"));
+        p.put("lowercase", settings().affects("language", "greek", "turkish"));
+        p.put(
+            "min_hash",
+            settings().affects("bucket_count", "256")
+                .affects("hash_count", "2")
+                .affects("hash_set_size", "2")
+                .affects("with_rotation", "false")
+        );
+        p.put("ngram", settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("min_gram", "2"));
+        p.put(
+            "pattern_capture",
+            settings(Map.of("patterns", List.of("(\\d+)"))).affects("patterns", List.of("(\\w+)")).affects("preserve_original", "false")
+        );
+        p.put(
+            "pattern_replace",
+            settings(Map.of("pattern", "a")).affects("pattern", "b").affects("replacement", "x").affects("all", "false")
+        );
+        p.put("snowball", settings().affects("language", "French"));
+        p.put("stemmer", settings().affects("language", "french", "russian"));
+        p.put("stemmer_override", settings(Map.of("rules", List.of("running => run"))).affects("rules", List.of("running => sprint")));
+        p.put("truncate", settings(Map.of("length", "10")).affects("length", "3"));
+        p.put("unique", settings().affects("only_on_same_position", "true"));
+        Map<String, Object> wdBase = Map.of("protected_words", List.of("powershot"));
+        p.put(
+            "word_delimiter",
+            settings(wdBase).affects("preserve_original", "true")
+                .affects("catenate_words", "true")
+                .affects("generate_word_parts", "false")
+                .affects("protected_words", List.of("wifi"))
+                .affects("protected_words_case", "true")
+        );
+        p.put(
+            "word_delimiter_graph",
+            settings(wdBase).affects("preserve_original", "true")
+                .affects("catenate_words", "true")
+                .affects("protected_words", List.of("wifi"))
+                .affects("protected_words_case", "true")
+                .affects("adjust_offsets", "false")
+        );
+        return p;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        Map<String, FactorySettings> p = new TreeMap<>();
+        p.put("letter", stateless());
+        p.put("thai", stateless());
+        p.put("lowercase", stateless()); // deprecated XLowerCaseTokenizer, constant key
+        p.put(
+            "char_group",
+            settings(Map.of("tokenize_on_chars", List.of("whitespace"))).affects("tokenize_on_chars", List.of("letter"))
+                .affects("max_token_length", "5")
+        );
+        p.put("classic", settings().affects("max_token_length", "5"));
+        p.put(
+            "edge_ngram",
+            settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("token_chars", List.of("letter"))
+        );
+        p.put("keyword", settings().affects("buffer_size", "128"));
+        p.put(
+            "ngram",
+            settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("token_chars", List.of("letter"))
+        );
+        p.put(
+            "path_hierarchy",
+            settings().affects("delimiter", "|")
+                .affects("replacement", "_")
+                .affects("buffer_size", "512")
+                .affects("reverse", "true")
+                .affects("skip", "1")
+        );
+        p.put("pattern", settings().affects("pattern", ",").affects("flags", "CASE_INSENSITIVE"));
+        p.put("simple_pattern", settings(Map.of("pattern", "[0-9]+")).affects("pattern", "[a-z]+"));
+        p.put("simple_pattern_split", settings(Map.of("pattern", "-")).affects("pattern", ","));
+        p.put("uax_url_email", settings().affects("max_token_length", "5"));
+        p.put("whitespace", settings().affects("max_token_length", "5"));
+        return p;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> charFilterSettings() {
+        Map<String, FactorySettings> p = new TreeMap<>();
+        p.put("html_strip", settings().affects("escaped_tags", List.of("br")));
+        p.put("mapping", settings(Map.of("mappings", List.of("a => b"))).affects("mappings", List.of("a => c")));
+        p.put(
+            "pattern_replace",
+            settings(Map.of("pattern", "a")).affects("pattern", "b").affects("replacement", "x").affects("flags", "CASE_INSENSITIVE")
+        );
+        return p;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        Map<String, FactorySettings> p = new TreeMap<>();
+        p.put("keyword", stateless());
+        p.put("simple", stateless());
+        p.put("whitespace", stateless());
+        p.put("chinese", stateless());
+        p.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "2").affects("stopwords", List.of("the")));
+        p.put("pattern", settings().affects("pattern", "\\d+").affects("lowercase", "false").affects("stopwords", List.of("the")));
+        p.put("snowball", settings().affects("language", "French").affects("stopwords", List.of("the")));
+        // stop and the language analyzers are keyed on their stop-word set; stopwords_case is read
+        // but intentionally NOT keyed (the analyzers lower-case before the stop filter), so it must
+        // leave the key unchanged.
+        p.put("stop", settings().affects("stopwords", List.of("zzzqux")).ignored("stopwords_case", "true"));
+        p.put("english", settings().affects("stopwords", List.of("zzzqux")).ignored("stopwords_case", "true"));
+        for (String lang : List.of(
+            "arabic",
+            "armenian",
+            "basque",
+            "bengali",
+            "brazilian",
+            "bulgarian",
+            "catalan",
+            "cjk",
+            "czech",
+            "danish",
+            "dutch",
+            "estonian",
+            "finnish",
+            "french",
+            "galician",
+            "german",
+            "greek",
+            "hindi",
+            "hungarian",
+            "indonesian",
+            "irish",
+            "italian",
+            "latvian",
+            "lithuanian",
+            "norwegian",
+            "persian",
+            "portuguese",
+            "romanian",
+            "russian",
+            "serbian",
+            "sorani",
+            "spanish",
+            "swedish",
+            "thai",
+            "turkish"
+        )) {
+            p.put(lang, settings().affects("stopwords", List.of("zzzqux")));
+        }
+        return p;
     }
 
     @Override

@@ -162,6 +162,11 @@ public class CustomNormalizerTests extends ESTokenStreamTestCase {
                             }
                         };
                     }
+
+                    @Override
+                    public Object sharingKey() {
+                        return this;
+                    }
                 }
                 return new Factory();
             });

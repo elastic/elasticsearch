@@ -45,6 +45,11 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         public TokenStream create(TokenStream tokenStream) {
             return tokenStream;
         }
+
+        @Override
+        public Object sharingKey() {
+            return this;
+        }
     };
 
     private static TokenFilterFactory LOWERCASE_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory("my_other_filter") {
@@ -56,6 +61,11 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         @Override
         public TokenStream create(TokenStream tokenStream) {
             return new LowerCaseFilter(tokenStream);
+        }
+
+        @Override
+        public Object sharingKey() {
+            return this;
         }
     };
 

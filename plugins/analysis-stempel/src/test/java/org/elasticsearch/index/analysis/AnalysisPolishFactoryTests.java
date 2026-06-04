@@ -26,11 +26,27 @@ import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
     public AnalysisPolishFactoryTests() {
         super(new AnalysisStempelPlugin());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "polish_stem",
+            stateless(),
+            "polish_stop",
+            settings().affects("stopwords", List.of("i")).affects("ignore_case", "true").affects("remove_trailing", "false")
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("polish", stateless());
     }
 
     @Override

@@ -21,10 +21,20 @@ public class KuromojiCompletionFilterFactory extends AbstractTokenFilterFactory 
 
     private final Mode mode;
 
+    private final Object sharingKey;
+
     public KuromojiCompletionFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         mode = getMode(settings);
+        this.sharingKey = new Key(mode);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Mode mode) {}
 
     public static JapaneseCompletionFilter.Mode getMode(Settings settings) {
         JapaneseCompletionFilter.Mode mode = Mode.INDEX;

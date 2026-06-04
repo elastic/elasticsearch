@@ -13,11 +13,34 @@ import org.apache.lucene.analysis.ko.KoreanTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
     public AnalysisNoriFactoryTests() {
         super(new AnalysisNoriPlugin());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of("nori_tokenizer", settings().affects("decompound_mode", "none", "mixed").affects("discard_punctuation", "false"));
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "nori_readingform",
+            stateless(),
+            "nori_number",
+            stateless(),
+            "nori_part_of_speech",
+            settings().affects("stoptags", List.of("NNG"))
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("nori", identity());
     }
 
     @Override

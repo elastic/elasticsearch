@@ -158,6 +158,34 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         }
     }
 
+    public void testTokenizerSharingKeyMatchesForSameUserDictionary() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")
+            .putList("index.analysis.tokenizer.my_tokenizer.user_dictionary_rules", "c++", "C쁠쁠", "세종", "세종시 세종 시")
+            .build();
+        // Identical user-dictionary rules must produce equal sharing keys despite each factory
+        // building its own UserDictionary instance — the key is the rules, not the opaque object.
+        Object keyA = createTestAnalysis(settings).tokenizer.get("my_tokenizer").sharingKey();
+        Object keyB = createTestAnalysis(settings).tokenizer.get("my_tokenizer").sharingKey();
+        assertEquals(keyA, keyB);
+        assertEquals(keyA.hashCode(), keyB.hashCode());
+    }
+
+    public void testTokenizerSharingKeyDiffersForDifferentUserDictionary() throws Exception {
+        Settings a = Settings.builder()
+            .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")
+            .putList("index.analysis.tokenizer.my_tokenizer.user_dictionary_rules", "세종")
+            .build();
+        Settings b = Settings.builder()
+            .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")
+            .putList("index.analysis.tokenizer.my_tokenizer.user_dictionary_rules", "나무")
+            .build();
+        assertNotEquals(
+            createTestAnalysis(a).tokenizer.get("my_tokenizer").sharingKey(),
+            createTestAnalysis(b).tokenizer.get("my_tokenizer").sharingKey()
+        );
+    }
+
     public void testNoriTokenizer() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.tokenizer.my_tokenizer.type", "nori_tokenizer")

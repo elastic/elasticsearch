@@ -99,6 +99,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 public TokenStream create(TokenStream tokenStream) {
                     return new MockTokenFilter(tokenStream, this.stopset);
                 }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
+                }
             }
 
             class AppendCharFilterFactory extends AbstractCharFilterFactory {
@@ -113,6 +118,11 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 @Override
                 public Reader create(Reader reader) {
                     return new AppendCharFilter(reader, suffix);
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
                 }
             }
 

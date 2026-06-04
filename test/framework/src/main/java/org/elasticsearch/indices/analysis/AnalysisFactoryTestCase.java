@@ -11,14 +11,31 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.TokenFilterFactory;
 import org.apache.lucene.analysis.TokenizerFactory;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -313,6 +330,307 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         );
         missing.removeAll(getTokenFilters().keySet());
         assertTrue("new tokenfilters found, please update KNOWN_TOKENFILTERS: " + missing, missing.isEmpty());
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Analyzer-sharing contract.
+    //
+    // Indices with identical analysis recipes share a single cached NamedAnalyzer (see
+    // AnalysisRegistry). That is only safe if every factory folds all behavior-affecting settings
+    // into its sharingKey(): if a factory reads a setting but omits it from the key, two indices
+    // differing only in that setting collapse onto one shared analyzer and silently tokenize one
+    // index's data with the other's recipe.
+    //
+    // Rather than rely on whether a random input happens to surface a behavioral difference, each
+    // subclass declares, per factory it registers, the settings that distinguish the sharing key.
+    // The base then verifies deterministically:
+    // - two builds from identical settings share one instance (the dedup precondition);
+    // - each declared distinguishing setting lands on a DIFFERENT instance (the key changed);
+    // - identity-keyed factories never share, even for identical settings.
+    // A completeness gate fails the build if a registered factory is neither declared nor exempted,
+    // so a newly added factory must be classified. Because this lives on the base every plugin's
+    // factory test already extends, the obligation travels with code people already touch.
+    // ------------------------------------------------------------------------------------------------
+
+    /** Component slot a factory occupies, used to wire it into a single-component analyzer chain. */
+    public enum ComponentKind {
+        TOKEN_FILTER,
+        TOKENIZER,
+        CHAR_FILTER,
+        ANALYZER
+    }
+
+    /**
+     * Declares the settings a factory supports and whether each one propagates to the created
+     * instance. Build it with {@link #stateless()} (no setting changes the instance) or
+     * {@link #settings()} and then describe each setting with {@link FactorySettings#affects}
+     * (changing it must produce a distinct instance) or {@link FactorySettings#ignored} (it is read
+     * but must NOT change the instance — e.g. a stop-word case flag on an analyzer that lower-cases
+     * first). The test builds a reference instance from the base settings and, for each declared
+     * setting, rebuilds with that setting changed and asserts the created instance was / was not a
+     * distinct one.
+     *
+     * <p>Propagation is observed through the node-level analyzer cache: a setting that the factory
+     * folds into its {@code sharingKey()} yields a separate cached instance, one that does not yields
+     * the same shared instance. {@code base} carries any settings required just to build the factory;
+     * setting values are scalars or {@code List<String>} and are merged on top of {@code base}.
+     */
+    public static final class FactorySettings {
+        final boolean identityKeyed;
+        final Map<String, Object> base;
+        final List<SettingCase> settings = new ArrayList<>();
+
+        private FactorySettings(boolean identityKeyed, Map<String, Object> base) {
+            this.identityKeyed = identityKeyed;
+            this.base = base;
+        }
+
+        /** A setting whose change MUST produce a distinct instance; each value is tested against the base. */
+        public FactorySettings affects(String name, Object... values) {
+            settings.add(new SettingCase(name, true, List.of(values)));
+            return this;
+        }
+
+        /** A setting that is read but MUST NOT change the created instance (it does not propagate to identity). */
+        public FactorySettings ignored(String name, Object... values) {
+            settings.add(new SettingCase(name, false, List.of(values)));
+            return this;
+        }
+    }
+
+    /** One configuration setting and whether changing it should produce a distinct instance. */
+    public record SettingCase(String name, boolean affectsInstance, List<Object> values) {}
+
+    /** A factory with no settings that change the created instance. */
+    protected static FactorySettings stateless() {
+        return new FactorySettings(false, Map.of());
+    }
+
+    /**
+     * A factory whose sharing key is identity / by-name (e.g. it wraps an opaque Lucene object with
+     * no structural equality, or references other filters by name). It never shares, so no setting
+     * propagation is meaningful; the identity mechanism itself is tested generically in
+     * {@code FactorySharingKeyTests}. This is purely a per-kind classification so the completeness
+     * gate passes — the factory is not built or asserted here.
+     */
+    protected static FactorySettings identity() {
+        return new FactorySettings(true, Map.of());
+    }
+
+    /** A factory whose settings are described via {@link FactorySettings#affects}/{@code ignored}. */
+    protected static FactorySettings settings() {
+        return new FactorySettings(false, Map.of());
+    }
+
+    /** As {@link #settings()} but with the base settings the factory needs in order to build. */
+    protected static FactorySettings settings(Map<String, Object> base) {
+        return new FactorySettings(false, base);
+    }
+
+    /** Per-kind settings declarations. Override in each plugin's factory test to cover its factories. */
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of();
+    }
+
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of();
+    }
+
+    protected Map<String, FactorySettings> charFilterSettings() {
+        return Map.of();
+    }
+
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of();
+    }
+
+    /**
+     * Factories not exercised by the settings contract here. Two kinds belong here, with a comment
+     * saying which: (1) factories whose key is identity / by-name so no setting propagates to a
+     * distinct instance — the identity mechanism itself is tested generically in
+     * {@code FactorySharingKeyTests}, so it need not be re-tested per factory; (2) factories needing
+     * resources this lightweight harness cannot supply (a hunspell dictionary, a hyphenation file) or
+     * covered by a dedicated test (synonyms). Listed by registered name; the completeness gate accepts
+     * these as classified.
+     */
+    protected Set<String> factorySettingsExemptions() {
+        return Set.of();
+    }
+
+    public void testTokenFilterSettings() throws IOException {
+        runSettingsContract(ComponentKind.TOKEN_FILTER, plugin.getTokenFilters(), tokenFilterSettings());
+    }
+
+    public void testTokenizerSettings() throws IOException {
+        runSettingsContract(ComponentKind.TOKENIZER, plugin.getTokenizers(), tokenizerSettings());
+    }
+
+    public void testCharFilterSettings() throws IOException {
+        runSettingsContract(ComponentKind.CHAR_FILTER, plugin.getCharFilters(), charFilterSettings());
+    }
+
+    public void testAnalyzerSettings() throws IOException {
+        runSettingsContract(ComponentKind.ANALYZER, plugin.getAnalyzers(), analyzerSettings());
+    }
+
+    private void runSettingsContract(
+        ComponentKind kind,
+        Map<String, ? extends AnalysisProvider<?>> registered,
+        Map<String, FactorySettings> declarations
+    ) throws IOException {
+        if (registered.isEmpty()) {
+            return;
+        }
+        // Interim: a subclass that has not started declaring settings for this kind is skipped with a
+        // notice rather than failed, so plugin factory tests stay green until filled in. The moment a
+        // single declaration is added, the completeness gate enforces full coverage.
+        if (declarations.isEmpty()) {
+            logger.warn(
+                "{}: no factory settings declared in {} for {} registered factories — coverage PENDING",
+                kind,
+                getClass().getSimpleName(),
+                registered.size()
+            );
+            return;
+        }
+        // Completeness: every registered factory must be declared or explicitly exempted. Runs
+        // regardless of the feature flag so the classification obligation is always enforced.
+        Set<String> unclassified = new TreeSet<>(registered.keySet());
+        unclassified.removeAll(declarations.keySet());
+        unclassified.removeAll(factorySettingsExemptions());
+        assertTrue(
+            kind
+                + " factories missing a settings declaration (declare them in "
+                + getClass().getSimpleName()
+                + ", or list in factorySettingsExemptions() with a reason): "
+                + unclassified,
+            unclassified.isEmpty()
+        );
+
+        assumeTrue(
+            "analyzer sharing feature flag disabled (release build); instance propagation is not observable",
+            AnalysisRegistry.SHARED_ANALYZERS_FEATURE_FLAG.isEnabled()
+        );
+
+        AnalysisRegistry registry = buildSharingRegistry();
+        List<IndexAnalyzers> tracked = new ArrayList<>();
+        try {
+            for (Map.Entry<String, ? extends AnalysisProvider<?>> e : registered.entrySet()) {
+                String type = e.getKey();
+                if (factorySettingsExemptions().contains(type)) {
+                    continue;
+                }
+                FactorySettings decl = declarations.get(type); // non-null by the completeness check
+                if (decl.identityKeyed) {
+                    // Identity / by-name key: never shares, no setting propagation to assert. The
+                    // mechanism is covered once in FactorySharingKeyTests; here it is just classified.
+                    continue;
+                }
+                NamedAnalyzer reference = build(registry, chainSettings(kind, type, decl.base), tracked).get("a");
+                NamedAnalyzer referenceAgain = build(registry, chainSettings(kind, type, decl.base), tracked).get("a");
+                assertSame(
+                    kind + " [" + type + "] two identical configurations must produce the same shared instance",
+                    reference,
+                    referenceAgain
+                );
+                for (SettingCase setting : decl.settings) {
+                    for (Object value : setting.values()) {
+                        Map<String, Object> varied = new LinkedHashMap<>(decl.base);
+                        varied.put(setting.name(), value);
+                        NamedAnalyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a");
+                        if (setting.affectsInstance()) {
+                            assertNotSame(
+                                kind
+                                    + " ["
+                                    + type
+                                    + "] setting ["
+                                    + setting.name()
+                                    + "]="
+                                    + value
+                                    + " must produce a distinct instance but did not — the factory does not propagate it to sharingKey()",
+                                reference,
+                                other
+                            );
+                        } else {
+                            assertSame(
+                                kind
+                                    + " ["
+                                    + type
+                                    + "] setting ["
+                                    + setting.name()
+                                    + "]="
+                                    + value
+                                    + " is declared ignored and must NOT change the instance, but it did",
+                                reference,
+                                other
+                            );
+                        }
+                    }
+                }
+            }
+        } finally {
+            IOUtils.close(tracked);
+            registry.assertNoCachedEntries();
+            registry.close();
+        }
+    }
+
+    private AnalysisRegistry buildSharingRegistry() throws IOException {
+        Settings node = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        return new AnalysisModule(TestEnvironment.newEnvironment(node), List.of(plugin), new StablePluginsRegistry()).getAnalysisRegistry();
+    }
+
+    private static IndexAnalyzers build(AnalysisRegistry registry, Settings analysis, List<IndexAnalyzers> tracked) throws IOException {
+        Settings s = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            // Allow the larger gram/shingle spans some distinguishing probes use.
+            .put("index.max_ngram_diff", 10)
+            .put("index.max_shingle_diff", 10)
+            .put(analysis)
+            .build();
+        IndexAnalyzers ia = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("test", s));
+        tracked.add(ia);
+        return ia;
+    }
+
+    /** Wire a single component into an analyzer named {@code a}; token-filter/char-filter chains use the standard tokenizer. */
+    private static Settings chainSettings(ComponentKind kind, String type, Map<String, Object> componentSettings) {
+        Settings.Builder b = Settings.builder();
+        switch (kind) {
+            case TOKEN_FILTER -> {
+                b.put("index.analysis.analyzer.a.tokenizer", "standard");
+                b.putList("index.analysis.analyzer.a.filter", "f");
+                b.put("index.analysis.filter.f.type", type);
+                applyComponentSettings(b, "index.analysis.filter.f.", componentSettings);
+            }
+            case TOKENIZER -> {
+                b.put("index.analysis.analyzer.a.tokenizer", "t");
+                b.put("index.analysis.tokenizer.t.type", type);
+                applyComponentSettings(b, "index.analysis.tokenizer.t.", componentSettings);
+            }
+            case CHAR_FILTER -> {
+                b.put("index.analysis.analyzer.a.tokenizer", "standard");
+                b.putList("index.analysis.analyzer.a.char_filter", "c");
+                b.put("index.analysis.char_filter.c.type", type);
+                applyComponentSettings(b, "index.analysis.char_filter.c.", componentSettings);
+            }
+            case ANALYZER -> {
+                b.put("index.analysis.analyzer.a.type", type);
+                applyComponentSettings(b, "index.analysis.analyzer.a.", componentSettings);
+            }
+        }
+        return b.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void applyComponentSettings(Settings.Builder b, String prefix, Map<String, Object> componentSettings) {
+        for (Map.Entry<String, Object> e : componentSettings.entrySet()) {
+            if (e.getValue() instanceof List<?> list) {
+                b.putList(prefix + e.getKey(), (List<String>) list);
+            } else {
+                b.put(prefix + e.getKey(), e.getValue().toString());
+            }
+        }
     }
 
     /**

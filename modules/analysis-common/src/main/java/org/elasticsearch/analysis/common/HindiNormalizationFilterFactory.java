@@ -30,4 +30,8 @@ public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory 
         return new HindiNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

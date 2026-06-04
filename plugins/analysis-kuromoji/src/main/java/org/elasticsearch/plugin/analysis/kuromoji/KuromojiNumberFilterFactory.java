@@ -25,4 +25,11 @@ public class KuromojiNumberFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new JapaneseNumberFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return SHARING_KEY;
+    }
+
+    private static final Object SHARING_KEY = new Object();
 }

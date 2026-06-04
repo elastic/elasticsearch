@@ -40,6 +40,11 @@ public class ElasticsearchAnalyzerWrapperTests extends ESTestCase {
                 createCallCount.incrementAndGet();
                 return tokenStream;
             }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
         };
         AnalyzerComponents components = new AnalyzerComponents(
             tokenizerFactory,

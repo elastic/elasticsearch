@@ -129,6 +129,25 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return result;
     }
 
+    // The reload token (the reload request) this analyzer was last claimed for; guarded by {@code this}.
+    private Object lastReloadToken;
+
+    /**
+     * Claims this analyzer for the reload identified by {@code token}: returns {@code true} for the
+     * first caller (recording the token) and {@code false} for any later caller carrying the same
+     * token. A single reload request broadcasts to every index on the node, but many share one
+     * analyzer instance — this lets the registry rebuild that shared instance once per request rather
+     * than once per index. A {@code null} token never dedups (always reloads), the behavior for
+     * internal / direct callers.
+     */
+    public synchronized boolean tryClaimReload(Object token) {
+        if (token != null && token == lastReloadToken) {
+            return false;
+        }
+        lastReloadToken = token;
+        return true;
+    }
+
     public synchronized void reload(
         String name,
         Settings settings,

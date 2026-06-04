@@ -29,6 +29,13 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
     }
 
     @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        // max_code_len / languageset / name_type / rule_type are encoder-specific (double_metaphone, bm)
+        // and not folded into the key for the default metaphone encoder, so they are not asserted here.
+        return Map.of("phonetic", settings().affects("encoder", "soundex").affects("replace", "false"));
+    }
+
+    @Override
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new HashMap<>(super.getTokenFilters());
         filters.put("beidermorse", PhoneticTokenFilterFactory.class);

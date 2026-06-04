@@ -30,4 +30,8 @@ public class SoraniNormalizationFilterFactory extends AbstractTokenFilterFactory
         return new SoraniNormalizationFilter(tokenStream);
     }
 
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

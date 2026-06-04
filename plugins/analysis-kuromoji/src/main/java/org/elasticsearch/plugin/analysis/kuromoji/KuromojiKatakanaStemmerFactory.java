@@ -20,13 +20,23 @@ public class KuromojiKatakanaStemmerFactory extends AbstractTokenFilterFactory {
 
     private final int minimumLength;
 
+    private final Object sharingKey;
+
     public KuromojiKatakanaStemmerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         minimumLength = settings.getAsInt("minimum_length", JapaneseKatakanaStemFilter.DEFAULT_MINIMUM_LENGTH);
+        this.sharingKey = new Key(minimumLength);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new JapaneseKatakanaStemFilter(tokenStream, minimumLength);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minimumLength) {}
 }

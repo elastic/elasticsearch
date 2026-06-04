@@ -33,6 +33,10 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(analyzer.name(), analyzer.scope(), analyzer.analyzer(), positionIncrementGap);
     }
 
+    public NamedAnalyzer(NamedAnalyzer analyzer, AnalyzerScope scope) {
+        this(analyzer.name, scope, analyzer.analyzer, analyzer.positionIncrementGap);
+    }
+
     public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer) {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }

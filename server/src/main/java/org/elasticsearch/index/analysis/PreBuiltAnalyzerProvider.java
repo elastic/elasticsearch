@@ -37,4 +37,12 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
     public NamedAnalyzer get() {
         return analyzer;
     }
+
+    @Override
+    public Object sharingKey() {
+        // The bound NamedAnalyzer instance is the entire state of this provider; two providers
+        // wrapping the same underlying analyzer should share their {@link AnalysisRegistry}
+        // cache slot.
+        return analyzer;
+    }
 }

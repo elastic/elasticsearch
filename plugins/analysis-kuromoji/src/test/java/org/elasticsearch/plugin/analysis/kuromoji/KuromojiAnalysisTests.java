@@ -420,6 +420,32 @@ public class KuromojiAnalysisTests extends ESTestCase {
         }
     }
 
+    public void testTokenizerSharingKeyMatchesForSameUserDictionary() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.tokenizer.tok.type", "kuromoji_tokenizer")
+            .putList("index.analysis.tokenizer.tok.user_dictionary_rules", "c++,c++,w,w", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .build();
+        // Two factories built from identical user-dictionary rules must produce equal sharing keys
+        // even though each builds its own UserDictionary instance — keying on the rules, not the
+        // opaque dictionary object, is what lets these indices share the tokenizer.
+        Object keyA = createTestAnalysis(settings).tokenizer.get("tok").sharingKey();
+        Object keyB = createTestAnalysis(settings).tokenizer.get("tok").sharingKey();
+        assertEquals(keyA, keyB);
+        assertEquals(keyA.hashCode(), keyB.hashCode());
+    }
+
+    public void testTokenizerSharingKeyDiffersForDifferentUserDictionary() throws Exception {
+        Settings a = Settings.builder()
+            .put("index.analysis.tokenizer.tok.type", "kuromoji_tokenizer")
+            .putList("index.analysis.tokenizer.tok.user_dictionary_rules", "c++,c++,w,w")
+            .build();
+        Settings b = Settings.builder()
+            .put("index.analysis.tokenizer.tok.type", "kuromoji_tokenizer")
+            .putList("index.analysis.tokenizer.tok.user_dictionary_rules", "d++,d++,x,x")
+            .build();
+        assertNotEquals(createTestAnalysis(a).tokenizer.get("tok").sharingKey(), createTestAnalysis(b).tokenizer.get("tok").sharingKey());
+    }
+
     public void testKuromojiAnalyzerInvalidUserDictOption() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")

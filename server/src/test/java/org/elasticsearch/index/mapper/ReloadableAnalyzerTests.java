@@ -78,7 +78,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
         // now reload, this should change the tokenfilterFactory inside the analyzer
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false);
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false, null);
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());
@@ -130,6 +130,11 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
                 @Override
                 public AnalysisMode getAnalysisMode() {
                     return AnalysisMode.SEARCH_TIME;
+                }
+
+                @Override
+                public Object sharingKey() {
+                    return this;
                 }
             });
         }

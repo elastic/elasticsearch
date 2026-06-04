@@ -42,6 +42,7 @@ import java.util.List;
  */
 public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet keepWords;
+    private final Object sharingKey;
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
     @SuppressWarnings("unused")
@@ -65,10 +66,21 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
         }
         this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
+        // keep_words_case toggles case-insensitive matching; it changes behavior but not the set's
+        // stored content, so it must be part of the sharing key (see Analysis.StableCharArraySet).
+        boolean ignoreCase = settings.getAsBoolean(KEEP_WORDS_KEY + "_case", false);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(keepWords, ignoreCase));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new KeepWordFilter(tokenStream, keepWords);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet keepWords) {}
 }

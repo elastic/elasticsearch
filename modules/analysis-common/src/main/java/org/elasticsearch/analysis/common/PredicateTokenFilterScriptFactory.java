@@ -43,6 +43,14 @@ public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactor
         return new ScriptFilteringTokenFilter(tokenStream, factory.newInstance());
     }
 
+    @Override
+    public Object sharingKey() {
+        // The compiled script factory is the identity of this token filter — two indices that
+        // compiled the same script source land on the same {@link AnalysisPredicateScript.Factory}
+        // instance via the script cache, and should share their analyzer too.
+        return factory;
+    }
+
     private static class ScriptFilteringTokenFilter extends FilteringTokenFilter {
 
         final AnalysisPredicateScript script;

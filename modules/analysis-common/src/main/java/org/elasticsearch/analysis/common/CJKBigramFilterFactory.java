@@ -42,6 +42,8 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     private final int flags;
     private final boolean outputUnigrams;
 
+    private final Object sharingKey;
+
     @SuppressWarnings("HiddenField")
     CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
@@ -64,6 +66,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
             }
         }
         this.flags = flags;
+        this.sharingKey = new Key(flags, outputUnigrams);
     }
 
     @Override
@@ -88,4 +91,11 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
         }
         return this;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int flags, boolean outputUnigrams) {}
 }

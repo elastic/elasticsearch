@@ -13,11 +13,51 @@ import org.apache.lucene.analysis.ja.JapaneseTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Map.entry;
 
 public class AnalysisKuromojiFactoryTests extends AnalysisFactoryTestCase {
     public AnalysisKuromojiFactoryTests() {
         super(new AnalysisKuromojiPlugin());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> charFilterSettings() {
+        return Map.of("kuromoji_iteration_mark", settings().affects("normalize_kanji", "false").affects("normalize_kana", "false"));
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of(
+            "kuromoji_tokenizer",
+            // default mode is SEARCH, so vary to a clearly different mode
+            settings().affects("mode", "extended").affects("discard_punctuation", "false").affects("discard_compound_token", "true")
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.ofEntries(
+            entry("kuromoji_baseform", stateless()),
+            entry("kuromoji_number", stateless()),
+            entry("hiragana_uppercase", stateless()),
+            entry("katakana_uppercase", stateless()),
+            entry("kuromoji_part_of_speech", settings().affects("stoptags", List.of("助詞"))),
+            entry("kuromoji_readingform", settings().affects("use_romaji", "true")),
+            entry("kuromoji_stemmer", settings().affects("minimum_length", "3")),
+            entry(
+                "ja_stop",
+                settings().affects("stopwords", List.of("の")).affects("ignore_case", "true").affects("remove_trailing", "false")
+            ),
+            entry("kuromoji_completion", settings().affects("mode", "query"))
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("kuromoji", identity(), "kuromoji_completion", identity());
     }
 
     @Override

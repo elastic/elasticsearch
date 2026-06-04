@@ -19,6 +19,30 @@ public class AnalysisICUFactoryTests extends AnalysisFactoryTestCase {
         super(new AnalysisICUPlugin());
     }
 
+    // Every ICU factory keys on identity: it wraps an opaque ICU object (Normalizer2, Collator,
+    // Transliterator, ICUTokenizerConfig) that has no structural equals/hashCode, so it never shares.
+    // The identity mechanism itself is covered in FactorySharingKeyTests.
+
+    @Override
+    protected Map<String, FactorySettings> charFilterSettings() {
+        return Map.of("icu_normalizer", identity());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of("icu_tokenizer", identity());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of("icu_normalizer", identity(), "icu_folding", identity(), "icu_collation", identity(), "icu_transform", identity());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("icu_analyzer", identity());
+    }
+
     @Override
     protected Map<String, Class<?>> getTokenizers() {
         Map<String, Class<?>> tokenizers = new HashMap<>(super.getTokenizers());

@@ -8351,8 +8351,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testMixedPrimaryTermThrows() throws IOException {
-        ParsedDocument doc1 = testParsedDocument("1", null, testDocument(), B_1);
-        ParsedDocument doc2 = testParsedDocument("2", null, testDocument(), B_2);
+        ParsedDocument doc1 = createParsedDoc("1", null);
+        ParsedDocument doc2 = createParsedDoc("2", null);
 
         Engine.Index op1 = new Engine.Index(newUid(doc1), primaryTerm.get(), doc1);
         Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);

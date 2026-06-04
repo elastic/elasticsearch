@@ -255,7 +255,10 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
-        assertEquals("Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series", exception.getMessage());
+        assertEquals(
+            "Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series",
+            exception.getMessage()
+        );
     }
 
     public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +62,6 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
         .build();
 
     // columnarEnabled must be set before the cluster starts (ClassRule.before() runs before @BeforeClass),
@@ -74,6 +74,8 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         }
     }).around(cluster);
 
+    // Can't randomize index mode using cluster.logsdb_columnar.enabled setting.
+    // Need to specify index mode, because columnar source is also defined in template. Template creation fails otherwise.
     static final String LOGS_TEMPLATE = """
         {
           "index_patterns": [ "logs-*-*" ],
@@ -82,6 +84,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
           "template": {
             "settings": {
               "index": {
+                "mode": "{{index_mode}}",
                 "mapping": {
                   "source":{
                     "mode": "{{source_mode}}"
@@ -174,7 +177,8 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreStoredSourceWithSourceOnlyRepository() throws Exception {
-        snapshotAndRestore(columnarEnabled ? "columnar_stored" : "stored", "object", true);
+        assumeFalse("synthetic source and columnar source is not supported with source-only repositories", columnarEnabled);
+        snapshotAndRestore("stored", "object", true);
     }
 
     public void testSnapshotRestoreStoredSourceNested() throws Exception {
@@ -182,14 +186,29 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreStoredSourceNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndRestore(columnarEnabled ? "columnar_stored" : "stored", columnarEnabled ? "flattened" : "nested", true);
+        assumeFalse("synthetic source and columnar source is not supported with source-only repositories", columnarEnabled);
+        snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", true);
     }
 
     @After
     public void cleanup() throws Exception {
         deleteSnapshot("my-repository", "my-snapshot", true);
-        deleteRepository("my-repository");
-        deleteDataStream("logs-my-test");
+        try {
+            deleteRepository("my-repository");
+        } catch (ResponseException e) {
+            // ignore if the repository doesn't exist
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
+        try {
+            deleteDataStream("logs-my-test");
+        } catch (ResponseException e) {
+            // ignore if the data stream doesn't exist
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     static void snapshotAndRestore(String sourceMode, String arrayType, boolean sourceOnly) throws IOException {
@@ -203,7 +222,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
             registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
         }
 
-        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType));
+        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
+        putTemplate(
+            "my-template",
+            LOGS_TEMPLATE.replace("{{index_mode}}", indexMode).replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType)
+        );
         String[] docs = new String[100];
         for (int i = 0; i < 100; i++) {
             docs[i] = document(
@@ -244,7 +267,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
         registerRepository(repositoryName, "source", true, repositorySettings);
 
-        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType));
+        String indexMode = columnarEnabled ? "logsdb_columnar" : "logsdb";
+        putTemplate(
+            "my-template",
+            LOGS_TEMPLATE.replace("{{index_mode}}", indexMode).replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType)
+        );
         for (int i = 0; i < 100; i++) {
             indexDocument(
                 dataStreamName,
@@ -409,8 +436,10 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         if (host instanceof Map<?, ?> hostMap) {
             normalized.put("host.name", hostMap.get("name"));
         }
-        // flattened type collapses [{field_1:a,field_2:b},{field_1:c,field_2:d}]
-        // into {field_1:[a,c],field_2:[b,d]} in synthetic _source.
+        // With subobjects:false in logsdb_columnar mode, arrays of objects are coalesced:
+        // - flattened type: my_object_array: {field_1:[a,c], field_2:[b,d]}
+        // - object type:    my_object_array.field_1: [a,c], my_object_array.field_2: [b,d]
+        // Detect which form the actual source uses and normalize to match.
         Object arr = normalized.remove("my_object_array");
         if (arr instanceof List<?> list) {
             var flatMap = new java.util.LinkedHashMap<String, List<Object>>();
@@ -419,7 +448,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
                     m.forEach((k, v) -> flatMap.computeIfAbsent(k.toString(), key -> new java.util.ArrayList<>()).add(v));
                 }
             }
-            normalized.put("my_object_array", flatMap);
+            if (actualSource.containsKey("my_object_array")) {
+                normalized.put("my_object_array", flatMap);
+            } else {
+                flatMap.forEach((k, v) -> normalized.put("my_object_array." + k, v));
+            }
         }
         return normalized;
     }

@@ -200,6 +200,9 @@ tests:
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   method: test {yaml=multi_cluster/80_transform/Batch transform _start from remote cluster when the user is not authorized}
   issue: https://github.com/elastic/elasticsearch/issues/150764
+- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  method: test {yaml=multi_cluster/80_transform/Batch transform preview from remote cluster when the user is not authorized}
+  issue: https://github.com/elastic/elasticsearch/issues/150765
 
 # Examples:
 #

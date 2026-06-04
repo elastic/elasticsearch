@@ -440,11 +440,12 @@ public class SearchEngine extends Engine {
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                    if (commitUpdated) {
-                        store.incRef();
+                    if (store.tryIncRef()) {
                         try {
-                            updateInternalState(latestCommit, current);
+                            final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
+                            if (commitUpdated) {
+                                updateInternalState(latestCommit, current);
+                            }
                         } finally {
                             store.decRef();
                         }

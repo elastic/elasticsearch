@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -1839,6 +1840,20 @@ public abstract class FieldMapper extends Mapper {
                         continue;
                     }
                     case "copy_to" -> {
+                        if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                            throw new IllegalArgumentException(
+                                "[copy_to] is not allowed on field ["
+                                    + name
+                                    + "] in ["
+                                    + parserContext.getIndexSettings().getMode()
+                                    + "] index mode"
+                            );
+                        }
+                        if (parserContext.getIndexSettings().getIndexMappingSourceMode() == Mode.COLUMNAR_STORED) {
+                            throw new IllegalArgumentException(
+                                "[copy_to] is not allowed on field [" + name + "] in [columnar_stored] source mode"
+                            );
+                        }
                         copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
                         iterator.remove();
                         continue;

@@ -224,6 +224,7 @@ warning:Line 2:9: java.lang.IllegalArgumentException: single-value function enco
 ;
 
 keyword_GreaterThan_MultiValueConstant
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: fix_mv_constant_comparison_field
 
 FROM employees

@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -179,7 +180,7 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, EirfBatch batch) throws IOException {
         // CCR following engine has special versioning semantics that are not compatible with
         // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
         List<IndexResult> results = new ArrayList<>(operations.size());

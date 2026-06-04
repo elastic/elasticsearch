@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -485,6 +486,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
@@ -575,13 +577,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
         ) {
             assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            super.shardOperationOnPrimary(shardRequest, shard, listener);
+            super.shardOperationOnPrimary(task, shardRequest, shard, listener);
         }
 
         @Override
@@ -649,12 +652,13 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard shard,
             ActionListener<PrimaryResult<Request, Response>> listener
         ) {
             assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
-            super.shardOperationOnPrimary(shardRequest, shard, listener);
+            super.shardOperationOnPrimary(task, shardRequest, shard, listener);
         }
 
         @Override

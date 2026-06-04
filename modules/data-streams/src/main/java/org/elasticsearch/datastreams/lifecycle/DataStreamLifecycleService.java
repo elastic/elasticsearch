@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -799,8 +800,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (round.equals(lastRound)) {
                     // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
                     // to kick off downsampling if possible
+                    String sourceIndexName = backingIndex.getIndex().getName();
                     if (canTriggerNewDownsampling) {
+                        ErrorEntry error = errorStore.getError(project.id(), sourceIndexName);
+                        if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {
+                            errorStore.clearRecordedError(project.id(), sourceIndexName);
+                        }
                         downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                    } else {
+                        errorStore.recordError(
+                            project.id(),
+                            sourceIndexName,
+                            new ThrottledDownsampledIndexWarning(sourceIndexName, dataStream.getName(), maxDownsamplingIndicesInProgress)
+                        );
                     }
                     return sourceIndex;
                 }
@@ -1823,4 +1835,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         );
     }
 
+    static final class ThrottledDownsampledIndexWarning extends Exception {
+        private static final String IDENTIFYING_SUBSTRING = "] has reached the maximum number of downsampling operations [";
+
+        ThrottledDownsampledIndexWarning(String indexName, String dataStreamName, int limit) {
+            super(
+                "Downsampling index ["
+                    + indexName
+                    + "] cannot be started because data stream ["
+                    + dataStreamName
+                    + IDENTIFYING_SUBSTRING
+                    + limit
+                    + "]"
+            );
+        }
+
+        public static boolean isThrottledDownsampledIndexWarning(ErrorEntry errorEntry) {
+            return errorEntry != null && errorEntry.error().contains(IDENTIFYING_SUBSTRING);
+        }
+    }
 }

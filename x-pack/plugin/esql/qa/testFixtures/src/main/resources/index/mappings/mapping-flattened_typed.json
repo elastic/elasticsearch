@@ -6,7 +6,9 @@
       "passthrough": { "priority": 10 },
       "properties": {
         "host.ip": { "type": "ip" },
-        "status_code": { "type": "long" }
+        "status_code": { "type": "long" },
+        "service": { "type": "keyword" },
+        "message": { "type": "text" }
       }
     }
   }

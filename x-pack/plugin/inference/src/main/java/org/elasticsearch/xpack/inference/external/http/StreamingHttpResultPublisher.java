@@ -15,6 +15,8 @@ import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -41,6 +43,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * the HttpEntity.</p>
  */
 class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
+    private static final Logger logger = LogManager.getLogger(StreamingHttpResultPublisher.class);
+
     private final ActionListener<StreamingHttpResult> listener;
     private final AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
@@ -204,6 +208,9 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
                 @Override
                 public void cancel() {
                     if (subscriptionCanceled.compareAndSet(false, true)) {
+                        // If the producer was paused for backpressure, Apache will never call consumeContent again, so the
+                        // subscriptionCanceled check there cannot fire. Shut the producer down here to release the leased connection.
+                        backpressure.shutdownProducer();
                         taskRunner.cancel();
                     }
                 }
@@ -282,6 +289,19 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
             synchronized (ioLock) {
                 if (savedIoControl != null) {
                     savedIoControl.requestInput();
+                    savedIoControl = null;
+                }
+            }
+        }
+
+        private void shutdownProducer() {
+            synchronized (ioLock) {
+                if (savedIoControl != null) {
+                    try {
+                        savedIoControl.shutdown();
+                    } catch (IOException e) {
+                        logger.warn("Failed to shut down paused Apache producer after subscription cancellation", e);
+                    }
                     savedIoControl = null;
                 }
             }

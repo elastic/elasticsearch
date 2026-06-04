@@ -40,7 +40,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Present.class).unary(Present::new).name("present");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Present.class)
+        .unary(Present::new)
+        .capabilities("flattened")
+        .name("present");
 
     @FunctionInfo(
         returnType = "boolean",
@@ -74,6 +77,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "date_nanos",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

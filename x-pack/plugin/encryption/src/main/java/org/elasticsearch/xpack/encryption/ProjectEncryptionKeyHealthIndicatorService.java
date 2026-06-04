@@ -67,7 +67,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         NAME,
         "undecryptable_pek",
         "A project encryption key is installed in cluster state but the local node cannot unlock it.",
-        "Verify the configured cluster.state.encryption.password.<id> matches the password id stored alongside the encrypted key.",
+        "Verify the configured cluster.state.encryption.password.<id> matches the password id stored alongside the encrypted key."
+            + " If unrecoverable, run POST /_encryption/_reset?accept_data_loss=true to drop all encrypted state.",
         HELP_URL
     );
 

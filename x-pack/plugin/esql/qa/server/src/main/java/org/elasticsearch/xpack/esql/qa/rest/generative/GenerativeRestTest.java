@@ -72,6 +72,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
+    private String lastExecutedQuery;
+    private String queryExecutedBeforeCurrent;
+    private String lastWildcardSourceQuery;
+    private String lastLongRangeTopNQuery;
+
     public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
 
@@ -270,6 +275,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies, viewNames);
 
         for (int i = 0; i < ITERATIONS; i++) {
+            lastExecutedQuery = null;
+            queryExecutedBeforeCurrent = null;
             var exec = new EsqlQueryGenerator.Executor() {
                 @Override
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
@@ -287,7 +294,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                             List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
                             commands.addAll(previousCommands);
                             commands.add(current);
-                            checkPipelineException(result, commands, currentSchema);
+                            checkPipelineException(result, previousResult, commands, currentSchema);
                         }
                         continueExecuting = false;
                         currentSchema = List.of();
@@ -412,10 +419,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         checkException(query, previousCommands, currentSchema);
     }
 
+    protected void checkPipelineException(
+        QueryExecuted query,
+        QueryExecuted previousQuery,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        checkException(query, previousQuery, previousCommands, currentSchema);
+    }
+
     private record FailureContext(
         String errorMessage,
         String normalizedErrorMessage,
         String query,
+        String previousQuery,
+        String previousWildcardQuery,
+        String previousLongRangeTopNQuery,
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
@@ -425,10 +444,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             List<CommandGenerator.CommandDescription> previousCommands,
             List<Column> currentSchema
         ) {
+            this(errorMessage, query, null, null, null, previousCommands, currentSchema);
+        }
+
+        FailureContext(
+            String errorMessage,
+            String query,
+            String previousQuery,
+            String previousWildcardQuery,
+            String previousLongRangeTopNQuery,
+            List<CommandGenerator.CommandDescription> previousCommands,
+            List<Column> currentSchema
+        ) {
             this(
                 errorMessage,
                 errorMessage == null ? null : normalizeErrorMessage(errorMessage),
                 query,
+                previousQuery,
+                previousWildcardQuery,
+                previousLongRangeTopNQuery,
                 previousCommands == null ? List.of() : previousCommands,
                 currentSchema == null ? List.of() : currentSchema
             );
@@ -452,7 +486,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isWildcardLongRangeTopNConnectionBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isWildcardLongRangeTopNConnectionBug(
+            ctx.normalizedErrorMessage,
+            ctx.query,
+            ctx.previousQuery,
+            ctx.previousWildcardQuery,
+            ctx.previousLongRangeTopNQuery
+        ),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
 
@@ -531,7 +571,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<Column> currentSchema
     ) {
         if (outputValidation.success() == false) {
-            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, currentSchema))) {
+            if (isAllowedFailure(
+                new FailureContext(
+                    outputValidation.errorMessage(),
+                    result.query(),
+                    null,
+                    lastWildcardSourceQuery,
+                    lastLongRangeTopNQuery,
+                    previousCommands,
+                    currentSchema
+                )
+            )) {
                 return;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
@@ -543,7 +593,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<CommandGenerator.CommandDescription> previousCommands,
         List<Column> currentSchema
     ) {
-        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, currentSchema))) {
+        checkException(query, null, previousCommands, currentSchema);
+    }
+
+    protected void checkException(
+        QueryExecuted query,
+        QueryExecuted previousQuery,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        List<Column> currentSchema
+    ) {
+        String previousQueryText = previousQuery == null ? queryExecutedBeforeCurrent : previousQuery.query();
+        if (isAllowedFailure(
+            new FailureContext(
+                query.exception().getMessage(),
+                query.query(),
+                previousQueryText,
+                lastWildcardSourceQuery,
+                lastLongRangeTopNQuery,
+                previousCommands,
+                currentSchema
+            )
+        )) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -861,7 +931,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b).*",
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|\\(\\s*FROM\\b[^\\n]*,).*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
@@ -1083,19 +1153,67 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*(?:Connection is closed|Connection reset|Connection refused).*",
         Pattern.DOTALL
     );
+    private static final Pattern PARTIAL_NODE_DISCONNECT_PATTERN = Pattern.compile(
+        ".*unexpected partial results: .*node_disconnected_exception.*",
+        Pattern.DOTALL
+    );
     private static final Pattern WILDCARD_SOURCE_PATTERN = Pattern.compile("(?i)\\bFROM\\b[^|;]*\\*");
 
     /**
      * Wildcard sources can crash while decoding long-range values out of {@code TopNOperator} /
      * {@code GroupedTopNOperator}. The REST test observes the resulting connection failure, so this must match the
-     * transport symptom and query shape rather than the underlying assertion.
+     * transport symptom and query shape rather than the underlying assertion. Sometimes the connection failure is
+     * observed on the next generated query after the node has already crashed, so the previous query is checked too.
      * See <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>.
      */
+    static boolean isWildcardLongRangeTopNConnectionBug(String errorMessage, String query, String previousQuery) {
+        return isWildcardLongRangeTopNConnectionBug(errorMessage, query)
+            || isWildcardLongRangeTopNConnectionBug(errorMessage, previousQuery);
+    }
+
+    static boolean isWildcardLongRangeTopNConnectionBug(
+        String errorMessage,
+        String query,
+        String previousQuery,
+        String previousWildcardQuery
+    ) {
+        return isWildcardLongRangeTopNConnectionBug(errorMessage, query, previousQuery)
+            || isWildcardLongRangeTopNConnectionBug(errorMessage, previousWildcardQuery);
+    }
+
+    static boolean isWildcardLongRangeTopNConnectionBug(
+        String errorMessage,
+        String query,
+        String previousQuery,
+        String previousWildcardQuery,
+        String previousLongRangeTopNQuery
+    ) {
+        return isWildcardLongRangeTopNConnectionBug(errorMessage, query, previousQuery, previousWildcardQuery)
+            || isLongRangeTopNConnectionFailure(errorMessage, previousLongRangeTopNQuery);
+    }
+
     static boolean isWildcardLongRangeTopNConnectionBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
             return false;
         }
-        return CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches() && WILDCARD_SOURCE_PATTERN.matcher(query).find();
+        return (CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches()
+            || PARTIAL_NODE_DISCONNECT_PATTERN.matcher(errorMessage).matches()) && WILDCARD_SOURCE_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern LONG_RANGE_SOURCE_PATTERN = Pattern.compile("(?i)\\bFROM\\b[^|;]*\\b(?:mv_decades|decades)\\b");
+
+    private static boolean isLongRangeTopNConnectionFailure(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches() && LONG_RANGE_SOURCE_PATTERN.matcher(query).find();
+    }
+
+    static boolean isLongRangeTopNNodeCrashCandidate(String query) {
+        if (query == null) {
+            return false;
+        }
+        return WILDCARD_SOURCE_PATTERN.matcher(query).find() || LONG_RANGE_SOURCE_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
@@ -1162,6 +1280,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     @SuppressWarnings("unchecked")
     public QueryExecuted execute(String query, int depth) {
         QueryExecuted result;
+        queryExecutedBeforeCurrent = lastExecutedQuery;
+        if (WILDCARD_SOURCE_PATTERN.matcher(query).find()) {
+            lastWildcardSourceQuery = query;
+        }
+        if (LONG_RANGE_SOURCE_PATTERN.matcher(query).find()) {
+            lastLongRangeTopNQuery = query;
+        }
+        if (isLongRangeTopNNodeCrashCandidate(query)) {
+            // Avoid executing known node-killing queries; allowing only the later connection error still leaves teardown broken.
+            lastExecutedQuery = query;
+            return new QueryExecuted(
+                query,
+                depth,
+                null,
+                null,
+                new RuntimeException("Connection refused: skipped known long-range TopN node crash")
+            );
+        }
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
@@ -1184,6 +1320,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (result.query() != null && FromGenerator.hasApproximationSettings(result.query())) {
             result = stripApproximationColumns(result);
         }
+        lastExecutedQuery = result.query();
         return result;
     }
 

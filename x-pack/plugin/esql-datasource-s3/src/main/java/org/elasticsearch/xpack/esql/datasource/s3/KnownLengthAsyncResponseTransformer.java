@@ -49,12 +49,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code onNext(ByteBuffer)} chunk directly into the destination at the running offset. That
  * collapses three SDK-internal copies into a single chunk-to-direct-buffer copy.
  *
- * <p><b>Synchronization:</b> the Reactive Streams contract serializes the {@link Subscriber}'s own
- * signals with happens-before between them. {@link #exceptionOccurred} is a transformer-level callback
- * outside that ordering, so it can fire concurrently with — or instead of — the terminal subscriber
- * signal (e.g. the SDK abandons the publisher after a transport error). The destination buffer shared
- * across those paths is therefore held in an {@link AtomicReference} and the terminal-state fields are
- * {@code volatile}; no coarser locking is needed.
+ * <p><b>Synchronization:</b> Reactive Streams serializes the {@link Subscriber}'s own signals, but
+ * {@link #exceptionOccurred} is a transformer-level callback outside that ordering and can race the
+ * terminal subscriber signal (e.g. the SDK drops the publisher on a transport error). The shared
+ * destination buffer is therefore an {@link AtomicReference} and the terminal-state fields {@code volatile}.
  *
  * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
  * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.

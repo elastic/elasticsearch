@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources.spi;
+package org.elasticsearch.xpack.esql.datasources.utils;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,7 +16,6 @@ import java.util.function.BiConsumer;
 
 public class AsyncReadCompletionTests extends ESTestCase {
 
-    /** A dedicated {@link Error} type so the test can match it unambiguously. */
     private static final class TestError extends Error {
         TestError(String message) {
             super(message);
@@ -45,16 +44,9 @@ public class AsyncReadCompletionTests extends ESTestCase {
     public void testNonFatalThrowableIsRethrownToCaller() {
         RuntimeException boom = new RuntimeException("boom");
         BiConsumer<Object, Throwable> wrapped = AsyncReadCompletion.errorSafe((result, failure) -> { throw boom; });
-        RuntimeException thrown = expectThrows(RuntimeException.class, () -> wrapped.accept(null, null));
-        assertSame(boom, thrown);
+        assertSame(boom, expectThrows(RuntimeException.class, () -> wrapped.accept(null, null)));
     }
 
-    /**
-     * The point of the wrapper: a fatal {@link Error} thrown while delivering a completion must not be
-     * swallowed by the enclosing {@code CompletableFuture}. {@code ExceptionsHelper.maybeDieOnAnotherThread}
-     * forks an "elasticsearch-error-rethrower" thread that rethrows it to the uncaught-exception handler.
-     * We intercept the default handler to observe that, suppressing it so the test framework does not see it.
-     */
     public void testFatalErrorReachesUncaughtExceptionHandler() throws Exception {
         Thread.UncaughtExceptionHandler original = Thread.getDefaultUncaughtExceptionHandler();
         CountDownLatch latch = new CountDownLatch(1);
@@ -73,11 +65,7 @@ public class AsyncReadCompletionTests extends ESTestCase {
             TestError error = new TestError("boom");
             BiConsumer<Object, Throwable> wrapped = AsyncReadCompletion.errorSafe((result, failure) -> { throw error; });
 
-            // The wrapper still rethrows to its immediate caller (the CompletableFuture machinery)...
-            TestError thrown = expectThrows(TestError.class, () -> wrapped.accept(null, null));
-            assertSame(error, thrown);
-
-            // ...and, crucially, dispatches it to the uncaught-exception handler on a forked thread.
+            assertSame(error, expectThrows(TestError.class, () -> wrapped.accept(null, null)));
             assertTrue("fatal error was not rethrown on another thread", latch.await(10, TimeUnit.SECONDS));
             assertSame(error, captured.get());
         } finally {

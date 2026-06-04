@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.esql.datasources.spi.AsyncReadCompletion.errorSafe;
+import static org.elasticsearch.xpack.esql.datasources.utils.AsyncReadCompletion.errorSafe;
 
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.

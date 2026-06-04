@@ -27,7 +27,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.esql.datasources.spi.AsyncReadCompletion.errorSafe;
+import static org.elasticsearch.xpack.esql.datasources.utils.AsyncReadCompletion.errorSafe;
 
 /**
  * StorageObject implementation for Azure Blob Storage.

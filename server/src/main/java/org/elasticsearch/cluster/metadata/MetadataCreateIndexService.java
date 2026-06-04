@@ -257,7 +257,7 @@ public class MetadataCreateIndexService {
         if (maxIndicesPerProjectEnabled == false) {
             return;
         }
-        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+        if (request.isSystem()) {
             return;
         }
         if (systemIndices.isFeatureAssociatedIndex(request.index())) {

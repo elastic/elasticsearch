@@ -1684,3 +1684,51 @@ FROM multi_column_joinable, (FROM multi_column_joinable)
 cnt:long
 34
 ;
+
+subqueryInFromWithRenameMissingField
+required_capability: subquery_in_from_command
+
+FROM books, (from languages)
+| KEEP language_code
+| RENAME language_code as x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:integer
+1
+;
+
+subqueryInFromWithRenameMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM k8s-downsampled, (from many_numbers)
+| KEEP network.total_bytes_in, network.eth0.tx
+| RENAME network.total_bytes_in as x, network.eth0.tx as y
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long | y:aggregate_metric_double
+210    | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
+;
+
+subqueryInFromWithRenameChainMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM k8s, (from many_numbers)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in as x, x as y
+| RENAME y as z
+| KEEP *
+| SORT z
+| LIMIT 1
+;
+
+z:long
+3
+;

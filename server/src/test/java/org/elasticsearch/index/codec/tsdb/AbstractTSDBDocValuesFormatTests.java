@@ -32,9 +32,11 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -61,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -2717,5 +2720,141 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             actual.add(scoreDoc.doc);
         }
         assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
+    }
+
+    public void testRandomDenseNumericIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(
+            doc -> doc.add(new NumericDocValuesField("num", random().nextLong())),
+            reader -> reader.getNumericDocValues("num"),
+            () -> true
+        );
+    }
+
+    public void testRandomSparseNumericIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(
+            doc -> doc.add(new NumericDocValuesField("num", random().nextLong())),
+            reader -> reader.getNumericDocValues("num"),
+            () -> random().nextBoolean() ? random().nextBoolean() : random().nextInt(50) == 0
+        );
+    }
+
+    public void testRandomDenseSortedNumericIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(doc -> {
+            doc.add(new SortedNumericDocValuesField("num", random().nextLong()));
+            doc.add(new SortedNumericDocValuesField("num", random().nextLong()));
+        }, reader -> reader.getSortedNumericDocValues("num"), () -> true);
+    }
+
+    public void testRandomSparseSortedNumericIntoBitSet() throws IOException {
+        int n = random().nextInt(50) + 1;
+        doTestRandomIntoBitSet(doc -> {
+            doc.add(new SortedNumericDocValuesField("num", random().nextLong()));
+            doc.add(new SortedNumericDocValuesField("num", random().nextLong()));
+        }, reader -> reader.getSortedNumericDocValues("num"), () -> random().nextInt(n) == 0);
+    }
+
+    public void testRandomDenseSortedIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(
+            doc -> doc.add(new SortedDocValuesField("num", new BytesRef("" + random().nextLong()))),
+            reader -> reader.getSortedDocValues("num"),
+            () -> true
+        );
+    }
+
+    public void testRandomSparseSortedIntoBitSet() throws IOException {
+        int n = random().nextInt(50) + 1;
+        doTestRandomIntoBitSet(
+            doc -> doc.add(new SortedDocValuesField("num", new BytesRef("" + random().nextLong()))),
+            reader -> reader.getSortedDocValues("num"),
+            () -> random().nextInt(n) == 0
+        );
+    }
+
+    public void testRandomDenseSortedSetIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(doc -> {
+            doc.add(new SortedSetDocValuesField("num", new BytesRef("" + random().nextLong())));
+            doc.add(new SortedSetDocValuesField("num", new BytesRef("" + random().nextLong())));
+        }, reader -> reader.getSortedSetDocValues("num"), () -> true);
+    }
+
+    public void testRandomSparseSortedSetIntoBitSet() throws IOException {
+        int n = random().nextInt(50) + 1;
+        doTestRandomIntoBitSet(doc -> {
+            doc.add(new SortedSetDocValuesField("num", new BytesRef("" + random().nextLong())));
+            doc.add(new SortedSetDocValuesField("num", new BytesRef("" + random().nextLong())));
+        }, reader -> reader.getSortedSetDocValues("num"), () -> random().nextInt(n) == 0);
+    }
+
+    public void testRandomDenseBinaryIntoBitSet() throws IOException {
+        doTestRandomIntoBitSet(doc -> {
+            byte[] bytes = new byte[10];
+            random().nextBytes(bytes);
+            doc.add(new BinaryDocValuesField("num", new BytesRef(bytes)));
+        }, reader -> reader.getBinaryDocValues("num"), () -> true);
+    }
+
+    public void testRandomSparseBinaryIntoBitSet() throws IOException {
+        int n = random().nextInt(50) + 1;
+        doTestRandomIntoBitSet(doc -> {
+            byte[] bytes = new byte[10];
+            random().nextBytes(bytes);
+            doc.add(new BinaryDocValuesField("num", new BytesRef(bytes)));
+        }, reader -> reader.getBinaryDocValues("num"), () -> random().nextInt(n) == 0);
+    }
+
+    public void doTestRandomIntoBitSet(
+        Consumer<Document> consumer,
+        IOFunction<LeafReader, DocIdSetIterator> producer,
+        Supplier<Boolean> addDocument
+    ) throws IOException {
+        int numDocs = atLeast(100);
+        int docsWithField = 0;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    if (addDocument.get()) {
+                        docsWithField++;
+                        consumer.accept(doc);
+                    }
+                    w.addDocument(doc);
+                }
+                w.commit();
+                w.forceMerge(1);
+
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    LeafReader leaf = getOnlyLeafReader(reader);
+                    for (int i = 0; i < 20; i++) {
+                        int start = random().nextInt(numDocs - 1);
+                        int upTo = random().nextInt(start, numDocs);
+
+                        int offset = start == 0 ? 0 : random().nextInt(start);
+                        FixedBitSet bitSet = new FixedBitSet(numDocs - offset);
+                        FixedBitSet expectedBitSet = new FixedBitSet(numDocs - offset);
+
+                        DocIdSetIterator values = producer.apply(leaf);
+                        DocIdSetIterator expected = producer.apply(leaf);
+                        if (docsWithField == 0) {
+                            assertNull(values);
+                            return; // no more to be tested
+                        }
+                        assertNotNull(values);
+                        values.advance(start);
+                        expected.advance(start);
+                        assertEquals(expected.docID(), values.docID());
+                        if (values.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                            continue;
+                        }
+                        values.intoBitSet(upTo, bitSet, offset);
+                        for (int doc = expected.docID(); doc < upTo; doc = expected.nextDoc()) {
+                            expectedBitSet.set(doc - offset);
+                        }
+                        assertEquals(expected.docID(), values.docID());
+                        assertEquals(expectedBitSet, bitSet);
+                    }
+                }
+            }
+        }
     }
 }

@@ -65,6 +65,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
     private final Settings settings;
     private final Settings destIndexSettings;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportResetTransformAction(
@@ -98,11 +99,12 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
         this.settings = settings;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.isUpgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(state))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot reset any Transform while the Transform feature is upgrading.",
@@ -157,6 +159,8 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     false, // hasLinkedProjects (irrelevant since checkAccess is false)
                     request.ackTimeout(),
                     destIndexSettings,
+                    cloudCredentialManager,
+                    false, // mintCloudCredential — validate with stored credential only
                     updateTransformListener
                 );
             },

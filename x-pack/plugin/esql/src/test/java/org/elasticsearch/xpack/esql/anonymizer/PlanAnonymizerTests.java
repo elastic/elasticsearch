@@ -8,25 +8,42 @@
 package org.elasticsearch.xpack.esql.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -414,6 +431,301 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
+     * Dissect renders its pattern via the {@code Dissect.Parser} {@link
+     * org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable}. The capture names embedded in the
+     * pattern and the {@code APPEND_SEPARATOR} are user-supplied and must route through the column
+     * map; the {@code %{...}} structure stays. Pins the full-node anonymized render — previously only
+     * the {@code rewriteDissectPattern} helper was covered in isolation, never the node end-to-end.
+     */
+    public void testDissectPatternCaptureAndSeparatorAnonymized() {
+        String captureEmail = "user_secret_email";
+        String captureSsn = "customer_ssn_capture";
+        String appendSeparator = "SENSITIVE_SEPARATOR";
+        String pattern = "%{" + captureEmail + "} - %{" + captureSsn + "}";
+
+        EsField field = new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute input = new FieldAttribute(Source.EMPTY, null, null, "message", field);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(input)
+        );
+        Dissect.Parser parser = new Dissect.Parser(pattern, appendSeparator, new DissectParser(pattern, appendSeparator));
+        Dissect dissect = new Dissect(Source.EMPTY, rel, input, parser, parser.keyAttributes(Source.EMPTY));
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, dissect, null);
+
+        for (String secret : List.of(captureEmail, captureSsn, appendSeparator)) {
+            assertFalse("Dissect leaked '" + secret + "':\n" + out.optimized(), out.optimized().contains(secret));
+        }
+        // The structural marker survives so the shape is still readable.
+        assertTrue("expected %{...} structure preserved:\n" + out.optimized(), out.optimized().contains("%{"));
+    }
+
+    /**
+     * Grok renders its pattern via the {@code Grok.Parser} {@link
+     * org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable}. The Grok library identifier (IP,
+     * WORD, ...) is not customer data and passes through; the capture name after the colon is and must
+     * route through the column map. Pins the full-node anonymized render end-to-end.
+     */
+    public void testGrokPatternCaptureAnonymized() {
+        String capture = "client_secret_ip";
+        String pattern = "%{IP:" + capture + "}";
+
+        EsField field = new EsField("message", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute input = new FieldAttribute(Source.EMPTY, null, null, "message", field);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(input)
+        );
+        Grok.Parser parser = Grok.pattern(Source.EMPTY, pattern);
+        Grok grok = new Grok(Source.EMPTY, rel, input, parser, parser.extractedFields());
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, grok, null);
+
+        assertFalse("Grok leaked capture name '" + capture + "':\n" + out.optimized(), out.optimized().contains(capture));
+        assertTrue("expected Grok library id IP preserved:\n" + out.optimized(), out.optimized().contains("%{IP:"));
+    }
+
+    private FieldAttribute keywordAttr(String name) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            name,
+            new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+    }
+
+    private EsRelation singleAttrRelation(Attribute attr) {
+        return new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.of(attr)
+        );
+    }
+
+    /**
+     * A spatial literal (geo_point/geo_shape/cartesian_*) carries WKB binary, not UTF-8. The literal
+     * keying path used to call {@code BytesRef.utf8ToString()} on it, which garbles or throws.
+     * Anonymizing a plan with a spatial literal must complete and tokenize the value, not blow up.
+     */
+    public void testSpatialLiteralAnonymizedDoesNotThrowOrLeak() {
+        // Truncated multi-byte sequence: invalid UTF-8 that the old utf8ToString path would mangle.
+        BytesRef wkb = new BytesRef(new byte[] { (byte) 0xF0, (byte) 0x28, (byte) 0x8C, (byte) 0x28 });
+        FieldAttribute attr = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            "location",
+            new EsField("location", DataType.GEO_POINT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal geoLiteral = new Literal(Source.EMPTY, wkb, DataType.GEO_POINT);
+        LogicalPlan plan = new Filter(Source.EMPTY, singleAttrRelation(attr), new Equals(Source.EMPTY, attr, geoLiteral));
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        assertNotNull("anonymization must complete for a spatial literal", out.optimized());
+        assertTrue("expected the literal type to render:\n" + out.optimized(), out.optimized().contains("[GEO_POINT]"));
+    }
+
+    /**
+     * LIKE with a list of patterns (`field LIKE ("a*", "b*", "c*")`) must sanitize EVERY pattern, not
+     * just the first — the literal portions of all of them route through the mapper.
+     */
+    public void testWildcardLikeListAllPatternsAnonymized() {
+        String s1 = "secret_alpha";
+        String s2 = "secret_bravo";
+        String s3 = "secret_charlie";
+        FieldAttribute attr = keywordAttr("host");
+        WildcardPatternList patterns = new WildcardPatternList(
+            List.of(new WildcardPattern(s1 + "*"), new WildcardPattern(s2 + "*"), new WildcardPattern(s3 + "*"))
+        );
+        WildcardLikeList like = new WildcardLikeList(Source.EMPTY, attr, patterns, false);
+        LogicalPlan plan = new Filter(Source.EMPTY, singleAttrRelation(attr), like);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        for (String secret : List.of(s1, s2, s3)) {
+            assertFalse("LIKE-list leaked '" + secret + "':\n" + out.optimized(), out.optimized().contains(secret));
+        }
+    }
+
+    /**
+     * RLIKE carries a regex whose literal portions are user content (here an email). Those literals
+     * must not survive anonymization, even though the surrounding regex metacharacters are structural.
+     */
+    public void testRlikeRegexLiteralAnonymized() {
+        String secretEmail = "customer@secret.example";
+        FieldAttribute attr = keywordAttr("email");
+        RLike rlike = new RLike(Source.EMPTY, attr, new RLikePattern(".*" + secretEmail + ".*"), false);
+        LogicalPlan plan = new Filter(Source.EMPTY, singleAttrRelation(attr), rlike);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        assertFalse("RLIKE leaked regex literal '" + secretEmail + "':\n" + out.optimized(), out.optimized().contains(secretEmail));
+    }
+
+    /**
+     * PROMQL label matchers carry a label name and a (potentially sensitive) match value. Both must
+     * tokenize through the mapper; the match operator is structural and stays. Identity rendering is
+     * byte-identical to {@code toString()}.
+     */
+    public void testPromqlLabelMatchersAnonymized() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        String labelName = "pod";
+        String eqValue = "customer-secret-pod-123";
+        String regValue = "customer-secret-5..";
+        String nregValue = "internal-prod-.*";
+        // Cover EQ plus the regex matchers (REG / NREG) — all route the value through mapper.column.
+        LabelMatchers matchers = new LabelMatchers(
+            List.of(
+                new LabelMatcher(labelName, eqValue, LabelMatcher.Matcher.EQ),
+                new LabelMatcher("status", regValue, LabelMatcher.Matcher.REG),
+                new LabelMatcher("env", nregValue, LabelMatcher.Matcher.NREG)
+            )
+        );
+
+        StringBuilder anon = new StringBuilder();
+        matchers.nodeString(anon, Node.NodeStringFormat.LIMITED, ctx.mapper());
+        for (String secret : List.of(labelName, eqValue, regValue, nregValue, "status", "env")) {
+            assertFalse("PROMQL label content leaked '" + secret + "': " + anon, anon.toString().contains(secret));
+        }
+
+        StringBuilder identity = new StringBuilder();
+        matchers.nodeString(identity, Node.NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+        assertEquals("identity rendering must be byte-identical to toString()", matchers.toString(), identity.toString());
+    }
+
+    /**
+     * EsRelation renders the resolved concrete indices only when resolution changed the pattern
+     * (a wildcard / alias expanding to different concrete names) — not for an explicit list that
+     * resolves to itself. Verifies: the suppressed case adds no block; the informative case renders
+     * each concrete index as an {@code idx_} token under anonymization and shows the block (in both
+     * modes) under identity.
+     */
+    public void testEsRelationResolvedIndicesShownWhenInformative() {
+        FieldAttribute attr = keywordAttr("message");
+
+        // Suppressed: explicit FROM employees resolving to exactly {employees=STANDARD}.
+        EsRelation echoed = new EsRelation(
+            Source.EMPTY,
+            "employees",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("employees", IndexMode.STANDARD),
+            List.of(attr)
+        );
+        assertFalse(
+            "redundant resolved block must be suppressed: " + echoed.nodeString(),
+            echoed.nodeString().contains("employees=STANDARD")
+        );
+
+        // Informative: pattern logs-* resolving to two distinct concrete indices.
+        String pattern = "logs-*";
+        String c1 = "logs-2026-01";
+        String c2 = "logs-2026-02";
+        java.util.LinkedHashMap<String, IndexMode> resolved = new java.util.LinkedHashMap<>();
+        resolved.put(c1, IndexMode.STANDARD);
+        resolved.put(c2, IndexMode.STANDARD);
+        EsRelation expanded = new EsRelation(Source.EMPTY, pattern, IndexMode.STANDARD, Map.of(), Map.of(), resolved, List.of(attr));
+
+        assertTrue("identity must show the resolved block", expanded.nodeString().contains("[" + c1 + "=STANDARD, " + c2 + "=STANDARD]"));
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, expanded, null);
+        for (String secret : List.of(pattern, c1, c2)) {
+            assertFalse("EsRelation leaked '" + secret + "':\n" + out.optimized(), out.optimized().contains(secret));
+        }
+    }
+
+    /**
+     * LIKE / RLIKE pattern lists render every element through the mapper and, for multiple patterns,
+     * use the parenthesized {@code (p1, p2)} shape (the legacy outer-quote-wrapped form was dropped
+     * in the renderable refactor). Pins both the identity shape and that every element is scrubbed.
+     */
+    public void testPatternListsRenderEveryElementAndShape() {
+        FieldAttribute attr = keywordAttr("host");
+
+        WildcardLikeList like = new WildcardLikeList(
+            Source.EMPTY,
+            attr,
+            new WildcardPatternList(List.of(new WildcardPattern("secret_a*"), new WildcardPattern("secret_b*"))),
+            false
+        );
+        String likeStr = like.nodeString();
+        assertTrue("multi-pattern LIKE uses parenthesized list shape: " + likeStr, likeStr.contains("(\"secret_a*\", \"secret_b*\")"));
+        assertFalse("legacy outer-quote-wrapped list form should be gone: " + likeStr, likeStr.contains("\"(\""));
+
+        RLikeList rlike = new RLikeList(
+            Source.EMPTY,
+            attr,
+            new RLikePatternList(List.of(new RLikePattern("secret_c.*"), new RLikePattern("secret_d.*"))),
+            false
+        );
+        var out = PlanAnonymizer.forSubmission(randomUUID())
+            .anonymize(null, null, new Filter(Source.EMPTY, singleAttrRelation(attr), rlike), null);
+        for (String secret : List.of("secret_c", "secret_d")) {
+            assertFalse("RLIKE-list leaked '" + secret + "':\n" + out.optimized(), out.optimized().contains(secret));
+        }
+    }
+
+    /**
+     * CompoundOutputEval / CompoundOutputEvalExec (URI_PARTS, USER_AGENT, REGISTERED_DOMAIN) carry a
+     * raw {@code List<String> outputFieldNames} alongside their (already-anonymized) output
+     * attributes. Without a {@code nodeString} override that list renders unmapped through the
+     * default property walker. Assert the names route through the column-token map in both the
+     * logical and physical stages.
+     */
+    public void testCompoundOutputFieldNamesAnonymized() {
+        String sensitiveOutputName = "secret_output_capture_name";
+        String sensitiveInputCol = "secret_source_url_column";
+
+        EsField urlField = new EsField(sensitiveInputCol, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute urlAttr = new FieldAttribute(Source.EMPTY, null, null, sensitiveInputCol, urlField);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(urlAttr)
+        );
+        EsField outField = new EsField(sensitiveOutputName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute outAttr = new FieldAttribute(Source.EMPTY, null, null, sensitiveOutputName, outField);
+
+        UriParts logical = new UriParts(Source.EMPTY, rel, urlAttr, List.of(sensitiveOutputName), List.<Attribute>of(outAttr));
+        UriPartsExec physical = new UriPartsExec(
+            Source.EMPTY,
+            new FragmentExec(rel),
+            urlAttr,
+            List.of(sensitiveOutputName),
+            List.<Attribute>of(outAttr)
+        );
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, logical, physical);
+
+        assertFalse("output field name leaked in logical plan:\n" + out.optimized(), out.optimized().contains(sensitiveOutputName));
+        assertFalse("output field name leaked in physical plan:\n" + out.physical(), out.physical().contains(sensitiveOutputName));
+        assertFalse("input column leaked in logical plan:\n" + out.optimized(), out.optimized().contains(sensitiveInputCol));
+        assertFalse("input column leaked in physical plan:\n" + out.physical(), out.physical().contains(sensitiveInputCol));
+    }
+
+    /**
      * FragmentExec.esFilter is the DSL passthrough from {@code request.filter()} — opaque content
      * we can't safely parse. Anonymization nulls it out so no raw DSL text reaches the log.
      */
@@ -463,6 +775,8 @@ public class PlanAnonymizerTests extends ESTestCase {
         );
         long sensitiveNumericLiteral = 8675309L;
         String sensitiveIndex = "prod-payments-customer-pii-2026-eu-west-1";
+        String dissectCapture = "leaked_dissect_capture_name";
+        String grokCapture = "leaked_grok_capture_name";
 
         List<EsField> fields = new java.util.ArrayList<>();
         List<Attribute> attrs = new java.util.ArrayList<>();
@@ -490,6 +804,14 @@ public class PlanAnonymizerTests extends ESTestCase {
             Literal lit = new Literal(Source.EMPTY, new BytesRef(sensitiveStringLiterals.get(i)), DataType.KEYWORD);
             condition = new Filter(Source.EMPTY, condition, new Equals(Source.EMPTY, attrs.get(i), lit));
         }
+        // Walk DISSECT + GROK too: their capture names are user-supplied and must not survive raw.
+        String dissectPattern = "%{" + dissectCapture + "}";
+        Dissect.Parser dParser = new Dissect.Parser(dissectPattern, "", new DissectParser(dissectPattern, ""));
+        condition = new Dissect(Source.EMPTY, condition, attrs.get(0), dParser, dParser.keyAttributes(Source.EMPTY));
+        String grokPattern = "%{WORD:" + grokCapture + "}";
+        Grok.Parser gParser = Grok.pattern(Source.EMPTY, grokPattern);
+        condition = new Grok(Source.EMPTY, condition, attrs.get(0), gParser, gParser.extractedFields());
+
         Equals amountEq = new Equals(Source.EMPTY, amount, new Literal(Source.EMPTY, sensitiveNumericLiteral, DataType.LONG));
         LogicalPlan plan = new Limit(
             Source.EMPTY,
@@ -505,6 +827,8 @@ public class PlanAnonymizerTests extends ESTestCase {
         mustNotAppear.addAll(sensitiveFieldNames);
         mustNotAppear.addAll(sensitiveStringLiterals);
         mustNotAppear.add(Long.toString(sensitiveNumericLiteral));
+        mustNotAppear.add(dissectCapture);
+        mustNotAppear.add(grokCapture);
 
         for (String secret : mustNotAppear) {
             assertFalse("'" + secret + "' leaked into schema:\n" + out.schema(), out.schema().contains(secret));

@@ -418,6 +418,28 @@ sv:double
 ;
 
 
+Approximate stats with dependent potentially multi-valued variables
+required_capability: approximation_v7
+required_capability: approximation_fix_mv_functions
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS median = MEDIAN(sv)::INTEGER
+    | EVAL append = MV_APPEND([42,42,42], median),
+           diff   = MV_DIFFERENCE([42,42,42], median),
+           isect  = MV_INTERSECTION([42,42,42], median),
+           slice  = MV_SLICE([42,42,42], median % 2, median % 2 + 1),
+           union  = MV_SORT(MV_UNION([42,42,42], median))
+;
+
+documents_found: 8000..12000
+
+median:integer | append:integer      | diff:integer    | isect:integer | slice:integer | union:integer | _approximation_confidence_interval(median):integer | _approximation_certified(median):boolean
+450..540       | [42,42,42,450..540] | [42,42,42]      | null          | [42,42]       | [42,450..540] | [450..540,450..540]                                | {any}
+;
+
+
 Approximate stats with dependent constant variable
 required_capability: approximation_v7
 request_stored: skip

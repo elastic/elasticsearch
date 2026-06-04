@@ -45,6 +45,8 @@ final class RemoteFetchBatchOperator implements Operator {
                 return;
             }
             List<RemoteFetchHandle> handles = decodeHandles(page);
+            // This executes on the target data node against retained local shard contexts;
+            // it does not fan out additional transport requests per handle from here.
             List<Page> fetched = remoteFetcher.fetch(handles);
             enqueue(fetched);
         } catch (Exception e) {

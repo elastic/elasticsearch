@@ -64,7 +64,9 @@ public class TranslogIndexBatchTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            translog.close();
+            if (translog != null) {
+                translog.close();
+            }
         } finally {
             super.tearDown();
         }

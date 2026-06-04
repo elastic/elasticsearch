@@ -18,11 +18,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
@@ -37,6 +39,8 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,13 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, supportsDedicatedMasters = false)
 public class KeyRotationIT extends SecurityIntegTestCase {
 
-    @Before
-    public void checkFeatureFlag() {
-        assumeTrue(
-            "project encryption key feature flag must be enabled",
-            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
-        );
-    }
+    private final List<Integer> keyAddEvents = new CopyOnWriteArrayList<>();
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -69,11 +67,17 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
-            .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-            .build();
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // The encryption settings are only registered when the feature flag is enabled
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+                .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
+            SecuritySettingsSource.addSecureSettings(builder, secure -> {
+                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
+                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v1", "encryption-test-password");
+            });
+        }
+        return builder.build();
     }
 
     @Override
@@ -85,8 +89,30 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     }
 
     @Before
-    public void waitForProjectEncryptionKeyInstalled() throws Exception {
+    public void setup() throws Exception {
+        // Check feature flag
+        assumeTrue(
+            "project encryption key feature flag must be enabled",
+            ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()
+        );
+        // Add listener that registers PEK changes
+        internalCluster().clusterService().addListener(event -> {
+            if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {
+                return;
+            }
+            ProjectEncryptionKeyMetadata curr = event.state().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);
+            if (curr == null) {
+                return;
+            }
+            ProjectEncryptionKeyMetadata prev = event.previousState().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);
+            Set<String> prevKeys = prev != null ? prev.getKeys().keySet() : Set.of();
+            var diff = Sets.difference(curr.getKeys().keySet(), prevKeys);
+            if (!diff.isEmpty()) {
+                keyAddEvents.add(diff.size());
+            }
+        });
         ensureGreen();
+        // Wait for first PEK install
         assertBusy(() -> assertThat(metadataOnMaster(), notNullValue()));
     }
 
@@ -156,12 +182,13 @@ public class KeyRotationIT extends SecurityIntegTestCase {
         }
     }
 
-    public void testInitialInstallProducesSingleActiveKeyWithEmptyHandlerProgress() {
-        ProjectEncryptionKeyMetadata metadata = metadataOnMaster();
-        assertThat(metadata, notNullValue());
-        assertThat("install should produce exactly one key", metadata.getKeys().keySet(), hasSize(1));
-        assertThat("the single installed key must be the active one", metadata.getKeys().keySet(), hasItem(metadata.getActiveKeyId()));
-        assertThat("no handlers are registered in this IT, so handlerKeyIds must be empty", metadata.getHandlerKeyIds(), anEmptyMap());
+    public void testEachInstallOrRotationAddsExactlyOneNewKey() throws Exception {
+        // Wait for two install or rotation events
+        assertBusy(() -> assertThat(keyAddEvents, hasSize(greaterThanOrEqualTo(2))), 30, TimeUnit.SECONDS);
+        for (int count : keyAddEvents) {
+            assertThat("each install or rotation must add exactly one key", count, equalTo(1));
+        }
+        assertThat("no handlers registered, handlerKeyIds must be empty", metadataOnMaster().getHandlerKeyIds(), anEmptyMap());
     }
 
     public void testRotationCycleWithNoHandlers() throws Exception {

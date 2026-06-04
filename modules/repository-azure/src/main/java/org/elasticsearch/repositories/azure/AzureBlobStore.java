@@ -34,6 +34,7 @@ import com.azure.storage.blob.batch.BlobBatch;
 import com.azure.storage.blob.batch.BlobBatchAsyncClient;
 import com.azure.storage.blob.batch.BlobBatchClientBuilder;
 import com.azure.storage.blob.batch.BlobBatchStorageException;
+import com.azure.storage.blob.models.AccessTier;
 import com.azure.storage.blob.models.BlobCopyInfo;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
@@ -44,7 +45,9 @@ import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
+import com.azure.storage.blob.options.BlobBeginCopyOptions;
 import com.azure.storage.blob.options.BlobParallelUploadOptions;
+import com.azure.storage.blob.options.BlockBlobCommitBlockListOptions;
 import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
 import com.azure.storage.blob.specialized.BlobLeaseClient;
 import com.azure.storage.blob.specialized.BlobLeaseClientBuilder;
@@ -61,6 +64,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
@@ -103,8 +107,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,6 +121,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
@@ -125,6 +132,11 @@ public class AzureBlobStore implements BlobStore {
     public static final int MAX_ELEMENTS_PER_BATCH = 256;
     private static final long DEFAULT_READ_CHUNK_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) ByteSizeValue.of(64, ByteSizeUnit.KB).getBytes();
+    public static final Map<String, AccessTier> ALLOWED_ACCESS_TIERS_BY_LOWER_NAME = Stream.of(
+        AccessTier.HOT,
+        AccessTier.COOL,
+        AccessTier.COLD
+    ).collect(Collectors.toUnmodifiableMap(t -> t.toString().toLowerCase(Locale.ENGLISH), t -> t));
 
     @Nullable // for cluster level object store in MP
     private final ProjectId projectId;
@@ -144,12 +156,17 @@ public class AzureBlobStore implements BlobStore {
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
 
+    private final AccessTier dataAccessTier;
+    private final AccessTier metadataAccessTier;
+
     public AzureBlobStore(
         @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         AzureStorageService service,
         BigArrays bigArrays,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        String dataAccessTier,
+        String metadataAccessTier
     ) {
         this.projectId = projectId;
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
@@ -165,6 +182,8 @@ public class AzureBlobStore implements BlobStore {
         this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
         this.multipartUploadMaxConcurrency = service.getMultipartUploadMaxConcurrency();
         this.copyPollInterval = Repository.COPY_POLL_INTERVAL.get(metadata.settings());
+        this.dataAccessTier = initAccessTier(dataAccessTier);
+        this.metadataAccessTier = initAccessTier(metadataAccessTier);
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher(httpRequest -> httpRequest.getHttpMethod() == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -204,6 +223,27 @@ public class AzureBlobStore implements BlobStore {
                     return;
                 }
             }
+        };
+    }
+
+    public static AccessTier initAccessTier(String accessTierName) {
+        if (Strings.hasText(accessTierName) == false) {
+            return null;
+        }
+        final String stripped = accessTierName.strip();
+        final AccessTier accessTier = ALLOWED_ACCESS_TIERS_BY_LOWER_NAME.get(stripped.toLowerCase(Locale.ENGLISH));
+        if (accessTier == null) {
+            throw new BlobStoreException("`" + stripped + "` is not an allowed Azure Access Tier.");
+        }
+        return accessTier;
+    }
+
+    // visible for testing
+    Optional<AccessTier> resolveAccessTier(OperationPurpose purpose) {
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> Optional.ofNullable(dataAccessTier);
+            case SNAPSHOT_METADATA -> Optional.ofNullable(metadataAccessTier);
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> Optional.empty();
         };
     }
 
@@ -493,7 +533,12 @@ public class AzureBlobStore implements BlobStore {
                     writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 } else {
                     flushBuffer();
-                    blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
+                    final var commitOptions = new BlockBlobCommitBlockListOptions(parts);
+                    if (failIfAlreadyExists) {
+                        commitOptions.setRequestConditions(new BlobRequestConditions().setIfNoneMatch("*"));
+                    }
+                    resolveAccessTier(purpose).ifPresent(commitOptions::setTier);
+                    blockBlobAsyncClient.commitBlockListWithResponse(commitOptions).block();
                 }
             }
 
@@ -542,10 +587,12 @@ public class AzureBlobStore implements BlobStore {
                     .collect(Collectors.toList())
                     .flatMap(blockIds -> {
                         logger.debug("{}: all {} parts uploaded, now committing", blobName, multiParts.size());
-                        return asyncClient.commitBlockList(
-                            multiParts.stream().map(MultiPart::blockId).toList(),
-                            failIfAlreadyExists == false
-                        )
+                        final var commitOptions = new BlockBlobCommitBlockListOptions(multiParts.stream().map(MultiPart::blockId).toList());
+                        if (failIfAlreadyExists) {
+                            commitOptions.setRequestConditions(new BlobRequestConditions().setIfNoneMatch("*"));
+                        }
+                        resolveAccessTier(purpose).ifPresent(commitOptions::setTier);
+                        return asyncClient.commitBlockListWithResponse(commitOptions)
                             .doOnSuccess(unused -> logger.debug("{}: all {} parts committed", blobName, multiParts.size()))
                             // Note: non-committed uploaded blocks will be deleted by Azure after a week
                             // (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-block#remarks)
@@ -681,6 +728,7 @@ public class AzureBlobStore implements BlobStore {
         final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
 
         final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
+        resolveAccessTier(purpose).ifPresent(options::setTier);
         BlobRequestConditions requestConditions = new BlobRequestConditions();
         if (failIfAlreadyExists) {
             requestConditions.setIfNoneMatch("*");
@@ -712,11 +760,17 @@ public class AzureBlobStore implements BlobStore {
             Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
 
             final String blockId = makeMultipartBlockId();
+
             blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
             blockIds.add(blockId);
         }
 
-        blockBlobAsyncClient.commitBlockList(blockIds, failIfAlreadyExists == false).block();
+        final var commitOptions = new BlockBlobCommitBlockListOptions(blockIds);
+        if (failIfAlreadyExists) {
+            commitOptions.setRequestConditions(new BlobRequestConditions().setIfNoneMatch("*"));
+        }
+        resolveAccessTier(purpose).ifPresent(commitOptions::setTier);
+        blockBlobAsyncClient.commitBlockListWithResponse(commitOptions).block();
     }
 
     private AzureStorageSettings getStorageSettings() {
@@ -750,8 +804,9 @@ public class AzureBlobStore implements BlobStore {
         final BlobServiceClient syncClient = client(purpose);
         final BlobClient blobSyncClient = syncClient.getBlobContainerClient(container).getBlobClient(blobName);
         try {
-            PollResponse<BlobCopyInfo> response = blobSyncClient.beginCopy(sourceUrl, Duration.ofMillis(copyPollInterval.millis()))
-                .waitForCompletion();
+            final var copyOptions = new BlobBeginCopyOptions(sourceUrl).setPollInterval(Duration.ofMillis(copyPollInterval.millis()));
+            resolveAccessTier(purpose).ifPresent(copyOptions::setTier);
+            PollResponse<BlobCopyInfo> response = blobSyncClient.beginCopy(copyOptions).waitForCompletion();
             LongRunningOperationStatus status = response.getStatus();
             if (status != LongRunningOperationStatus.SUCCESSFULLY_COMPLETED) {
                 throw new IOException("Copy from " + sourceBlobName + " to " + blobName + " failed: " + response.getStatus());

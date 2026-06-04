@@ -85,7 +85,7 @@ public final class ThrottlingRecoveryService {
      * Return a Runnable, ready to be dispatched to Executor or put on the pending queue.
      */
     private RecoveryTask asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
-        return new RecoveryTask(recoveryListener, recoveryState, task);
+        return new RecoveryTask(recoveryListener, recoveryState, task, this::closeAndFillSlots);
     }
 
     /**
@@ -130,15 +130,20 @@ public final class ThrottlingRecoveryService {
         }
     }
 
-    private class RecoveryTask extends AbstractRunnable {
+    private static class RecoveryTask extends AbstractRunnable {
         private final RecoveryListener listener;
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
 
-        private RecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+        private RecoveryTask(
+            RecoveryListener recoveryListener,
+            RecoveryState recoveryState,
+            Consumer<RecoveryListener> task,
+            Consumer<RecoveryTask> closeTask
+        ) {
             this.recoveryState = recoveryState;
             this.task = task;
-            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(recoveryListener, () -> closeAndFillSlots(this)));
+            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(recoveryListener, () -> closeTask.accept(this)));
         }
 
         @Override

@@ -404,9 +404,12 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     public void testFromDatasetIdMetadataRendersLocationAndRowPosition() throws Exception {
         // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
-        // emits _rowPosition directly into a projected slot from its in-reader per-record counter;
-        // VirtualColumnIterator composes _id as <location>:<token> via ExternalRowIdentity. For the
-        // three fixture rows in this single-split read the counter yields tokens 0, 1, 2.
+        // emits each record's file-global byte offset on the _rowPosition channel (splitStartByte +
+        // bytes consumed up to the record's first character), matching NDJSON's shape so the value
+        // is identical regardless of split layout. VirtualColumnIterator composes _id as
+        // <location>:<token> via ExternalRowIdentity. The fixture writes
+        // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
+        // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -424,17 +427,16 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
-            // Sorted by emp_no (1, 2, 3), so the rows line up with file-local offsets 0, 1, 2.
-            // Every id shares a common <location>: prefix and differs only in the trailing offset.
             List<String> ids = new ArrayList<>();
             for (List<Object> row : rows) {
                 ids.add(row.get(1).toString());
             }
+            String[] expectedOffsets = { "34", "42", "48" };
             for (int i = 0; i < ids.size(); i++) {
                 String id = ids.get(i);
                 int sep = id.lastIndexOf(':');
                 assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, org.hamcrest.Matchers.greaterThan(0));
-                assertThat("file-local row offset", id.substring(sep + 1), equalTo(Integer.toString(i)));
+                assertThat("file-global byte offset for row " + i, id.substring(sep + 1), equalTo(expectedOffsets[i]));
             }
             String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
             for (String id : ids) {

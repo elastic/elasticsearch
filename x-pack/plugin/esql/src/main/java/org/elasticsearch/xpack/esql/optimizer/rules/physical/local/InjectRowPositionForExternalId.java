@@ -32,11 +32,11 @@ import java.util.List;
  * Every file reader materializes {@code _rowPosition}: Parquet (Java) and ORC emit a file-global
  * row index from footer/stripe metadata (Parquet-Java encodes an extractor id into the high bits
  * for the deferred-extraction path, which the composition path masks off); Parquet-RS splices an
- * all-null block so {@code _id} renders null per the disclosed carve-out; NDJSON emits a file-global
- * byte offset via {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#splitStartByte()}
- * plus bytes consumed; CSV emits a per-iterator record counter (single-split correct; multi-split
- * byte-offset is a fast-follow). Reader-sourced and intrinsic to the record's position in the file
- * on every non-CSV format, so the value is identical regardless of split layout.
+ * all-null block so {@code _id} renders null per the disclosed carve-out; NDJSON and CSV both emit
+ * a file-global byte offset (split start byte plus bytes consumed up to the record's first
+ * character), so the same physical record carries the same {@code _rowPosition} regardless of
+ * split layout. Reader-sourced and intrinsic to the record's position in the file on every
+ * supported format.
  * <p>
  * Sibling of {@link InsertExternalFieldExtraction}, which also injects {@code _rowPosition} but for
  * the deferred-extraction late-materialization path (it additionally requires a TopN above the

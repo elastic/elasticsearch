@@ -801,8 +801,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Holds sample rows collected for schema inference together with the number of bytes
      * reserved on the circuit breaker. Callers must release {@link #reservedBytes} via
      * {@link CircuitBreaker#addWithoutBreaking(long)} when the rows are no longer needed.
+     * <p>
+     * {@link #rowStartBytes} carries each row's file-relative byte offset when the caller passed
+     * a non-null {@code recordReader} to {@link #collectSampleRows} (i.e. the data-path sampling
+     * sites that replay the prefetched rows). {@code null} otherwise — the planning-time
+     * {@code metadata()} path discards the sample after type inference, so the offsets are dead
+     * data and skipping their capture keeps that call site allocation-free.
      */
-    record SchemaSample(List<String[]> rows, long reservedBytes) {}
+    record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes) {}
 
     /** Hard cap on consecutive parse failures during schema sampling, applied INDEPENDENTLY of
      *  the user's {@link ErrorPolicy}. Jackson's stream-based CSV parser cannot guarantee
@@ -841,7 +847,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CircuitBreaker breaker,
         ErrorPolicy policy
     ) {
+        return collectSampleRows(csvIterator, commentPrefix, sampleSize, breaker, policy, null, 0L);
+    }
+
+    /**
+     * Variant that additionally records the file-relative byte offset of each sampled row (split
+     * start byte added by the caller). Used by the data-path sampling sites so the prefetched
+     * rows can replay with their original {@code _rowPosition} value attached. {@code recordReader}
+     * must be the source reader feeding {@code csvIterator}; pass {@code null} to skip offset
+     * capture (planning-time {@code metadata()} call site).
+     */
+    static SchemaSample collectSampleRows(
+        Iterator<List<?>> csvIterator,
+        String commentPrefix,
+        int sampleSize,
+        CircuitBreaker breaker,
+        ErrorPolicy policy,
+        CsvLogicalRecordReader recordReader,
+        long splitStartByte
+    ) {
         List<String[]> sampleRows = new ArrayList<>();
+        boolean trackOffsets = recordReader != null;
+        // Backed by a List<Long> so it grows with sampleRows without pre-allocating sampleSize
+        // slots (sampling can short-circuit on consecutive failures well before sampleSize is hit).
+        List<Long> rowStartBytesList = trackOffsets ? new ArrayList<>() : null;
         long reservedBytes = 0;
         boolean success = false;
         List<String> capturedErrors = null;
@@ -872,6 +901,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     long rowBytes = estimateRowBytes(row);
                     breaker.addEstimateBytesAndMaybeBreak(rowBytes, "csv_schema_inference");
                     reservedBytes += rowBytes;
+                    if (trackOffsets) {
+                        // Anchored to the just-returned record. bytesRead is cumulative across all
+                        // record reads including any skipped blank/comment lines, so the difference
+                        // gives the file-relative start byte of THIS row's first character.
+                        long rowStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
+                        rowStartBytesList.add(rowStartByte);
+                    }
                     sampleRows.add(row);
                     consecutiveFailures = 0;
                 } catch (RuntimeException e) {
@@ -908,7 +944,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw zeroRowsSamplingError(capturedErrors, firstCause);
             }
             success = true;
-            return new SchemaSample(sampleRows, reservedBytes);
+            long[] offsets = null;
+            if (trackOffsets) {
+                offsets = new long[rowStartBytesList.size()];
+                for (int i = 0; i < offsets.length; i++) {
+                    offsets[i] = rowStartBytesList.get(i);
+                }
+            }
+            return new SchemaSample(sampleRows, reservedBytes, offsets);
         } finally {
             if (success == false) {
                 breaker.addWithoutBreaking(-reservedBytes);
@@ -1092,7 +1135,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? stream : null,
             pinnedMtimeMillis,
             chunkMode,
-            counters
+            counters,
+            context.splitStartByte()
         );
     }
 
@@ -1567,8 +1611,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Object[] rowBuffer;
         /**
          * Projection slot of the synthetic {@code _rowPosition} column, or {@code -1} when not
-         * requested. Not a CSV source column — filled from {@link #csvRowCounter} rather than from a
-         * parsed field.
+         * requested. Not a CSV source column — filled from {@link #rowStartBytes}, the per-record
+         * file-global byte offset (split start byte plus bytes consumed up to the record's first
+         * character), so the value is identical for the same physical record across any split
+         * layout. Matches the NDJSON {@code recordFileOffset} shape.
          */
         private int rowPositionSlot = -1;
         /**
@@ -1580,12 +1626,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private SyntheticColumns.Kind[] syntheticKinds;
         /**
-         * Per-record token emitted into the {@code _rowPosition} slot. Advances once per record read
-         * (accepted or rejected) so a record's value is stable regardless of acceptance. For a
-         * single-split read this is the file-global record index; multi-split CSV needs a file-global
-         * byte offset (follow-up) for full split-invariance.
+         * Parallel to the currently-batched rows: byte offset of each row's first character within
+         * the file, computed as {@code splitStartByte + (bytesRead - lastRecordBytes)} at the moment
+         * the row was emitted by {@link CsvLogicalRecordReader#readRecord}. Emitted into the
+         * {@code _rowPosition} slot during conversion. Sized to the current batch and re-allocated
+         * per batch; entries align positionally with {@code rows} / {@code lines}.
          */
-        private long csvRowCounter = 0;
+        private long[] rowStartBytes;
+        /**
+         * Parallel to {@link #prefetchedRows}: byte offsets captured at sampling time so that when
+         * the prefetched rows are replayed into the data path their {@code _rowPosition} values
+         * stay anchored to where they sat in the file.
+         */
+        private long[] prefetchedRowStartBytes;
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
@@ -1619,6 +1672,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // Reader-level counters shared across this iterator and any sibling segments.
         private final CsvReaderCounters counters;
 
+        /**
+         * File-global byte offset of this split's first byte. Combined with the recordReader's
+         * cumulative byte count to produce a split-invariant {@code _rowPosition} for every
+         * emitted record. Same role as NDJSON's {@code recordOffsetBase}.
+         */
+        private final long splitStartByte;
+
         CsvBatchIterator(
             BufferedReader reader,
             CsvLogicalRecordReader recordReader,
@@ -1632,7 +1692,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CountingInputStream byteCounter,
             long pinnedMtimeMillis,
             boolean chunkMode,
-            CsvReaderCounters counters
+            CsvReaderCounters counters,
+            long splitStartByte
         ) {
             this.reader = reader;
             this.recordReader = recordReader;
@@ -1654,6 +1715,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.pinnedMtimeMillis = pinnedMtimeMillis;
             this.chunkMode = chunkMode;
             this.counters = counters;
+            this.splitStartByte = splitStartByte;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1839,24 +1901,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();
-                    readLogicalLinesBracketAware(lines, batchSize);
+                    List<Long> lineStartBytes = new ArrayList<>();
+                    readLogicalLinesBracketAware(lines, lineStartBytes, batchSize);
                     if (lines.isEmpty()) {
                         return null;
                     }
+                    rowStartBytes = toLongArray(lineStartBytes);
                     Page page = convertLinesToPage(lines);
                     if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                         return page;
                     }
                 } else {
                     List<String[]> rows = new ArrayList<>();
+                    List<Long> rowStartBytesList = new ArrayList<>();
                     if (prefetchedRows != null) {
+                        // Replay the schema-sample rows with the offsets captured during sampling.
                         rows.addAll(prefetchedRows);
+                        if (prefetchedRowStartBytes != null) {
+                            for (long offset : prefetchedRowStartBytes) {
+                                rowStartBytesList.add(offset);
+                            }
+                        }
                         prefetchedRows = null;
+                        prefetchedRowStartBytes = null;
                         blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
                         prefetchedRowsBytes = 0;
                     }
                     if (useFusedBracketPath) {
-                        readRowsBracketAware(rows, batchSize - rows.size());
+                        readRowsBracketAware(rows, rowStartBytesList, batchSize - rows.size());
                     } else {
                         while (rows.size() < batchSize) {
                             try {
@@ -1864,6 +1936,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     break;
                                 }
                                 List<?> rowList = csvIterator.next();
+                                // Anchored to the just-returned record; recordReader.bytesRead is
+                                // cumulative across any skipped blank/comment lines this next()
+                                // call consumed on the way to the returned row.
+                                long rowStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                                 String[] row = new String[rowList.size()];
                                 for (int i = 0; i < rowList.size(); i++) {
                                     Object val = rowList.get(i);
@@ -1876,6 +1952,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     }
                                 }
                                 rows.add(row);
+                                rowStartBytesList.add(rowStartByte);
                             } catch (RuntimeException e) {
                                 totalRowCount++;
                                 onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
@@ -1887,12 +1964,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         return null;
                     }
 
+                    rowStartBytes = toLongArray(rowStartBytesList);
                     Page page = convertRowsToPage(rows);
                     if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                         return page;
                     }
                 }
             }
+        }
+
+        /** Copies a {@code List<Long>} accumulator to a primitive {@code long[]} for the per-batch row-offset array. */
+        private static long[] toLongArray(List<Long> values) {
+            long[] result = new long[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                result[i] = values.get(i);
+            }
+            return result;
         }
 
         /**
@@ -1915,15 +2002,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        private void readRowsBracketAware(List<String[]> rows, int batchSize) throws IOException {
+        private void readRowsBracketAware(List<String[]> rows, List<Long> rowStartBytesList, int batchSize) throws IOException {
             String record;
             while (rows.size() < batchSize && (record = readBracketAwareRecord()) != null) {
                 if (isBlankOrComment(record, options.commentPrefix())) {
                     continue;
                 }
+                // Snapshot offset BEFORE splitLineBracketAware so a tokenizer throw still leaves
+                // the offset list aligned with rows: a thrown row is not added, no offset added.
+                long rowStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                 try {
                     String[] row = splitLineBracketAware(record);
                     rows.add(row);
+                    rowStartBytesList.add(rowStartByte);
                 } catch (MalformedRowException e) {
                     totalRowCount++;
                     onRowError(e.getMessage(), e, EMPTY_ROW, true);
@@ -1948,7 +2039,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.commentPrefix(),
                 schemaSampleSize,
                 blockFactory.breaker(),
-                errorPolicy
+                errorPolicy,
+                recordReader,
+                splitStartByte
             );
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
@@ -1956,6 +2049,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
+            prefetchedRowStartBytes = sample.rowStartBytes();
             return CsvSchemaInferrer.inferSchema(columnNames, sample.rows());
         }
 
@@ -1966,7 +2060,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.commentPrefix(),
                 schemaSampleSize,
                 blockFactory.breaker(),
-                errorPolicy
+                errorPolicy,
+                recordReader,
+                splitStartByte
             );
             if (sample.rows().isEmpty()) {
                 blockFactory.breaker().addWithoutBreaking(-sample.reservedBytes());
@@ -1974,6 +2070,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             prefetchedRows = sample.rows();
             prefetchedRowsBytes = sample.reservedBytes();
+            prefetchedRowStartBytes = sample.rowStartBytes();
             return inferSyntheticSchema(sample.rows(), options.columnPrefix());
         }
 
@@ -2088,7 +2185,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 }
                 int acceptedRows = 0;
-                for (String[] row : rows) {
+                for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
+                    String[] row = rows.get(rowIdx);
                     totalRowCount++;
                     if (row.length > schemaSize) {
                         onRowError(
@@ -2099,7 +2197,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         );
                         continue;
                     }
-                    if (convertRowInPlace(row)) {
+                    if (convertRowInPlace(row, rowIdx)) {
                         for (int i = 0; i < columnCount; i++) {
                             builders[i].append().accept(rowBuffer[i]);
                         }
@@ -2119,11 +2217,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        private boolean convertRowInPlace(String[] row) {
+        private boolean convertRowInPlace(String[] row, int rowIdx) {
             int mode = this.modeOrdinal;
-            // Advance the per-record token once per row (accepted or not) so positions are stable.
+            // Emit the file-global byte offset captured at record-read time so the value is stable
+            // for the same physical record regardless of which split surfaced it.
             if (rowPositionSlot >= 0) {
-                rowBuffer[rowPositionSlot] = csvRowCounter++;
+                rowBuffer[rowPositionSlot] = rowStartBytes[rowIdx];
             }
             for (int i = 0; i < columnCount; i++) {
                 if (i == rowPositionSlot) {
@@ -2155,13 +2254,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * fields. Blank/comment lines are skipped. Collected lines are not yet split or
          * type-converted — that work is deferred to {@link #splitAndConvertProjected}.
          */
-        private void readLogicalLinesBracketAware(List<String> lines, int batchSize) throws IOException {
+        private void readLogicalLinesBracketAware(List<String> lines, List<Long> lineStartBytes, int batchSize) throws IOException {
             String record;
             while (lines.size() < batchSize && (record = readBracketAwareRecord()) != null) {
                 if (isBlankOrComment(record, options.commentPrefix())) {
                     continue;
                 }
+                long lineStartByte = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                 lines.add(record);
+                lineStartBytes.add(lineStartByte);
             }
         }
 
@@ -2181,10 +2282,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 }
                 int acceptedRows = 0;
-                for (String line : lines) {
+                for (int lineIdx = 0; lineIdx < lines.size(); lineIdx++) {
+                    String line = lines.get(lineIdx);
                     totalRowCount++;
                     try {
-                        if (splitAndConvertProjected(line)) {
+                        if (splitAndConvertProjected(line, lineIdx)) {
                             for (int i = 0; i < columnCount; i++) {
                                 builders[i].append().accept(rowBuffer[i]);
                             }
@@ -2216,11 +2318,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * @return {@code true} if the row was accepted, {@code false} if it was rejected
          */
-        private boolean splitAndConvertProjected(String line) {
-            // Advance the per-record token once per row; the _rowPosition slot maps to no source
-            // field, so the field walk below never overwrites it.
+        private boolean splitAndConvertProjected(String line, int lineIdx) {
+            // Emit the file-global byte offset captured at line-read time; the _rowPosition slot
+            // maps to no source field, so the field walk below never overwrites it.
             if (rowPositionSlot >= 0) {
-                rowBuffer[rowPositionSlot] = csvRowCounter++;
+                rowBuffer[rowPositionSlot] = rowStartBytes[lineIdx];
             }
             final char delim = ',';
             final char quote = options.quoteChar();

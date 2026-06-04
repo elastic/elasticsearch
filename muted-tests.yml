@@ -770,3 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/150710
+- class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
+  method: testUnifiedCompletionStreamingNotFoundError
+  issue: https://github.com/elastic/elasticsearch/issues/150711

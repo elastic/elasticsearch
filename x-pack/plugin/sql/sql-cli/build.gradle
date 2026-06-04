@@ -23,15 +23,17 @@ base {
 
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
+def sqlVersions = project(':x-pack:plugin:sql').extensions.extraProperties.get('sqlVersions')
+
 dependencies {
 
   // select just the parts of JLine that are needed
-  api "org.jline:jline-terminal:${jlineVersion}"
-  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+  api "org.jline:jline-terminal:${sqlVersions.jline}"
+  api( "org.jline:jline-terminal-jna:${sqlVersions.jline}") {
     exclude group: "net.java.dev.jna"
   }
-  api "org.jline:jline-reader:${jlineVersion}"
-  api "org.jline:jline-style:${jlineVersion}"
+  api "org.jline:jline-reader:${sqlVersions.jline}"
+  api "org.jline:jline-style:${sqlVersions.jline}"
 
   api project(':x-pack:plugin:sql:sql-client')
   api project(":libs:cli")

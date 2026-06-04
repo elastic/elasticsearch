@@ -27,7 +27,7 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
             // dependencies properly
             var elasticsearchCoreProject = project.findProject(":libs:core");
             if (elasticsearchCoreProject != null) {
-                project.getDependencies().add("jarHell", elasticsearchCoreProject);
+                project.getDependencies().add("jarHell", project.getDependencies().project(java.util.Map.of("path", ":libs:core")));
             }
         }
 

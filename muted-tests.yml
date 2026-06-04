@@ -185,6 +185,9 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150754
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetWaitForCompletionDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/150755
 
 # Examples:
 #

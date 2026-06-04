@@ -88,46 +88,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         doOnProgress(progressValue, true);
     }
 
-    @Override
-    public void onResponse(Long result) {
-        if (result == null || end != result) {
-            assert false : result + " != " + end;
-            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
-        }
-        ensureNotCompleted();
-        super.onResponse(result);
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        ensureNotCompleted();
-        super.onFailure(e);
-    }
-
-    private void ensureNotCompleted() {
-        if (completed) {
-            throw new IllegalStateException("Future is already completed");
-        }
-    }
-
-    @Override
-    protected void done(boolean success) {
-        super.done(success);
-        final List<PositionAndListener> listenersToExecute;
-        assert invariant();
-        synchronized (this) {
-            assert completed == false;
-            completed = true;
-            assert listeners == null || listeners.stream().allMatch(l -> progress < l.position() && l.position() <= end);
-            listenersToExecute = this.listeners;
-            listeners = null;
-        }
-        if (listenersToExecute != null) {
-            listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
-        }
-        assert invariant();
-    }
-
     /**
      * Like {@link #onProgress(long)} but a no-op if progress has already advanced to or past {@code progressValue}.
      * Unlike {@link #onProgress}, this method is safe to call concurrently with other progress updates that may
@@ -155,7 +115,6 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : end + " < " + progressValue;
             throw new IllegalArgumentException("Cannot update progress with a value greater than [end=" + end + ']');
         }
-
         if (progressValue == end) {
             return; // reached the end of the range, listeners will be completed by {@link #onResponse(Long)}
         }
@@ -193,6 +152,46 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         }
         if (listenersToExecute != null) {
             listenersToExecute.forEach(listener -> executeListener(listener, () -> progressValue));
+        }
+        assert invariant();
+    }
+
+    @Override
+    public void onResponse(Long result) {
+        if (result == null || end != result) {
+            assert false : result + " != " + end;
+            throw new IllegalArgumentException("Invalid completion value [start=" + start + ",end=" + end + ",response=" + result + ']');
+        }
+        ensureNotCompleted();
+        super.onResponse(result);
+    }
+
+    @Override
+    public void onFailure(Exception e) {
+        ensureNotCompleted();
+        super.onFailure(e);
+    }
+
+    private void ensureNotCompleted() {
+        if (completed) {
+            throw new IllegalStateException("Future is already completed");
+        }
+    }
+
+    @Override
+    protected void done(boolean success) {
+        super.done(success);
+        final List<PositionAndListener> listenersToExecute;
+        assert invariant();
+        synchronized (this) {
+            assert completed == false;
+            completed = true;
+            assert listeners == null || listeners.stream().allMatch(l -> progress < l.position() && l.position() <= end);
+            listenersToExecute = this.listeners;
+            listeners = null;
+        }
+        if (listenersToExecute != null) {
+            listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
         }
         assert invariant();
     }

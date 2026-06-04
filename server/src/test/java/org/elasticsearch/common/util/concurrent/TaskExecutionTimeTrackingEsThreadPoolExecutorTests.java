@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -221,6 +222,42 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             safeAwait(barrier);
             assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    public void testEwmrUtilizationTracking() throws Exception {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        int poolSize = randomIntBetween(1, 4);
+        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            poolSize,
+            poolSize,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            settableWrapper(TimeUnit.MILLISECONDS.toNanos(10)),
+            TestEsExecutors.testOnlyDaemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context,
+            EsExecutors.TaskTrackingConfig.builder()
+                .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                .threadUtilizationEwmrHalfLife(30_000_000_000.0)
+                .build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
+        try {
+            assertThat(executor.getAverageActiveThreads(), equalTo(0.0));
+            assertThat(executor.getEwmrUtilization(), equalTo(0.0));
+
+            executeTask(executor, poolSize * 5);
+            assertBusy(() -> {
+                assertThat(executor.getCompletedTaskCount(), equalTo((long) poolSize * 5));
+                assertThat(executor.getAverageActiveThreads(), greaterThan(0.0));
+                assertThat(executor.getEwmrUtilization(), greaterThan(0.0));
+                assertThat(executor.getEwmrUtilization(), lessThanOrEqualTo((double) poolSize));
+            });
         } finally {
             ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }

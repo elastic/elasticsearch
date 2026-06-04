@@ -11,8 +11,10 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQueueConfig;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -46,6 +48,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
+    @Nullable
+    private final ExponentiallyWeightedMovingRate threadUtilizationRate;
     private final LongAdder totalExecutionTime = new LongAdder();
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
@@ -91,6 +95,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
+        final double threadUtilizationEwmrLambda = trackingConfig.getThreadUtilizationEwmrLambda();
+        this.threadUtilizationRate = threadUtilizationEwmrLambda > 0.0
+            ? new ExponentiallyWeightedMovingRate(threadUtilizationEwmrLambda, System.nanoTime())
+            : null;
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
     }
@@ -152,6 +160,25 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      */
     public long getTotalTaskExecutionTime() {
         return totalExecutionTime.sum();
+    }
+
+    /**
+     * Returns the exponentially weighted moving average number of threads actively executing tasks. The rate is computed by treating
+     * each completed task's execution duration as an increment to a rate counter, so the result has units of nanoseconds-of-execution
+     * per nanosecond-of-wall-time, which is dimensionless and equal to the average number of concurrently active threads. Returns zero
+     * if no tasks have completed yet.
+     */
+    public double getAverageActiveThreads() {
+        return threadUtilizationRate != null ? threadUtilizationRate.getRate(System.nanoTime()) : 0.0;
+    }
+
+    /**
+     * Returns the EWMR-based thread pool utilization as a fraction of the maximum pool size. This is {@link #getAverageActiveThreads()}
+     * divided by {@link #getMaximumPoolSize()}, giving a value in the range [0, 1] under normal load. Values above 1 are possible if
+     * a task's reported execution time exceeds the elapsed wall time since it was recorded.
+     */
+    public double getEwmrUtilization() {
+        return getAverageActiveThreads() / getMaximumPoolSize();
     }
 
     /**
@@ -263,6 +290,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // taskExecutionNanos may be -1 if the task threw an exception
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
+                if (threadUtilizationRate != null) {
+                    threadUtilizationRate.addIncrement(taskExecutionNanos, System.nanoTime());
+                }
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

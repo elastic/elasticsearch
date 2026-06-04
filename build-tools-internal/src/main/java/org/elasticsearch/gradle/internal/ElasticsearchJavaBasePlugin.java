@@ -9,10 +9,10 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
+import groovy.lang.Closure;
+
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.MutedTestPlugin;
 import org.elasticsearch.gradle.internal.test.TestUtil;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
@@ -20,6 +20,7 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -54,9 +55,10 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);
+        // ElasticsearchBasePlugin ensures GlobalBuildInfoPlugin is applied to root and
+        // registers buildParams + versions as project extensions on every subproject.
+        project.getPluginManager().apply(ElasticsearchBasePlugin.class);
+        buildParams = project.getExtensions().getByType(BuildParameterExtension.class);
         project.getPluginManager().apply(JavaBasePlugin.class);
         // common repositories setup
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
@@ -67,8 +69,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureInputNormalization(project);
         configureNativeLibraryPath(project);
 
-        // convenience access to common versions used in dependencies
-        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
+        // testArtifact(dep) / testArtifact(dep, name) — convenience for declaring a
+        // dependency on a project's test-artifact capability variant.
+        project.getExtensions().getExtraProperties().set("testArtifact", new Closure<ModuleDependency>(this, this) {
+            public ModuleDependency doCall(ModuleDependency dep) {
+                return doCall(dep, "test");
+            }
+
+            public ModuleDependency doCall(ModuleDependency dep, String name) {
+                return dep.capabilities(caps -> caps.requireCapability(dep.getGroup() + ":" + dep.getName() + "-" + name + "-artifacts"));
+            }
+        });
     }
 
     /**

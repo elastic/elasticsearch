@@ -92,11 +92,7 @@ tasks.named('zipAggregation').configure {
  * }
  *
  * */
-ext.testArtifact = { p, String name = "test" ->
-  p.capabilities {
-    requireCapabilities("${p.group}:${p.name}-${name}-artifacts")
-  };
-}
+
 
 class StepExpansion {
   String templatePath

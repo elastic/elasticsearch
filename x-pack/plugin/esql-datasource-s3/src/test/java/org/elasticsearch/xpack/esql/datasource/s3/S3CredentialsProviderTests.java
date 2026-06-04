@@ -57,13 +57,19 @@ public class S3CredentialsProviderTests extends ESTestCase {
 
     public void testSessionTokenWithoutKeysThrows() {
         S3Configuration config = S3Configuration.fromFields(null, null, "tok", null, null, null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new S3StorageProvider(null, null).credentialsProvider(config));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new S3StorageProvider(null, null).credentialsProvider(config)
+        );
         assertTrue(e.getMessage().contains("S3 session_token requires access_key and secret_key"));
     }
 
     public void testNoCredentialsThrows() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new S3StorageProvider(null, null).credentialsProvider(config));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new S3StorageProvider(null, null).credentialsProvider(config)
+        );
         assertTrue(e.getMessage().contains("S3 data source requires credentials"));
     }
 }

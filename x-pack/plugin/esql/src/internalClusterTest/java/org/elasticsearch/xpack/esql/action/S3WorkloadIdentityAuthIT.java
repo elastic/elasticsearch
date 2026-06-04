@@ -300,9 +300,7 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
                     DATASOURCE_NAME,
                     "s3",
                     null,
-                    new HashMap<>(
-                        Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port)
-                    )
+                    new HashMap<>(Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port))
                 )
             )
         );

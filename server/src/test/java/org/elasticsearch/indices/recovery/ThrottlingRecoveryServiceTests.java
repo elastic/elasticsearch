@@ -427,67 +427,57 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final int maxNumberOfTasks = 1000;
 
         final int producerThreads = between(1, 6);
-        final List<Thread> threads = new ArrayList<>(producerThreads);
-        for (int t = 0; t < producerThreads; t++) {
-            final int index = t;
-            Thread thread = new Thread(() -> {
-                while (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                    boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
-                    if (index == 0 && rarely()) {
-                        int nextLimit = between(1, 20);
-                        clusterService.getClusterSettings()
-                            .applySettings(
-                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
-                            );
-                        peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
-                    }
-                    if (highContention) {
-                        int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
-                        for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
-                            taskLatch.incRef();
-                            totalTasksEnqueued.incrementAndGet();
-                            service.enqueue(
-                                RecoveryListener.NOOP,
-                                fakeRecoveryState(),
-                                schedulingListener -> runStressInboundRecoveryTask(
-                                    schedulingListener,
-                                    running,
-                                    peakRunning,
-                                    totalTasksFinished,
-                                    taskLatch,
-                                    random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
-                                )
-                            );
-                        }
-                    } else {
-                        Thread.yield();
-                        if (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                            taskLatch.incRef();
-                            totalTasksEnqueued.incrementAndGet();
-                            service.enqueue(
-                                RecoveryListener.NOOP,
-                                fakeRecoveryState(),
-                                schedulingListener -> runStressInboundRecoveryTask(
-                                    schedulingListener,
-                                    running,
-                                    peakRunning,
-                                    totalTasksFinished,
-                                    taskLatch,
-                                    random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
-                                )
-                            );
-                        }
-                    }
-                    Thread.yield();
+        runInParallel(producerThreads, index -> {
+            while (totalTasksEnqueued.get() < maxNumberOfTasks) {
+                boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
+                if (index == 0 && rarely()) {
+                    int nextLimit = between(1, 20);
+                    clusterService.getClusterSettings()
+                        .applySettings(
+                            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                        );
+                    peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
                 }
-            }, "recovery-inbound-throttle-stress-" + t);
-            threads.add(thread);
-            thread.start();
-        }
-
-        for (Thread thread : threads) {
-            thread.join();
-        }
+                if (highContention) {
+                    int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
+                    for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
+                        taskLatch.incRef();
+                        totalTasksEnqueued.incrementAndGet();
+                        service.enqueue(
+                            RecoveryListener.NOOP,
+                            fakeRecoveryState(),
+                            schedulingListener -> runStressInboundRecoveryTask(
+                                schedulingListener,
+                                running,
+                                peakRunning,
+                                totalTasksFinished,
+                                taskLatch,
+                                random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    }
+                } else {
+                    Thread.yield();
+                    if (totalTasksEnqueued.get() < maxNumberOfTasks) {
+                        taskLatch.incRef();
+                        totalTasksEnqueued.incrementAndGet();
+                        service.enqueue(
+                            RecoveryListener.NOOP,
+                            fakeRecoveryState(),
+                            schedulingListener -> runStressInboundRecoveryTask(
+                                schedulingListener,
+                                running,
+                                peakRunning,
+                                totalTasksFinished,
+                                taskLatch,
+                                random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
+                            )
+                        );
+                    }
+                }
+                Thread.yield();
+            }
+        });
 
         // taskLatch starts with 1 ref, decremented here
         taskLatch.decRef();

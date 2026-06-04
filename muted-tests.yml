@@ -218,6 +218,9 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexListRelocationIT
   method: testListReindexShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150773
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
 
 # Examples:
 #

@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;

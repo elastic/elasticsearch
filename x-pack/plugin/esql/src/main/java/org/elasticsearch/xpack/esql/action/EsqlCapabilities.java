@@ -2265,7 +2265,7 @@ public class EsqlCapabilities {
         TS_COLLAPSE,
 
         /**
-         * Support for`WITHOUT` grouping function
+         * Support for `WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
         ESQL_WITHOUT_GROUPING,
@@ -2772,6 +2772,11 @@ public class EsqlCapabilities {
          * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
          */
         TIME_SERIES_WINDOW_NON_MULTIPLE,
+
+        /**
+         * Move rules for TS translation into the Analyzer
+         */
+        TIME_SERIES_TRANSLATION_IN_ANALYZER,
 
         /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.

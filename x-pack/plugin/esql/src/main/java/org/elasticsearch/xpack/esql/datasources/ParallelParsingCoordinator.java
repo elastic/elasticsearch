@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -25,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -779,6 +781,12 @@ public final class ParallelParsingCoordinator {
             if (closed) {
                 return;
             }
+            // Decide clean completion before flipping closed: no error, every segment finished
+            // (remainingSegments == 0), and the consumer drained the shared queue with no page parked.
+            // An early close (LIMIT, cancellation) leaves a segment cut off mid-parse — a partial row
+            // count under that segment's full byte range — which the coverage tiling could otherwise
+            // accept as complete and cache as an under-count. So a non-clean scan poisons the file.
+            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
@@ -795,10 +803,14 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
-            // Completeness is established by coverage tiling at the coordinator reconciler (the segment
-            // ranges must tile [0, fileLength) with the final range flagged last), not by a finalize
-            // marker. A scan that closed early (LIMIT, error) leaves a gap or an unflagged tail, so its
-            // partial cover is simply not cached.
+            // Coverage tiling at the reconciler establishes completeness for a clean scan; an early/error
+            // close can leave a segment with a partial count under a full range, so discard the file's
+            // contributions when the scan did not drain cleanly.
+            if (cleanCompletion == false && captureSink != null) {
+                Map<String, Object> poison = new HashMap<>();
+                poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(storageObject.path().toString(), poison);
+            }
         }
 
         private void drainQueue() {

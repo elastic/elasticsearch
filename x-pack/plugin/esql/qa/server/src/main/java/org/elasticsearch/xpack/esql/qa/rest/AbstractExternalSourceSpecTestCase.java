@@ -338,6 +338,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
+
+        // Warm pass — exercise the cache on EVERY external spec test, for every format and codec that
+        // extends this base. The cold run above reconciled this file's statistics into the
+        // coordinator's per-file schema cache; the aggregate-metadata pushdown that serves COUNT(*) /
+        // MIN / MAX from that cache is a SECOND code path that a single run never touches. Re-running
+        // the identical query asserts the warm path against the same expected results, so a cache-only
+        // correctness bug (e.g. a COUNT(*) that only doubles on the warm read) fails deterministically
+        // here instead of surfacing flakily in CI when the randomized spec order happens to repeat a
+        // file against a shared cluster. Skipped only when the spec pins documents_found, because the
+        // warm run short-circuits to zero scanned documents and so cannot match the cold scan count.
+        if (isExternalQuery(query) && testCase.expectedDocumentsFound == null) {
+            doTest(query);
+        }
     }
 
     /**

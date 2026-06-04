@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -118,9 +120,10 @@ public final class StreamingParallelParsingCoordinator {
      * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
      * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
      * publish into the same map the consumer-thread wrapper sees. Pass {@code null} for the sink
-     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its
-     * path and mtime are stamped on every chunk so per-chunk partials and the outer finalize marker
-     * reconcile under the real file key (see {@link ParallelParsingCoordinator}).
+     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its path
+     * is stamped on every chunk and each chunk carries its decompressed-stream coverage range, so the
+     * coordinator reconciler can union the chunks under the real file key (see
+     * {@link ParallelParsingCoordinator}).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -980,6 +983,13 @@ public final class StreamingParallelParsingCoordinator {
             if (closed) {
                 return;
             }
+            // Decide clean completion BEFORE flipping closed, so an in-flight segmentator/parser cannot
+            // change the counts under us. Clean = no error and the consumer drained every dispatched
+            // chunk. An early close (LIMIT, cancellation) leaves chunks unconsumed — and a parser cut
+            // off mid-chunk would record a partial row count under that chunk's full byte range, which
+            // would otherwise let the coverage tiling look complete and cache an under-count. So a
+            // non-clean scan poisons the file's contributions: the reconciler discards them.
+            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
             closed = true;
             // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
             signalReady();
@@ -1006,10 +1016,19 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
-            // Completeness is no longer signalled by a separate finalize marker: each chunk carries its
-            // decompressed-stream coverage range and the last chunk is flagged, so the coordinator
-            // reconciler confirms the chunks tile [0, end) before caching. A scan that errored before
-            // EOF simply never emits the last-flagged chunk, so its partial cover is not cached.
+            // Completeness is otherwise established by coverage tiling at the reconciler (chunks carry
+            // their decompressed-stream range and the final chunk is flagged), but an early/error close
+            // can leave a chunk with a partial count under a full range — so discard the whole file's
+            // contributions when the scan did not drain cleanly.
+            if (cleanCompletion == false && captureSink != null && storageObject != null) {
+                poisonCapturedStats(storageObject.path().toString());
+            }
+        }
+
+        private void poisonCapturedStats(String path) {
+            Map<String, Object> poison = new HashMap<>();
+            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            ExternalStatsCapture.record(path, poison);
         }
 
         private void drainAllQueues() {

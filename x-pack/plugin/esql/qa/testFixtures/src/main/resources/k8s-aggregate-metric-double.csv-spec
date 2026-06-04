@@ -286,6 +286,7 @@ required_capability: aggregate_metric_double_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: time_series_translation_in_analyzer
 PROMQL index=k8s-downsampled step=1m network.eth0.tx | sort step, _timeseries | limit 9;
+ignoreOrder:true
 
 network.eth0.tx:double | step:datetime            | _timeseries:keyword
 729.0                  | 2024-05-09T23:30:00.000Z | "{""cluster"":""prod"",""pod"":""one""}"
@@ -341,17 +342,17 @@ required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: time_series_translation_in_analyzer
-PROMQL index=k8s* step=1h max=(max_over_time(network.eth0.tx[1h])) | sort step, _timeseries | DROP _timeseries | limit 10;
+PROMQL index=k8s* step=1h max=(max_over_time(network.eth0.tx[1h])) | sort max | drop _timeseries | limit 10;
 
 max:double | step:datetime
-1060.0     | 2024-05-10T00:00:00.000Z
-715.0      | 2024-05-10T00:00:00.000Z
-1419.0     | 2024-05-10T00:00:00.000Z
-1042.0     | 2024-05-10T00:00:00.000Z
+581.0      | 2024-05-10T01:00:00.000Z
 685.0      | 2024-05-10T00:00:00.000Z
-1248.0     | 2024-05-10T00:00:00.000Z
+715.0      | 2024-05-10T00:00:00.000Z
 795.0      | 2024-05-10T00:00:00.000Z
 824.0      | 2024-05-10T00:00:00.000Z
+928.0      | 2024-05-10T01:00:00.000Z
+967.0      | 2024-05-10T01:00:00.000Z
+973.0      | 2024-05-10T01:00:00.000Z
 1011.0     | 2024-05-10T00:00:00.000Z
-1149.0     | 2024-05-10T01:00:00.000Z
+1042.0     | 2024-05-10T00:00:00.000Z
 ;

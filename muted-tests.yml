@@ -179,6 +179,9 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testScriptCaching
   issue: https://github.com/elastic/elasticsearch/issues/150752
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  method: testMixedSortFieldTypes
+  issue: https://github.com/elastic/elasticsearch/issues/150753
 
 # Examples:
 #

@@ -3011,7 +3011,12 @@ public class EsqlCapabilities {
         /**
          * Support for COALESCE with date_range type.
          */
-        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+        COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for CASE with date_range type.
+         */
+        CASE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:
@@ -3032,6 +3037,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
         APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
+
+        /**
+         * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
+         */
+        APPROXIMATION_FIX_MV_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

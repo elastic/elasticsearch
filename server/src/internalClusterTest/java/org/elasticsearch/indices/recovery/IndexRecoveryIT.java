@@ -186,10 +186,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
-        classes.add(TestAnalysisPlugin.class);
-        classes.add(MockIndexEventListener.TestPlugin.class);
-        return classes;
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestAnalysisPlugin.class);
+        plugins.add(MockIndexEventListener.TestPlugin.class);
+        return plugins;
     }
 
     @Override

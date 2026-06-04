@@ -8,9 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -78,6 +84,28 @@ public class PreAnalyzerTests extends ESTestCase {
             preAnalyzer,
             "FROM books | EVAL x = LENGTH(CONCAT(TO_LOWER(title), \"!\")) | WHERE x > ABS(-1)",
             List.of()
+        );
+    }
+
+    /**
+     * Guards that a newly registered {@link InferenceFunction} is also added to
+     * {@link PreAnalyzer#INFERENCE_FUNCTION_DEFINITIONS} for inference id collection.
+     */
+    public void testRegisteredInferenceFunctionsIncludedInPreAnalyzer() {
+        Set<String> registeredInferenceFunctions = TEST_FUNCTION_REGISTRY.listFunctions()
+            .stream()
+            .filter(def -> InferenceFunction.class.isAssignableFrom(def.clazz()))
+            .map(FunctionDefinition::name)
+            .collect(Collectors.toCollection(TreeSet::new));
+
+        Set<String> preAnalysisInferenceFunctions = PreAnalyzer.INFERENCE_FUNCTION_DEFINITIONS.stream()
+            .map(FunctionDefinition::name)
+            .collect(Collectors.toCollection(TreeSet::new));
+
+        assertEquals(
+            "registered inference functions must match PreAnalyzer.INFERENCE_FUNCTION_DEFINITIONS",
+            registeredInferenceFunctions,
+            preAnalysisInferenceFunctions
         );
     }
 

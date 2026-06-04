@@ -43,7 +43,10 @@ import java.util.Set;
  */
 public class PreAnalyzer {
 
-    private static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
+    /**
+     * The list of inference function definitions that are supported by the PreAnalyzer.
+     */
+    static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,

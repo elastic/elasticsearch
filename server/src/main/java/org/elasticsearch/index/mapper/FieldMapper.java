@@ -92,7 +92,8 @@ public abstract class FieldMapper extends Mapper {
         "index.mapping.doc_values.multi_value",
         true,
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);

@@ -2263,8 +2263,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public void testPendingRecoveryDispatchedOnIndexDeleteDuringPeerRecovery() {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
-        final var indexToDelete = "index-to-delete";
-        final var indexToRecover = "index-to-recover";
+        final var indexToDelete = randomIndexName();
+        final var indexToRecover = randomIndexName();
         createIndex(indexToDelete, indexSettings(1, 0).build());
         createIndex(indexToRecover, indexSettings(1, 0).build());
 
@@ -2434,8 +2434,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     /// Tests that when an active peer recovery completes successfully, the next pending recovery is dispatched.
     public void testPendingPeerRecoveryDispatchedOnSuccessfulCompletion() {
         final var sourceNode = internalCluster().startNode();
-        final var indexOne = "index-one";
-        final var indexTwo = "index-two";
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
         createIndex(indexOne, indexSettings(1, 0).build());
         createIndex(indexTwo, indexSettings(1, 0).build());
         ensureGreen(indexOne, indexTwo);
@@ -2481,8 +2481,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var node = internalCluster().startNode(
             Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
         );
-        final var indexOne = "index-one";
-        final var indexTwo = "index-two";
+        final var indexOne = randomIndexName();
+        final var indexTwo = randomIndexName();
 
         final var firstIndexRecoveryStarted = new CountDownLatch(1);
         final var firstIndexBlock = new CountDownLatch(1);
@@ -2524,7 +2524,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startNode();
         final int limit = between(1, 6);
         final int totalIndices = limit + 2;
-        final var indexNames = IntStream.range(0, totalIndices).mapToObj(i -> "index-" + i).toList();
+        final var indexNames = IntStream.range(0, totalIndices).mapToObj(i -> randomIndexName()).toList();
 
         for (final var name : indexNames) {
             createIndex(name, indexSettings(1, 0).build());
@@ -2585,7 +2585,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final int firstLimit = between(1, 3);
         final int secondLimit = firstLimit + between(1, 3);
         final int totalIndices = secondLimit + between(1, 2);
-        final var indexNames = IntStream.range(0, totalIndices).mapToObj(i -> "index-" + i).toList();
+        final var indexNames = IntStream.range(0, totalIndices).mapToObj(i -> randomIndexName()).toList();
         for (String indexName : indexNames) {
             createIndex(indexName, indexSettings(1, 0).build());
             for (int i = 0; i < 50; i++) {
@@ -2763,7 +2763,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     }
 
     private static RecoveryStats getRecoveryStats(String node) {
-        var recoveryStats = clusterAdmin().prepareNodesStats(node)
+        return clusterAdmin().prepareNodesStats(node)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
             .get()
@@ -2771,7 +2771,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getFirst()
             .getIndices()
             .getRecoveryStats();
-        return recoveryStats;
     }
 
     // Ensure that the node has high enough recovery max-bytes-per-second to avoid any throttling (setting large enough BPS)

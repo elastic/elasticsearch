@@ -56,7 +56,7 @@ public final class ThrottlingRecoveryService {
     private final AtomicInteger runningRecoveries = new AtomicInteger(0);
     // Queue of recoveries waiting to be dispatched
     private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
-    private final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
+    private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;

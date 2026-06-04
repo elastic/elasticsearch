@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -32,7 +33,9 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static TestAnalyzer tsAnalyzer() {
-        return analyzerWithEnrichPolicies().addK8s().unmappedResolution(UnmappedResolution.NULLIFY);
+        return analyzerWithEnrichPolicies().addK8s()
+            .unmappedResolution(UnmappedResolution.NULLIFY)
+            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     protected LogicalPlan planPromql(String query) {

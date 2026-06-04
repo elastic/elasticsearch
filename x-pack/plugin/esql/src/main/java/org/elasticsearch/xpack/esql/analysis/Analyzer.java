@@ -127,7 +127,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -285,6 +288,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvedProjects(),
             new AddImplicitLimit(),
             new AddImplicitTimestampSort(),
+            new VerifyTimeSeries(),
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+            new TranslateTimeSeriesWithout(),
+            // translate metric aggregates early before they are converted to nested expressions
+            new TranslateTimeSeriesAggregate(),
+            new ApplyWindowFilter(),
             new UnionTypesCleanup()
         )
     );
@@ -726,6 +736,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             LocalSupplier supplier = LocalSupplier.of(blocks.length > 0 ? new Page(blocks) : new Page(0));
             return new LocalRelation(source, attributes, supplier);
+        }
+    }
+
+    private static class VerifyTimeSeries extends ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(TimeSeriesAggregate plan, AnalyzerContext context) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            Failures failures = new Failures();
+            plan.verify(failures);
+            if (failures.hasFailures()) {
+                throw new VerificationException(failures);
+            }
+            return plan;
         }
     }
 
@@ -3645,12 +3676,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Update the attributes referencing the updated UnionAll output.
+         * <p>
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a fork-output attribute),
+         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * <p>
+         * Before the expression walk, scan the plan for {@code Alias} nodes whose immediate child is an attribute that was just updated.
+         * For each such alias the cached output attribute has the old type, so add a {@code {alias.id → alias.withNewType}} entry to the
+         * update map. The subsequent {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput
         ) {
-            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
+            Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
+            updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
+
+            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            plan.forEachExpressionUp(Alias.class, alias -> {
+                if (alias.child() instanceof Attribute childAttr) {
+                    Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
+                    if (updatedChild != null && childAttr.dataType() != updatedChild.dataType()) {
+                        Attribute aliasOutput = alias.toAttribute();
+                        if (aliasOutput.dataType() != updatedChild.dataType()) {
+                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        }
+                    }
+                }
+            });
+
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;

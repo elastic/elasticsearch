@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -2039,6 +2040,45 @@ public class MapperServiceTests extends MapperServiceTestCase {
                     )
                 );
             }
+        }
+    }
+
+    public void testColumnarModesRejectCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw] in [" + indexMode + "] index mode"));
+        }
+    }
+
+    public void testColumnarStoredSourceModeRejectsCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), Mode.COLUMNAR_STORED.toString())
+                .build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw]"));
         }
     }
 

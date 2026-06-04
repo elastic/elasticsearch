@@ -3011,7 +3011,12 @@ public class EsqlCapabilities {
         /**
          * Support for COALESCE with date_range type.
          */
-        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+        COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for CASE with date_range type.
+         */
+        CASE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:

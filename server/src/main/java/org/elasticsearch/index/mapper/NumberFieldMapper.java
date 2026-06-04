@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntField;
@@ -19,13 +20,18 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -114,6 +120,74 @@ public class NumberFieldMapper extends FieldMapper {
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue, nullability);
     }
 
+    /**
+     * Formats a non-negative integer value into a zero-padded term, encoded directly as digit
+     * bytes rather than via a {@link String} (which would need re-encoding to UTF-8 by
+     * {@link BytesRef}'s {@code String} constructor).
+     * For example, {@code applyFormat(1, "0000")} encodes to {@code "0001"}.
+     */
+    static BytesRef applyFormat(int value, String format) {
+        int digits = 1;
+        for (int t = value; t >= 10; t /= 10) {
+            digits++;
+        }
+        byte[] bytes = new byte[Math.max(digits, format.length())];
+        int i = bytes.length;
+        int v = value;
+        do {
+            bytes[--i] = (byte) ('0' + (v % 10));
+            v /= 10;
+        } while (v > 0);
+        while (i > 0) {
+            bytes[--i] = '0';
+        }
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * Lucene field type combining a string inverted index (for formatted integer terms)
+     * with sorted numeric doc values (for the original integer value).
+     */
+    private static final FieldType FORMATTED_INT_FIELD_TYPE;
+
+    /**
+     * Lucene field type with a string inverted index only (for formatted integer terms, no doc values).
+     */
+    private static final FieldType FORMATTED_INT_FIELD_TYPE_INDEX_ONLY;
+
+    static {
+        FORMATTED_INT_FIELD_TYPE = new FieldType();
+        FORMATTED_INT_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        FORMATTED_INT_FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+        FORMATTED_INT_FIELD_TYPE.setOmitNorms(true);
+        FORMATTED_INT_FIELD_TYPE.setTokenized(false);
+        FORMATTED_INT_FIELD_TYPE.freeze();
+
+        FORMATTED_INT_FIELD_TYPE_INDEX_ONLY = new FieldType();
+        FORMATTED_INT_FIELD_TYPE_INDEX_ONLY.setIndexOptions(IndexOptions.DOCS);
+        FORMATTED_INT_FIELD_TYPE_INDEX_ONLY.setOmitNorms(true);
+        FORMATTED_INT_FIELD_TYPE_INDEX_ONLY.setTokenized(false);
+        FORMATTED_INT_FIELD_TYPE_INDEX_ONLY.freeze();
+    }
+
+    /**
+     * A Lucene field that stores a zero-padded string in the inverted index and the original
+     * integer value in sorted numeric doc values, using a single consistent field type.
+     */
+    private static class FormattedIntegerField extends Field {
+        private final int numericVal;
+
+        FormattedIntegerField(String name, int value, BytesRef formatted) {
+            super(name, formatted, FORMATTED_INT_FIELD_TYPE);
+            this.numericVal = value;
+        }
+
+        @Override
+        public Number numericValue() {
+            return numericVal;
+        }
+    }
+
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
@@ -144,6 +218,8 @@ public class NumberFieldMapper extends FieldMapper {
         private final Parameter<MetricType> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private final Parameter<String> format;
 
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
@@ -218,6 +294,20 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(dimension);
 
+            this.format = Parameter.stringParam("format", false, m -> toType(m).format, null).acceptsNull().addValidator(v -> {
+                if (v != null) {
+                    if (type != NumberType.INTEGER) {
+                        throw new IllegalArgumentException("[format] is only supported on [integer] fields");
+                    }
+                    if (v.isEmpty() || v.chars().anyMatch(c -> c != '0')) {
+                        throw new IllegalArgumentException("[format] must consist only of '0' characters, e.g. \"0000\"");
+                    }
+                    if (indexed.getValue() == false) {
+                        throw new IllegalArgumentException("[format] requires that [index] is true");
+                    }
+                }
+            });
+
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
@@ -253,6 +343,10 @@ public class NumberFieldMapper extends FieldMapper {
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
+            }
+            if (format.getValue() != null) {
+                assert indexed.get() : "[format] requires [index] to be true";
+                return IndexType.terms(indexed.get(), docValuesParameters.get().enabled());
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
@@ -305,7 +399,8 @@ public class NumberFieldMapper extends FieldMapper {
                 onScriptErrorParam,
                 meta,
                 dimension,
-                metric };
+                metric,
+                format };
         }
 
         @Override
@@ -2121,6 +2216,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final IndexMode indexMode;
         private final boolean isSyntheticSource;
         private final boolean readInArrayOrder;
+        private final String format;
 
         public NumberFieldType(
             String name,
@@ -2135,7 +2231,8 @@ public class NumberFieldMapper extends FieldMapper {
             MetricType metricType,
             IndexMode indexMode,
             boolean isSyntheticSource,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            String format
         ) {
             super(name, indexType, isStored, meta);
             this.type = Objects.requireNonNull(type);
@@ -2147,6 +2244,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.indexMode = indexMode;
             this.isSyntheticSource = isSyntheticSource;
             this.readInArrayOrder = readInArrayOrder;
+            this.format = format;
         }
 
         NumberFieldType(String name, Builder builder, boolean isSyntheticSource) {
@@ -2165,7 +2263,8 @@ public class NumberFieldMapper extends FieldMapper {
                 isSyntheticSource,
                 builder.offsetsFieldName != null
                     && builder.docValuesParameters.getValue().multiValue()
-                    && builder.indexSettings.getMode().isStrictColumnar()
+                    && builder.indexSettings.getMode().isStrictColumnar(),
+                builder.format.getValue()
             );
         }
 
@@ -2187,7 +2286,8 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 null,
                 false,
-                false
+                false,
+                null
             );
         }
 
@@ -2205,7 +2305,8 @@ public class NumberFieldMapper extends FieldMapper {
                 null,
                 null,
                 false,
-                false
+                false,
+                null
             );
         }
 
@@ -2244,23 +2345,62 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public boolean isSearchable() {
-            return indexType.hasPoints() || hasDocValues();
+            return indexType.hasPoints() || indexType.hasTerms() || hasDocValues();
         }
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            if (format != null) {
+                assert indexType.hasTerms() : "[format] requires a terms index";
+                BytesRef term = formattedTermOrNull(value);
+                if (term == null) {
+                    return Queries.newMatchNoDocsQuery("Value [" + value + "] cannot match a formatted integer field");
+                }
+                return new TermQuery(new Term(name(), term));
+            }
             return type.termQuery(name(), value, indexType);
         }
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            if (format != null) {
+                assert indexType.hasTerms() : "[format] requires a terms index";
+                List<BytesRef> terms = new ArrayList<>(values.size());
+                for (Object value : values) {
+                    BytesRef term = formattedTermOrNull(value);
+                    if (term != null) {
+                        terms.add(term);
+                    }
+                }
+                if (terms.isEmpty()) {
+                    return Queries.newMatchNoDocsQuery("No values can match a formatted integer field");
+                }
+                return new TermInSetQuery(name(), terms);
+            }
             if (indexType.hasPoints()) {
                 return type.termsQuery(name(), values);
             } else {
                 return super.termsQuery(values, context);
             }
+        }
+
+        /**
+         * Maps a query value to the zero-padded term used by a formatted integer field, or returns
+         * {@code null} if the value cannot match any document. Formatted integer fields only index
+         * non-negative integers, so values with a decimal part, negative values, and values outside
+         * the integer range never match and are excluded rather than raising an error.
+         */
+        private BytesRef formattedTermOrNull(Object value) {
+            if (NumberType.hasDecimalPart(value)) {
+                return null;
+            }
+            double doubleValue = NumberType.objectToDouble(value);
+            if (doubleValue < 0 || doubleValue > Integer.MAX_VALUE) {
+                return null;
+            }
+            return applyFormat((int) doubleValue, format);
         }
 
         @Override
@@ -2452,6 +2592,7 @@ public class NumberFieldMapper extends FieldMapper {
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
     private final String offsetsFieldName;
+    private final String format;
 
     private final IndexSettings indexSettings;
 
@@ -2488,6 +2629,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.isSyntheticSource = isSyntheticSource;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSettings = builder.indexSettings;
+        this.format = builder.format.getValue();
 
         // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
         this.fieldType = (NumberFieldType) mappedFieldType;
@@ -2557,6 +2699,11 @@ public class NumberFieldMapper extends FieldMapper {
         Number value;
         try {
             value = value(context.parser());
+            if (value != null && format != null && value.intValue() < 0) {
+                throw new IllegalArgumentException(
+                    "Field [" + fieldType.name() + "] with [format] does not accept negative values, got [" + value + "]"
+                );
+            }
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -2657,12 +2804,20 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void addIntFields(LuceneDocument document, String name, int i) {
         final var indexType = fieldType.indexType();
-        if (indexType.hasPoints() && indexType.hasDocValues()) {
-            document.add(new IntField(name, i, Field.Store.NO));
-        } else if (indexType.hasDocValues()) {
-            dvFactory.addNumericField(document, name, i);
-        } else if (indexType.hasPoints()) {
-            document.add(new IntPoint(name, i));
+        if (format != null) {
+            if (indexType.hasDocValues()) {
+                document.add(new FormattedIntegerField(name, i, applyFormat(i, format)));
+            } else {
+                document.add(new Field(name, applyFormat(i, format), FORMATTED_INT_FIELD_TYPE_INDEX_ONLY));
+            }
+        } else {
+            if (indexType.hasPoints() && indexType.hasDocValues()) {
+                document.add(new IntField(name, i, Field.Store.NO));
+            } else if (indexType.hasDocValues()) {
+                dvFactory.addNumericField(document, name, i);
+            } else if (indexType.hasPoints()) {
+                document.add(new IntPoint(name, i));
+            }
         }
         if (stored) {
             document.add(new StoredField(name, i));

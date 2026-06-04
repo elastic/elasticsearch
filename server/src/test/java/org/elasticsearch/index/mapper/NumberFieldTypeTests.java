@@ -24,6 +24,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,6 +34,8 @@ import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -157,6 +160,56 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static NumberFieldType formattedIntegerFieldType(String format) {
+        return new NumberFieldType(
+            "field",
+            NumberType.INTEGER,
+            IndexType.terms(true, true),
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false,
+            false,
+            format
+        );
+    }
+
+    public void testFormattedIntegerTermQuery() {
+        NumberFieldType ft = formattedIntegerFieldType("0000");
+        // The query value is redirected to the zero-padded term in the inverted index.
+        assertEquals(new TermQuery(new Term("field", new BytesRef("0042"))), ft.termQuery(42, MOCK_CONTEXT));
+        assertEquals(new TermQuery(new Term("field", new BytesRef("0042"))), ft.termQuery("42", MOCK_CONTEXT));
+    }
+
+    public void testFormattedIntegerTermQueryNonMatchingValues() {
+        NumberFieldType ft = formattedIntegerFieldType("0000");
+        // Formatted integer fields only index non-negative integers, so decimal, negative and
+        // out-of-range values cannot match any document and are turned into a match-no-docs query.
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(-1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+        assertTrue(ft.termQuery(2147483648L, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testFormattedIntegerTermsQuery() {
+        NumberFieldType ft = formattedIntegerFieldType("0000");
+        assertEquals(
+            new TermInSetQuery("field", Arrays.asList(new BytesRef("0001"), new BytesRef("0002"))),
+            ft.termsQuery(Arrays.asList(1, 2), MOCK_CONTEXT)
+        );
+        // Non-matching values (decimal, negative, out-of-range) are dropped; matching ones remain.
+        assertEquals(
+            new TermInSetQuery("field", Collections.singletonList(new BytesRef("0003"))),
+            ft.termsQuery(Arrays.asList(3, 2.1, -1, 2147483648L), MOCK_CONTEXT)
+        );
+        // If no value can match, a match-no-docs query is returned.
+        assertTrue(ft.termsQuery(Arrays.asList(2.1, -1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
     private static MappedFieldType unsearchable() {
         return new NumberFieldType(
             "field",
@@ -171,7 +224,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null
         );
     }
 

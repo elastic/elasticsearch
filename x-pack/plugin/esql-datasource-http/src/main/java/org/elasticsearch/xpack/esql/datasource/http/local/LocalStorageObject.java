@@ -82,8 +82,10 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length != READ_TO_END && length < 0) {
-            throw new IllegalArgumentException("length must be non-negative or READ_TO_END, got: " + length);
+        if (length != READ_TO_END && length <= 0) {
+            // Match the remote providers (S3/GCS/Azure/HTTP): a closed range must be positive; zero-length is
+            // rejected rather than yielding an empty stream, so the precondition is uniform across providers.
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {

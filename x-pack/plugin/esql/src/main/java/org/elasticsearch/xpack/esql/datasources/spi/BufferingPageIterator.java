@@ -37,8 +37,13 @@ public abstract class BufferingPageIterator implements CloseableIterator<Page> {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    /** The single look-ahead page: set by the subclass's {@code hasNext()}, handed out (and nulled) by {@code next()}. */
-    protected Page nextPage;
+    /**
+     * The single look-ahead page: set by the subclass's {@code hasNext()}, handed out (and nulled) by
+     * {@code next()}. Volatile so {@link #close()} — which may run on a different thread than iteration — reads
+     * the iterating thread's last write rather than a stale value, closing the publish gap for the off-thread
+     * close the class contract permits.
+     */
+    protected volatile Page nextPage;
 
     @Override
     public final void close() throws IOException {

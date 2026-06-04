@@ -56,10 +56,17 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
     }
 
     private ExternalUnavailableException type(IOException e) {
-        // The throttle status lives on the cause (the BlobStorageException the stream wrapped); absent that, a
-        // mid-read transport fault is still transient, just not throttling.
-        boolean throttling = e.getCause() instanceof BlobStorageException bse
-            && ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+        // The throttle status lives on a BlobStorageException in the cause chain (dispatchRead wraps it in a plain
+        // IOException; a future SDK may nest it deeper). Walk the chain — matching RetryPolicy.isThrottlingError —
+        // rather than reading only the immediate cause. Absent a BlobStorageException, a mid-read transport fault
+        // is still transient, just not throttling.
+        boolean throttling = false;
+        for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
+            if (c instanceof BlobStorageException bse) {
+                throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+                break;
+            }
+        }
         return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
     }
 }

@@ -104,7 +104,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (contentLength.isPresent()) {
                     bytesHolder[0] = contentLength.getAsLong();
                 }
-                return response.body();
+                return new HttpTransientTypingInputStream(response.body(), path);
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
@@ -193,17 +193,20 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // 206 = Partial Content (successful range request)
                 // 200 = OK (server doesn't support ranges but returned full content)
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                    return response.body();
+                    return new HttpTransientTypingInputStream(response.body(), path);
                 } else if (statusCode == HttpStatus.SC_OK) {
-                    // Server doesn't support Range requests, skip to position manually
+                    // Server doesn't support Range requests, skip to position manually. The skip runs on the raw
+                    // body (it is open-phase setup, retried by the open loop on failure); typing wraps the
+                    // delivered tail so a mid-read drop after the skip resumes byte-exactly.
                     InputStream stream = response.body();
                     long skipped = stream.skip(position);
                     if (skipped != position) {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
+                    InputStream typed = new HttpTransientTypingInputStream(stream, path);
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
-                    return toEnd ? stream : new BoundedInputStream(stream, length);
+                    return toEnd ? typed : new BoundedInputStream(typed, length);
                 } else if (toEnd && statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
                     // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
                     // contract for an open-ended read past the end is an empty stream.

@@ -523,7 +523,9 @@ public final class ParallelParsingCoordinator {
         private final AtomicInteger remainingSegments;
         private final CountDownLatch allDone;
 
-        private Page buffered = null;
+        // Volatile so close() — which may run on a different thread than the consumer that drove hasNext() —
+        // reads the parked page rather than a stale value, so its blocks are released rather than leaked.
+        private volatile Page buffered = null;
         private volatile boolean closed = false;
 
         AsReadyParallelIterator(

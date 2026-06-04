@@ -660,7 +660,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
         @Override
         public boolean hasNext() {
-            if (exhausted) {
+            // isClosed() guards the native handle: after closeInternal() frees it, a stray hasNext()/next()
+            // (early close via LIMIT/cancel leaves exhausted==false) would call nextBatch() on a freed
+            // ParquetReaderState — a native use-after-free. Mirrors the NdJson reader's post-close guard.
+            if (exhausted || isClosed()) {
                 return false;
             }
             if (nextPage != null) {

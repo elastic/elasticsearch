@@ -57,9 +57,17 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
     }
 
     private ExternalUnavailableException type(IOException e) {
-        // The throttle status lives on the cause (the StorageException the ReadChannel wrapped); absent that, a
-        // mid-read transport fault is still transient, just not throttling.
-        boolean throttling = e.getCause() instanceof StorageException se && ExternalUnavailableException.isThrottlingStatus(se.getCode());
+        // The throttle status lives on a StorageException in the cause chain (the ReadChannel wraps it in a plain
+        // IOException; a future SDK may nest it deeper). Walk the chain — matching RetryPolicy.isThrottlingError —
+        // rather than reading only the immediate cause. Absent a StorageException, a mid-read transport fault is
+        // still transient, just not throttling.
+        boolean throttling = false;
+        for (Throwable c = e.getCause(); c != null; c = c.getCause()) {
+            if (c instanceof StorageException se) {
+                throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                break;
+            }
+        }
         return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
     }
 }

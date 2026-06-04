@@ -115,6 +115,24 @@ public class ParquetRsFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * After close, {@code hasNext()} must short-circuit to false rather than call {@code nextBatch()} on the
+     * freed native handle. Early close (LIMIT/cancel) leaves {@code exhausted==false}, so without the
+     * {@code isClosed()} guard a stray {@code hasNext()} would be a native use-after-free.
+     */
+    public void testHasNextAfterCloseIsFalseAndDoesNotTouchFreedHandle() throws Exception {
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        Path parquetPath = createTempDir().resolve("parquet_rs_hasnext_after_close.parquet");
+        writeMultiRowGroupParquet(parquetPath);
+
+        ParquetRsFormatReader reader = new ParquetRsFormatReader(blockFactory);
+        CloseableIterator<Page> iterator = reader.read(localFileStorageObject(parquetPath), List.of("id"), 64);
+        assertTrue(iterator.hasNext()); // exhausted stays false: we close early, mid-stream
+        iterator.close();
+        assertFalse("hasNext() after close must be false, not a nextBatch() on the freed handle", iterator.hasNext());
+        assertFalse("a second hasNext() must remain false", iterator.hasNext());
+    }
+
     /** Explicit double close must be idempotent on the native handle (no second {@code closeReader} → no double free). */
     public void testDoubleCloseIsIdempotentOnNativeHandle() throws Exception {
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();

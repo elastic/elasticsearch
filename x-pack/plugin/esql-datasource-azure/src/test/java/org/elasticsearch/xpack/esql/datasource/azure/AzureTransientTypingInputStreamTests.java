@@ -63,6 +63,15 @@ public class AzureTransientTypingInputStreamTests extends ESTestCase {
         assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 
+    public void testMidReadBlobStorageExceptionNestedDeeperStillFlaggedThrottling() throws IOException {
+        // The throttle status must be found even if a future SDK nests the BlobStorageException one level deeper:
+        // the wrapper walks the cause chain rather than reading only the immediate cause.
+        IOException nested = new IOException("outer", new RuntimeException(blobStorageException(503)));
+        AzureTransientTypingInputStream wrapped = new AzureTransientTypingInputStream(throwingStream(nested), PATH);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
+        assertTrue("a 503 nested deeper in the cause chain is still throttling", e.throttling());
+    }
+
     /**
      * A stream that throws the real wrapped shape on first read: {@code IOException(BlobStorageException)}, or a bare
      * {@code IOException} when {@code cause} is null.
@@ -77,6 +86,21 @@ public class AzureTransientTypingInputStreamTests extends ESTestCase {
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
                 throw cause == null ? new IOException("connection reset") : new IOException(cause);
+            }
+        };
+    }
+
+    /** A stream that throws the given {@link IOException} (with whatever cause chain it carries) on first read. */
+    private static InputStream throwingStream(IOException toThrow) {
+        return new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw toThrow;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                throw toThrow;
             }
         };
     }

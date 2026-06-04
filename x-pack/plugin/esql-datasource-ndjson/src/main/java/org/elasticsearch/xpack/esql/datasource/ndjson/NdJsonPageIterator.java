@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -49,7 +49,7 @@ import java.util.function.Function;
  * <p>When {@code resolvedAttributes} is provided, uses those instead of inferring schema
  * from the split data, avoiding the risk of schema divergence across splits.
  */
-final class NdJsonPageIterator implements CloseableIterator<Page> {
+final class NdJsonPageIterator extends BufferingPageIterator {
 
     private static final Logger logger = LogManager.getLogger(NdJsonPageIterator.class);
 
@@ -57,7 +57,6 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private final int rowLimit;
     private long rowsEmitted;
     private boolean endOfFile = false;
-    private Page nextPage;
     /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
     private final StorageObject cacheableObject;
     /** Stream-side byte counter for stream-only sources (length() throws). Null for byte-array fast path. */
@@ -244,7 +243,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         if (nextPage != null) {
             return true;
         }
-        if (endOfFile) {
+        if (endOfFile || isClosed()) {
             return false;
         }
         if (rowLimit != FormatReader.NO_LIMIT && rowsEmitted >= rowLimit) {
@@ -315,7 +314,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     }
 
     @Override
-    public void close() throws IOException {
+    protected void closeInternal() throws IOException {
         // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
         // SKIP_ROW with parse errors in a chunk publishes a poison marker so the coordinator's reconciler
         // discards the file's merge rather than committing an under-counted COUNT(*).

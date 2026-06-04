@@ -1106,7 +1106,7 @@ public class InternalEngine extends Engine {
                         useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {
@@ -1672,59 +1672,49 @@ public class InternalEngine extends Engine {
         }
 
         // Phase 2: single Lucene reader acquisition for all versionMap misses.
-        // For standard indices: collect misses into flat arrays and do a single sorted scan per segment.
-        // For time series indices: keep the per-UID path (timestamp-based segment skipping complicates batching).
+        // Collect misses into flat arrays and resolve them all in one sorted segment scan.
         if (anyNeedsLucene) {
             final boolean isTimeSeries = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-            if (isTimeSeries) {
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
-                    for (int i = 0; i < count; i++) {
-                        if (needsLucene[i] == false) {
-                            continue;
-                        }
-                        final Index op = ops[i];
-                        final boolean loadSeqNo = op.getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        final DocIdAndVersion d = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                            reader,
-                            op.uid(),
-                            op.id(),
-                            loadSeqNo,
-                            useTsdbSyntheticId
-                        );
-                        if (d != null) {
-                            resolvedVersions[i] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                        }
+            int luceneCount = 0;
+            for (int i = 0; i < count; i++) {
+                if (needsLucene[i]) luceneCount++;
+            }
+            final BytesRef[] luceneUids = new BytesRef[luceneCount];
+            final String[] luceneIds = isTimeSeries ? new String[luceneCount] : null;
+            final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
+            final int[] luceneToSubBatch = new int[luceneCount];
+            for (int i = 0, k = 0; i < count; i++) {
+                if (needsLucene[i]) {
+                    luceneUids[k] = ops[i].uid();
+                    luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
+                    luceneToSubBatch[k] = i;
+                    if (luceneIds != null) {
+                        luceneIds[k] = ops[i].id();
                     }
-                    return null;
-                });
-            } else {
-                // Collect the Lucene-miss UIDs into flat arrays, then resolve them all in one sorted
-                // segment scan via batchLoadDocIdAndVersion.
-                int luceneCount = 0;
-                for (int i = 0; i < count; i++) {
-                    if (needsLucene[i]) luceneCount++;
+                    k++;
                 }
-                final BytesRef[] luceneUids = new BytesRef[luceneCount];
-                final boolean[] luceneLoadSeqNo = new boolean[luceneCount];
-                final int[] luceneToSubBatch = new int[luceneCount];
-                for (int i = 0, k = 0; i < count; i++) {
-                    if (needsLucene[i]) {
-                        luceneUids[k] = ops[i].uid();
-                        luceneLoadSeqNo[k] = ops[i].getIfSeqNo() != UNASSIGNED_SEQ_NO;
-                        luceneToSubBatch[k] = i;
-                        k++;
-                    }
-                }
-                final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
-                performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+            }
+            final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
+            performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
+                if (isTimeSeries) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                    VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(
+                        reader,
+                        luceneUids,
+                        luceneIds,
+                        useTsdbSyntheticId,
+                        luceneLoadSeqNo,
+                        luceneResults
+                    );
+                } else {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);
-                    return null;
-                });
-                for (int k = 0; k < luceneCount; k++) {
-                    final DocIdAndVersion d = luceneResults[k];
-                    if (d != null) {
-                        resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
-                    }
+                }
+                return null;
+            });
+            for (int k = 0; k < luceneCount; k++) {
+                final DocIdAndVersion d = luceneResults[k];
+                if (d != null) {
+                    resolvedVersions[luceneToSubBatch[k]] = new IndexVersionValue(null, d.version, d.seqNo, d.primaryTerm);
                 }
             }
         }

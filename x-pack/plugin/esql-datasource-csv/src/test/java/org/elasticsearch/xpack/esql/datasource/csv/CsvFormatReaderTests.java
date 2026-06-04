@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -200,6 +204,78 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
             assertEquals(95.5, ((DoubleBlock) page.getBlock(1)).getDouble(0), 0.001);
         }
+    }
+
+    /**
+     * Early-close leak regression. {@code CsvFormatReader}'s batch iterator buffers one look-ahead page
+     * in {@code hasNext()}; before it extended
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator} a consumer that closed
+     * after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT}, a cancellation, a
+     * downstream error) left that page's blocks unreleased against the breaker. These tests drive a real
+     * read on a tracking breaker and assert usage returns to zero.
+     */
+    private static String multiRowCsv(int rows) {
+        StringBuilder sb = new StringBuilder("id:integer\n");
+        for (int i = 1; i <= rows; i++) {
+            sb.append(i).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static BlockFactory trackingBlockFactory(CircuitBreaker[] outBreaker) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        outBreaker[0] = breaker;
+        return BlockFactory.builder(bigArrays).breaker(breaker).build();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker[0].getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(50));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker[0].getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker[0].getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        CircuitBreaker[] breaker = new CircuitBreaker[1];
+        BlockFactory trackingFactory = trackingBlockFactory(breaker);
+
+        StorageObject object = createStorageObject(multiRowCsv(20));
+        CsvFormatReader reader = new CsvFormatReader(trackingFactory);
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id"), 8)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker[0].getUsed());
     }
 
     public void testReadWithBatching() throws IOException {

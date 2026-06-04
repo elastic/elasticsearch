@@ -318,9 +318,9 @@ setup:
       warnings_regex:
         - "this request accesses system indices: \\[\\.transform-internal-\\d{3}(?:-reindexed-for-\\d{1,2})?], but in a future major version, direct access to system indices will be prevented by default"
       indices.get_mapping:
-        index: .transform-internal-007
-  - match: { \.transform-internal-007.mappings.dynamic: "false" }
-  - match: { \.transform-internal-007.mappings.properties.id.type: "keyword" }
+        index: .transform-internal-008
+  - match: { \.transform-internal-008.mappings.dynamic: "false" }
+  - match: { \.transform-internal-008.mappings.properties.id.type: "keyword" }
   - do:
       indices.get_mapping:
         index: .transform-notifications-000002

@@ -58,6 +58,10 @@ For managed descriptors, the **primary index** is the one canonical name that El
 
 System data streams are identified by their exact name (e.g. `.my-feature-logs`). The data stream name itself, as well as the names of the backing indices, are matched by `SystemIndices`.
 
+### Multi-project
+
+In the multi-project setup, each project has its own system indices and system data streams.
+
 ---
 
 ## 2. Types of System Resources
@@ -238,7 +242,7 @@ Associated indices are included in feature-state snapshots and are restored when
 
 ## 6. Updating Mappings for Managed System Indices
 
-`SystemIndexMappingUpdateService` runs on the master node and pushes a `PutMappingRequest` to any managed system index whose live mapping version is lower than the descriptor's current version.
+`SystemIndexMappingUpdateService` runs on the master node and, for every project, pushes a `PutMappingRequest` to any managed system index whose live mapping version is lower than the descriptor's current version.
 
 ### Step-by-step procedure
 
@@ -512,7 +516,7 @@ A `ClusterStateListener` running on the master node. On every cluster state upda
 1. Skips if the cluster state is not yet recovered.
 2. Skips if this node is not the elected master.
 3. Skips on mixed-version clusters (rolling upgrades in progress).
-4. For each managed descriptor whose primary index exists, computes `UpgradeStatus`.
+4. For each project, for each managed descriptor whose primary index exists in that project, computes `UpgradeStatus`.
 5. For any descriptor in `NEEDS_MAPPINGS_UPDATE`, sends a `PutMappingRequest` using an `OriginSettingClient`.
 
 An `AtomicBoolean` (`isUpgradeInProgress`) prevents concurrent update attempts. The flag is reset (via `RefCountingRunnable`) only after all in-flight `PutMappingRequest`s have completed.

@@ -767,15 +767,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testFewVectorManyTimes
   issue: https://github.com/elastic/elasticsearch/issues/150717
-- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150718
-- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150719
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150720
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722

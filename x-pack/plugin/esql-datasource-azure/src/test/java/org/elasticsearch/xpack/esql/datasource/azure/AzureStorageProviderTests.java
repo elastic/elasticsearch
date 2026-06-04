@@ -7,16 +7,30 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.CredentialUnavailableException;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for AzureStorageProvider.
@@ -27,12 +41,12 @@ import java.util.List;
 public class AzureStorageProviderTests extends ESTestCase {
 
     public void testSupportedSchemes() {
-        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null);
+        AzureStorageProvider provider = new AzureStorageProvider(null);
         assertEquals(List.of("wasbs", "wasb"), provider.supportedSchemes());
     }
 
     public void testInvalidSchemeThrows() {
-        AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null);
+        AzureStorageProvider provider = new AzureStorageProvider(null);
         StoragePath s3Path = StoragePath.of("s3://my-bucket/path/to/file.parquet");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(s3Path));
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));
@@ -177,5 +191,97 @@ public class AzureStorageProviderTests extends ESTestCase {
 
     private static BlobItemProperties properties(long contentLength) {
         return new BlobItemProperties().setContentLength(contentLength);
+    }
+
+    public void testIssueAssertionAsyncCompletesWithToken() throws Exception {
+        WorkloadIdentityIssuerClient issuer = (request, listener) -> listener.onResponse(
+            new WorkloadIdentityIssuerClient.IssueTokenResponse("header.payload.signature", Instant.now().plusSeconds(3600))
+        );
+        CompletableFuture<String> assertion = AzureStorageProvider.issueAssertionAsync(issuer, "api://AzureADTokenExchange");
+        assertEquals("header.payload.signature", assertion.get());
+    }
+
+    public void testIssueAssertionAsyncCompletesExceptionallyOnFailure() {
+        IOException failure = new IOException("issuer unavailable");
+        WorkloadIdentityIssuerClient issuer = (request, listener) -> listener.onFailure(failure);
+        CompletableFuture<String> assertion = AzureStorageProvider.issueAssertionAsync(issuer, "api://AzureADTokenExchange");
+        ExecutionException e = expectThrows(ExecutionException.class, assertion::get);
+        assertSame(failure, e.getCause());
+    }
+
+    public void testBuildClientAssertionCredentialThrowsWhenWorkloadIdentityDisabled() {
+        WorkloadIdentityRegistry.setIssuerClient(new RecordingIssuerClient(false, false));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> AzureStorageProvider.buildClientAssertionCredential(keylessConfig(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
+            assertThat(e.getMessage(), containsString("workload-identity feature to be enabled"));
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequiresExecutor() {
+        WorkloadIdentityRegistry.setIssuerClient(new RecordingIssuerClient(true, false));
+        try {
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> AzureStorageProvider.buildClientAssertionCredential(keylessConfig(), null)
+            );
+            assertThat(e.getMessage(), containsString("non-null executor"));
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    public void testBuildClientAssertionCredentialRequestsConfiguredAudience() {
+        RecordingIssuerClient issuer = new RecordingIssuerClient(true, false);
+        WorkloadIdentityRegistry.setIssuerClient(issuer);
+        try {
+            TokenCredential credential = AzureStorageProvider.buildClientAssertionCredential(
+                keylessConfig(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            // The issuer fails the assertion, so resolution short-circuits before any Azure AD token exchange.
+            TokenRequestContext request = new TokenRequestContext().addScopes("https://storage.azure.com/.default");
+            expectThrows(CredentialUnavailableException.class, () -> credential.getToken(request).block());
+            assertEquals("api://AzureADTokenExchange", issuer.requestedAudience);
+        } finally {
+            WorkloadIdentityRegistry.reset();
+        }
+    }
+
+    private static AzureConfiguration keylessConfig() {
+        return AzureConfiguration.fromMap(
+            Map.of("tenant_id", "test-tenant-id", "client_id", "test-client-id", "jwt_audience", "api://AzureADTokenExchange")
+        );
+    }
+
+    /** Stub issuer that records the requested audience and either fails the listener or returns a token. */
+    private static final class RecordingIssuerClient implements WorkloadIdentityIssuerClient {
+        private final boolean enabled;
+        private final boolean succeed;
+        private volatile String requestedAudience;
+
+        RecordingIssuerClient(boolean enabled, boolean succeed) {
+            this.enabled = enabled;
+            this.succeed = succeed;
+        }
+
+        @Override
+        public void issueToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
+            requestedAudience = request.audience();
+            if (succeed) {
+                listener.onResponse(new IssueTokenResponse("header.payload.signature", Instant.now().plusSeconds(3600)));
+            } else {
+                listener.onFailure(new IOException("issuer unavailable"));
+            }
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return enabled;
+        }
     }
 }

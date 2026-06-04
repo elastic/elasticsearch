@@ -175,7 +175,7 @@ public class GcsStorageProvider implements StorageProvider {
             "GCS data source requires credentials: provide WITH (credentials = '...'), "
                 + "WITH (access_token = '...') for short-lived OAuth credentials, "
                 + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'workload identity') to use Application Default Credentials (requires cluster setting)"
+                + "or WITH (auth = 'workload_identity') to use Application Default Credentials (requires cluster setting)"
         );
     }
 

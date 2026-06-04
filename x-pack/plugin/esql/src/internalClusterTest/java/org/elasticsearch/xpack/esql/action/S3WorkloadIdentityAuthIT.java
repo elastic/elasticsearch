@@ -39,8 +39,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -64,39 +66,45 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * <p>Proof comes in two layers:
  * <ol>
- *   <li><b>Credential origin</b>: the AWS SDK signs the S3 request with the access key that
- *       {@code SystemPropertyCredentialsProvider} resolved from the {@code aws.accessKeyId}
- *       system property. The {@link S3HttpHandler} fixture validates the SigV4 Authorization
- *       header and rejects all others with HTTP 403, so a successful query <em>requires</em>
- *       the workload identity chain to have picked up the system-property credential.</li>
+ *   <li><b>Credential origin</b>: a mock IMDS server is started in {@code @BeforeClass} and wired
+ *       via the {@code aws.ec2MetadataServiceEndpoint} system property — the official AWS SDK v2
+ *       override for IMDS. {@link S3HttpHandler} validates the SigV4 Authorization header and
+ *       rejects all others with HTTP 403, so a successful query <em>requires</em>
+ *       {@code InstanceProfileCredentialsProvider} to have used the mock IMDS.</li>
  *   <li><b>Row return</b>: the query must return rows, proving the full path from
  *       {@code auth=workload_identity} data-source registration → cluster-setting gate → S3 client
- *       construction → workload identity credential resolution → actual data read.</li>
+ *       construction → IMDS credential resolution → actual data read.</li>
  * </ol>
  *
- * <p>Uses {@code SystemPropertyCredentialsProvider} (second in our explicit workload identity chain)
- * rather than environment variables (first) because Java tests cannot set env vars, but
- * {@code System.setProperty()} is available and sufficient to exercise the chain.
+ * <p>The mock IMDS serves whatever {@link #imdsAccessKey} holds at fetch time. The wrong-credential
+ * sub-test sets a different key and registers the datasource with a distinct endpoint string
+ * ({@code 127.0.0.1} vs {@code localhost}) to force a cache miss in {@code StorageProviderRegistry}
+ * — the cache key includes the config map, so a different endpoint string means a fresh provider
+ * is constructed, whose first IMDS fetch picks up the updated key.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @SuppressForbidden(reason = "uses HttpServer for local S3 fixture and System.setProperty for workload identity credential seeding")
-@ThreadLeakFilters(filters = { FileSourceWorkloadIdentityAuthIT.AwsSdkThreadFilter.class })
-public class FileSourceWorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
+@ThreadLeakFilters(filters = { S3WorkloadIdentityAuthIT.AwsSdkThreadFilter.class })
+public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
     static final String WORKLOAD_IDENTITY_ACCESS_KEY = "workload-identity-test-access-key";
     static final String WORKLOAD_IDENTITY_SECRET_KEY = "workload-identity-test-secret-key";
-    static final String BUCKET = "test-workload identity-bucket";
+    static final String BUCKET = "test-workload-identity-bucket";
     static final String OBJECT_KEY = "data/rows.ndjson";
-    static final String DATASOURCE_NAME = "workload identity_s3";
-    static final String DATASET_NAME = "workload identity_rows";
+    static final String DATASOURCE_NAME = "workload_identity_s3";
+    static final String DATASET_NAME = "workload_identity_rows";
 
     /** Captures the Authorization header from the most recent S3 request for assertion. */
     static final AtomicReference<String> lastAuthorizationHeader = new AtomicReference<>();
 
+    /** Access key served by the mock IMDS; swap before registering a datasource to inject a different credential. */
+    static final AtomicReference<String> imdsAccessKey = new AtomicReference<>(WORKLOAD_IDENTITY_ACCESS_KEY);
+
     private static HttpServer s3Server;
     private static int s3Port;
+    private static HttpServer imdsServer;
 
     @BeforeClass
     public static void startS3Server() throws Exception {
@@ -127,18 +135,64 @@ public class FileSourceWorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase 
         }
     }
 
+    @BeforeClass
+    public static void startImdsServer() throws Exception {
+        imdsServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        // IMDSv2 token endpoint — the SDK PUTs here first; return a dummy token.
+        imdsServer.createContext("/latest/api/token", exchange -> {
+            byte[] token = "test-imds-token".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, token.length);
+            exchange.getResponseBody().write(token);
+            exchange.close();
+        });
+        // Credentials endpoints — list role, then return credentials JSON.
+        // Credentials endpoint — list role then return credentials JSON.
+        imdsServer.createContext("/latest/meta-data/iam/security-credentials", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            if (path.endsWith("security-credentials") || path.endsWith("security-credentials/")) {
+                byte[] role = "test-role\n".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, role.length);
+                exchange.getResponseBody().write(role);
+            } else {
+                String expiration = Instant.now().plusSeconds(3600).toString();
+                String json = "{\"Code\":\"Success\",\"LastUpdated\":\"2025-01-01T00:00:00Z\","
+                    + "\"Type\":\"AWS-HMAC\",\"AccessKeyId\":\""
+                    + imdsAccessKey.get()
+                    + "\",\"SecretAccessKey\":\""
+                    + WORKLOAD_IDENTITY_SECRET_KEY
+                    + "\",\"Expiration\":\""
+                    + expiration
+                    + "\"}";
+                byte[] body = json.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+            exchange.close();
+        });
+        imdsServer.start();
+        // Set before cluster nodes are created so InstanceProfileCredentialsProvider
+        // uses the mock from the very first credential resolution.
+        System.setProperty("aws.ec2MetadataServiceEndpoint", "http://localhost:" + imdsServer.getAddress().getPort());
+    }
+
+    @AfterClass
+    public static void stopImdsServer() {
+        System.clearProperty("aws.ec2MetadataServiceEndpoint");
+        if (imdsServer != null) {
+            imdsServer.stop(0);
+            imdsServer = null;
+        }
+    }
+
     @Before
-    public void seedWorkloadIdentityCredentials() {
-        // SystemPropertyCredentialsProvider reads these; they are the second provider
-        // in the workload identity chain after EnvironmentVariableCredentialsProvider.
-        System.setProperty("aws.accessKeyId", WORKLOAD_IDENTITY_ACCESS_KEY);
-        System.setProperty("aws.secretAccessKey", WORKLOAD_IDENTITY_SECRET_KEY);
+    public void resetImdsKey() {
+        imdsAccessKey.set(WORKLOAD_IDENTITY_ACCESS_KEY);
     }
 
     @After
-    public void clearWorkloadIdentityCredentials() {
-        System.clearProperty("aws.accessKeyId");
-        System.clearProperty("aws.secretAccessKey");
+    public void restoreImdsKey() {
+        imdsAccessKey.set(WORKLOAD_IDENTITY_ACCESS_KEY);
     }
 
     @Before
@@ -220,9 +274,52 @@ public class FileSourceWorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase 
         String authHeader = lastAuthorizationHeader.get();
         assertThat("S3 request must carry an Authorization header", authHeader, notNullValue());
         assertThat(
-            "Authorization header must contain the workload identity access key resolved from system properties",
+            "Authorization header must contain the workload identity access key from mock IMDS",
             authHeader,
             containsString(WORKLOAD_IDENTITY_ACCESS_KEY)
+        );
+    }
+
+    /**
+     * Wrong-credential counter-test: the fixture rejects requests not signed with
+     * {@link #WORKLOAD_IDENTITY_ACCESS_KEY}, proving the auth gate is actually enforced.
+     *
+     * <p>Sets a wrong key in {@link #imdsAccessKey} <em>before</em> registering the datasource
+     * and uses {@code 127.0.0.1} instead of {@code localhost} as the endpoint, forcing a cache miss
+     * in {@code StorageProviderRegistry}. The fresh provider's first IMDS fetch returns the wrong
+     * key, the S3 request is signed with it, and the fixture rejects with HTTP 403.
+     */
+    public void testQueryFailsWhenWrongCredentialIsUsed() throws Exception {
+        imdsAccessKey.set("wrong-key-that-fixture-rejects");
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    DATASOURCE_NAME,
+                    "s3",
+                    null,
+                    new HashMap<>(
+                        Map.of("auth", "workload_identity", "region", "us-east-1", "endpoint", "http://127.0.0.1:" + s3Port)
+                    )
+                )
+            )
+        );
+        registerDataset();
+
+        lastAuthorizationHeader.set(null);
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
+                fail("query must fail: fixture rejects requests not signed with WORKLOAD_IDENTITY_ACCESS_KEY");
+            }
+        });
+        String authHeader = lastAuthorizationHeader.get();
+        assertThat("S3 request must have reached the fixture", authHeader, notNullValue());
+        assertThat(
+            "Authorization header must contain the wrong key injected via mock IMDS",
+            authHeader,
+            containsString("wrong-key-that-fixture-rejects")
         );
     }
 
@@ -241,36 +338,6 @@ public class FileSourceWorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase 
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
         );
         assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
-    }
-
-    /**
-     * Wrong-credential counter-test: the fixture rejects requests not signed with
-     * {@link #WORKLOAD_IDENTITY_ACCESS_KEY}, proving the auth gate is actually enforced.
-     */
-    public void testQueryFailsWhenWrongCredentialIsUsed() throws Exception {
-        registerWorkloadIdentityDatasource();
-        registerDataset();
-
-        lastAuthorizationHeader.set(null);
-        System.setProperty("aws.accessKeyId", "wrong-key-that-fixture-rejects");
-        try {
-            expectThrows(Exception.class, () -> {
-                try (var ignored = run(syncEsqlQueryRequest("FROM " + DATASET_NAME + " | STATS count = COUNT(*)"))) {
-                    fail("query must fail: fixture rejects requests not signed with WORKLOAD_IDENTITY_ACCESS_KEY");
-                }
-            });
-        } finally {
-            System.setProperty("aws.accessKeyId", WORKLOAD_IDENTITY_ACCESS_KEY);
-        }
-        // Prove the request reached the fixture (header captured) and carried the wrong key —
-        // ruling out a setup failure as the cause of the exception above.
-        String authHeader = lastAuthorizationHeader.get();
-        assertThat("S3 request must have reached the fixture", authHeader, notNullValue());
-        assertThat(
-            "Authorization header must contain the wrong key, not the workload identity one",
-            authHeader,
-            containsString("wrong-key-that-fixture-rejects")
-        );
     }
 
     /**

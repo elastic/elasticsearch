@@ -64,10 +64,10 @@ import static org.hamcrest.Matchers.hasSize;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GcsWorkloadIdentityAuthIT extends ESRestTestCase {
 
-    private static final String BUCKET = "test-workload identity-bucket";
+    private static final String BUCKET = "test-workload-identity-bucket";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "workload identity_gcs_ds";
-    private static final String DATASET_NAME = "workload identity_gcs_rows";
+    private static final String DATASOURCE_NAME = "workload_identity_gcs_ds";
+    private static final String DATASET_NAME = "workload_identity_gcs_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Tokyo\"}\n{\"id\":2,\"city\":\"Seoul\"}\n".getBytes(
         StandardCharsets.UTF_8
     );

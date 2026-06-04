@@ -35,7 +35,7 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     @Override
     protected final void validate(ValidationException errors) {
         if (auth() != null && AUTH_NONE.equals(auth()) == false && AUTH_WORKLOAD_IDENTITY.equals(auth()) == false) {
-            errors.addValidationError("Unsupported auth value [" + auth() + "]; supported values: [none, workload identity]");
+            errors.addValidationError("Unsupported auth value [" + auth() + "]; supported values: [none, workload_identity]");
         }
         if (isAnonymous() && hasAnySecretValue()) {
             errors.addValidationError("auth=none cannot be combined with explicit credentials; anonymous access uses no credentials");

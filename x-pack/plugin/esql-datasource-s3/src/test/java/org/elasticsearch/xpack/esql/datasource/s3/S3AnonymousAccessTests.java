@@ -168,15 +168,34 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * auth=workload_identity should return an AwsCredentialsProviderChain (env → system props → IMDS),
-     * not AnonymousCredentialsProvider or StaticCredentialsProvider.
+     * auth=workload_identity delegates to {@code buildWorkloadIdentityCredentialsProvider()}, which
+     * by default returns an {@code AwsCredentialsProviderChain}. Tests may subclass and override
+     * that method to inject a static provider — the same seam used by GcsStorageProvider.
      */
     public void testWorkloadIdentityCredentialsProviderType() {
         S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
         assertNotNull(config);
         assertTrue(config.isWorkloadIdentity());
-        var provider = S3StorageProvider.credentialsProvider(config);
+        var provider = new S3StorageProvider(null, null).credentialsProvider(config);
         assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
+    }
+
+    /**
+     * Verifies that overriding {@code buildWorkloadIdentityCredentialsProvider()} allows injecting
+     * a test credential — the unit-test seam for wrong-credential counter-proofs.
+     */
+    public void testWorkloadIdentityCredentialOverrideSeam() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "workload_identity");
+        var injected = software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
+            software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("test-key", "test-secret")
+        );
+        var provider = new S3StorageProvider(null, null) {
+            @Override
+            protected software.amazon.awssdk.auth.credentials.AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+                return injected;
+            }
+        }.credentialsProvider(config);
+        assertSame("credentialsProvider() must delegate to buildWorkloadIdentityCredentialsProvider()", injected, provider);
     }
 
     /**

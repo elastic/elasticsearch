@@ -69,15 +69,16 @@ import java.util.NoSuchElementException;
  * jars are bundled with this plugin (classloader-isolated from the server and other plugins)
  * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
-public final class S3StorageProvider implements StorageProvider {
+public class S3StorageProvider implements StorageProvider {
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
 
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
-        this.s3Client = buildS3Client(config);
-        this.s3AsyncClient = buildS3AsyncClient(config);
+        AwsCredentialsProvider creds = credentialsProvider(config);
+        this.s3Client = buildS3Client(creds, config);
+        this.s3AsyncClient = buildS3AsyncClient(creds, config);
     }
 
     /** Test-only constructor that accepts pre-built clients. */
@@ -87,11 +88,11 @@ public final class S3StorageProvider implements StorageProvider {
         this.s3AsyncClient = s3AsyncClient;
     }
 
-    private static S3Client buildS3Client(S3Configuration config) {
-        return configureCommon(S3Client.builder(), config).build();
+    private static S3Client buildS3Client(AwsCredentialsProvider creds, S3Configuration config) {
+        return configureCommon(S3Client.builder(), creds, config).build();
     }
 
-    private static S3AsyncClient buildS3AsyncClient(S3Configuration config) {
+    private static S3AsyncClient buildS3AsyncClient(AwsCredentialsProvider creds, S3Configuration config) {
         // Install a pooled receive-buffer allocator so that socket reads on Netty channels reuse
         // pooled memory instead of allocating a fresh zero-filled byte[] per read. The AWS SDK's
         // Netty client unconditionally overrides ChannelOption.ALLOCATOR to UnpooledByteBufAllocator
@@ -101,13 +102,13 @@ public final class S3StorageProvider implements StorageProvider {
         // PooledRecvByteBufAllocator for the full rationale.
         NettyNioAsyncHttpClient.Builder httpClient = NettyNioAsyncHttpClient.builder()
             .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT);
-        return configureCommon(S3AsyncClient.builder(), config).httpClient(httpClient.build()).build();
+        return configureCommon(S3AsyncClient.builder(), creds, config).httpClient(httpClient.build()).build();
     }
 
     /**
      * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
      */
-    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(B builder, S3Configuration config) {
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(B builder, AwsCredentialsProvider creds, S3Configuration config) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
@@ -126,7 +127,7 @@ public final class S3StorageProvider implements StorageProvider {
         // TLS already provides in-transit integrity; this matches what other engines do.
         builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
-        builder.credentialsProvider(credentialsProvider(config));
+        builder.credentialsProvider(creds);
 
         if (config != null && config.region() != null) {
             builder.region(Region.of(config.region()));
@@ -154,19 +155,12 @@ public final class S3StorageProvider implements StorageProvider {
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
      */
-    static AwsCredentialsProvider credentialsProvider(S3Configuration config) {
+    AwsCredentialsProvider credentialsProvider(S3Configuration config) {
         if (config != null && config.isAnonymous()) {
             return AnonymousCredentialsProvider.create();
         }
         if (config != null && config.isWorkloadIdentity()) {
-            // IMDS-family only: ECS task role first (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
-            // then EC2 instance profile. Env-var and system-property providers are excluded —
-            // they are a dev/CI convention and open a JVM-global-state override on servers.
-            // Profile-file loading is excluded (file read, blocked by entitlements).
-            // EKS IRSA + Pod Identity (token-file reads) are the v2 follow-up.
-            return AwsCredentialsProviderChain.builder()
-                .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
-                .build();
+            return buildWorkloadIdentityCredentialsProvider();
         }
         if (config != null && config.hasCredentials()) {
             if (Strings.hasText(config.sessionToken())) {
@@ -184,8 +178,25 @@ public final class S3StorageProvider implements StorageProvider {
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
                 + "WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'workload identity') to use the node's instance role (requires cluster setting)"
+                + "or WITH (auth = 'workload_identity') to use the node's instance role (requires cluster setting)"
         );
+    }
+
+    /**
+     * Builds the credentials provider for {@code auth=workload_identity}. Default uses the
+     * IMDS-family chain (container task role then EC2 instance profile). Tests may subclass and
+     * override to inject a {@code StaticCredentialsProvider} backed by a local fixture — the same
+     * seam pattern used by {@code GcsStorageProvider#buildWorkloadIdentityCredentials()}.
+     */
+    protected AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
+        // IMDS-family only: ECS task role first (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
+        // then EC2 instance profile. Env-var and system-property providers are excluded —
+        // they are a dev/CI convention and open a JVM-global-state override on servers.
+        // Profile-file loading is excluded (file read, blocked by entitlements).
+        // EKS IRSA + Pod Identity (token-file reads) are the v2 follow-up.
+        return AwsCredentialsProviderChain.builder()
+            .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
+            .build();
     }
 
     @Override

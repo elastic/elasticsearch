@@ -81,8 +81,8 @@ public class AzureWorkloadIdentityAuthIT extends ESRestTestCase {
     private static final String ACCOUNT = "testaccount";
     private static final String CONTAINER = "testcontainer";
     private static final String OBJECT_KEY = "data/rows.ndjson";
-    private static final String DATASOURCE_NAME = "workload identity_azure_ds";
-    private static final String DATASET_NAME = "workload identity_azure_rows";
+    private static final String DATASOURCE_NAME = "workload_identity_azure_ds";
+    private static final String DATASET_NAME = "workload_identity_azure_rows";
     private static final byte[] NDJSON_CONTENT = "{\"id\":1,\"city\":\"Vienna\"}\n{\"id\":2,\"city\":\"Berlin\"}\n".getBytes(
         StandardCharsets.UTF_8
     );

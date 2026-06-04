@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
@@ -141,8 +142,17 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
     public static SortedNumericLongValues getLongValues(String fieldName, LeafReader reader) throws IOException {
         SortedNumericDocValues values = DocValues.getSortedNumeric(reader, fieldName);
         DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
-        boolean isDense = skipper != null && skipper.docCount() == reader.maxDoc();
-        return wrap(values, isDense);
+        if (skipper != null) {
+            boolean isDense = skipper.docCount() == reader.maxDoc();
+            return wrap(values, isDense);
+        } else {
+            PointValues pointValues = reader.getPointValues(fieldName);
+            if (pointValues != null) {
+                boolean isDense = pointValues.getDocCount() == reader.maxDoc();
+                return wrap(values, isDense);
+            }
+        }
+        return wrap(values, false);
     }
 
     /**

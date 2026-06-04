@@ -195,11 +195,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Contract mirror of {@link ParallelParsingCoordinator}: clean close must publish a
-     * {@link ExternalStats#FINALIZE_CHUNKS_KEY} marker under the real file path so coordinator-side
-     * reconciliation commits the sum of per-chunk partials.
+     * Each per-chunk partial must carry a coverage range, and those ranges must tile the decompressed
+     * stream contiguously from 0 with the final chunk flagged last — the property the coordinator-side
+     * reconciler checks before committing the summed per-chunk counts.
      */
-    public void testCleanClosePublishesFinalizeMarkerToSink() throws Exception {
+    public void testCleanClosePublishesTilingCoverageToSink() throws Exception {
         int lineCount = 500;
         String content = buildContent(lineCount);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -234,10 +234,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
-        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
-        boolean finalized = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.FINALIZE_CHUNKS_KEY)));
-        assertThat(partialCount, Matchers.greaterThanOrEqualTo(2L));
-        assertTrue("clean close must publish a finalize marker under the file path", finalized);
+        List<Map<String, Object>> partials = contributions.stream()
+            .filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)))
+            .sorted(java.util.Comparator.comparingLong(m -> ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue()))
+            .toList();
+        assertThat(partials.size(), Matchers.greaterThanOrEqualTo(2));
+        long expectedStart = 0;
+        boolean lastFlagged = false;
+        for (Map<String, Object> p : partials) {
+            long start = ((Number) p.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+            long end = ((Number) p.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+            assertEquals("chunk coverage must tile the decompressed stream with no gap", expectedStart, start);
+            assertTrue("coverage end must advance", end > start);
+            expectedStart = end;
+            lastFlagged = Boolean.TRUE.equals(p.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        }
+        assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
     }
 
     public void testParserErrorPropagates() throws Exception {

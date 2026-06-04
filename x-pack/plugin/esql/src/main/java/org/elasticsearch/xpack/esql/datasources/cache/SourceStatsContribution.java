@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,56 +15,59 @@ import java.util.Map;
  * {@code DriverCompletionInfo.capturedSourceMetadata}.
  * <p>
  * Contributions travel over the wire as untyped {@code Map<String, Object>} blobs tagged with marker
- * keys ({@link ExternalStats#PARTIAL_CHUNK_KEY}, {@link ExternalStats#FINALIZE_CHUNKS_KEY},
- * {@link ExternalStats#CHUNK_HAD_ERRORS_KEY}). Each kind composes differently — partial chunks
- * are summed, whole-file reads are deduplicated, poison discards the file, finalize gates the merge.
- * Three separate correctness bugs in the reconciler came from the merge logic forgetting to
- * special-case one marker and letting that kind fall through to the summable {@link PartialChunk}
- * default (a SKIP_ROW poison summed, a different-{@code WITH}-options read cross-contaminated, two
- * whole-file reads doubled COUNT(*)).
- * <p>
- * Classifying each blob into this sealed type at the wire boundary, then merging through an
- * exhaustive {@code switch}, makes "did we remember to handle this kind?" a compile error: adding a
- * permitted subtype breaks every switch over {@code SourceStatsContribution} until its merge
- * semantics are written. The wire format stays the untyped map — this type lives only on the
- * coordinator, so there is no transport-version or BWC impact.
+ * keys ({@link ExternalStats#PARTIAL_CHUNK_KEY}, {@link ExternalStats#CHUNK_HAD_ERRORS_KEY}) and, for
+ * partial chunks, a coverage range ({@link ExternalStats#COVERAGE_START_KEY} etc.). Each kind composes
+ * differently and the reconciler routes them through an exhaustive {@code switch}, so a new kind is a
+ * compile error until its merge semantics are written — the safeguard that the silent-fall-through
+ * double-count/under-count regressions taught us to keep. The wire format stays the untyped map; this
+ * type lives only on the coordinator, so there is no transport-version or BWC impact.
  */
 sealed interface SourceStatsContribution {
 
     /** A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated rather than summed. */
     record WholeFile(Map<String, Object> stats) implements SourceStatsContribution {}
 
-    /** One record-aligned slice of a parallel-parsed file; summed with its siblings once a {@link Finalize} proves the set is complete. */
-    record PartialChunk(Map<String, Object> stats) implements SourceStatsContribution {}
+    /**
+     * One range of a parallel-parsed file (a streaming chunk, a record-aligned macro-split segment, a
+     * block split). {@code start}/{@code end} are the half-open byte range it covered, in the path's
+     * read coordinate system; {@code last} marks the contribution that observed end-of-input. The
+     * reconciler unions partials by {@code [start,end)} — disjoint ranges sum, an identical range
+     * re-observed by another scan of the same file (a sibling FORK branch, a schema-probe pass, a
+     * retry) is counted once — and confirms the union tiles {@code [0, end)} with a flagged tail
+     * before caching. {@code start < 0} marks a partial that arrived without coverage (an older node);
+     * it cannot be addressed, so it renders its file's cover incomplete and uncacheable.
+     */
+    record PartialChunk(Map<String, Object> stats, long start, long end, boolean last) implements SourceStatsContribution {
+        boolean hasCoverage() {
+            return start >= 0 && end >= start;
+        }
+    }
 
     /** A chunk dropped rows mid-scan (SKIP_ROW); the file's whole contribution set must be discarded to avoid an under-count. */
     record Poison() implements SourceStatsContribution {}
 
-    /** Completion signal that every chunk of a parallel-parsed file finished cleanly; gates the partial merge and carries no stats. */
-    record Finalize() implements SourceStatsContribution {}
-
     /**
-     * Classifies a raw wire contribution by its marker keys. Precedence matches the publish sites:
-     * a poison or finalize marker is its own stats-less entry; a partial-marked entry carries the
-     * chunk's stats; anything else carrying a row count is a whole-file read. Marker keys are
-     * stripped from the stats-bearing kinds so the well-known {@code _stats.*} keys merge cleanly.
+     * Classifies a raw wire contribution by its marker keys. A poison marker is its own stats-less
+     * entry; a partial-marked entry carries the chunk's stats plus its coverage range; anything else
+     * carrying a row count is a whole-file read. Marker and coverage keys are stripped from the
+     * stats-bearing kinds so the well-known {@code _stats.*} keys merge cleanly.
      */
     static SourceStatsContribution classify(Map<String, Object> raw) {
         if (Boolean.TRUE.equals(raw.get(ExternalStats.CHUNK_HAD_ERRORS_KEY))) {
             return new Poison();
         }
-        if (Boolean.TRUE.equals(raw.get(ExternalStats.FINALIZE_CHUNKS_KEY))) {
-            // Defends the "Finalize carries no stats" contract: today's publishers never attach
-            // a row count to the finalize marker, but nothing on the wire enforces it. If a future
-            // publisher accidentally does, the silent fall-through used to mis-classify it as a
-            // WholeFile/PartialChunk and either double-count or short-circuit the partial sum.
-            assert raw.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false : "Finalize marker must not carry stats: " + raw;
-            return new Finalize();
-        }
         Map<String, Object> stripped = new HashMap<>(raw);
         boolean isPartial = stripped.remove(ExternalStats.PARTIAL_CHUNK_KEY) != null;
-        stripped.remove(ExternalStats.FINALIZE_CHUNKS_KEY);
         stripped.remove(ExternalStats.CHUNK_HAD_ERRORS_KEY);
-        return isPartial ? new PartialChunk(stripped) : new WholeFile(stripped);
+        Object start = stripped.remove(ExternalStats.COVERAGE_START_KEY);
+        Object end = stripped.remove(ExternalStats.COVERAGE_END_KEY);
+        boolean last = Boolean.TRUE.equals(stripped.remove(ExternalStats.COVERAGE_IS_LAST_KEY));
+        if (isPartial == false) {
+            return new WholeFile(stripped);
+        }
+        // A partial without coverage (older node) is flagged un-addressable with start = -1.
+        long startOffset = start instanceof Number n ? n.longValue() : -1L;
+        long endOffset = end instanceof Number n ? n.longValue() : -1L;
+        return new PartialChunk(stripped, startOffset, endOffset, last);
     }
 }

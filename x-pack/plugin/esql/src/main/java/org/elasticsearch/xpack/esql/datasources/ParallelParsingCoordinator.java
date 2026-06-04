@@ -13,7 +13,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -25,9 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -630,6 +627,18 @@ public final class ParallelParsingCoordinator {
         private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
             StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
+            // Coverage in absolute file coordinates: segment offsets are relative to this (possibly
+            // macro-split) storage object, so add its base file offset. The reconciler unions
+            // contributions by this range across all segments, macro-splits, and nodes — disjoint
+            // ranges sum, a range re-observed by a sibling FORK scan dedups. {@code lastSplit} flags
+            // the segment that reaches this object's tail; the truly final range (highest offset, on
+            // the file's last macro-split) carries it, which is what the completeness check reads.
+            long baseOffset = storageObject instanceof RangeStorageObject r ? r.offset() : 0L;
+            ExternalStatsCapture.Coverage coverage = new ExternalStatsCapture.Coverage(
+                baseOffset + offset,
+                baseOffset + offset + length,
+                lastSplit
+            );
 
             // Per-flag semantics:
             // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
@@ -666,7 +675,7 @@ public final class ParallelParsingCoordinator {
             // worker threads are reused across queries by the shared executor, and a leaked binding would
             // poison subsequent tasks. The inner stream closes first, so the close hook's record() call runs
             // with the sink still bound; then the handle restores the previous binding.
-            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+            ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink, coverage) : () -> {};
             try (bound) {
                 try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                     while (pages.hasNext()) {
@@ -770,16 +779,6 @@ public final class ParallelParsingCoordinator {
             if (closed) {
                 return;
             }
-            // Decide whether to publish a finalize marker before flipping closed=true: the marker means
-            // "every segment finished cleanly and the consumer drained the whole file, so the per-chunk
-            // partials shipped to ExternalStatsCapture represent the complete file." In the as-ready model
-            // that is: no error, every worker has finished (remainingSegments == 0) and the shared queue is
-            // empty (the consumer took every page) — an early close (e.g. LIMIT) leaves one or the other
-            // non-terminal. Captured before flipping closed=true, which short-circuits the workers' enqueue
-            // loops; we only treat it as clean if they had already drained naturally.
-            // `buffered != null` means a hasNext() handed a page out that next() never consumed — an early close
-            // (LIMIT, cancellation, downstream error), so the file was not fully drained: not a clean completion.
-            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
             // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
             // queue, so without this its Blocks leak against the breaker on every early close.
@@ -796,35 +795,10 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainQueue();
-            if (cleanCompletion && firstError.get() == null) {
-                publishFinalizeMarker();
-            }
-        }
-
-        /**
-         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
-         * {@link ExternalStatsCapture#record} cover
-         * the entire file cleanly. Without this marker, partial contributions are discarded.
-         */
-        private void publishFinalizeMarker() {
-            try {
-                Instant lastMod = storageObject.lastModified();
-                long mtimeMillis = lastMod != null ? lastMod.toEpochMilli() : -1L;
-                if (mtimeMillis < 0) {
-                    return;
-                }
-                Map<String, Object> marker = new HashMap<>();
-                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
-                ExternalStatsCapture.record(storageObject.path().toString(), marker);
-            } catch (IOException e) {
-                logger.debug(
-                    () -> "ParallelParsingCoordinator: skipping finalize marker for ["
-                        + storageObject.path()
-                        + "] — lastModified() unavailable",
-                    e
-                );
-            }
+            // Completeness is established by coverage tiling at the coordinator reconciler (the segment
+            // ranges must tile [0, fileLength) with the final range flagged last), not by a finalize
+            // marker. A scan that closed early (LIMIT, error) leaves a gap or an unflagged tail, so its
+            // partial cover is simply not cached.
         }
 
         private void drainQueue() {

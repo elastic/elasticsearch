@@ -42,6 +42,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class TaskTracker implements ProgressListener {
 
     private final Map<String, TaskRecord> tasksByPath = new LinkedHashMap<>();
+    private final Queue<SuiteRecord> suiteResults = new ConcurrentLinkedQueue<>();
     private final Queue<TestRecord> testResults = new ConcurrentLinkedQueue<>();
     private final BuildCanceller canceller;
 
@@ -68,23 +69,30 @@ public class TaskTracker implements ProgressListener {
             }
         } else if (event instanceof TestFinishEvent testFinish) {
             if (testFinish.getDescriptor() instanceof JvmTestOperationDescriptor jvmDesc) {
-                // Only record atomic (method-level) test results, not suites
-                if (jvmDesc.getClassName() != null && jvmDesc.getMethodName() != null) {
+                if (jvmDesc.getClassName() != null) {
                     String taskPath = findOwningTaskPath(jvmDesc);
-                    String result;
-                    if (testFinish.getResult() instanceof TestSuccessResult) {
-                        result = "SUCCESS";
-                    } else if (testFinish.getResult() instanceof TestFailureResult) {
-                        result = "FAILURE";
-                    } else if (testFinish.getResult() instanceof TestSkippedResult) {
-                        result = "SKIPPED";
+                    String result = testResultString(testFinish);
+                    if (jvmDesc.getMethodName() != null) {
+                        // Method-level test result
+                        testResults.add(new TestRecord(taskPath, jvmDesc.getClassName(), jvmDesc.getMethodName(), result));
                     } else {
-                        result = "SUCCESS";
+                        // Suite (class-level) result
+                        suiteResults.add(new SuiteRecord(taskPath, jvmDesc.getClassName(), result));
                     }
-                    testResults.add(new TestRecord(taskPath, jvmDesc.getClassName(), jvmDesc.getMethodName(), result));
                 }
             }
         }
+    }
+
+    private static String testResultString(TestFinishEvent event) {
+        if (event.getResult() instanceof TestSuccessResult) {
+            return "SUCCESS";
+        } else if (event.getResult() instanceof TestFailureResult) {
+            return "FAILURE";
+        } else if (event.getResult() instanceof TestSkippedResult) {
+            return "SKIPPED";
+        }
+        return "SUCCESS";
     }
 
     /**
@@ -127,8 +135,7 @@ public class TaskTracker implements ProgressListener {
             return new StatusReport.TaskEntry(path, outcome);
         }).toList();
 
-        // Only include individual test entries for tasks that did not complete successfully.
-        // Successful tasks can have thousands of test entries; omitting them keeps the file small.
+        // Determine which tasks completed successfully — their suites and tests are omitted.
         Set<String> successfulTasks;
         synchronized (tasksByPath) {
             successfulTasks = tasksByPath.values()
@@ -138,14 +145,31 @@ public class TaskTracker implements ProgressListener {
                 .collect(java.util.stream.Collectors.toSet());
         }
 
+        // Include suites only for tasks that did not complete successfully.
+        List<StatusReport.SuiteEntry> suiteEntries = suiteResults.stream()
+            .filter(r -> successfulTasks.contains(r.taskPath()) == false)
+            .sorted(Comparator.comparing(SuiteRecord::taskPath).thenComparing(SuiteRecord::className))
+            .map(r -> new StatusReport.SuiteEntry(r.taskPath(), r.className(), r.result()))
+            .toList();
+
+        // Determine which suites completed successfully — their individual tests are omitted.
+        Set<String> successfulSuites = suiteResults.stream()
+            .filter(r -> "SUCCESS".equals(r.result()))
+            .map(r -> r.taskPath() + "\0" + r.className())
+            .collect(java.util.stream.Collectors.toSet());
+
+        // Include individual tests only for tasks that did not complete successfully
+        // AND suites that did not complete successfully.
         List<StatusReport.TestEntry> testEntries = testResults.stream()
             .filter(r -> successfulTasks.contains(r.taskPath()) == false)
+            .filter(r -> successfulSuites.contains(r.taskPath() + "\0" + r.className()) == false)
             .sorted(Comparator.comparing(TestRecord::taskPath).thenComparing(TestRecord::className).thenComparing(TestRecord::methodName))
             .map(r -> new StatusReport.TestEntry(r.taskPath(), r.className(), r.methodName(), r.result()))
             .toList();
 
         return new StatusReport(
             taskEntries,
+            suiteEntries,
             testEntries,
             canceller.isCancelled(),
             GcpPreemptionWatchdog.preemptedAt() != null ? GcpPreemptionWatchdog.preemptedAt().toString() : null
@@ -209,6 +233,8 @@ public class TaskTracker implements ProgressListener {
             }
         }
     }
+
+    record SuiteRecord(String taskPath, String className, String result) {}
 
     record TestRecord(String taskPath, String className, String methodName, String result) {}
 }

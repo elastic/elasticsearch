@@ -19,14 +19,24 @@ import java.util.List;
  * Format-compatible with the Gradle-internal {@code TaskStatusReport} so downstream CI tooling
  * can consume either source interchangeably.
  *
+ * <p>The report uses a hierarchical inclusion strategy to keep file size small:
+ * <ul>
+ *   <li>Successful tasks: suites and tests omitted entirely</li>
+ *   <li>Unsuccessful tasks: suites included; if a suite succeeded, its individual tests are omitted</li>
+ *   <li>Unsuccessful suites: individual test methods included</li>
+ * </ul>
+ *
  * @param tasks       every task in the execution graph, sorted by path, with its final outcome
- * @param tests       every individual test method that completed, sorted by task/class/method
+ * @param suites      test class (suite) results for tasks that did not complete successfully
+ * @param tests       individual test methods for suites that did not complete successfully
  * @param cancelled   {@code true} when the build was explicitly cancelled (preemption signal)
  * @param preemptedAt ISO-8601 timestamp of when GCP preemption was detected, or {@code null}
  */
-public record StatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean cancelled, String preemptedAt) {
+public record StatusReport(List<TaskEntry> tasks, List<SuiteEntry> suites, List<TestEntry> tests, boolean cancelled, String preemptedAt) {
 
     public record TaskEntry(String path, String outcome) {}
+
+    public record SuiteEntry(String taskPath, String className, String result) {}
 
     public record TestEntry(String taskPath, String className, String methodName, String result) {}
 
@@ -43,6 +53,18 @@ public record StatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean
                 TaskEntry t = tasks.get(i);
                 w.printf("    { \"path\" : %s, \"outcome\" : %s }", jsonString(t.path()), jsonString(t.outcome()));
                 w.println(i < tasks.size() - 1 ? "," : "");
+            }
+            w.println("  ],");
+            w.println("  \"suites\" : [");
+            for (int i = 0; i < suites.size(); i++) {
+                SuiteEntry s = suites.get(i);
+                w.printf(
+                    "    { \"taskPath\" : %s, \"className\" : %s, \"result\" : %s }",
+                    jsonString(s.taskPath()),
+                    jsonString(s.className()),
+                    jsonString(s.result())
+                );
+                w.println(i < suites.size() - 1 ? "," : "");
             }
             w.println("  ],");
             w.println("  \"tests\" : [");

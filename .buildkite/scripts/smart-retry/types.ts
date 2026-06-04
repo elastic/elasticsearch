@@ -1,6 +1,7 @@
-/** Shape of a single run within task-status.json, produced by TaskStatusTrackerPlugin. */
+/** Shape of a single run within task-status.json, produced by GradleRunner's TaskTracker. */
 export interface TaskStatusReport {
   tasks: TaskEntry[];
+  suites?: SuiteEntry[];
   tests: TestEntry[];
   cancelled: boolean;
   preemptedAt?: string | null;
@@ -11,6 +12,12 @@ export interface TaskStatusReport {
 export interface TaskEntry {
   path: string;
   outcome: "SUCCESS" | "UP_TO_DATE" | "FROM_CACHE" | "FAILED" | "SKIPPED" | "INTERRUPTED" | "NOT_RUN";
+}
+
+export interface SuiteEntry {
+  taskPath: string;
+  className: string;
+  result: "SUCCESS" | "FAILURE" | "SKIPPED";
 }
 
 export interface TestEntry {
@@ -38,6 +45,7 @@ export interface MultiRunTaskStatus {
  */
 export interface FailedTestsReport {
   successfulTasks: string[];
+  successfulSuites: Record<string, string[]>;
   successfulTests: Record<string, string[]>;
   testseed: string;
 }

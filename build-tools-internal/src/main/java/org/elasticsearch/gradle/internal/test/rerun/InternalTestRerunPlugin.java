@@ -75,15 +75,20 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
+        List<String> suitesToExclude = testsBuildServiceProvider.get().getSuccessfulSuitesForTask(test.getPath());
         List<String> testsToExclude = testsBuildServiceProvider.get().getSuccessfulTestsForTask(test.getPath());
-        if (testsToExclude.isEmpty() == false) {
+        if (suitesToExclude.isEmpty() == false || testsToExclude.isEmpty() == false) {
             test.getLogger()
                 .lifecycle(
-                    "Smart retry: excluding {} successful tests from {} (rerunning failures)",
+                    "Smart retry: excluding {} successful suites and {} successful tests from {} (rerunning failures)",
+                    suitesToExclude.size(),
                     testsToExclude.size(),
                     test.getPath()
                 );
             test.filter(filter -> {
+                for (String className : suitesToExclude) {
+                    filter.excludeTestsMatching(className + ".*");
+                }
                 for (String testRef : testsToExclude) {
                     int hashIdx = testRef.indexOf('#');
                     if (hashIdx < 0) {
@@ -104,6 +109,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
         private final FailedTestsReport report;
         private final Set<String> successfulTasks;
+        private final Map<String, List<String>> successfulSuites;
         private final Map<String, List<String>> successfulTests;
 
         interface Params extends BuildServiceParameters {
@@ -125,6 +131,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
                     objectMapper.configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, true);
                     this.report = objectMapper.readValue(failedTestsJsonFile, FailedTestsReport.class);
                     this.successfulTasks = new HashSet<>(this.report.successfulTasks());
+                    this.successfulSuites = this.report.successfulSuites();
                     this.successfulTests = this.report.successfulTests();
                 } catch (IOException e) {
                     throw new RuntimeException(String.format("Failed to parse %s", FAILED_TEST_HISTORY_FILENAME), e);
@@ -132,6 +139,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             } else {
                 this.report = null;
                 this.successfulTasks = Set.of();
+                this.successfulSuites = Map.of();
                 this.successfulTests = Map.of();
             }
         }
@@ -142,6 +150,10 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
         public boolean wasTaskSuccessful(String taskPath) {
             return successfulTasks.contains(taskPath);
+        }
+
+        public List<String> getSuccessfulSuitesForTask(String taskPath) {
+            return successfulSuites.getOrDefault(taskPath, Collections.emptyList());
         }
 
         public List<String> getSuccessfulTestsForTask(String taskPath) {

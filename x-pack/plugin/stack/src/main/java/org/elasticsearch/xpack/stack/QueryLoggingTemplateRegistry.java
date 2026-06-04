@@ -34,7 +34,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 2: limit query to 32k
     // version 3: add esql.filter
     // version 4: move filter to main body
-    public static final int INDEX_TEMPLATE_VERSION = 4;
+    // version 5: add esql.profile longs mapping
+    public static final int INDEX_TEMPLATE_VERSION = 5;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

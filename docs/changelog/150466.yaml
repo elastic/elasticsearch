@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150466
+summary: Add destructive reset endpoint for project encryption key
+type: enhancement

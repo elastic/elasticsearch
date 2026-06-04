@@ -475,7 +475,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             span.recordException(throwable);
             return;
         }
-        AttributesBuilder attrs = Attributes.builder().put("exception.type", throwable.getClass().getCanonicalName());
+        AttributesBuilder attrs = Attributes.builder().put("exception.type", throwable.getClass().getName());
         Optional.ofNullable(throwable.getMessage()).ifPresent(m -> attrs.put("exception.message", m));
         span.addEvent("exception", attrs.build());
     }

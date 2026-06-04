@@ -173,6 +173,9 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryApiKeyIT
   method: testPagination
   issue: https://github.com/elastic/elasticsearch/issues/150714
+- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
+  method: testTracingCrossCluster
+  issue: https://github.com/elastic/elasticsearch/issues/150750
 
 # Examples:
 #

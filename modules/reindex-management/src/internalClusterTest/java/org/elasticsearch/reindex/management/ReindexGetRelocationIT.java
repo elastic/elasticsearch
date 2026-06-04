@@ -102,7 +102,7 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         final TaskResult taskResult = relocatedResponse.getTaskResult();
         final TaskInfo taskInfo = taskResult.getTask();
         assertThat("task should not be completed yet", taskResult.isCompleted(), is(false));
-        assertThat("original task ID preserved via originalTaskId", taskInfo.originalTaskId(), equalTo(setup.originalTaskId));
+        assertThat("original task ID preserved in taskId", taskInfo.taskId(), equalTo(setup.originalTaskId));
         assertThat("start time adjusted to original", taskInfo.startTime(), equalTo(setup.originalStartTimeMillis));
         assertThat("task should not be cancelled", taskInfo.cancelled(), is(false));
         assertThat("status should be present", taskInfo.status(), is(notNullValue()));

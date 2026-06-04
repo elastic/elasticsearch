@@ -81,11 +81,11 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
 
     /**
      * Renders reindex-specific task info fields.
-     * Uses {@link TaskInfo#originalTaskId()} as the user-facing identity so that the originally-returned task ID is always shown,
-     * even after relocation. Start time and running time are already adjusted by the relocation-aware Get Task API.
+     * Uses {@link TaskInfo#taskId()} as the user-facing identity. After relocation, the Get Task API merges results so
+     * {@code taskId} reflects the original task. Start time and running time are already adjusted by the relocation-aware Get Task API.
      */
     static XContentBuilder taskInfoToXContent(final XContentBuilder builder, final Params params, final TaskInfo info) throws IOException {
-        builder.field("id", info.originalTaskId().toString());
+        builder.field("id", info.taskId().toString());
         Optional<String> description = sanitizeDescription(info.description());
         if (description.isPresent()) {
             builder.field("description", description.get());

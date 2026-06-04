@@ -185,7 +185,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
     public void testMergedRelocatedResultAccepted() {
         TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
         TaskInfo mergedInfo = new TaskInfo(
-            relocatedTaskId,
+            taskId,
             "test",
             relocatedTaskId.getNodeId(),
             ReindexAction.NAME,
@@ -196,9 +196,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
             false,
             false,
             TaskId.EMPTY_TASK_ID,
-            Collections.emptyMap(),
-            taskId,
-            100
+            Collections.emptyMap()
         );
         TaskResult probeResult = new TaskResult(false, createReindexTaskInfo());
         TaskResult mergedResult = new TaskResult(false, mergedInfo);
@@ -209,7 +207,7 @@ public class TransportGetReindexActionTests extends ESTestCase {
 
         assertNull(failureRef.get());
         assertEquals(mergedResult, responseRef.get().getTaskResult());
-        assertThat(responseRef.get().getTaskResult().getTask().originalTaskId(), equalTo(taskId));
+        assertThat(responseRef.get().getTaskResult().getTask().taskId(), equalTo(taskId));
     }
 
     public void testUnresolvedRelocationReturnedAsIs() throws IOException {

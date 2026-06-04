@@ -191,6 +191,7 @@ public class RecordingApmServer extends ExternalResource {
     public void reset() {
         consumer = null;
         received.clear();
+        clearResponseCode();
     }
 
     /**

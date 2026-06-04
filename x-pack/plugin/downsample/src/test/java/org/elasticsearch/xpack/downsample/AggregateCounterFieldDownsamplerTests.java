@@ -45,6 +45,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(collector.downsampledValue(), equalTo(Double.NaN));
         assertThat(collector.previousValue, equalTo(1.0));
         assertThat(collector.lastTimestamp, equalTo(-1L));
+        assertThat(producer.isDone(), equalTo(false));
         producer.tsidReset();
         assertThat(collector.previousValue, equalTo(Double.NaN));
         assertThat(producer.delegateCollector(), nullValue());
@@ -66,6 +67,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(1.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
+        assertThat(producer.isDone(), equalTo(false));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {

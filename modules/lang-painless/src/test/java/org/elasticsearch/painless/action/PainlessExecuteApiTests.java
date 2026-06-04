@@ -10,6 +10,7 @@ package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -22,7 +23,6 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.transport.RemoteClusterAware.QualifiedIndexExpression;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -498,15 +498,15 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
     }
 
     public void testParseClusterAliasAndIndex() {
-        record ValidTestCase(String input, QualifiedIndexExpression output) {}
+        record ValidTestCase(String input, Tuple<String, String> output) {}
 
         ValidTestCase[] cases = new ValidTestCase[] {
             // valid index expressions
-            new ValidTestCase("remote1:foo", new QualifiedIndexExpression("remote1", "foo")),
-            new ValidTestCase("foo", new QualifiedIndexExpression(null, "foo")),
-            new ValidTestCase("foo,bar", new QualifiedIndexExpression(null, "foo,bar")), // this method only checks for invalid ":"
-            new ValidTestCase("", new QualifiedIndexExpression(null, "")),
-            new ValidTestCase(null, new QualifiedIndexExpression(null, null)) };
+            new ValidTestCase("remote1:foo", new Tuple<>("remote1", "foo")),
+            new ValidTestCase("foo", new Tuple<>(null, "foo")),
+            new ValidTestCase("foo,bar", new Tuple<>(null, "foo,bar")), // this method only checks for invalid ":"
+            new ValidTestCase("", new Tuple<>(null, "")),
+            new ValidTestCase(null, new Tuple<>(null, null)) };
 
         for (ValidTestCase testCase : cases) {
             assertEquals(testCase.output(), Request.ContextSetup.parseClusterAliasAndIndex(testCase.input));

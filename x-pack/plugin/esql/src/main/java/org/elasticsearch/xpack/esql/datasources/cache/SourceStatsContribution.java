@@ -7,25 +7,28 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
-import java.util.HashMap;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+
 import java.util.Map;
 
 /**
  * Typed view of a single per-file stats contribution shipped back from a data node via
  * {@code DriverCompletionInfo.capturedSourceMetadata}.
  * <p>
- * Contributions travel over the wire as untyped {@code Map<String, Object>} blobs tagged with marker
- * keys ({@link ExternalStats#PARTIAL_CHUNK_KEY}, {@link ExternalStats#CHUNK_HAD_ERRORS_KEY}) and, for
- * partial chunks, a coverage range ({@link ExternalStats#COVERAGE_START_KEY} etc.). Each kind composes
- * differently and the reconciler routes them through an exhaustive {@code switch}, so a new kind is a
- * compile error until its merge semantics are written — the safeguard that the silent-fall-through
- * double-count/under-count regressions taught us to keep. The wire format stays the untyped map; this
- * type lives only on the coordinator, so there is no transport-version or BWC impact.
+ * Contributions arrive at the coordinator as untyped {@code Map<String, Object>} blobs — the flat
+ * {@code _stats.*} wire vocabulary that crosses the transport as a generic map and that the optimizer
+ * also reads. {@link #classify} is the boundary that turns one such blob into a typed value: the
+ * statistics become a {@link SourceStatistics}, and the keying/coverage fields become typed scalars,
+ * so the reconciler reasons over types instead of magic string keys. Each kind composes differently
+ * and the reconciler routes them through an exhaustive {@code switch}, so a new kind is a compile
+ * error until its merge semantics are written. This type lives only on the coordinator — there is no
+ * transport-version or BWC impact.
  */
 sealed interface SourceStatsContribution {
 
     /** A complete read of the whole file; its row count already covers every row, so duplicates are deduplicated rather than summed. */
-    record WholeFile(Map<String, Object> stats) implements SourceStatsContribution {}
+    record WholeFile(SourceStatistics stats, long mtimeMillis, String configFingerprint) implements SourceStatsContribution {}
 
     /**
      * One range of a parallel-parsed file (a streaming chunk, a record-aligned macro-split segment, a
@@ -37,7 +40,9 @@ sealed interface SourceStatsContribution {
      * before caching. {@code start < 0} marks a partial that arrived without coverage (an older node);
      * it cannot be addressed, so it renders its file's cover incomplete and uncacheable.
      */
-    record PartialChunk(Map<String, Object> stats, long start, long end, boolean last) implements SourceStatsContribution {
+    record PartialChunk(SourceStatistics stats, long mtimeMillis, String configFingerprint, long start, long end, boolean last)
+        implements
+            SourceStatsContribution {
         boolean hasCoverage() {
             return start >= 0 && end >= start;
         }
@@ -47,27 +52,25 @@ sealed interface SourceStatsContribution {
     record Poison() implements SourceStatsContribution {}
 
     /**
-     * Classifies a raw wire contribution by its marker keys. A poison marker is its own stats-less
-     * entry; a partial-marked entry carries the chunk's stats plus its coverage range; anything else
-     * carrying a row count is a whole-file read. Marker and coverage keys are stripped from the
-     * stats-bearing kinds so the well-known {@code _stats.*} keys merge cleanly.
+     * Classifies a raw wire contribution by its marker keys. A poison marker is its own entry; a
+     * partial-marked entry carries its coverage range; anything else is a whole-file read. The
+     * statistics are parsed into a {@link SourceStatistics} via {@link SourceStatisticsSerializer},
+     * which reads only the {@code _stats.row_count} / {@code _stats.columns.*} keys and so naturally
+     * ignores the marker, mtime, fingerprint, and coverage keys carried alongside them.
      */
     static SourceStatsContribution classify(Map<String, Object> raw) {
         if (Boolean.TRUE.equals(raw.get(ExternalStats.CHUNK_HAD_ERRORS_KEY))) {
             return new Poison();
         }
-        Map<String, Object> stripped = new HashMap<>(raw);
-        boolean isPartial = stripped.remove(ExternalStats.PARTIAL_CHUNK_KEY) != null;
-        stripped.remove(ExternalStats.CHUNK_HAD_ERRORS_KEY);
-        Object start = stripped.remove(ExternalStats.COVERAGE_START_KEY);
-        Object end = stripped.remove(ExternalStats.COVERAGE_END_KEY);
-        boolean last = Boolean.TRUE.equals(stripped.remove(ExternalStats.COVERAGE_IS_LAST_KEY));
-        if (isPartial == false) {
-            return new WholeFile(stripped);
+        SourceStatistics stats = SourceStatisticsSerializer.extractStatistics(raw).orElse(null);
+        long mtime = raw.get(ExternalStats.MTIME_MILLIS_KEY) instanceof Number n ? n.longValue() : -1L;
+        String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
+        if (raw.containsKey(ExternalStats.PARTIAL_CHUNK_KEY) == false) {
+            return new WholeFile(stats, mtime, fingerprint);
         }
-        // A partial without coverage (older node) is flagged un-addressable with start = -1.
-        long startOffset = start instanceof Number n ? n.longValue() : -1L;
-        long endOffset = end instanceof Number n ? n.longValue() : -1L;
-        return new PartialChunk(stripped, startOffset, endOffset, last);
+        long start = raw.get(ExternalStats.COVERAGE_START_KEY) instanceof Number n ? n.longValue() : -1L;
+        long end = raw.get(ExternalStats.COVERAGE_END_KEY) instanceof Number n ? n.longValue() : -1L;
+        boolean last = Boolean.TRUE.equals(raw.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        return new PartialChunk(stats, mtime, fingerprint, start, end, last);
     }
 }

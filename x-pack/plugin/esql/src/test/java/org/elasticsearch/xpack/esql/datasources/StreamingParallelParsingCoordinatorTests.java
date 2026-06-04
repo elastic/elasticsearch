@@ -252,6 +252,54 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
     }
 
+    /**
+     * An early close (the consumer stops before draining the file — e.g. a LIMIT) must poison the
+     * file's captured stats. Otherwise a chunk cut off mid-parse would publish a partial row count
+     * under its full byte range, which the coordinator's coverage tiling would accept as a complete
+     * cover and cache an under-count. The poison marker makes the reconciler discard the file.
+     */
+    public void testEarlyClosePoisonsCapturedStats() throws Exception {
+        // Large content so many chunks are dispatched; consuming a single page then closing leaves
+        // the consumer well short of full consumption (currentChunk < chunksDispatched), i.e. not clean.
+        int lineCount = 5000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-early-close-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            // Consume one page, then close without draining — an early termination.
+            if (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+            iter.close();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("an early close must publish a poison marker so the reconciler discards the incomplete cover", poisoned);
+    }
+
     public void testParserErrorPropagates() throws Exception {
         String content = buildContent(100);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));

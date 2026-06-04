@@ -348,6 +348,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // here instead of surfacing flakily in CI when the randomized spec order happens to repeat a
         // file against a shared cluster. Skipped only when the spec pins documents_found, because the
         // warm run short-circuits to zero scanned documents and so cannot match the cold scan count.
+        // The schema cache is per-coordinator: on a single-node IT the warm run always hits it; on a
+        // multi-node IT the second run may land on another coordinator and re-scan (a coverage gap,
+        // never a wrong answer). The deterministic ExternalNdJsonMultiScanPushdownIT is the guaranteed
+        // warm-path guard regardless of routing.
         if (isExternalQuery(query) && testCase.expectedDocumentsFound == null) {
             doTest(query);
         }

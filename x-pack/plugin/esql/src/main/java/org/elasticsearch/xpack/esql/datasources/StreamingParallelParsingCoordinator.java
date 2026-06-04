@@ -983,13 +983,11 @@ public final class StreamingParallelParsingCoordinator {
             if (closed) {
                 return;
             }
-            // Decide clean completion BEFORE flipping closed, so an in-flight segmentator/parser cannot
-            // change the counts under us. Clean = no error and the consumer drained every dispatched
-            // chunk. An early close (LIMIT, cancellation) leaves chunks unconsumed — and a parser cut
-            // off mid-chunk would record a partial row count under that chunk's full byte range, which
-            // would otherwise let the coverage tiling look complete and cache an under-count. So a
-            // non-clean scan poisons the file's contributions: the reconciler discards them.
-            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
+            // Flip closed first: a segmentator already past the if(closed) check in dispatchChunk can
+            // still enqueue one more chunk and spawn its parser. cleanCompletion is therefore evaluated
+            // *after* the drain loop below — where chunksDispatched is final and no parser is in flight —
+            // not here, where reading chunksDispatched could miss that late dispatch and falsely conclude
+            // the scan drained cleanly (skipping the poison and caching an under-count).
             closed = true;
             // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
             signalReady();
@@ -1016,10 +1014,14 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
-            // Completeness is otherwise established by coverage tiling at the reconciler (chunks carry
-            // their decompressed-stream range and the final chunk is flagged), but an early/error close
-            // can leave a chunk with a partial count under a full range — so discard the whole file's
-            // contributions when the scan did not drain cleanly.
+            // Now safe to evaluate: chunksDispatched is final (the drain loop waited for every spawned
+            // parser, including any dispatched in the close race window) and the consumer's currentChunk
+            // is fixed. Clean = no error and the consumer drained every dispatched chunk. An early close
+            // (LIMIT, cancellation) leaves chunks unconsumed — and a parser cut off mid-chunk records a
+            // partial row count under that chunk's full byte range, which the coverage tiling would
+            // otherwise accept as complete and cache as an under-count. So a non-clean scan poisons the
+            // file's contributions: the reconciler discards them.
+            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
             if (cleanCompletion == false && captureSink != null && storageObject != null) {
                 poisonCapturedStats(storageObject.path().toString());
             }

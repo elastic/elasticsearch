@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.opentelemetry.sdk.common.Clock;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
@@ -30,13 +32,16 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "10m") // we flush manually in all tests anyway
+        .setting("telemetry.otel.metrics.interval", "500ms")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
         // Tight write/read windows so buffered files become drainable within the test budget.
         .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
         .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
         .build();
+
+    // use the same clock implementation as the OTel SDK itself
+    private static final Clock otelClock = Clock.getDefault();
 
     @ClassRule
     public static TestRule ruleChain = AbstractMetricsIT.buildRuleChain(recordingApmServer, cluster);
@@ -54,7 +59,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public void testOutageBuffersToDiskAndDrainsOnRecovery() throws Exception {
         waitForMetricCollectionGreen();
 
-        long outageStartEpochMs = System.currentTimeMillis();
+        long outageStartEpochNanos = otelClock.now();
         recordingApmServer.setResponseCode(503);
 
         // Produce BUFFER_BATCHES files to verify the drain loop iterates beyond the first.
@@ -68,24 +73,23 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
             Thread.sleep(300);
         }
 
-        long outageStartEpochNanos = outageStartEpochMs * 1_000_000L;
-        long outageEndEpochNanos = System.currentTimeMillis() * 1_000_000L;
+        long outageEndEpochNanos = otelClock.now();
 
         CountDownLatch backlogReplayed = new CountDownLatch(1);
         CountDownLatch outageWindowBatchReplayed = new CountDownLatch(1);
+        AtomicLong writtenFiles = new AtomicLong();
         AtomicLong replayedFiles = new AtomicLong();
+
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
                 long timestamp = m.collectionTime();
                 if (timestamp >= outageStartEpochNanos && timestamp <= outageEndEpochNanos) {
                     outageWindowBatchReplayed.countDown();
                 }
+
+                writtenFiles.getAndAdd(longSample(m, "es.apm.metrics.disk_buffer.writes"));
                 replayedFiles.getAndAdd(longSample(m, "es.apm.metrics.disk_buffer.replays"));
-                // Require all files to be replayed:
-                // - there were ${BUFFER_BATCHES} triggered
-                // - each one was actually flushed twice (since we flush the system meter provider twice on attemptFlush()), which resulted
-                // in 2 files being created per batch
-                if (replayedFiles.get() == 2 * BUFFER_BATCHES) {
+                if (writtenFiles.get() > 0 && writtenFiles.get() == replayedFiles.get()) {
                     backlogReplayed.countDown();
                 }
             }
@@ -97,7 +101,9 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
         assertTrue(
             "expected the drain loop to replay all disk-buffered batches after recovery "
-                + "(es.apm.metrics.disk_buffer.replays peaked at "
+                + "(es.apm.metrics.disk_buffer.writes peaked at "
+                + writtenFiles.get()
+                + ", es.apm.metrics.disk_buffer.replays peaked at "
                 + replayedFiles.get()
                 + ")",
             backlogReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)

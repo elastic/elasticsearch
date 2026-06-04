@@ -2605,6 +2605,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return new AppliesTo(lifeCycle, version, description, serverless);
     }
 
+    /**
+     * Builds a transform that applies {@code preview} to a {@link TypedDataSupplier} and marks it as serverless preview.
+     */
+    public static Function<TypedDataSupplier, TypedDataSupplier> previewTransform(FunctionAppliesTo preview) {
+        return s -> s.withAppliesTo(preview).withPreview();
+    }
+
     private record AppliesTo(FunctionAppliesToLifecycle lifeCycle, String version, String description, boolean serverless)
         implements
             FunctionAppliesTo {

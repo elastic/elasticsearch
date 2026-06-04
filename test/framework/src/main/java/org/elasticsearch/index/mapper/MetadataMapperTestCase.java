@@ -41,6 +41,11 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract boolean isConfigurable();
 
+    protected String notConfigurableErrorMessage() {
+        return "Failed to parse mapping: " + fieldName() + " is not configurable";
+    }
+
+
     protected boolean isSupportedOn(IndexVersion version) {
         return true;
     }
@@ -256,7 +261,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             () -> mapperService.parseMapping("_doc", MergeReason.MAPPING_UPDATE, new CompressedXContent(mappingAsString))
         );
         assertEquals(
-            "Failed to parse mapping: " + fieldName() + " is not configurable if index mode is time_series",
+            notConfigurableErrorMessage(),
             exception.getMessage()
         );
     }

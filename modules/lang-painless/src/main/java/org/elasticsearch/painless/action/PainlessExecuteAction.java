@@ -589,8 +589,8 @@ public class PainlessExecuteAction {
         static void removeClusterAliasFromIndexExpression(Request request) {
             String index = request.index();
             if (index != null) {
-                String[] split = RemoteClusterAware.splitIndexName(index);
-                if (split[0] != null) {
+                var split = RemoteClusterAware.splitIndexName(index);
+                if (split.clusterAlias() != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -598,7 +598,7 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    request.index(split[1]);
+                    request.index(split.indexExpression());
                 }
             }
         }

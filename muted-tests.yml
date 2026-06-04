@@ -773,3 +773,6 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/150712
+- class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
+  method: testFewVectorManyTimes
+  issue: https://github.com/elastic/elasticsearch/issues/150717

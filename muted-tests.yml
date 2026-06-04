@@ -176,6 +176,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/150750
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  method: testScriptCaching
+  issue: https://github.com/elastic/elasticsearch/issues/150752
 
 # Examples:
 #

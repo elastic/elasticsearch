@@ -309,7 +309,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 TaskType.RERANK,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(GoogleVertexAiServiceFields.PROJECT_ID, projectId)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(serviceAccountJson)
                 ),
                 modelListener
@@ -338,7 +338,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             "project"
                         )
                     ),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap("{}")
                 ),
                 failureListener
@@ -1203,7 +1203,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
-                null,
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,

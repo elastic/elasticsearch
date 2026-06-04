@@ -12,6 +12,9 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -20,7 +23,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -95,7 +98,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
                 if (statusCode != HttpStatus.SC_OK) {
-                    throw new IOException("Failed to read object from " + path + ", HTTP status: " + statusCode);
+                    throw throwReadFailure("Failed to read object from", statusCode, readErrorBody(response.body()));
                 }
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent()) {
@@ -105,6 +108,58 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             });
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+        }
+    }
+
+    /** Cap on the error-response body snippet folded into a failure message, in bytes. */
+    private static final int MAX_ERROR_BODY_BYTES = 512;
+
+    /**
+     * Maps a non-success HTTP status into the exception to surface to ES|QL. A retryable status
+     * (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on retry);
+     * any other status becomes an {@link IOException}, which the external source operator classifies as
+     * a client-class 400. {@code detail} is an optional truncated error-body snippet appended for triage
+     * (a raw status alone is opaque; stores typically return a descriptive body). Returns (never throws)
+     * so both the synchronous and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, int statusCode, String detail) {
+        String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
+        if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
+            return new ExternalUnavailableException("HTTP store unavailable reading [{}] (HTTP {}){}", path, statusCode, suffix);
+        }
+        return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, int statusCode, String detail) throws IOException {
+        Exception mapped = mapReadFailure(context, statusCode, detail);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
+    }
+
+    /**
+     * Best-effort read of a truncated, UTF-8 error-response body for inclusion in a failure message.
+     * Reads at most {@link #MAX_ERROR_BODY_BYTES} and closes the stream. Never throws: error-body
+     * extraction must never mask or replace the real failure, so any problem yields {@code null}.
+     */
+    private static String readErrorBody(InputStream body) {
+        if (body == null) {
+            return null;
+        }
+        try (body) {
+            byte[] bytes = body.readNBytes(MAX_ERROR_BODY_BYTES);
+            if (bytes.length == 0) {
+                return null;
+            }
+            String text = new String(bytes, StandardCharsets.UTF_8).strip();
+            return text.isEmpty() ? null : text;
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -142,7 +197,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     // Wrap in a limited stream to ensure we only read 'length' bytes
                     return new BoundedInputStream(stream, length);
                 } else {
-                    throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
+                    throw throwReadFailure("Range request failed for", statusCode, readErrorBody(response.body()));
                 }
             });
         } finally {
@@ -196,11 +251,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param factory produces the destination {@link DirectReadBuffer} for the response body
      * @param executor executor (unused - HttpClient uses executor configured at creation)
      * @param listener callback for the result or failure
      */
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
@@ -217,29 +279,41 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
 
         long startNanos = System.nanoTime();
-        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
-            if (throwable != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                // Wrap with path context so stack-trace-only triage names the offending URL.
-                // The original cause (CompletionException, body subscriber's IOException, transport
-                // error, etc.) is preserved in the cause chain.
-                listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
-                return;
-            }
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory))
+            .whenComplete((response, throwable) -> {
+                if (throwable != null) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Wrap with path context so stack-trace-only triage names the offending URL.
+                    // The original cause (CompletionException, body subscriber's IOException,
+                    // transport error, etc.) is preserved in the cause chain.
+                    listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
+                    return;
+                }
 
-            int statusCode = response.statusCode();
-            // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
-            // slicing internally for both 206 (server-side range) and 200 (full body) responses,
-            // returning a ByteBuffer scoped to the requested window.
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
-                ByteBuffer body = response.body();
-                counters.addRequest(System.nanoTime() - startNanos, body.remaining());
-                listener.onResponse(body);
-            } else {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
-            }
-        });
+                int statusCode = response.statusCode();
+                // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+                // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+                // returning a DirectReadBuffer scoped to the requested window.
+                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                    DirectReadBuffer body = response.body();
+                    counters.addRequest(System.nanoTime() - startNanos, body.buffer().remaining());
+                    try {
+                        listener.onResponse(body);
+                    } catch (Exception e) {
+                        try {
+                            body.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
+                } else {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
+                    response.body().close();
+                    listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+                }
+            });
     }
 
     /**

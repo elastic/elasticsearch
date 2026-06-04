@@ -440,7 +440,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         }
         // With subobjects:false in logsdb_columnar mode, arrays of objects are coalesced:
         // - flattened type: my_object_array: {field_1:[a,c], field_2:[b,d]}
-        // - object type:    my_object_array.field_1: [a,c], my_object_array.field_2: [b,d]
+        // - object type: my_object_array.field_1: [a,c], my_object_array.field_2: [b,d]
         // Detect which form the actual source uses and normalize to match.
         Object arr = normalized.remove("my_object_array");
         if (arr instanceof List<?> list) {

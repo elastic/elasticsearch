@@ -391,27 +391,35 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             var service = newWarmingService(threadPool);
 
             final Index index = new Index("idx", randomUUID());
+            final String primaryNodeId = "primary-node";
             final String sourceNodeId = "source-node";
             final String targetT1 = "target-t1";
             final String targetT2 = "target-t2";
             final String masterNodeId = "master-node";
 
-            final int totalShards = 4;
-            final int relocationsToT1 = 3;
+            final int totalSearchShards = 4;
+            final int relocationsToTarget1 = 3;
 
+            // Each search shard is modeled as its own ShardId with an INDEX_ONLY primary; ShardIds must be distinct because every
+            // search replica is currently on sourceNodeId, and IndexShardRoutingTable forbids two routings of the same ShardId on
+            // the same node. The primary is placed on a separate primaryNodeId for the same reason (it must not collide with the
+            // relocating replica's current or target node).
             final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
-                .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, totalShards))
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), totalSearchShards, 1))
                 .build();
 
             final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
-            for (int s = 0; s < totalShards; s++) {
+            for (int s = 0; s < totalSearchShards; s++) {
                 final ShardId sid = new ShardId(index, s);
-                final String relocationTarget = s < relocationsToT1 ? targetT1 : targetT2;
+                final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                    .withRole(ShardRouting.Role.INDEX_ONLY)
+                    .build();
+                final String relocationTarget = s < relocationsToTarget1 ? targetT1 : targetT2;
                 final ShardRouting relocating = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, RELOCATING)
                     .withRelocatingNodeId(relocationTarget)
                     .withRole(ShardRouting.Role.SEARCH_ONLY)
                     .build();
-                routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(relocating));
+                routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
             }
 
             // startedAtMillis = now: the algorithm sees the full grace-period cap (default 14 minutes) as remaining time.
@@ -429,6 +437,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                         .add(DiscoveryNodeUtils.create(masterNodeId))
                         .masterNodeId(masterNodeId)
                         .localNodeId(masterNodeId)
+                        .add(DiscoveryNodeUtils.create(primaryNodeId))
                         .add(DiscoveryNodeUtils.create(sourceNodeId))
                         .add(DiscoveryNodeUtils.create(targetT1))
                         .add(DiscoveryNodeUtils.create(targetT2))
@@ -445,7 +454,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 )
                 .build();
 
-            assertThat(state.getRoutingNodes().node(sourceNodeId).size(), equalTo(totalShards));
+            assertThat(state.getRoutingNodes().node(sourceNodeId).size(), equalTo(totalSearchShards));
             assertThat(state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId), is(true));
 
             final ShardRouting selfT1 = state.routingTable(DEFAULT_PROJECT_ID)
@@ -454,7 +463,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 .get(0)
                 .getTargetRelocatingShard();
             final ShardRouting selfT2 = state.routingTable(DEFAULT_PROJECT_ID)
-                .shardRoutingTable(new ShardId(index, totalShards - 1))
+                .shardRoutingTable(new ShardId(index, totalSearchShards - 1))
                 .shardsWithState(RELOCATING)
                 .get(0)
                 .getTargetRelocatingShard();
@@ -472,10 +481,10 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             // planT1 must equal relocationsToT1 * planT2. Allow a small symmetric tolerance to absorb both Math.round differences
             // (round(3R/S) vs 3*round(R/S) can differ by up to a couple of ms) and a possible ThreadPool cached-time tick (~200ms)
             // between the two consecutive calls.
-            final long expectedT1Millis = planT2.timeout().millis() * relocationsToT1;
+            final long expectedT1Millis = planT2.timeout().millis() * relocationsToTarget1;
             final long toleranceMillis = TimeValue.timeValueSeconds(1).millis();
             assertThat(
-                "T1 timeout should be " + relocationsToT1 + "x T2 timeout (scaled by concurrent relocations from source to target)",
+                "T1 timeout should be " + relocationsToTarget1 + "x T2 timeout (scaled by concurrent relocations from source to target)",
                 planT1.timeout().millis(),
                 allOf(greaterThanOrEqualTo(expectedT1Millis - toleranceMillis), lessThanOrEqualTo(expectedT1Millis + toleranceMillis))
             );

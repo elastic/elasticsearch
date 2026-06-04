@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import com.azure.identity.ChainedTokenCredentialBuilder;
-import com.azure.identity.EnvironmentCredentialBuilder;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
@@ -66,11 +64,9 @@ import java.util.NoSuchElementException;
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
  * Authentication via connection string, account+key, SAS token, {@code auth=none} for public
- * containers, or {@code auth=workload_identity} for env-var / managed-identity credentials. The
- * workload identity chain is limited to {@code EnvironmentCredential} and
- * {@code ManagedIdentityCredential}; broader sources in {@code DefaultAzureCredential}
- * (token-cache files, CLI, PowerShell) are excluded because file reads and process spawning are
- * blocked by entitlements.
+ * containers, or {@code auth=workload_identity} for managed-identity credentials via Azure IMDS.
+ * {@code DefaultAzureCredential} is excluded: it includes file-reading and process-spawning sources
+ * blocked by entitlements. AKS Workload Identity (token-file injection) is the v2 follow-up.
  */
 public final class AzureStorageProvider implements StorageProvider {
 
@@ -150,14 +146,12 @@ public final class AzureStorageProvider implements StorageProvider {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
         } else if (config != null && config.isWorkloadIdentity()) {
-            // Explicit chain: EnvironmentCredential (env vars) → ManagedIdentityCredential (IMDS).
-            // DefaultAzureCredential is excluded: it includes WorkloadIdentityCredential (reads a
-            // token file), SharedTokenCacheCredential (reads a cache file), IntelliJCredential
-            // (reads IDE config files), AzureCliCredential, AzurePowerShellCredential, and
-            // AzureDeveloperCliCredential (all spawn processes) — all blocked by entitlements.
-            var credential = new ChainedTokenCredentialBuilder().addLast(new EnvironmentCredentialBuilder().build())
-                .addLast(new ManagedIdentityCredentialBuilder().build())
-                .build();
+            // Managed Identity only (Azure IMDS). EnvironmentCredential is excluded: it reads
+            // AZURE_CLIENT_* env vars, which are a dev/CI convention and open a JVM-global-state
+            // override on production nodes. AKS Workload Identity (token-file injection) is the v2
+            // follow-up. DefaultAzureCredential is excluded entirely: it includes file-reading and
+            // process-spawning credential sources blocked by entitlements.
+            var credential = new ManagedIdentityCredentialBuilder().build();
             String endpoint = Strings.hasText(config.endpoint())
                 ? config.endpoint()
                 : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);

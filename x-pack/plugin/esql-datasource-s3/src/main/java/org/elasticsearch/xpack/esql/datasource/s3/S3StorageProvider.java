@@ -13,10 +13,9 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -147,13 +146,10 @@ public final class S3StorageProvider implements StorageProvider {
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
-     *   <li>{@code auth=workload_identity} — node's instance credential chain: env vars, system properties,
-     *       EC2/ECS instance profile (IMDS). Profile-file loading is excluded (blocked by
-     *       entitlements). EKS IRSA ({@code WebIdentityTokenFileCredentialsProvider}) is also
-     *       excluded: it reads a token file from disk, which is blocked by entitlements and cannot
-     *       be granted a fixed path because the file location is injected at runtime via
-     *       {@code AWS_WEB_IDENTITY_TOKEN_FILE}. Use explicit {@code access_key}/{@code secret_key}
-     *       credentials on EKS instead.</li>
+     *   <li>{@code auth=workload_identity} — IMDS-family chain: ECS task role (container credentials)
+     *       then EC2 instance profile. Env-var and system-property providers are excluded (dev/CI
+     *       convention, not the unattended-server posture). EKS IRSA and Pod Identity
+     *       (token-file reads) are tracked as a v2 follow-up.</li>
      *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
@@ -163,15 +159,13 @@ public final class S3StorageProvider implements StorageProvider {
             return AnonymousCredentialsProvider.create();
         }
         if (config != null && config.isWorkloadIdentity()) {
-            // Explicit chain that excludes ProfileCredentialsProvider (file read, blocked by
-            // entitlements) and WebIdentityTokenFileCredentialsProvider (also a file read at a
-            // runtime-variable path — see Javadoc above).
+            // IMDS-family only: ECS task role first (AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),
+            // then EC2 instance profile. Env-var and system-property providers are excluded —
+            // they are a dev/CI convention and open a JVM-global-state override on servers.
+            // Profile-file loading is excluded (file read, blocked by entitlements).
+            // EKS IRSA + Pod Identity (token-file reads) are the v2 follow-up.
             return AwsCredentialsProviderChain.builder()
-                .credentialsProviders(
-                    EnvironmentVariableCredentialsProvider.create(),
-                    SystemPropertyCredentialsProvider.create(),
-                    InstanceProfileCredentialsProvider.create()
-                )
+                .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
                 .build();
         }
         if (config != null && config.hasCredentials()) {

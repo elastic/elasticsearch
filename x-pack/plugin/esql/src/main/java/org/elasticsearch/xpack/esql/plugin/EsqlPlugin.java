@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -300,10 +301,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
-        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings));
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        );
         services.clusterService()
             .getClusterSettings()
-            .addSettingsUpdateConsumer(ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED, workloadIdentityEnabled::set);
+            .addSettingsUpdateConsumer(
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
+                v -> workloadIdentityEnabled.set(isStateless == false && v)
+            );
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)

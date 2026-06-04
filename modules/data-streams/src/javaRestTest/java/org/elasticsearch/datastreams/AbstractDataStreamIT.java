@@ -46,6 +46,7 @@ public abstract class AbstractDataStreamIT extends ESRestTestCase {
         // Disable query logging stack templates; they compose logs@custom and reject a low total_fields.limit
         // used by testIgnoreDynamicBeyondLimit.
         .setting("xpack.stack.querylog.registry.enabled", "false")
+        .setting("cluster.logsdb.enabled", "false")
         .build();
     protected RestClient client;
 

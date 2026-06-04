@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -118,6 +119,7 @@ public class TransportReplicationActionRetryOnClosedNodeIT extends ESIntegTestCa
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener

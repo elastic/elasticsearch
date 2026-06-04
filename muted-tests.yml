@@ -430,9 +430,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/149740
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/149751
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/149763
@@ -764,3 +761,27 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testUpdatePreparedExpansionRejectedWhenExceedingPrimaryLimit
   issue: https://github.com/elastic/elasticsearch/issues/150706
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/150708
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150710
+- class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
+  method: testUnifiedCompletionStreamingNotFoundError
+  issue: https://github.com/elastic/elasticsearch/issues/150711
+- class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/150712
+- class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
+  method: testFewVectorManyTimes
+  issue: https://github.com/elastic/elasticsearch/issues/150717
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/150718
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/150719
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/150720

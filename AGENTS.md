@@ -70,7 +70,6 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
 - Ensure mocks or stubs are well-documented and clearly indicate why they were necessary.
-- Do not use **`assertBusy`** whenever the wait condition can be expressed as a predicate on applied cluster state, preferring **`awaitClusterState`**. Read the Javadoc on `ESTestCase.assertBusy` for more information.
 
 ### Test Types
 - Unit Tests: Preferred. Extend `ESTestCase`.

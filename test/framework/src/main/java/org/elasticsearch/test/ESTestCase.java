@@ -1694,11 +1694,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
      * exponential backoff, sleeping on the test thread between attempts.
      * <p>
-     * Use this for conditions that are not tied to cluster state application, such as filesystem state, HTTP callbacks,
-     * executor queues, or leak checks. In integration tests ({@link ESIntegTestCase} and subclasses), if the wait
-     * condition can be expressed as a predicate on applied {@link ClusterState}, prefer
-     * {@link ESIntegTestCase#awaitClusterState(Predicate)}
-     * instead of polling {@code clusterService().state()} inside {@code assertBusy}.
+     * If the wait condition can be expressed as a predicate on applied {@link ClusterState}, prefer
+     * {@link ESIntegTestCase#awaitClusterState(Predicate)} instead of polling {@code clusterService().state()} inside {@code assertBusy}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         assertBusy(codeBlock, 10, TimeUnit.SECONDS);

@@ -1267,9 +1267,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Blocks until {@code viaNode} applies a {@link ClusterState} matching {@code statePredicate}. See
-     * {@link #awaitClusterState(Predicate)} for general usage. Use this overload when observing applied state on a
-     * non-master node is required.
+     * Blocks until {@code viaNode} applies a {@link ClusterState} matching {@code statePredicate}.
+     * See {@link #awaitClusterState(Predicate)} for general usage.
      */
     public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));

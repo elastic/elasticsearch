@@ -32,8 +32,6 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.esql.datasources.utils.AsyncReadCompletion.errorSafe;
-
 /**
  * StorageObject implementation using HTTP Range requests for efficient partial reads.
  * Uses standard Java HttpClient and InputStream - no custom stream classes needed.
@@ -296,8 +294,9 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
 
         long startNanos = System.nanoTime();
-        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory))
-            .whenComplete(errorSafe((response, throwable) -> {
+        onReadComplete(
+            client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory)),
+            (response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Wrap with path context so stack-trace-only triage names the offending URL.
@@ -312,25 +311,15 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // slicing internally for both 206 (server-side range) and 200 (full body) responses,
                 // returning a DirectReadBuffer scoped to the requested window.
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
-                    DirectReadBuffer body = response.body();
-                    counters.addRequest(System.nanoTime() - startNanos, body.buffer().remaining());
-                    try {
-                        listener.onResponse(body);
-                    } catch (Exception e) {
-                        try {
-                            body.close();
-                        } catch (Exception closeEx) {
-                            e.addSuppressed(closeEx);
-                        }
-                        throw e;
-                    }
+                    deliverRead(listener, response.body(), startNanos);
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
                     response.body().close();
                     listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
                 }
-            }));
+            }
+        );
     }
 
     /**

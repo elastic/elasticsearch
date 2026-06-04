@@ -24,10 +24,18 @@
 | date_nanos | date_nanos | date_nanos |
 | date_nanos | integer | date_nanos |
 | date_nanos | long | date_nanos |
+| dense_vector {applies_to}`stack: ga 9.5.0` | date | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | date_nanos | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | integer | dense_vector |
+| dense_vector {applies_to}`stack: ga 9.5.0` | long | dense_vector |
 | double | date | double |
 | double | date_nanos | double |
 | double | integer | double |
 | double | long | double |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | date | exponential_histogram |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | date_nanos | exponential_histogram |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | integer | exponential_histogram |
+| exponential_histogram {applies_to}`stack: ga 9.5.0` | long | exponential_histogram |
 | geo_point {applies_to}`stack: ga 9.5.0` | date | geo_point |
 | geo_point {applies_to}`stack: ga 9.5.0` | date_nanos | geo_point |
 | geo_point {applies_to}`stack: ga 9.5.0` | integer | geo_point |
@@ -64,6 +72,10 @@
 | long | date_nanos | long |
 | long | integer | long |
 | long | long | long |
+| tdigest {applies_to}`stack: ga 9.5.0` | date | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | date_nanos | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | integer | tdigest |
+| tdigest {applies_to}`stack: ga 9.5.0` | long | tdigest |
 | text | date | keyword |
 | text | date_nanos | keyword |
 | text | integer | keyword |

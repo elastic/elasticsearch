@@ -139,11 +139,7 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
         }
     }
 
-    private void updateExistingSystemIndicesSettings(
-        Settings uniformSettings,
-        Set<Setting<?>> settingsToReset,
-        ClusterState clusterState
-    ) {
+    private void updateExistingSystemIndicesSettings(Settings uniformSettings, Set<Setting<?>> settingsToReset, ClusterState clusterState) {
         if (clusterState.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
@@ -189,10 +185,7 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
             Settings.Builder effective = Settings.builder().put(uniformSettings);
             if (settingsToReset.isEmpty() == false) {
                 // Look up the descriptor settings once for this index, then apply all reset settings.
-                Settings descriptorSettings = descriptorSettings(
-                    indexMeta.getIndex().getName(),
-                    backingIndexToDescriptorSettings
-                );
+                Settings descriptorSettings = descriptorSettings(indexMeta.getIndex().getName(), backingIndexToDescriptorSettings);
                 for (Setting<?> indexSetting : settingsToReset) {
                     String value = indexSetting.exists(descriptorSettings)
                         ? descriptorSettings.get(indexSetting.getKey())

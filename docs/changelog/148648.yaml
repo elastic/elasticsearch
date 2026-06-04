@@ -1,0 +1,6 @@
+pr: 148648
+summary: Reject non-Smile content in Smile stream parser
+area: Infra/Core
+type: bug
+issues:
+ - 61489

@@ -52,7 +52,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
         preview = true,
         description = "Calculates the magnitude of a dense_vector.",
         examples = { @Example(file = "vector-magnitude", tag = "vector-magnitude") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+        // There is no DEVELOPMENT lifecycle for SNAPSHOT or FeatureFlag functions, place the lifecycle and version we are aiming for next
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") }
     )
     public Magnitude(
         Source source,

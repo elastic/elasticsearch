@@ -261,11 +261,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
             .setIndexPattern(".system-test-managed*")
             .setPrimaryIndex(".system-test-managed-1")
             .setAliasName(".system-test-managed")
-            .setMappings(
-                "{\"_meta\":{\""
-                    + SystemIndexDescriptor.VERSION_META_KEY
-                    + "\":1},\"dynamic\":\"strict\",\"properties\":{}}"
-            )
+            .setMappings("{\"_meta\":{\"" + SystemIndexDescriptor.VERSION_META_KEY + "\":1},\"dynamic\":\"strict\",\"properties\":{}}")
             .setSettings(
                 Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -274,9 +270,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
             )
             .setOrigin("test")
             .build();
-        SystemIndices systemIndices = new SystemIndices(
-            List.of(new SystemIndices.Feature("test", "test feature", List.of(descriptor)))
-        );
+        SystemIndices systemIndices = new SystemIndices(List.of(new SystemIndices.Feature("test", "test feature", List.of(descriptor))));
 
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
         SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(updateService, systemIndices, Settings.EMPTY);
@@ -287,9 +281,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
             .numberOfReplicas(0)
             .system(true)
             .build();
-        Metadata metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(managedIndex, false))
-            .build();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(managedIndex, false)).build();
 
         Settings clusterWithAutoExpand = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build();
         ClusterState withSetting = masterState(Metadata.builder(metadata).persistentSettings(clusterWithAutoExpand).build());

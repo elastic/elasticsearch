@@ -1,0 +1,5 @@
+pr: 150499
+summary: Support short-lived credentials for EXTERNAL cloud reads
+area: ES|QL
+type: enhancement
+issues: []

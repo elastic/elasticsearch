@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -229,6 +234,58 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             assertEquals("gamma", allLines.get(2));
         } finally {
             exec.shutdown();
+        }
+    }
+
+    /**
+     * Early-close leak regression for {@code AsReadyParallelIterator}'s own look-ahead. Distinct from the
+     * per-reader {@link BufferingPageIterator} buffer: the coordinator parks one as-ready page in its
+     * private {@code buffered} field when {@code hasNext()} runs ahead of {@code next()}. A consumer that
+     * aborts after {@code hasNext()} (a pushed-down {@code LIMIT}, a cancellation, a downstream error)
+     * reaches {@code close()} with that page still parked; {@code close()} must release it (and drain the
+     * shared queue, and wait out the workers so each releases its own in-flight page) or the breaker leaks.
+     * A genuinely multi-segment file is required so the parallel path engages rather than the single-stream
+     * fallback (which returns the reader's own iterator directly).
+     */
+    public void testCloseReleasesBufferedPageOnEarlyTermination() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 500;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        LineFormatReader reader = new LineFormatReader(trackingFactory);
+
+        // Guard: the test only exercises AsReadyParallelIterator if the file actually splits.
+        assertThat(
+            "test needs a genuinely multi-segment file or it would hit the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            // Small batch + many lines => several pages produced; a hasNext() parks one in `buffered`.
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
+            assertTrue("workers should produce at least one page", iter.hasNext());
+            assertThat("hasNext must have parked a buffered page", breaker.getUsed(), Matchers.greaterThan(0L));
+
+            // Abandon without draining: this is the LIMIT / cancel / downstream-error shape.
+            iter.close();
+
+            assertEquals(
+                "close() must release the parked buffered page, drain the queue, and let workers release their in-flight pages",
+                0L,
+                breaker.getUsed()
+            );
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
         }
     }
 
@@ -1223,10 +1280,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private final List<String> buffer = new ArrayList<>();
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -1280,7 +1336,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }
@@ -1508,10 +1564,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private int linesRead = 0;
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -1569,7 +1624,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }

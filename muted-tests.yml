@@ -665,6 +665,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/150723
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  method: testInitialInstallProducesSingleActiveKeyWithEmptyHandlerProgress
-  issue: https://github.com/elastic/elasticsearch/issues/150725

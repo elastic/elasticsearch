@@ -9,9 +9,11 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -36,17 +38,18 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Unit tests for {@link TikaServerExtractionBackend} using an in-process mock HTTP server.
  */
+@SuppressForbidden(reason = "com.sun.net.httpserver is used only in tests as a lightweight mock HTTP server")
 public class TikaServerExtractionBackendTests extends ESTestCase {
 
     private static HttpServer mockServer;
     /** Mutable holder so individual tests can install their own handler. */
-    private static volatile HttpHandlerRef currentHandler;
+    private static volatile HttpHandler currentHandler;
 
     @BeforeClass
     public static void startMockServer() throws IOException {
         mockServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         mockServer.createContext("/tika/json", exchange -> {
-            HttpHandlerRef h = currentHandler;
+            HttpHandler h = currentHandler;
             if (h != null) {
                 h.handle(exchange);
             } else {
@@ -198,8 +201,4 @@ public class TikaServerExtractionBackendTests extends ESTestCase {
         return exceptionRef.get();
     }
 
-    @FunctionalInterface
-    private interface HttpHandlerRef {
-        void handle(com.sun.net.httpserver.HttpExchange exchange) throws IOException;
-    }
 }

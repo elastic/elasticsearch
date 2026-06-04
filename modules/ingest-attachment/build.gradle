@@ -19,25 +19,24 @@ esplugin {
 // when updating tika, please review it's parent pom : https://repo1.maven.org/maven2/org/apache/tika/tika-parent
 // and manually update the transitive dependencies here
 def versions = [
-  'tika'  : '3.2.3',
-  'pdfbox': '3.0.5',
-  'poi'   : '5.4.1',
-  'sparsebitset' : '1.3', //poi dependency: https://repo1.maven.org/maven2/org/apache/poi/poi/
-  'mime4j': '0.8.13',
-  'commonsCodec': '1.19.0',
+  'tika'  : '4.0.0-SNAPSHOT',
+  'pdfbox': '3.0.7',
+  'poi'   : '5.5.1',
+  'mime4j': '0.8.14',
+  'commonsCodec': '1.22.0',
   'slf4' : '2.0.17',
-  'xz' : '1.10',
-  'commonsIo' : '2.20.0',
+  'xz' : '1.12',
+  'commonsIo' : '2.22.0',
   //intentionally using the elder "juniversalchardet:juniversalchardet" rather than the newer "com.github.albfernandez:juniversalchardet"
   //since the "com.github.albfernandez" fork has some problems with Chinese.
   'juniversalchardet' : '1.0.3',
-  'jsoup' : '1.21.2',
+  'jsoup' : '1.22.2',
   'jempbox' : '1.8.17',
   'xmlbeans' : '5.3.0', //poi-ooxml dependency: https://repo1.maven.org/maven2/org/apache/poi/poi-ooxml/
   'commonsCollections4' : '4.5.0',
   'commonsCompress' : '1.28.0',
-  'commonsLang3' :'3.18.0',
-  'commonsMath3' : '3.6.1'
+  'commonsLang3' : '3.20.0',
+  'commonsMath3' : '3.6.1',
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
@@ -50,6 +49,19 @@ configurations.testRuntimeClasspath {
 configurations.testCompileClasspath {
   // The version used by POI potentially conflicts with the one pulled in by :test:framework:
   resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
+
+// tika-langdetect-charsoup and tika-pipes-core incorrectly declare tika-annotation-processor as
+// compile scope rather than provided; exclude it everywhere to avoid jar-hell with tika-core.
+// tika 4.x transitively pulls in the albfernandez fork of juniversalchardet, but we prefer the
+// original com.googlecode version (see comment near explicit dep below).
+// BouncyCastle is pulled in by tika-parser-microsoft-module and tika-parser-pdf-module in Tika 4.x
+// (for encrypted documents / signed PDFs). We exclude it to keep the same narrow scope as Tika 3.x:
+// the in-JVM backend does not support encrypted/signed documents; use a tika-server for those.
+configurations.all {
+  exclude group: "org.apache.tika", module: "tika-annotation-processor"
+  exclude group: "com.github.albfernandez", module: "juniversalchardet"
+  exclude group: "org.bouncycastle"
 }
 
 dependencies {
@@ -67,19 +79,20 @@ dependencies {
   // workaround for https://github.com/elastic/elasticsearch/issues/93714
   api "org.slf4j:slf4j-nop:${versions.slf4}"
 
-  // mandatory for tika
+  // mandatory for tika — standard parsers + langdetect (model bundled in charsoup-core)
   api "org.apache.tika:tika-core:${versions.tika}"
-  api "org.apache.tika:tika-langdetect:${versions.tika}"
-  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
+  api "org.apache.tika:tika-langdetect-charsoup:${versions.tika}"
+  // same parser scope as Tika 3.x: no crypto, no mail, no encoding-detectors
+  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
   api "org.apache.tika:tika-parser-html-module:${versions.tika}"
   api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
   api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
-  api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-text-module:${versions.tika}"
+  api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
   api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
   api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
+
   api "org.tukaani:xz:${versions.xz}"
   api "commons-io:commons-io:${versions.commonsIo}"
 
@@ -94,14 +107,13 @@ dependencies {
   api "org.apache.pdfbox:pdfbox-io:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   api "org.apache.pdfbox:jempbox:${versions.jempbox}"
-  // OpenOffice
+  // OpenOffice / MS Office
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonsCodec}"
   api "org.apache.xmlbeans:xmlbeans:${versions.xmlbeans}"
   api "org.apache.commons:commons-collections4:${versions.commonsCollections4}"
-  // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
   api "org.apache.commons:commons-compress:${versions.commonsCompress}"
@@ -112,8 +124,6 @@ dependencies {
   api "org.apache.commons:commons-lang3:${versions.commonsLang3}"
   // Microsoft Word files with visio diagrams
   api "org.apache.commons:commons-math3:${versions.commonsMath3}"
-  // POIs dependency
-  api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
 }
 
 restResources {

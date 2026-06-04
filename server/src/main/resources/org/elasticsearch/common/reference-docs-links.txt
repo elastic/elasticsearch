@@ -52,3 +52,4 @@ DELETE_INDEX_BLOCK                                              api/doc/elastics
 ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings
 MACHINE_LEARNING_SETTINGS                                       reference/elasticsearch/configuration-reference/machine-learning-settings
 SEARCH_TASK_WATCHDOG                                            reference/elasticsearch/configuration-reference/search-settings#search-task-watchdog-settings
+BOOTSTRAP_CHECK_TIKA_SERVER                                     deploy-manage/deploy/self-managed/bootstrap-checks#bootstrap-checks-attachment-tika-server

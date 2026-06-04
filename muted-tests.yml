@@ -656,3 +656,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/150723
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150758
+- class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
+  method: testSequences
+  issue: https://github.com/elastic/elasticsearch/issues/150762
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150771

@@ -157,10 +157,10 @@ public final class AzureStorageProvider implements StorageProvider {
             var ambientCredential = new ChainedTokenCredentialBuilder().addLast(new EnvironmentCredentialBuilder().build())
                 .addLast(new ManagedIdentityCredentialBuilder().build())
                 .build();
-            String endpoint = config.endpoint() != null && config.endpoint().isEmpty() == false
+            String endpoint = Strings.hasText(config.endpoint())
                 ? config.endpoint()
                 : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);
-            if (endpoint == null && config.account() != null) {
+            if (endpoint == null && Strings.hasText(config.account())) {
                 endpoint = "https://" + config.account() + ".blob.core.windows.net";
             }
             if (endpoint == null) {

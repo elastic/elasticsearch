@@ -63,25 +63,6 @@ public final class DataSourceModule implements Closeable {
         Settings settings,
         BlockFactory blockFactory,
         ExecutorService executor,
-        DataSourceCredentials credentials
-    ) {
-        this(
-            dataSourcePlugins,
-            capabilities,
-            settings,
-            blockFactory,
-            executor,
-            credentials,
-            () -> ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings)
-        );
-    }
-
-    public DataSourceModule(
-        List<DataSourcePlugin> dataSourcePlugins,
-        DataSourceCapabilities capabilities,
-        Settings settings,
-        BlockFactory blockFactory,
-        ExecutorService executor,
         DataSourceCredentials credentials,
         BooleanSupplier ambientEnabled
     ) {

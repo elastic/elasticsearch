@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -42,10 +41,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        boolean ambientEnabled = ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings);
-        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes()).withAmbientEnabled(
-            () -> ambientEnabled
-        );
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
         return Map.of(v.type(), v);
     }
 }

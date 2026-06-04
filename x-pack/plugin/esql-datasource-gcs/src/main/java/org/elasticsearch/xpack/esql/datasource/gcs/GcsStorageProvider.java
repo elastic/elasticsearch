@@ -36,7 +36,6 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -66,7 +65,7 @@ import java.util.NoSuchElementException;
  * The async path blocks a worker thread (not truly non-blocking like HTTP sendAsync or S3AsyncClient)
  * but avoids the byte[] allocation overhead of the default InputStream-based wrappers.
  */
-public final class GcsStorageProvider implements StorageProvider {
+public class GcsStorageProvider implements StorageProvider {
     private volatile Storage storage;
     private final GcsConfiguration config;
 
@@ -106,7 +105,7 @@ public final class GcsStorageProvider implements StorageProvider {
         return storage;
     }
 
-    private static Storage buildStorageClient(GcsConfiguration config) {
+    private Storage buildStorageClient(GcsConfiguration config) {
         try {
             if (config != null && config.isAnonymous()) {
                 StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
@@ -152,7 +151,7 @@ public final class GcsStorageProvider implements StorageProvider {
      * When more than one is supplied, service account credentials take precedence, then access_token, then
      * keyless federation. When {@code auth=ambient} is set, Application Default Credentials are used instead.
      */
-    static Credentials credentials(GcsConfiguration config) throws IOException {
+    Credentials credentials(GcsConfiguration config) throws IOException {
         if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
             ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
@@ -170,20 +169,7 @@ public final class GcsStorageProvider implements StorageProvider {
             return buildIdentityPoolCredentials(config);
         }
         if (config != null && config.isAmbient()) {
-            // Test-only shortcut: inject a static bearer token via system property so integration
-            // tests can verify the full auth flow without a live GCE metadata server.
-            // This property is never set in production.
-            String testToken = System.getProperty("tests.gcs.ambient_access_token");
-            if (testToken != null) {
-                return GoogleCredentials.create(new AccessToken(testToken, Date.from(Instant.now().plusSeconds(3600))));
-            }
-            // Use the GCE/GKE metadata server directly. GoogleCredentials.getApplicationDefault()
-            // is excluded: it reads GOOGLE_APPLICATION_CREDENTIALS (a file) and the well-known
-            // ~/.config/gcloud/application_default_credentials.json file, both of which are
-            // blocked by the entitlement system. ComputeEngineCredentials contacts only the
-            // metadata server over the network (outbound_network entitlement, already granted).
-            // GKE Workload Identity Federation is handled separately via auth=keyless.
-            return ComputeEngineCredentials.create();
+            return buildAmbientCredentials();
         }
         throw new IllegalArgumentException(
             "GCS data source requires credentials: provide WITH (credentials = '...'), "
@@ -191,6 +177,24 @@ public final class GcsStorageProvider implements StorageProvider {
                 + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
                 + "or WITH (auth = 'ambient') to use Application Default Credentials (requires cluster setting)"
         );
+    }
+
+    /**
+     * Builds the credential used when {@code auth=ambient} is configured. Default returns
+     * {@link ComputeEngineCredentials#create()}, which contacts the GCE/GKE metadata server.
+     * <p>
+     * {@code GoogleCredentials.getApplicationDefault()} is deliberately not used: it reads
+     * {@code GOOGLE_APPLICATION_CREDENTIALS} and the well-known gcloud credential file, both
+     * blocked by the entitlement system. {@code ComputeEngineCredentials} contacts only the
+     * metadata server over the network (covered by the {@code outbound_network} entitlement).
+     * GKE Workload Identity Federation is handled separately via {@code auth=keyless}.
+     * <p>
+     * Tests may override this method (anonymous subclass) to inject a credential built with a
+     * mock {@link com.google.api.client.http.HttpTransport} — the same pattern used by
+     * {@code GoogleCloudStorageAdcTests} in {@code repository-gcs}.
+     */
+    protected Credentials buildAmbientCredentials() {
+        return ComputeEngineCredentials.create();
     }
 
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {

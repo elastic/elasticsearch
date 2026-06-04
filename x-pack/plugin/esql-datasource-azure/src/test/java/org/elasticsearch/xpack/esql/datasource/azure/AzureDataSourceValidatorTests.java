@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator(
@@ -95,6 +97,32 @@ public class AzureDataSourceValidatorTests extends AbstractDataSourceValidatorTe
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "sas_token", "?sv=2020-01-01"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
+        // default validator has ambient disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "ambient"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
+        var ambientValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withAmbientEnabled(() -> true);
+        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "account", "myaccount"));
+        assertEquals("ambient", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceAmbientConflictWithCredentials() {
+        var ambientValidator = new FileDataSourceValidator("azure", AzureConfiguration::fromMap, Set.of("wasbs", "wasb"))
+            .withAmbientEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "account", "myaccount", "key", "mykey"))
         );
     }
 

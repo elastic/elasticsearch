@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"));
@@ -91,6 +93,30 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
+        // default validator has ambient disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "ambient", "project_id", "proj"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
+        var ambientValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withAmbientEnabled(() -> true);
+        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "project_id", "proj"));
+        assertEquals("ambient", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceAmbientConflictWithCredentials() {
+        var ambientValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs")).withAmbientEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "credentials", "{\"type\":\"service_account\"}"))
         );
     }
 

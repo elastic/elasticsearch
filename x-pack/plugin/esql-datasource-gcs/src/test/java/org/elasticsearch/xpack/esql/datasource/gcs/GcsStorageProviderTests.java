@@ -160,14 +160,15 @@ public class GcsStorageProviderTests extends ESTestCase {
 
     public void testCredentialsFromAccessToken() throws Exception {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token"));
-        Credentials creds = GcsStorageProvider.credentials(config);
+        Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
         assertThat(creds, instanceOf(GoogleCredentials.class));
         assertEquals("ya29.token", ((GoogleCredentials) creds).getAccessToken().getTokenValue());
     }
 
     public void testCredentialsRequiresCredentials() {
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("project_id", "my-project"));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 
@@ -175,7 +176,8 @@ public class GcsStorageProviderTests extends ESTestCase {
         // An empty access token is treated as absent rather than building OAuth credentials with an empty token.
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "", "project_id", "my-project"));
         assertFalse(config.hasCredentials());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 
@@ -184,35 +186,33 @@ public class GcsStorageProviderTests extends ESTestCase {
         // access_token path) rather than handed to ServiceAccountCredentials.fromStream as garbage JSON.
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "   ", "project_id", "my-project"));
         assertFalse(config.hasCredentials());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 
     /**
-     * auth=ambient with {@code tests.gcs.ambient_access_token} set returns a static
-     * {@code GoogleCredentials} carrying that token — the same path integration tests exercise
-     * by setting the system property before running queries against a mock GCS server.
+     * auth=ambient returns {@link ComputeEngineCredentials} from the production seam.
      */
-    public void testAmbientCredentialsFromSystemProperty() throws Exception {
-        System.setProperty("tests.gcs.ambient_access_token", "test-ambient-gcs-token");
-        try {
-            GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
-            Credentials creds = GcsStorageProvider.credentials(config);
-            assertThat(creds, instanceOf(GoogleCredentials.class));
-            assertEquals("test-ambient-gcs-token", ((GoogleCredentials) creds).getAccessToken().getTokenValue());
-        } finally {
-            System.clearProperty("tests.gcs.ambient_access_token");
-        }
+    public void testAmbientCredentialsReturnsComputeEngine() throws Exception {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
+        Credentials creds = new GcsStorageProvider(mockStorage).credentials(config);
+        assertThat(creds, instanceOf(ComputeEngineCredentials.class));
     }
 
     /**
-     * auth=ambient without the test system property returns {@link ComputeEngineCredentials} —
-     * the production path that contacts the GCE metadata server.
+     * auth=ambient routes through {@link GcsStorageProvider#buildAmbientCredentials()}, the seam tests
+     * use to inject a credential backed by a mock HTTP transport instead of the GCE metadata server.
      */
-    public void testAmbientCredentialsFallsBackToComputeEngine() throws Exception {
-        System.clearProperty("tests.gcs.ambient_access_token");
+    public void testAmbientCredentialsRoutesThroughBuildAmbientCredentials() throws Exception {
+        GoogleCredentials injected = GoogleCredentials.create(new com.google.auth.oauth2.AccessToken("seam-token", null));
+        GcsStorageProvider provider = new GcsStorageProvider(mockStorage) {
+            @Override
+            protected Credentials buildAmbientCredentials() {
+                return injected;
+            }
+        };
         GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
-        Credentials creds = GcsStorageProvider.credentials(config);
-        assertThat(creds, instanceOf(ComputeEngineCredentials.class));
+        assertSame(injected, provider.credentials(config));
     }
 }

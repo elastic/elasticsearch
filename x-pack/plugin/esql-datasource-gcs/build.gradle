@@ -77,6 +77,8 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':libs:arrow')
   testImplementation project(xpackModule('esql:compute'))
+  // Mock GCS HTTP server used by GcsAmbientAuthTests to validate end-to-end auth=ambient behavior.
+  testImplementation project(':test:fixtures:gcs-fixture')
 }
 
 tasks.named("test").configure {

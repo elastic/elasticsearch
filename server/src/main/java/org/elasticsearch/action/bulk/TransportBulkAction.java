@@ -614,23 +614,13 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             .map(indexMetadataProvider)
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
-        if (sliceEnabled == false && writeRequest.isRoutingFromSlice()) {
-            throw new IllegalArgumentException(
-                "[_slice] is not allowed when [index.slice.enabled] is false for bulk item targeting [" + writeRequest.index() + "]"
-            );
-        }
-        if (sliceEnabled && writeRequest.isRoutingFromSlice() == false) {
-            if (writeRequest.routing() != null) {
-                throw new IllegalArgumentException(
-                    "[routing] is not allowed when [index.slice.enabled] is true for bulk item targeting ["
-                        + writeRequest.index()
-                        + "], use [_slice] instead"
-                );
-            }
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for bulk item targeting [" + writeRequest.index() + "]"
-            );
-        }
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            writeRequest.isRoutingFromSlice(),
+            writeRequest.routing(),
+            "bulk item",
+            writeRequest.index()
+        );
     }
 
     static boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {

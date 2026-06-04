@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -668,9 +669,9 @@ public class EsExecutors {
                 return this;
             }
 
-            /** Sets the half-life for thread utilization EWMR tracking, in nanoseconds. */
-            public Builder threadUtilizationEwmrHalfLife(double halfLifeNanos) {
-                this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLifeNanos;
+            /** Sets the half-life for thread utilization EWMR tracking. */
+            public Builder threadUtilizationEwmrHalfLife(TimeValue halfLife) {
+                this.threadUtilizationEwmrLambda = Math.log(2.0) / halfLife.nanos();
                 return this;
             }
 

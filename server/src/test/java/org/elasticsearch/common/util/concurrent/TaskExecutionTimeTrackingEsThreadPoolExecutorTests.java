@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
@@ -243,7 +244,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             context,
             EsExecutors.TaskTrackingConfig.builder()
                 .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                .threadUtilizationEwmrHalfLife(30_000_000_000.0)
+                .threadUtilizationEwmrHalfLife(TimeValue.timeValueSeconds(30))
                 .build(),
             EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );

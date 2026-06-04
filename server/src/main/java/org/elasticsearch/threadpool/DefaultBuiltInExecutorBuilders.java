@@ -66,7 +66,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                     .trackOngoingTasks()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(indexAutoscalingEWMA)
-                    .threadUtilizationEwmrHalfLife(30_000_000_000.0)
+                    .threadUtilizationEwmrHalfLife(TimeValue.timeValueSeconds(30))
                     .build()
             )
         );

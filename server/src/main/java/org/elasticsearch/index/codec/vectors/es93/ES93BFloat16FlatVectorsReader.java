@@ -171,13 +171,6 @@ public final class ES93BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsReader getMergeInstance() throws IOException {
-        // Update the read advice since vectors are guaranteed to be accessed sequentially for merge
-        vectorData.updateIOContext(dataContext.withHints(DataAccessHint.SEQUENTIAL));
-        return this;
-    }
-
-    @Override
     public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
         scoreAndCollectAll(knnCollector, acceptDocs, getFloatVectorValues(field).scorer(target));
     }

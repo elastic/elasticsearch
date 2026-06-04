@@ -10,19 +10,14 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.not;
 
 public class PreAnalyzerTests extends ESTestCase {
 
     public void testCollectInferenceIds() {
-        PreAnalyzer preAnalyzer = new PreAnalyzer(TEST_FUNCTION_REGISTRY);
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
 
         // Rerank inference plan
         assertCollectInferenceIds(
@@ -84,17 +79,6 @@ public class PreAnalyzerTests extends ESTestCase {
             "FROM books | EVAL x = LENGTH(CONCAT(TO_LOWER(title), \"!\")) | WHERE x > ABS(-1)",
             List.of()
         );
-    }
-
-    /**
-     * Test that the inference function names are correctly collected.
-     */
-    public void testInferenceFunctionNames() {
-        Set<String> inferenceFunctionNames = TEST_FUNCTION_REGISTRY.inferenceFunctionNames();
-
-        assertThat(inferenceFunctionNames, hasItems("text_embedding", "embedding"));
-        assertThat(inferenceFunctionNames, not(hasItem("concat")));
-        assertThat(inferenceFunctionNames, not(hasItem("length")));
     }
 
     private void assertCollectInferenceIds(PreAnalyzer preAnalyzer, String query, List<String> expectedInferenceIds) {

@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -34,7 +36,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -42,14 +43,7 @@ import java.util.Set;
  */
 public class PreAnalyzer {
 
-    private final EsqlFunctionRegistry functionRegistry;
-
-    /**
-     * @param functionRegistry the function registry to use for inference function resolution
-     */
-    public PreAnalyzer(EsqlFunctionRegistry functionRegistry) {
-        this.functionRegistry = Objects.requireNonNull(functionRegistry, "functionRegistry");
-    }
+    private static final List<FunctionDefinition> INFERENCE_FUNCTION_DEFINITIONS = List.of(TextEmbedding.DEFINITION, Embedding.DEFINITION);
 
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
@@ -150,14 +144,10 @@ public class PreAnalyzer {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
-        // Get the names of all registered inference functions
-        EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
-        Set<String> inferenceFunctionNames = snapshotRegistry.inferenceFunctionNames();
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
-            String functionName = snapshotRegistry.resolveAlias(fn.name());
-            if (inferenceFunctionNames.contains(functionName)) {
-                // The name set guarantees this resolves to an InferenceFunction, so we go straight to the definition.
-                String inferenceId = inferenceId(fn, snapshotRegistry.resolveFunction(functionName));
+            FunctionDefinition inferenceFunction = inferenceFunctionDefinition(fn.name());
+            if (inferenceFunction != null) {
+                String inferenceId = inferenceId(fn, inferenceFunction);
                 if (inferenceId != null) {
                     inferenceIds.add(inferenceId);
                 }
@@ -199,6 +189,15 @@ public class PreAnalyzer {
 
     private static String inferenceId(InferencePlan<?> plan) {
         return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+    }
+
+    private static FunctionDefinition inferenceFunctionDefinition(String name) {
+        for (FunctionDefinition def : INFERENCE_FUNCTION_DEFINITIONS) {
+            if (name.equalsIgnoreCase(def.name())) {
+                return def;
+            }
+        }
+        return null;
     }
 
     private static String inferenceId(UnresolvedFunction f, FunctionDefinition def) {

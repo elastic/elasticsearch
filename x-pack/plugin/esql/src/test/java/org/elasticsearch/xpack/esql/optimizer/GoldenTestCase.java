@@ -780,7 +780,7 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {
-        var preAnalysis = new PreAnalyzer(EsqlTestUtils.TEST_FUNCTION_REGISTRY).preAnalyze(parsed);
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         if (preAnalysis.indexes().isEmpty()) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return Map.of(

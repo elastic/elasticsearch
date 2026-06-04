@@ -75,7 +75,7 @@ public class PlanExecutor {
     ) {
         this.indexResolver = indexResolver;
         this.parser = parser;
-        this.preAnalyzer = new PreAnalyzer(functionRegistry);
+        this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();

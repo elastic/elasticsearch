@@ -133,6 +133,11 @@ public class ExternalSourceResolver {
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
 
+    /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }
@@ -494,6 +499,11 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
+        // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
+        // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
+        // reads the _stats.* keys straight off this map; no separate cache lookup.
+        final Map<String, Object> finalMetadata = entry.safeMetadata();
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -512,7 +522,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return entry.safeMetadata();
+                return finalMetadata;
             }
 
             @Override

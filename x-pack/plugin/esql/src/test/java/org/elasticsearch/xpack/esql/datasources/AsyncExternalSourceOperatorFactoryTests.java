@@ -2319,7 +2319,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true, null));
+        assertNull(
+            factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true, null, 0L, null)
+        );
     }
 
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
@@ -2341,6 +2343,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 false,
                 true,
+                null,
+                0L,
                 null
             );
             assertNotNull(iterator);
@@ -2370,7 +2374,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         IOException thrown = expectThrows(
             IOException.class,
-            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null)
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null, 0L, null)
         );
         assertEquals("decompress failed", thrown.getMessage());
         assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
@@ -2394,6 +2398,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 false,
                 true,
+                null,
+                0L,
                 null
             );
             assertNotNull(iterator);

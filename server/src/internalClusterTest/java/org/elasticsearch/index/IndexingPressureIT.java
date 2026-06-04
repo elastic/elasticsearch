@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -21,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -42,9 +46,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +61,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -64,6 +76,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 public class IndexingPressureIT extends ESIntegTestCase {
@@ -90,6 +103,161 @@ public class IndexingPressureIT extends ESIntegTestCase {
     @Override
     protected int numberOfShards() {
         return 1;
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.action.bulk.TransportShardBulkAction:DEBUG",
+        reason = "capture cancellation diagnostics in MockLog"
+    )
+    public void testCancellableTransportWriteAction() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
+        final MockTransportService primaryTransportService = (MockTransportService) primaryService;
+
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
+
+        AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
+        final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
+
+        AtomicBoolean preIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            preIndexCalled.set(true);
+            fail("indexing should not run when cancelled pre-submission");
+        });
+
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                assertThat(task, instanceOf(ReplicationTask.class));
+                replicationTask.set((ReplicationTask) task);
+                taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
+                assertThat(((ReplicationTask) task).isCancelled(), is(true));
+                waitForPreSubmissionTaskCancellation.countDown();
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < randomIntBetween(50, 80); ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            bulkRequest.add(request);
+        }
+
+        // Pre submission cancellation.
+        try (var mockLog = MockLog.capture(TransportShardBulkAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Pre Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Strings.format("for Index shard [[%s][0]] is cancelled pre-submission.", INDEX_NAME)
+                )
+            );
+
+            final ActionFuture<BulkResponse> cancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+            waitForPreSubmissionTaskCancellation.await();
+
+            mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = cancelledFuture.actionGet();
+
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [presubmission-cancellation]"));
+            }
+        } finally {
+            if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
+                waitForPreSubmissionTaskCancellation.countDown();
+            }
+            // Clean up previous set up.
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            primaryTransportService.clearAllRules();
+        }
+        assertFalse(preIndexCalled.get());
+
+        // Post submission cancellation.
+        AtomicBoolean postSubmissionCancellationIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            postSubmissionCancellationIndexCalled.set(true);
+            fail("indexing should not run when cancelled post-submission");
+        });
+
+        AtomicReference<ReplicationTask> postCancelTask = new AtomicReference<>();
+        CountDownLatch primaryRequestArrived = new CountDownLatch(1);
+
+        // watch for arrival for our bulk task.
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                postCancelTask.set((ReplicationTask) task);
+                primaryRequestArrived.countDown();
+                // No cancellation here.
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
+        Executor writeExecutor = primaryThreadPool.executor(ThreadPool.Names.WRITE);
+
+        // First block off all primary write thread pool.
+        try (
+            var mockLog = MockLog.capture(TransportShardBulkAction.class);
+            Releasable primaryRelease = blockWriteThreadPool(primaryThreadPool)
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Post Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.DEBUG,
+                    Strings.format("for Index shard [[%s][0]] is cancelled post-submission.", INDEX_NAME)
+                )
+            );
+
+            ThreadPoolExecutor writePool = asInstanceOf(ThreadPoolExecutor.class, writeExecutor);
+
+            // Make sure every thread is blocked.
+            assertBusy(() -> assertThat(writePool.getActiveCount(), equalTo(writePool.getMaximumPoolSize())));
+            int queueBefore = writePool.getQueue().size();
+            assertThat(queueBefore, is(0));
+
+            ActionFuture<BulkResponse> postSubmissionCancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+
+            // release the request handler.
+            primaryRequestArrived.await();
+            assertBusy(() -> assertThat(writePool.getQueue().size(), greaterThan(0)));
+
+            // Cancel while task is enqueued.
+            taskManager.cancel(postCancelTask.get(), "post-submission-cancellation", () -> {});
+
+            // Let go all write threads.
+            primaryRelease.close();
+
+            mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = postSubmissionCancelledFuture.actionGet();
+
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [post-submission-cancellation]"));
+            }
+        }
+
+        assertFalse(postSubmissionCancellationIndexCalled.get());
+        PreIndexListenerInstallerPlugin.resetPreIndexListener();
+        primaryTransportService.clearAllRules();
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {

@@ -213,11 +213,14 @@ public class TransformTaskTests extends ESTestCase {
 
     private TransformServices transformServices(Clock clock, TransformAuditor auditor, ThreadPool threadPool) {
         var transformsConfigManager = new InMemoryTransformConfigManager();
+        var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformsCheckpointService = new TransformCheckpointService(
             clock,
             transformsConfigManager,
             auditor,
-            mock(CrossProjectModeDecider.class)
+            mock(CrossProjectModeDecider.class),
+            cloudCredentialManager
         );
         return new TransformServices(
             transformsConfigManager,

@@ -14,13 +14,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.MockLog.LoggingExpectation;
@@ -65,7 +63,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
-    private ParentTaskAssigningClient parentTaskClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -76,7 +73,6 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -256,7 +252,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            parentTaskClient,
+            () -> client.threadPool().getThreadContext(),
+            () -> client,
             transformConfigManager,
             transformAuditor,
             transformConfig,
@@ -303,7 +300,8 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            parentTaskClient,
+            () -> client.threadPool().getThreadContext(),
+            () -> client,
             transformConfigManager,
             transformAuditor,
             transformConfig,
@@ -414,12 +412,32 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new DefaultCheckpointProvider(
             clock,
-            parentTaskClient,
+            () -> client.threadPool().getThreadContext(),
+            () -> client,
             transformConfigManager,
             transformAuditor,
             transformConfig,
             mock(CrossProjectModeDecider.class)
         );
+    }
+
+    public void testClientSupplierIsConsultedPerCall() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("source_index", new long[] { 1L }), null);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
+
+        var supplierCallCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(clock, () -> client.threadPool().getThreadContext(), () -> {
+            supplierCallCount.incrementAndGet();
+            return client;
+        }, transformConfigManager, transformAuditor, transformConfig, mock(CrossProjectModeDecider.class));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(null, new LatchedActionListener<>(ActionListener.wrap(r -> {}, e -> {}), latch));
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(supplierCallCount.get(), is(equalTo(1)));
     }
 
     private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock) {

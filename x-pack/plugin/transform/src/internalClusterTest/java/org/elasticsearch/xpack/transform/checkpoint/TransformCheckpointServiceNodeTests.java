@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.AfterClass;
@@ -43,7 +44,9 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
@@ -105,11 +108,14 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
         // use a mock for the checkpoint service
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
+        TransformCloudCredentialManager cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             transformsConfigManager,
             mockAuditor,
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            cloudCredentialManager
         );
     }
 

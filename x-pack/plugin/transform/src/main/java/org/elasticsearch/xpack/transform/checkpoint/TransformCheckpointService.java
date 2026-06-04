@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -21,10 +24,12 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.function.Supplier;
 
 /**
  * Transform Checkpoint Service
@@ -42,24 +47,34 @@ public class TransformCheckpointService {
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     public TransformCheckpointService(
         final Clock clock,
         final TransformConfigManager transformConfigManager,
         TransformAuditor transformAuditor,
-        CrossProjectModeDecider crossProjectModeDecider
+        CrossProjectModeDecider crossProjectModeDecider,
+        TransformCloudCredentialManager cloudCredentialManager
     ) {
         this.clock = clock;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.crossProjectModeDecider = crossProjectModeDecider;
+        this.cloudCredentialManager = cloudCredentialManager;
     }
 
-    public CheckpointProvider getCheckpointProvider(final ParentTaskAssigningClient client, final TransformConfig transformConfig) {
+    public CheckpointProvider getCheckpointProvider(
+        final ParentTaskAssigningClient client,
+        final TransformConfig transformConfig,
+        final Supplier<PersistedCloudCredential> credentialSupplier
+    ) {
+        Supplier<Client> clientSupplier = () -> cloudCredentialManager.wrapWithPersistedIfPresent(client, credentialSupplier.get());
+        Supplier<ThreadContext> threadContextSupplier = () -> client.threadPool().getThreadContext();
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(
                 clock,
-                client,
+                threadContextSupplier,
+                clientSupplier,
                 transformConfigManager,
                 transformAuditor,
                 transformConfig,
@@ -69,7 +84,8 @@ public class TransformCheckpointService {
 
         return new DefaultCheckpointProvider(
             clock,
-            client,
+            threadContextSupplier,
+            clientSupplier,
             transformConfigManager,
             transformAuditor,
             transformConfig,
@@ -98,13 +114,30 @@ public class TransformCheckpointService {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(transformConfig -> {
-            getCheckpointProvider(client, transformConfig).getCheckpointingInfo(
-                lastCheckpointNumber,
-                nextCheckpointPosition,
-                nextCheckpointProgress,
-                timeout,
-                listener
-            );
+            var credentialId = transformConfig.getCredentialId();
+            if (credentialId != null && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                transformConfigManager.getTransformCloudCredentialByTokenId(
+                    credentialId,
+                    true,
+                    listener.delegateFailureAndWrap((l, persisted) -> {
+                        getCheckpointProvider(client, transformConfig, () -> persisted).getCheckpointingInfo(
+                            lastCheckpointNumber,
+                            nextCheckpointPosition,
+                            nextCheckpointProgress,
+                            timeout,
+                            ActionListener.releaseAfter(l, persisted)
+                        );
+                    })
+                );
+            } else {
+                getCheckpointProvider(client, transformConfig, () -> null).getCheckpointingInfo(
+                    lastCheckpointNumber,
+                    nextCheckpointPosition,
+                    nextCheckpointProgress,
+                    timeout,
+                    listener
+                );
+            }
         }, transformError -> {
             logger.warn("Failed to retrieve configuration for transform [" + transformId + "]", transformError);
             listener.onFailure(new CheckpointException("Failed to retrieve configuration", transformError));

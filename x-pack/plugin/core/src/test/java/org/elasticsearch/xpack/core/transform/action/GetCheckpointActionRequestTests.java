@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -48,10 +49,9 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
         String cluster = instance.getCluster();
         TimeValue timeout = instance.getTimeout();
         String projectRouting = instance.getProjectRouting();
-        Map<String, String> headers = instance.headers();
         boolean includeResolvedIndexExpressions = instance.includeResolvedIndexExpressions();
 
-        switch (between(0, 7)) {
+        switch (between(0, 6)) {
             case 0:
                 indices.add(randomAlphaOfLengthBetween(1, 20));
                 break;
@@ -77,9 +77,6 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
                 projectRouting = projectRouting != null ? null : randomAlphaOfLength(5);
                 break;
             case 6:
-                headers = headers.isEmpty() ? Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)) : null;
-                break;
-            case 7:
                 includeResolvedIndexExpressions = includeResolvedIndexExpressions == false;
                 break;
             default:
@@ -93,8 +90,23 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             cluster,
             timeout,
             projectRouting,
-            headers,
             includeResolvedIndexExpressions
+        );
+    }
+
+    @Override
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.supports(GetCheckpointAction.CPS_SUPPORT)) {
+            return instance;
+        }
+        return new Request(
+            instance.indices(),
+            instance.indicesOptions(),
+            instance.getQuery(),
+            instance.getCluster(),
+            instance.getTimeout(),
+            null,
+            false
         );
     }
 
@@ -105,7 +117,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(null, null, null, null, null, null, Map.of(), false);
+        Request request = new Request(null, null, null, null, null, null, false);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
@@ -124,7 +136,6 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
             randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null,
             randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null,
             randomBoolean() ? randomAlphaOfLength(5) : null,
-            randomBoolean() ? Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5)) : null,
             randomBoolean()
         );
     }

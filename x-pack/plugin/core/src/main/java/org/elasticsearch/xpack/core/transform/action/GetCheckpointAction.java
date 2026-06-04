@@ -59,7 +59,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
         private final String cluster;
         private final TimeValue timeout;
         private final String projectRouting;
-        private final Map<String, String> headers;
         private final boolean includeResolvedIndexExpressions;
 
         /**
@@ -75,7 +74,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             cluster = in.readOptionalString();
             timeout = in.readOptionalTimeValue();
             projectRouting = in.getTransportVersion().supports(CPS_SUPPORT) ? in.readOptionalString() : null;
-            headers = in.getTransportVersion().supports(CPS_SUPPORT) ? in.readMap(StreamInput::readString) : Map.of();
             includeResolvedIndexExpressions = in.getTransportVersion().supports(CPS_SUPPORT) && in.readBoolean();
         }
 
@@ -86,7 +84,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             String cluster,
             TimeValue timeout,
             String projectRouting,
-            Map<String, String> headers,
             boolean includeResolvedIndexExpressions
         ) {
             this.indices = indices != null ? indices : Strings.EMPTY_ARRAY;
@@ -95,7 +92,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             this.cluster = cluster;
             this.timeout = timeout;
             this.projectRouting = projectRouting;
-            this.headers = headers != null ? headers : Map.of();
             this.includeResolvedIndexExpressions = includeResolvedIndexExpressions;
         }
 
@@ -148,10 +144,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             return projectRouting;
         }
 
-        public Map<String, String> headers() {
-            return headers;
-        }
-
         public boolean includeResolvedIndexExpressions() {
             return includeResolvedIndexExpressions;
         }
@@ -172,7 +164,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
                 && Objects.equals(cluster, that.cluster)
                 && Objects.equals(timeout, that.timeout)
                 && Objects.equals(projectRouting, that.projectRouting)
-                && Objects.equals(headers, that.headers)
                 && includeResolvedIndexExpressions == that.includeResolvedIndexExpressions;
         }
 
@@ -185,7 +176,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
                 cluster,
                 timeout,
                 projectRouting,
-                headers,
                 includeResolvedIndexExpressions
             );
         }
@@ -200,7 +190,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             out.writeOptionalTimeValue(timeout);
             if (out.getTransportVersion().supports(CPS_SUPPORT)) {
                 out.writeOptionalString(projectRouting);
-                out.writeMap(headers, StreamOutput::writeString);
                 out.writeBoolean(includeResolvedIndexExpressions);
             }
         }
@@ -234,7 +223,6 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
                 cluster,
                 getTimeout(),
                 getProjectRouting(),
-                headers(),
                 includeResolvedIndexExpressions
             );
         }

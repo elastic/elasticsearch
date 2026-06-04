@@ -301,7 +301,6 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             cluster,
             TIMEOUT,
             null,
-            Map.of(),
             false
         );
 

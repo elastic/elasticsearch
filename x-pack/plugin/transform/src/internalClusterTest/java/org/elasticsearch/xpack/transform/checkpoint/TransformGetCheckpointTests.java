@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Respons
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -169,7 +170,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
         assertCheckpointAction(request, response -> {
@@ -187,7 +187,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
 
@@ -211,7 +210,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
         assertCheckpointAction(request, response -> {
@@ -246,7 +244,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
                     projectId -> false,
-                    DefaultProjectResolver.INSTANCE
+                    DefaultProjectResolver.INSTANCE,
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 DefaultProjectResolver.INSTANCE
             );

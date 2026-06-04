@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -56,7 +55,6 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
 
@@ -142,7 +140,6 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
 
@@ -159,7 +156,6 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
 
@@ -173,7 +169,6 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             null,
             TimeValue.timeValueSeconds(5),
             null,
-            Map.of(),
             false
         );
 
@@ -197,7 +192,6 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
             null,
             TimeValue.ZERO,
             null,
-            Map.of(),
             false
         );
 

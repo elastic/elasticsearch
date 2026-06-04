@@ -313,11 +313,27 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
+
+        // Built once and reused: SecurityContext is a stateless wrapper around the shared
+        // ThreadContext singleton; per-request state lives in the ThreadContext's thread-local view.
+        // Null when security is disabled, which useSecondaryAuthIfAvailable handles as a no-op pass-through.
+        var securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, services.threadPool().getThreadContext())
+            : null;
+        var cloudCredentialManager = new TransformCloudCredentialManager(
+            services.threadPool(),
+            securityContext,
+            getTransformExtension().getCloudCredentialManager(),
+            getTransformExtension().getCloudApiKeyService(),
+            configManager,
+            auditor
+        );
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             configManager,
             auditor,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            cloudCredentialManager
         );
         TransformScheduler scheduler = new TransformScheduler(
             clock,
@@ -338,21 +354,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         } else {
             hasLinkedProjects = projectId -> false;
         }
-
-        // Built once and reused: SecurityContext is a stateless wrapper around the shared
-        // ThreadContext singleton; per-request state lives in the ThreadContext's thread-local view.
-        // Null when security is disabled, which useSecondaryAuthIfAvailable handles as a no-op pass-through.
-        var securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
-            ? new SecurityContext(settings, services.threadPool().getThreadContext())
-            : null;
-        var cloudCredentialManager = new TransformCloudCredentialManager(
-            services.threadPool(),
-            securityContext,
-            getTransformExtension().getCloudCredentialManager(),
-            getTransformExtension().getCloudApiKeyService(),
-            configManager,
-            auditor
-        );
 
         transformServices.set(
             new TransformServices(

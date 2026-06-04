@@ -11,7 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -32,6 +33,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -50,7 +52,8 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     protected final Clock clock;
-    protected final ParentTaskAssigningClient client;
+    protected final Supplier<ThreadContext> threadContextSupplier;
+    protected final Supplier<Client> clientSupplier;
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
@@ -58,14 +61,16 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
     DefaultCheckpointProvider(
         final Clock clock,
-        final ParentTaskAssigningClient client,
+        final Supplier<ThreadContext> threadContextSupplier,
+        final Supplier<Client> clientSupplier,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
         final TransformConfig transformConfig,
         final CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.clock = clock;
-        this.client = client;
+        this.threadContextSupplier = threadContextSupplier;
+        this.clientSupplier = clientSupplier;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.transformConfig = transformConfig;
@@ -92,13 +97,22 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         }));
     }
 
+    protected boolean crossProjectCheckpointingEnabled() {
+        return crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+    }
+
+    protected IndicesOptions checkpointIndicesOptions() {
+        if (crossProjectCheckpointingEnabled()) {
+            return IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+        return IndicesOptions.LENIENT_EXPAND_OPEN;
+    }
+
     protected void getIndexCheckpoints(TimeValue timeout, ActionListener<Map<String, long[]>> listener) {
         try {
-            var indicesOption = crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
-                ? IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build()
-                : IndicesOptions.LENIENT_EXPAND_OPEN;
+            var indicesOption = checkpointIndicesOptions();
 
             // Only use the query for shard filtering when there are no runtime mappings,
             // because SearchShardsRequest does not support runtime_mappings and the query
@@ -114,17 +128,16 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 timeout,
                 transformConfig.getSource().getProjectRouting(),
-                transformConfig.getHeaders(),
-                false
+                crossProjectCheckpointingEnabled()
             );
 
             ClientHelper.executeWithHeadersAsync(
-                client.threadPool().getThreadContext(),
+                threadContextSupplier.get(),
                 transformConfig.getHeaders(),
                 ClientHelper.TRANSFORM_ORIGIN,
                 getCheckpointRequest,
                 listener.map(GetCheckpointAction.Response::getCheckpoints),
-                (r, l) -> client.execute(GetCheckpointAction.INSTANCE, r, l)
+                (r, l) -> clientSupplier.get().execute(GetCheckpointAction.INSTANCE, r, l)
             );
         } catch (Exception e) {
             listener.onFailure(e);

@@ -169,9 +169,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             );
         }
 
-        var threadContext = client.threadPool().getThreadContext();
-        var headers = request.headers();
-
         var nodeId = clusterState.nodes().getLocalNode().getId();
         var parentTaskId = new TaskId(nodeId, task.getId());
 
@@ -188,13 +185,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
-            ClientHelper.executeWithHeadersAsync(
-                threadContext,
-                headers,
-                ClientHelper.TRANSFORM_ORIGIN,
+            remoteClusterClient.execute(
+                GetCheckpointAction.REMOTE_TYPE,
                 remoteRequest,
-                responsesByClusterListener.<Response>map(response -> Tuple.tuple(cluster, response)),
-                (r, l) -> remoteClusterClient.execute(GetCheckpointAction.REMOTE_TYPE, r, l)
+                responsesByClusterListener.<Response>map(response -> Tuple.tuple(cluster, response))
             );
         });
     }

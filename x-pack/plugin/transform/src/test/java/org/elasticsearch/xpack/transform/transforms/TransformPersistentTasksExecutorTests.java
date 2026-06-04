@@ -661,12 +661,13 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         TransformCloudCredentialManager credentialManager
     ) {
         var mockAuditor = mock(TransformAuditor.class);
+        when(credentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
-            Settings.EMPTY,
-            StubLinkedProjectConfigService.INSTANCE,
             configManager,
-            mockAuditor
+            mockAuditor,
+            mock(CrossProjectModeDecider.class),
+            credentialManager
         );
         return new TransformServices(
             configManager,
@@ -872,11 +873,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     private TransformServices transformServices(TransformConfigManager configManager, TransformScheduler scheduler) {
         var mockAuditor = mock(TransformAuditor.class);
+        var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+        when(cloudCredentialManager.wrapWithPersistedIfPresent(any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
         var transformCheckpointService = new TransformCheckpointService(
             Clock.systemUTC(),
             configManager,
             mockAuditor,
-            mock(CrossProjectModeDecider.class)
+            mock(CrossProjectModeDecider.class),
+            cloudCredentialManager
         );
         return new TransformServices(
             configManager,

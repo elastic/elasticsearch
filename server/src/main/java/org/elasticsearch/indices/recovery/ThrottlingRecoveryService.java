@@ -18,7 +18,6 @@ import org.elasticsearch.logging.Logger;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -40,7 +39,8 @@ public final class ThrottlingRecoveryService {
      * Target node is the node that owns the shard after recovery is finished.
      * This setting applies to all types of recoveries, not only peer recovery.
      */
-    private static final int DEFAULT_INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES = 10;
+    private static final int UNLIMITED = Integer.MAX_VALUE;
+    private static final int DEFAULT_INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES = UNLIMITED;
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_recoveries",
         DEFAULT_INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES,
@@ -93,7 +93,8 @@ public final class ThrottlingRecoveryService {
      */
     private void fillSlots() {
         int current;
-        while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
+        while (((current = runningRecoveries.get()) < maxConcurrentRecoveries || maxConcurrentRecoveries == UNLIMITED)
+            && !pendingRecoveries.isEmpty()) {
             if (runningRecoveries.compareAndSet(current, current + 1)) {
                 RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
@@ -133,19 +134,11 @@ public final class ThrottlingRecoveryService {
         private final RecoveryListener listener;
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
-        private final AtomicBoolean released = new AtomicBoolean(false);
 
         private RecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
             this.recoveryState = recoveryState;
             this.task = task;
-            this.listener = RecoveryListener.runAfter(recoveryListener, () -> {
-                boolean firstRelease = released.compareAndSet(false, true);
-                assert firstRelease : "already released";
-                // noinspection ConstantValue
-                if (firstRelease) {
-                    closeAndFillSlots(this);
-                }
-            });
+            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(recoveryListener, () -> closeAndFillSlots(this)));
         }
 
         @Override

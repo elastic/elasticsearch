@@ -9,7 +9,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 public interface RecoveryListener {
     RecoveryListener NOOP = new RecoveryListener() {
@@ -79,5 +83,66 @@ public interface RecoveryListener {
                 }
             }
         };
+    }
+
+    /**
+     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is only called once.
+     */
+    static RecoveryListener assertOnce(RecoveryListener delegate) {
+        if (Assertions.ENABLED) {
+            return new RecoveryListener() {
+                // if complete, records the stack trace which first completed it
+                private final AtomicReference<ElasticsearchException> firstCompletion = new AtomicReference<>();
+
+                private void assertFirstRun() {
+                    var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
+                    assert previousRun == null
+                        // reports the stack traces of both completions
+                        : new AssertionError("[" + delegate + "]", previousRun);
+                }
+
+                @Override
+                public void onRecoveryDone(
+                    RecoveryState state,
+                    ShardLongFieldRange timestampMillisFieldRange,
+                    ShardLongFieldRange eventIngestedMillisFieldRange
+                ) {
+                    assertFirstRun();
+                    try {
+                        delegate.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+                    } catch (Exception e) {
+                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
+                        throw e;
+                    }
+                }
+
+                @Override
+                public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                    assertFirstRun();
+                    try {
+                        delegate.onRecoveryFailure(e, sendShardFailure);
+                    } catch (RuntimeException ex) {
+                        if (e != null && ex != e) {
+                            ex.addSuppressed(e);
+                        }
+                        assert false : ex;
+                        throw ex;
+                    }
+                }
+
+                @Override
+                public void onRecoveryCancelled() {
+                    assertFirstRun();
+                    try {
+                        delegate.onRecoveryCancelled();
+                    } catch (Exception e) {
+                        assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
+                        throw e;
+                    }
+                }
+            };
+        } else {
+            return delegate;
+        }
     }
 }

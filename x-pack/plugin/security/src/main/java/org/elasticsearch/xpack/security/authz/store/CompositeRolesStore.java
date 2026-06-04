@@ -290,7 +290,10 @@ public class CompositeRolesStore {
         final var cacheKey = new ProjectScoped<>(projectId, roleKey);
         final Role existing = roleCache.get(cacheKey);
         if (existing == null) {
-            final InvalidationCounters invalidationCounters = new InvalidationCounters(numInvalidation.getOrDefault(projectId, 0L),  numGlobalInvalidation.get());
+            final InvalidationCounters invalidationCounters = new InvalidationCounters(
+                numInvalidation.getOrDefault(projectId, 0L),
+                numGlobalInvalidation.get()
+            );
             final Consumer<Exception> failureHandler = e -> {
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
@@ -427,7 +430,8 @@ public class CompositeRolesStore {
                          *
                          * Per-project invalidation counter and the global invalidation counter must be unchanged before we cache
                          */
-                        if (invalidationCounters.projectInvalidation() == numInvalidation.getOrDefault(cacheKey.projectId(), 0L) && invalidationCounters.globalInvalidation() == numGlobalInvalidation.get()) {
+                        if (invalidationCounters.projectInvalidation() == numInvalidation.getOrDefault(cacheKey.projectId(), 0L)
+                            && invalidationCounters.globalInvalidation() == numGlobalInvalidation.get()) {
                             roleCache.computeIfAbsent(cacheKey, (s) -> role);
                             for (String missingRole : missing) {
                                 negativeLookupCache.computeIfAbsent(

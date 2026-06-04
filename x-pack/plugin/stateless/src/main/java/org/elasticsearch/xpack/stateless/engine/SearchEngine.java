@@ -440,15 +440,16 @@ public class SearchEngine extends Engine {
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    if (store.tryIncRef()) {
-                        try {
-                            final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                            if (commitUpdated) {
-                                updateInternalState(latestCommit, current);
-                            }
-                        } finally {
-                            store.decRef();
+                    if (store.tryIncRef() == false) {
+                        throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+                    }
+                    try {
+                        final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
+                        if (commitUpdated) {
+                            updateInternalState(latestCommit, current);
                         }
+                    } finally {
+                        store.decRef();
                     }
                 }, this::onFailure));
             }

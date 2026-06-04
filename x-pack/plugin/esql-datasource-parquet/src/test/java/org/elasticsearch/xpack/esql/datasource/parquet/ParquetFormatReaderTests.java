@@ -1351,6 +1351,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals("BSON annotation should map to UNSUPPORTED", DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
     }
 
+    public void testIntervalLogicalType() throws Exception {
+        // FIXED_LEN_BYTE_ARRAY(12) + INTERVAL annotation: months+days+ms has no single ESQL equivalent;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(12)
+            .as(LogicalTypeAnnotation.IntervalLogicalTypeAnnotation.getInstance())
+            .named("duration")
+            .named("test_schema");
+
+        StorageObject so = createStorageObject(
+            createParquetFile(schema, f -> List.of(f.newGroup().append("duration", Binary.fromConstantByteArray(new byte[12]))))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("INTERVAL annotation should map to UNSUPPORTED", DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
     // --- INT96 timestamp tests ---
 
     public void testReadInt96TimestampColumn() throws Exception {

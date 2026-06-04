@@ -1705,6 +1705,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
                     yield DataType.UNSUPPORTED;
                 }
+                if (logical instanceof LogicalTypeAnnotation.IntervalLogicalTypeAnnotation) {
+                    // INTERVAL is 12 bytes representing months+days+ms layout and had no single ESQL equivalent:
+                    // DATE_PERIOD is year/quarter/months/week/days, and TIME_DURATION is hours/minutes/secs/millis.
+                    yield DataType.UNSUPPORTED;
+                }
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;

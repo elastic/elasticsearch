@@ -155,12 +155,12 @@ tests:
 - class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
   method: testConsumerScopedDownloads
   issue: https://github.com/elastic/elasticsearch/issues/150231
-- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
-  method: testStream_CancelAfterPauseReleasesConnection
-  issue: https://github.com/elastic/elasticsearch/issues/150742
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150782
+- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
+  method: testExponentialHistogramValuesReader
+  issue: https://github.com/elastic/elasticsearch/issues/150795
 
 # Examples:
 #
@@ -683,3 +683,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150791
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testScoringWithMultipleChildren
+  issue: https://github.com/elastic/elasticsearch/issues/150813

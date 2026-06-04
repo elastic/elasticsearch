@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -107,6 +108,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
 
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         final ShardRequest shardRequest,
         final IndexShard primary,
         ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener

@@ -256,9 +256,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
         private final HttpSettings settings;
         private final AtomicLong bytesInQueue = new AtomicLong(0);
         private final Object ioLock = new Object();
-        // guarded by ioLock
         private IOControl savedIoControl;
-        // guarded by ioLock; true once shutdownProducer() is called
+        // true once shutdownProducer() is called
         private boolean shutdown = false;
 
         private ApacheClientBackpressure(HttpSettings settings) {

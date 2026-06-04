@@ -776,3 +776,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testFewVectorManyTimes
   issue: https://github.com/elastic/elasticsearch/issues/150717
+- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/150718

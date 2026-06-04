@@ -386,6 +386,7 @@ emp_no:integer | x:keyword | language_name:keyword
 
 
 nullInput
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 from employees  | where emp_no == 10017 | keep emp_no, gender
@@ -549,6 +550,7 @@ null              | 1980          | null                | Radical Eighties   | 4
 
 
 spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+skip_flattened_rewrite: enrich_on_rejects_flattened
 required_capability: enrich_load
 
 FROM airports
@@ -648,6 +650,7 @@ IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8
 // We had wrong layouts from ReplaceMissingFieldsWithNull in case of indices that had relevant fields for the query,
 // but were **missing the field we enrich on**.
 fieldsInOtherIndicesBug
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns

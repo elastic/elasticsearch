@@ -633,8 +633,10 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             IndexShard replica = newMappedReplicaShard();
 
             ShardBatchIndexer.ReplicaBatchResult result = ShardBatchIndexer.performBatchIndexOnReplica(items, batch, replica);
-            // Both items processed: first was skipped (NOOP), second was indexed
-            assertThat(result.processedItems(), equalTo(2));
+            // A batch is written as a single contiguous Translog.IndexBatch record, so a NOOP ends the batch where it
+            // is encountered. With the NOOP at the leading item, nothing is batched and the NOOP plus the remaining
+            // items are left to the serial fallback path (which resumes from processedItems).
+            assertThat(result.processedItems(), equalTo(0));
 
             closeShards(shard, replica);
         }

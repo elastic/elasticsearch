@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -423,6 +424,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM remote:view*");
         assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*")));
+    }
+
+    public void testCCSRemoteExclusionExpressionNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view*,-remote:view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*,-remote:view1")));
     }
 
     public void testReplaceViewPlans() {
@@ -2033,10 +2040,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Walk the plan tree and collect each {@link ViewShadowRelation}'s applicable exclusions,
      * keyed by view name.
      */
-    private static Map<String, List<String>> collectShadowExclusions(LogicalPlan plan) {
-        Map<String, List<String>> exclusions = new java.util.LinkedHashMap<>();
-        plan.forEachDown(ViewShadowRelation.class, sh -> exclusions.put(sh.viewName(), sh.exclusions()));
-        return exclusions;
+    private static Map<String, ViewShadowRelation> collectViewShadowRelations(LogicalPlan plan) {
+        Map<String, ViewShadowRelation> vsrs = new LinkedHashMap<>();
+        plan.forEachDown(ViewShadowRelation.class, vsr -> vsrs.put(vsr.viewName(), vsr));
+        return vsrs;
     }
 
     private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
@@ -2071,7 +2078,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(vua.namedSubqueries().get("v"), instanceOf(UnresolvedRelation.class));
         assertThat(vua.namedSubqueries().get("v#shadow"), instanceOf(ViewShadowRelation.class));
         assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).viewName(), equalTo("v"));
-        assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).exclusions(), equalTo(List.of()));
+        assertThat(
+            ((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(),
+            equalTo("v")
+        );
     }
 
     /**
@@ -2216,14 +2226,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v0", "FROM v1");
 
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v0"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
 
         // v0 referenced from outer "FROM v0" — no later exclusions.
-        assertThat(shadowExclusions.get("v0"), equalTo(List.of()));
+        assertThat(vsrs.get("v0").linkedIndexPattern().pattern().indexPattern(), equalTo("v0"));
         // v1 referenced from v0's body "FROM v1" — no later exclusions.
-        assertThat(shadowExclusions.get("v1"), equalTo(List.of()));
+        assertThat(vsrs.get("v1").linkedIndexPattern().pattern().indexPattern(), equalTo("v1"));
         // v2 referenced from v1's body "FROM v2,metrics*,-*2025" — -*2025 follows v2 → applies.
-        assertThat(shadowExclusions.get("v2"), equalTo(List.of("-*2025")));
+        assertThat(vsrs.get("v2").linkedIndexPattern().pattern().indexPattern(), equalTo("v2,-*2025"));
     }
 
     /**
@@ -2235,9 +2245,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_a", "FROM emp");
         addView("v_b", "FROM emp");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a,-staleA-*,v_b,-staleB-*"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("-staleA-*", "-staleB-*")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of("-staleB-*")));
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-staleA-*,-staleB-*"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b,-staleB-*"));
     }
 
     /**
@@ -2257,20 +2267,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Cluster-prefixed exclusion (cluster:-name): attaches to shadows positioned before it.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-data,my_linked_project:-my-data"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("my-data"), equalTo(List.of("my_linked_project:-my-data")));
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("my-data").linkedIndexPattern().pattern().indexPattern(), equalTo("my-data,my_linked_project:-my-data"));
 
         // *:-name form (exclusion across all remotes): same handling.
         resolved = replaceViewsWithoutCompaction(query("FROM v_a,*:-stale,v_b"));
-        shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("*:-stale")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+        vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,*:-stale"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
 
         // Cluster-level exclusion (-cluster:*): also propagates.
         resolved = replaceViewsWithoutCompaction(query("FROM v_a,-stale_cluster:*,v_b"));
-        shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("-stale_cluster:*")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+        vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-stale_cluster:*"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
     }
 
     // -------------------------------------------------------------------------------------------

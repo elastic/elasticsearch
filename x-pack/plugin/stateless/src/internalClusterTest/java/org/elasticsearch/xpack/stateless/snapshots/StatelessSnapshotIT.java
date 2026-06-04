@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -49,10 +51,16 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepository;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
 import java.io.FilterInputStream;
@@ -71,6 +79,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -1177,6 +1186,65 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testRelocationBetweenInitialCommitAcquisitionAndRegistration() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled")
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put("thread_pool.snapshot.max", 1)
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy());
+
+        // Block inside getLastSyncedGlobalCheckpoint after it returns a value — this is the point where
+        // SnapshotShardContextHelper.acquireSnapshotIndexCommit has progressed far enough so that its caller
+        // SnapshotsCommmitService.acquireAndMaybeRegisterCommitForSnapshot will be able to call
+        // withSnapshotIndexCommitRef, which should detect and handle the relocated shard and see no error.
+        final var checkpointCalled = new CountDownLatch(1);
+        final var unblockAfterCheckpoint = new CountDownLatch(1);
+        final var interceptPlugin = findPlugin(node0, SnapshotCommitInterceptPlugin.class);
+        interceptPlugin.afterGetLastSyncedGlobalCheckpoint.put(shardId, () -> {
+            checkpointCalled.countDown();
+            safeAwait(unblockAfterCheckpoint);
+        });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        safeAwait(checkpointCalled);
+        interceptPlugin.afterGetLastSyncedGlobalCheckpoint.remove(shardId);
+
+        // Relocate the shard before SnapshotsCommmitService can invoke withSnapshotIndexCommitRef
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node1)));
+
+        // Resume the snapshot and it should succeed
+        unblockAfterCheckpoint.countDown();
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
+            assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
+        }
+    }
+
     private SubscribableListener<Void> observeShardSnapshotAborted(String node, String repoName, ShardId shardId) {
         return ClusterServiceUtils.addTemporaryStateListener(internalCluster().getInstance(ClusterService.class, node), state -> {
             final var shardStatus = SnapshotsInProgress.get(state)
@@ -1375,11 +1443,13 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * Stateless plugin that wraps the engine's {@link IndexStorePlugin.SnapshotCommitSupplier} so tests can inject a runnable that
-     * executes after the underlying {@code acquireIndexCommitForSnapshot} returns. Used to reliably reproduce races between commit
-     * acquisition and shard relocation.
+     * executes after the underlying {@code acquireIndexCommitForSnapshot} returns, and also overrides {@code newIndexEngine} to allow
+     * injection of a runnable that executes after {@code getLastSyncedGlobalCheckpoint} returns. Used to reliably reproduce races
+     * between commit acquisition and shard relocation.
      */
     public static class SnapshotCommitInterceptPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         final Map<ShardId, Runnable> afterAcquireForSnapshot = new ConcurrentHashMap<>();
+        final Map<ShardId, Runnable> afterGetLastSyncedGlobalCheckpoint = new ConcurrentHashMap<>();
 
         public SnapshotCommitInterceptPlugin(Settings settings) {
             super(settings);
@@ -1401,6 +1471,46 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
                 final var wrappedConfig = EngineConfig.builder(engineConfig).snapshotCommitSupplier(wrappedCommitSupplier).build();
                 return factory.newReadWriteEngine(wrappedConfig);
             });
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshManagerService refreshManagerService,
+            ReshardIndexService reshardIndexService,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics
+        ) {
+            final var shardId = engineConfig.getShardId();
+            return new IndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshManagerService,
+                reshardIndexService,
+                statelessCommitService.getCommitBCCResolverForShard(shardId),
+                documentParsingProvider,
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(shardId).shardLocalReadersTracker()
+            ) {
+                @Override
+                public long getLastSyncedGlobalCheckpoint() {
+                    final long result = super.getLastSyncedGlobalCheckpoint();
+                    final var hook = afterGetLastSyncedGlobalCheckpoint.get(shardId);
+                    if (hook != null) {
+                        hook.run();
+                    }
+                    return result;
+                }
+            };
         }
     }
 }

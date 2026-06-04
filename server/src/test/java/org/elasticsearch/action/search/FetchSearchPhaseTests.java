@@ -79,6 +79,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -283,6 +284,64 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(2, searchResponse.getSuccessfulShards());
             assertProfiles(profiled, 2, searchResponse);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+        } finally {
+            mockSearchPhaseContext.results.close();
+            var resp = mockSearchPhaseContext.searchResponse.get();
+            if (resp != null) {
+                resp.decRef();
+            }
+        }
+    }
+
+    public void testTracksCpsFetchPhaseTookTime() throws Exception {
+        SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        CrossProjectSearchMetrics cpsMetrics = new CrossProjectSearchMetrics();
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1, Optional.of(cpsMetrics));
+        try (
+            SearchPhaseResults<SearchPhaseResult> results = controller.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                1,
+                exc -> {}
+            )
+        ) {
+            QuerySearchResult queryResult = new QuerySearchResult();
+            queryResult.setSearchShardTarget(new SearchShardTarget("node0", new ShardId("index", "index", 0), null));
+            queryResult.topDocs(
+                new TopDocsAndMaxScore(
+                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(42, 1.0F) }),
+                    1.0F
+                ),
+                new DocValueFormat[0]
+            );
+            queryResult.size(1);
+            FetchSearchResult fetchResult = new FetchSearchResult();
+            try {
+                fetchResult.setSearchShardTarget(queryResult.getSearchShardTarget());
+                fetchResult.shardResult(
+                    new SearchHits(new SearchHit[] { new SearchHit(42) }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F),
+                    null
+                );
+                QueryFetchSearchResult fetchSearchResult = QueryFetchSearchResult.of(queryResult, fetchResult);
+                try {
+                    fetchSearchResult.setShardIndex(0);
+                    results.consumeResult(fetchSearchResult, () -> {});
+                } finally {
+                    fetchSearchResult.decRef();
+                }
+            } finally {
+                fetchResult.decRef();
+            }
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
+            FetchSearchPhase phase = getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase);
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(cpsMetrics.getSearchPhaseTookTimes().containsKey("fetch"));
+            assertNotNull(cpsMetrics.getSearchPhaseTookTimes().get("fetch"));
+            assertTrue(cpsMetrics.getSearchPhaseTookTimes().get("fetch") >= 0L);
         } finally {
             mockSearchPhaseContext.results.close();
             var resp = mockSearchPhaseContext.searchResponse.get();

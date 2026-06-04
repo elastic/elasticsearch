@@ -111,11 +111,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
-    /** Name of the phase started by the most recent {@link #executeNextPhase} call (e.g. "fetch"). */
-    private volatile String postQueryPhaseName;
-    /** Monotonic nanos recorded when the post-query phase (fetch / rank_feature) began. */
-    private volatile long postQueryPhaseStartNanos;
-
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
     private final Supplier<DiscoveryNodes> discoveryNodes;
@@ -391,8 +386,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     clusterStateVersion
                 );
             }
-            postQueryPhaseName = nextPhase.getName();
-            postQueryPhaseStartNanos = System.nanoTime();
             executePhase(nextPhase);
         }
     }
@@ -593,12 +586,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        if (postQueryPhaseName != null) {
-            long postQueryDurationNanos = System.nanoTime() - postQueryPhaseStartNanos;
-            cpsMetrics.ifPresent(
-                c -> c.trackSearchPhaseTookTime(postQueryPhaseName, TimeUnit.NANOSECONDS.toMillis(postQueryDurationNanos))
-            );
-        }
         return new SearchResponse(
             internalSearchResponse,
             scrollId,
@@ -818,6 +805,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     public Map<String, Object> getSearchRequestAttributes() {
         return Collections.unmodifiableMap(searchRequestAttributes);
+    }
+
+    /**
+     * Returns cross-project search metrics when this request is a CPS request.
+     */
+    protected Optional<CrossProjectSearchMetrics> getCpsMetrics() {
+        return cpsMetrics;
     }
 
     public final void execute(Runnable command) {

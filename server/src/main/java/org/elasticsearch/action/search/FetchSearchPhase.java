@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -269,8 +270,9 @@ class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         long phaseStartTimeInNanos
     ) {
-        context.getSearchResponseMetrics()
-            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
+        long durationNanos = System.nanoTime() - phaseStartTimeInNanos;
+        context.getSearchResponseMetrics().recordSearchPhaseDuration(getName(), durationNanos, context.getSearchRequestAttributes());
+        context.getCpsMetrics().ifPresent(c -> c.trackSearchPhaseTookTime(getName(), TimeUnit.NANOSECONDS.toMillis(durationNanos)));
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);

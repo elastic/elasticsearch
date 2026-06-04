@@ -63,6 +63,10 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        this(numShards, Optional.empty());
+    }
+
+    public MockSearchPhaseContext(int numShards, Optional<CrossProjectSearchMetrics> cpsMetrics) {
         super(
             "mock",
             logger,
@@ -86,7 +90,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
             false,
-            Optional.empty()
+            cpsMetrics
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

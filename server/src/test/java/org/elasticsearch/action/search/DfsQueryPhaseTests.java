@@ -46,6 +46,7 @@ import org.elasticsearch.transport.Transport;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -238,6 +239,76 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
             assertNull(responseRef.get().get(1));
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
+    public void testTracksCpsDfsQueryPhaseTookTime() throws IOException {
+        AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
+        AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
+        results.set(
+            0,
+            newSearchResult(0, new ShardSearchContextId("", 1), new SearchShardTarget("node1", new ShardId("test", "na", 0), null))
+        );
+        results.set(
+            1,
+            newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
+        );
+        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                QuerySearchRequest request,
+                SearchTask task,
+                ActionListener<SearchPhaseResult> listener
+            ) {
+                QuerySearchResult queryResult = new QuerySearchResult(
+                    new ShardSearchContextId("", 123),
+                    new SearchShardTarget(request.contextId().getId() == 1 ? "node1" : "node2", new ShardId("test", "na", 0), null),
+                    null
+                );
+                try {
+                    queryResult.topDocs(
+                        new TopDocsAndMaxScore(
+                            new TopDocs(
+                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                                new ScoreDoc[] { new ScoreDoc((int) (40 + request.contextId().getId()), 1.0F) }
+                            ),
+                            2.0F
+                        ),
+                        new DocValueFormat[0]
+                    );
+                    queryResult.size(2);
+                    listener.onResponse(queryResult);
+                } finally {
+                    queryResult.decRef();
+                }
+            }
+        };
+        SearchPhaseController searchPhaseController = searchPhaseController();
+        CrossProjectSearchMetrics cpsMetrics = new CrossProjectSearchMetrics();
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2, Optional.of(cpsMetrics));
+        mockSearchPhaseContext.searchTransport = searchTransportService;
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = makeDfsPhase(results, consumer, mockSearchPhaseContext, responseRef);
+            phase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(cpsMetrics.getSearchPhaseTookTimes().containsKey("dfs_query"));
+            assertNotNull(cpsMetrics.getSearchPhaseTookTimes().get("dfs_query"));
+            assertTrue(cpsMetrics.getSearchPhaseTookTimes().get("dfs_query") >= 0L);
             mockSearchPhaseContext.results.close();
         }
     }

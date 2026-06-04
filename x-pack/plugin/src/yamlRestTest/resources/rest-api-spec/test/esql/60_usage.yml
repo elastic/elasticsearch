@@ -265,7 +265,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by, time_series_translation_in_analyzer ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -376,11 +376,10 @@ setup:
   - set: { esql.features.sort: sort_counter }
   - set: { esql.features.stats: stats_counter }
   - set: { esql.features.where: where_counter }
-  - set: { esql.features.ts: ts_counter }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries._all.total: all_total_counter }
   - set: { esql.functions.min: functions_min }
-  - set: { esql.functions.avg_over_time: functions_avg_over_time }
+  - set: { esql.functions.avg: functions_avg }
 
   - do:
       esql.query:
@@ -414,7 +413,6 @@ setup:
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.mmr: $mmr_counter }
   - match: { esql.features.dedup: $dedup_counter }
-  - gt: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -422,7 +420,7 @@ setup:
   - gt: { esql.queries._all.total: $all_total_counter }
   - match: { esql.queries._all.failed: $all_failed_counter }
   - gt: { esql.functions.min: $functions_min }
-  - gt: { esql.functions.avg_over_time: $functions_avg_over_time }
+  - gt: { esql.functions.avg: $functions_avg }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay

@@ -15,6 +15,8 @@ import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,6 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testInstallWhenDisabledIsNoop() {

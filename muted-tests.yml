@@ -695,3 +695,63 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshBlockRemovedAfterDelay
   issue: https://github.com/elastic/elasticsearch/issues/150662
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  method: testPeerRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150663
+- class: org.elasticsearch.indices.cluster.SkippedClusterStateIT
+  method: testInitializingPrimaryTermBump
+  issue: https://github.com/elastic/elasticsearch/issues/150666
+- class: org.elasticsearch.index.engine.InternalEngineTests
+  method: testShouldPeriodicallyFlushOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/150669
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150670
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictTimeseriesDoubleUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150672
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
+  method: testRRFRetrieverPartialSearchErrorsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/150673
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150678
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/150686
+- class: org.elasticsearch.xpack.stateless.shutdown.SigtermAzureRestartIT
+  method: testRestart
+  issue: https://github.com/elastic/elasticsearch/issues/150691
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanBeRejectedAtPrimaryLevel
+  issue: https://github.com/elastic/elasticsearch/issues/150693
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanBeRejectedAtCoordinatingLevel
+  issue: https://github.com/elastic/elasticsearch/issues/150694
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteIndexingPressureMetricsAreIncremented
+  issue: https://github.com/elastic/elasticsearch/issues/150695
+- class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
+  method: testCircuitBreakerTripCountMetric
+  issue: https://github.com/elastic/elasticsearch/issues/150700
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWritesWillSucceedIfBelowThreshold
+  issue: https://github.com/elastic/elasticsearch/issues/150701
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanRejectOnReplicaBasedOnMaxDocumentSize
+  issue: https://github.com/elastic/elasticsearch/issues/150703
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150705
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testUpdatePreparedExpansionRejectedWhenExceedingPrimaryLimit
+  issue: https://github.com/elastic/elasticsearch/issues/150706
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
+  method: testReshardWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/150708
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150710
+- class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
+  method: testUnifiedCompletionStreamingNotFoundError
+  issue: https://github.com/elastic/elasticsearch/issues/150711

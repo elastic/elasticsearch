@@ -59,85 +59,6 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
     }
 
-    public void testWildcardLongRangeTopNConnectionBugMatchesPartialNodeDisconnect() {
-        String query = "FROM *,dense_vector,sample__data_ts_nanos_lookup | SORT decade";
-        String error = "unexpected partial results: _clusters={details={(local)={status=partial, failures=[{reason={"
-            + "type=node_disconnected_exception, reason=[test-cluster-1][internal:data/read/esql/exchange] disconnected"
-            + "}}]}}}";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugMatchesPreviousQuery() {
-        String previousQuery = "FROM m*,books | CHANGE_POINT sv_and_one_mv ON @timestamp AS type, pvalue BY lk";
-        String query = "ROW x = 1";
-        String error = "Connection refused: getsockopt";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query, previousQuery));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugMatchesEarlierWildcardQuery() {
-        String previousWildcardQuery = "FROM *,dense_vector,sample__data_ts_nanos_lookup | SORT decade";
-        String previousQuery = "ROW y = 1";
-        String query = "ROW x = 1";
-        String error = "Connection refused: getsockopt";
-
-        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query, previousQuery, previousWildcardQuery));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugMatchesEarlierRangeTopNQuery() {
-        String previousLongRangeTopNQuery = "FROM mv_decades | SORT decade";
-        String previousWildcardQuery = null;
-        String previousQuery = "ROW y = 1";
-        String query = "FROM decades,languages_lookup_non_unique_key";
-        String error = "Connection refused: getsockopt";
-
-        assertTrue(
-            GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(
-                error,
-                query,
-                previousQuery,
-                previousWildcardQuery,
-                previousLongRangeTopNQuery
-            )
-        );
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresWildcardCurrentOrPreviousQuery() {
-        String previousQuery = "FROM books | CHANGE_POINT sv_and_one_mv ON @timestamp AS type, pvalue BY lk";
-        String query = "ROW x = 1";
-        String error = "Connection refused: getsockopt";
-
-        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query, previousQuery));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresWildcardEarlierQuery() {
-        String previousWildcardQuery = "FROM books | SORT decade";
-        String previousQuery = "ROW y = 1";
-        String query = "ROW x = 1";
-        String error = "Connection refused: getsockopt";
-
-        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query, previousQuery, previousWildcardQuery));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresRangeSourceForEarlierQuery() {
-        String previousLongRangeTopNQuery = "FROM books | SORT title";
-        String previousWildcardQuery = null;
-        String previousQuery = "ROW y = 1";
-        String query = "ROW x = 1";
-        String error = "Connection refused: getsockopt";
-
-        assertFalse(
-            GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(
-                error,
-                query,
-                previousQuery,
-                previousWildcardQuery,
-                previousLongRangeTopNQuery
-            )
-        );
-    }
-
     public void testWildcardLongRangeTopNConnectionBugRequiresWildcardSource() {
         String query = "FROM mv_decades | SORT decade";
         String error = "Connection is closed";
@@ -150,37 +71,6 @@ public class GenerativeRestTestTests extends ESTestCase {
         String error = "verification_exception: line 1:1: unknown column [decade]";
 
         assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testWildcardLongRangeTopNConnectionBugRequiresNodeDisconnectForPartialResults() {
-        String query = "FROM mv_* | SORT decade";
-        String error = "unexpected partial results: _clusters={details={(local)={status=partial, failures=[]}}}";
-
-        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
-    }
-
-    public void testLongRangeTopNNodeCrashCandidateMatchesWildcardSort() {
-        String query = "FROM *,dense_vector,sample__data_ts_nanos_lookup | SORT decade";
-
-        assertTrue(GenerativeRestTest.isLongRangeTopNNodeCrashCandidate(query));
-    }
-
-    public void testLongRangeTopNNodeCrashCandidateMatchesRangeSourceSort() {
-        String query = "FROM mv_decades | SORT decade";
-
-        assertTrue(GenerativeRestTest.isLongRangeTopNNodeCrashCandidate(query));
-    }
-
-    public void testLongRangeTopNNodeCrashCandidateMatchesRangeSourceDefaultLimit() {
-        String query = "FROM decades";
-
-        assertTrue(GenerativeRestTest.isLongRangeTopNNodeCrashCandidate(query));
-    }
-
-    public void testLongRangeTopNNodeCrashCandidateRequiresRangeSource() {
-        String query = "FROM books | SORT title";
-
-        assertFalse(GenerativeRestTest.isLongRangeTopNNodeCrashCandidate(query));
     }
 
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {

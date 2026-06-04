@@ -241,14 +241,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
             new FieldExpression("username", List.of(new FieldExpression.FieldValue("*"))),
             List.of("kibana_user", "kibana_admin"),
             List.of(),
-            Map.of(
-                "uuid",
-                "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7",
-                "_foo",
-                "something",
-                METADATA_NAME_FIELD,
-                "everyone_kibana_together"
-            ),
+            Map.of("uuid", "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7", "_foo", "something", METADATA_NAME_FIELD, "everyone_kibana_together"),
             true
         );
         awaitClusterState(state -> roleMappingsMatch(state, expectedRoleMapping));

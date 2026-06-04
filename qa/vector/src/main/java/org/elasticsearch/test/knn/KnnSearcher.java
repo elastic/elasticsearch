@@ -833,7 +833,7 @@ public class KnnSearcher {
                 indexType == KnnIndexTester.IndexType.HNSW && searchParameters.earlyTermination()
             );
         }
-        if (searchParameters.overSamplingFactor() > 1f || testConfiguration.autoCalibrate()) {
+        if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
             knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();

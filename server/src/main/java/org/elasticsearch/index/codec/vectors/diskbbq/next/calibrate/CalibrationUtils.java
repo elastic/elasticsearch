@@ -31,7 +31,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public final class CalibrationUtils {
 
     static final int MAX_QUERY_SAMPLE = 512;
-    static final int MAX_CORPUS_SAMPLE = 10240;
+    static final int MAX_CORPUS_SAMPLE = 16384;
     static final long CALIBRATION_SEED = 215873873L;
 
     private CalibrationUtils() {}

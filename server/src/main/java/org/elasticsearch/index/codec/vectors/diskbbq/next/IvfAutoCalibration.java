@@ -84,7 +84,7 @@ public class IvfAutoCalibration {
     /**
      * Weight of rerank depth in the calibration cost model ({@code dbits + RERANK_COST_WEIGHT * rerankDepth}).
      */
-    private static final double RERANK_COST_WEIGHT = 1.2;
+    private static final double RERANK_COST_WEIGHT = 1.5;
 
     /**
      * Sweeps (encoding, rerank ratio) in ascending estimated cost so the first config meeting target recall is cheap.
@@ -440,7 +440,7 @@ public class IvfAutoCalibration {
         int[] corpusOrdinals,
         boolean cosine,
         QuantizationErrorStdModel errorScalingModel
-    ) throws IOException {
+    ) {
         double bestRecall = -1;
         ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
         float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;
@@ -449,8 +449,8 @@ public class IvfAutoCalibration {
         Map<Integer, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
-            for (boolean precondition : preconditionValues) {
+        for (boolean precondition : preconditionValues) {
+            for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
                 CandidateEncoding candidate = sweep.candidate();
                 int configKey = configurationKey(candidate.qbits(), candidate.dbits(), precondition);
                 QuantizationErrorStdModel errorModel = errorModelCache.get(configKey);

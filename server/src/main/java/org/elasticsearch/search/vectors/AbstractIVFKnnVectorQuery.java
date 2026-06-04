@@ -172,8 +172,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
+        if (ivfQueryConfigResolver.isAutoCalibrate()) {
+            return getAutoRescoreQuery(indexSearcher, topK, mergeK);
+        }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
+
+    /**
+     * Returns a query that performs exact rescoring of oversampled candidates.
+     * Implementations can return {@code null} when rescoring is unavailable.
+     */
+    abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK);
+
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);

@@ -56,6 +56,10 @@ public class IvfQueryConfigResolver {
         return new IvfQueryConfigResolver(autoCalibrate, mappingUsePrecondition, quantBits, mappingRescoreOversample, queryOversample);
     }
 
+    public boolean isAutoCalibrate() {
+        return autoCalibrate;
+    }
+
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {
         IvfSegmentConfig raw = autoCalibrate ? resolveCalibrated(fieldInfo, leafReader) : mappingDefaults();
         return IvfSegmentConfig.withEffectiveRescoreOversample(raw, queryOversample, mappingRescoreOversample);

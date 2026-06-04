@@ -769,11 +769,7 @@ public class SharedBlobCacheWarmingService {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                final TimeValue computed = computeRelocationSourceShutdownWarmingTimeout(
-                    state,
-                    sourceNodeId,
-                    shardRouting.currentNodeId()
-                );
+                final TimeValue computed = computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId());
                 return new SearchRecoveryTimeout(
                     computed,
                     "relocation source shutting down (equal share of remaining time to capped grace deadline)"
@@ -876,8 +872,7 @@ public class SharedBlobCacheWarmingService {
         if (ongoingRelocations <= 0) {
             ongoingRelocations = 1;
         }
-        final double timeoutMs = (remaining / (double) shardsOnSource)
-            * searchRecoveryWarmingSourceShutdownShareFactor
+        final double timeoutMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor
             * ongoingRelocations;
         return TimeValue.timeValueMillis(Math.round(timeoutMs));
     }

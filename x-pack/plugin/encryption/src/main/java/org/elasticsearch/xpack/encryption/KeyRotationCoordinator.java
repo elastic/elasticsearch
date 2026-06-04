@@ -221,7 +221,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 || state.nodes().isLocalNodeElectedMaster() == false) {
                 return;
             }
-            checkPasswordId(getCurrentMetadata(state), state);
+            checkPasswordId(state);
         });
     }
 
@@ -251,14 +251,15 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (event.localNodeMaster() == false) {
             return;
         }
-        checkPasswordId(getCurrentMetadata(state), state);
+        checkPasswordId(state);
     }
 
     /**
      * Checks whether the active password id in {@code cachedSettings} matches the one persisted in {@code metadata}, and schedules an
      * install or password rotation if not.
      */
-    private void checkPasswordId(@Nullable ProjectEncryptionKeyMetadata metadata, ClusterState state) {
+    private void checkPasswordId(ClusterState state) {
+        var metadata = getCurrentMetadata(state);
         String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(cachedSettings);
         if (metadata == null) {
             // Install runs only if (a) all nodes support PEK, and (b) the operator has configured an active password the master can use
@@ -320,8 +321,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || state.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
+        checkPasswordId(state);
+
         ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
-        checkPasswordId(metadata, state);
         if (metadata == null) {
             return;
         }

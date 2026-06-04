@@ -155,6 +155,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
   method: testConsumerScopedDownloads
   issue: https://github.com/elastic/elasticsearch/issues/150231
+- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
+  method: testStream_CancelAfterPauseReleasesConnection
+  issue: https://github.com/elastic/elasticsearch/issues/150742
 
 # Examples:
 #
@@ -635,6 +638,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/150705
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150744
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/150708

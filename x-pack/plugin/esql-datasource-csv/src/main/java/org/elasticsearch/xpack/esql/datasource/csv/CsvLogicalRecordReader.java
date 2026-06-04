@@ -175,6 +175,10 @@ final class CsvLogicalRecordReader {
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException {
         int next = recordBytes + encodedLength(ch);
         if (next > maxRecordBytes) {
+            // Commit consumed bytes (including the overflowing char) to the cumulative counter
+            // before throwing so the next record's offset stays anchored. lastRecordBytes is not
+            // touched — caller's exception handler treats this as "no record produced".
+            this.bytesRead += next;
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }
         return next;

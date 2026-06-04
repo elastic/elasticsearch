@@ -6315,6 +6315,34 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Mid-record non-record-aligned split: the partial leading record is dropped via the
+     * {@code recordReader.readRecord(...)} call in {@code CsvFormatReader.read()}'s else-branch.
+     * The dropped record's bytes are committed to {@code recordReader.bytesRead()} so subsequent
+     * records' offsets correctly include them; this test pins that.
+     */
+    public void testRowPositionStableForNonRecordAlignedMidRecordSplit() throws IOException {
+        String csv = "id:long,name:keyword\n1,Alice\n2,Bob\n3,Carol\n";
+        long[] expectedOffsets = computeRecordStartOffsets(csv, true);
+
+        // Split boundary at byte 25 — inside "1,Alice\n" (record 1 spans bytes 21..28). The second
+        // split contains "ice\n2,Bob\n3,Carol\n"; the reader skips the leading partial "ice\n" and
+        // emits 2,Bob + 3,Carol with their file-global offsets intact.
+        long midRecordByte = 25L;
+        String secondHalf = csv.substring((int) midRecordByte);
+        List<Long> secondHalfOffsets = collectRowPositions(
+            secondHalf,
+            midRecordByte,
+            /* recordAligned= */ false,
+            /* firstSplit= */ false,
+            /* lastSplit= */ true
+        );
+
+        assertEquals("two records emitted after partial-record skip", 2, secondHalfOffsets.size());
+        assertEquals("2,Bob carries the file-global offset", expectedOffsets[1], (long) secondHalfOffsets.get(0));
+        assertEquals("3,Carol carries the file-global offset", expectedOffsets[2], (long) secondHalfOffsets.get(1));
+    }
+
+    /**
      * Mid-record split case: a quoted field carries an embedded newline. The reader receives a
      * non-record-aligned split that starts mid-quoted-field; it must drop the partial leading
      * record and emit the next full record with the correct file-global offset.
@@ -6348,10 +6376,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         // first-split discovery on the first split and pre-bound on subsequent record-aligned
         // splits via withSchema.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Non-first splits do not have a header to discover from; pre-bind the schema so the iterator
+        // can skip schema inference. Production callers do this via the planner's withSchema(...)
+        // call for both record-aligned and macro-split non-first reads.
         List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema = null;
-        if (recordAligned) {
-            // Non-first splits do not have a header to discover from; pin the schema so the iterator
-            // can skip schema inference.
+        if (firstSplit == false) {
             schema = List.of(
                 new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
                     org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,

@@ -177,4 +177,39 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         assertEquals(4, reader.lastRecordBytes()); // 3-byte '€' + 1-byte '\n'
         assertEquals(7L, reader.bytesRead());
     }
+
+    /**
+     * When {@code CsvRecordTooLargeException} is thrown mid-record, the bytes consumed up to the
+     * overflow point must still be credited to {@code bytesRead}. Otherwise the next record's
+     * file-global offset arithmetic drifts by the swallowed byte count, producing silently wrong
+     * {@code _id} values for every subsequent record. This pins the addBytes commit-then-throw
+     * order.
+     */
+    public void testRecordTooLargeCommitsConsumedBytesBeforeThrowing() throws IOException {
+        // First record is short, second blows past a 5-byte cap; the third record (after the
+        // caller's resync) must see bytesRead = first record bytes + second record's pre-throw bytes.
+        String input = "ab\nabcdefgh\nfin\n";
+        CsvLogicalRecordReader reader = new CsvLogicalRecordReader(
+            new BufferedReader(new StringReader(input)),
+            '"',
+            ',',
+            5,
+            StandardCharsets.UTF_8
+        );
+
+        assertEquals("ab", reader.readRecord(false));
+        assertEquals(3, reader.lastRecordBytes());
+        assertEquals(3L, reader.bytesRead());
+
+        // Second record overflows at the 6th byte ("abcde" = 5 bytes is exactly at the cap; 'f'
+        // pushes next to 6 > maxRecordBytes). The throw must commit the consumed bytes (6) to
+        // bytesRead so the next call's offset is anchored to the right position.
+        IOException ex = expectThrows(IOException.class, () -> reader.readRecord(false));
+        assertEquals("CSV record exceeded max_record_size [5]", ex.getMessage());
+        assertEquals("bytesRead must include the partial bytes consumed before the throw", 9L, reader.bytesRead());
+
+        // lastRecordBytes intentionally unchanged from the prior successful read — caller's catch
+        // treats the failed record as "no record produced".
+        assertEquals(3, reader.lastRecordBytes());
+    }
 }

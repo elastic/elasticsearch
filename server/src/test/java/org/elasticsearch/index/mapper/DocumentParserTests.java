@@ -3236,6 +3236,49 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
     }
 
+    /**
+     * When subobjects are disabled, an intermediate object that matches no dynamic template is auto-flattened:
+     * its children are mapped as leaf fields prefixed with the object's name.
+     */
+    public void testSubobjectsFalseObjectWithNoMatchingDynamicTemplateIsFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("timestamps");
+                {
+                    b.field("match", "timestamp");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "date");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics" : {
+                "cpu": 1.5,
+                "memory": 2.0
+              }
+            }
+            """));
+
+        // The intermediate "metrics" object must not appear as a mapper; its children are flattened.
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
+        assertNull(root.getMapper("metrics"));
+        assertThat(root.getMapper("metrics.cpu"), instanceOf(NumberFieldMapper.class));
+        assertThat(root.getMapper("metrics.memory"), instanceOf(NumberFieldMapper.class));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.cpu"));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.memory"));
+    }
+
     public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mappingNoSubobjects(b -> {}));
 

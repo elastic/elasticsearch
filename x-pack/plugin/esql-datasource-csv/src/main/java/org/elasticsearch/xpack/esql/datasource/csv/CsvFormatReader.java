@@ -37,6 +37,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
+import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
+import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -46,8 +56,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -68,6 +78,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -75,6 +86,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
@@ -322,6 +335,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * if the file cannot be sampled cleanly", consistent with the rest of the system.
      */
     private final ErrorPolicy effectivePolicy;
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config, as produced by
+     * {@link SchemaCacheKey#buildFormatConfig}. Used as the external-stats cache fingerprint. It is
+     * deliberately derived from the canonical config rather than the parsed options or the resolved
+     * schema: a data node reads only the query's projected columns and an instance-local options
+     * object, so a projection/options-derived fingerprint would differ from the coordinator's and the
+     * coordinator would reject the data node's shipped-back stats — silently disabling the warm
+     * short-circuit in any real (coordinator != data node) cluster. Empty until {@link #withConfig} runs.
+     */
+    private final String canonicalConfig;
 
     public CsvFormatReader(BlockFactory blockFactory) {
         this(
@@ -331,16 +354,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List.of(".csv", ".tsv"),
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
-            ErrorPolicy.STRICT
+            ErrorPolicy.STRICT,
+            ""
         );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(
+            blockFactory,
+            CsvFormatOptions.DEFAULT,
+            format,
+            extensions,
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT,
+            ""
+        );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
-        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT, "");
     }
 
     private CsvFormatReader(
@@ -350,7 +383,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String> extensions,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
-        ErrorPolicy effectivePolicy
+        ErrorPolicy effectivePolicy,
+        String canonicalConfig
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -359,6 +393,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.canonicalConfig = canonicalConfig;
         this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
@@ -524,12 +559,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(
+            blockFactory,
+            newOptions,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig
+        );
     }
 
     @Override
     public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy, canonicalConfig);
     }
 
     @Override
@@ -542,25 +586,66 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        if (newSampleSize != result.schemaSampleSize || resolvedPolicy != result.effectivePolicy) {
-            result = new CsvFormatReader(
-                result.blockFactory,
-                result.options,
-                result.format,
-                result.extensions,
-                result.resolvedSchema,
-                newSampleSize,
-                resolvedPolicy
-            );
-        }
+        // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
+        // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
+        // so a coordinator and a data node configured from the same logical query derive the same value.
+        String canon = SchemaCacheKey.buildFormatConfig(config);
+        result = new CsvFormatReader(
+            result.blockFactory,
+            result.options,
+            result.format,
+            result.extensions,
+            result.resolvedSchema,
+            newSampleSize,
+            resolvedPolicy,
+            canon
+        );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
-        StoragePath objectPath = object.path();
-        return new SimpleSourceMetadata(schema, formatName(), objectPath.toString());
+        String location = object.path().toString();
+        // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
+        long mtimeMillis;
+        try {
+            Instant mtime = object.lastModified();
+            if (mtime == null) {
+                return new SimpleSourceMetadata(schema, formatName(), location);
+            }
+            mtimeMillis = mtime.toEpochMilli();
+        } catch (IOException e) {
+            return new SimpleSourceMetadata(schema, formatName(), location);
+        }
+        OptionalLong cachedSize;
+        try {
+            cachedSize = OptionalLong.of(object.length());
+        } catch (IOException | UnsupportedOperationException e) {
+            cachedSize = OptionalLong.empty();
+        }
+        final OptionalLong sizeInBytes = cachedSize;
+        String configFingerprint = computeConfigFingerprint();
+        // Cold resolution publishes only the file size + identity (mtime, fingerprint); row/column
+        // stats arrive later via the data-node capture → coordinator reconcile into SchemaCacheEntry.
+        SourceStatistics stats = TextFormatStats.build(Optional.empty(), sizeInBytes, schema);
+        Map<String, Object> baseSourceMetadata = Map.of(
+            ExternalStats.MTIME_MILLIS_KEY,
+            mtimeMillis,
+            ExternalStats.CONFIG_FINGERPRINT_KEY,
+            configFingerprint
+        );
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
+        return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+    }
+
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
+     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
+     */
+    private String computeConfigFingerprint() {
+        return canonicalConfig;
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
@@ -900,7 +985,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        InputStream stream = object.newStream();
+        InputStream rawStream = object.newStream();
+        // CountingInputStream tracks decompressed-byte consumption for stream-only sources whose
+        // length() throws UnsupportedOperationException. The byte count flows through {@link
+        // ExternalStats} as sizeInBytes when the file lacks a publishable length.
+        CountingInputStream stream = new CountingInputStream(rawStream);
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
             reader,
@@ -960,6 +1049,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             effectiveSchema = resolvedSchema;
         }
+        // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
+        // mtime with old data. Two cacheable shapes:
+        // - wholeFileRead: first + last split, no parallel slicing — iterator publishes a full
+        // SourceStatistics for the file.
+        // - parallel-parsing chunk (recordAligned=true): iterator publishes a partial keyed by
+        // the file path; the ParallelParsingCoordinator publishes a finalize marker at clean
+        // whole-file completion. Coordinator-side reconciliation only commits the merge when
+        // the finalize marker is present.
+        boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        boolean chunkMode = context.recordAligned();
+        boolean cacheable = wholeFileRead || chunkMode;
+        long pinnedMtimeMillis = -1L;
+        if (cacheable) {
+            try {
+                Instant openMtime = object.lastModified();
+                if (openMtime != null) {
+                    pinnedMtimeMillis = openMtime.toEpochMilli();
+                } else {
+                    cacheable = false;
+                    wholeFileRead = false;
+                    chunkMode = false;
+                }
+            } catch (IOException e) {
+                cacheable = false;
+                wholeFileRead = false;
+                chunkMode = false;
+            }
+        }
+        // Fingerprint is computed lazily in CsvBatchIterator.close() once the schema is resolved
+        // (effectiveSchema is often null here for the firstSplit cold-resolve path).
         return new CsvBatchIterator(
             reader,
             recordReader,
@@ -969,6 +1088,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             effective,
             object.path().toString(),
+            cacheable ? object : null,
+            cacheable ? stream : null,
+            pinnedMtimeMillis,
+            chunkMode,
             counters
         );
     }
@@ -1004,6 +1127,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public List<String> fileExtensions() {
         return extensions;
+    }
+
+    @Override
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new TextAggregatePushdownSupport();
     }
 
     @Override
@@ -1408,7 +1536,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private class CsvBatchIterator implements CloseableIterator<Page> {
+    private class CsvBatchIterator extends BufferingPageIterator {
         private final BufferedReader reader;
         private final CsvLogicalRecordReader recordReader;
         private final InputStream stream;
@@ -1440,11 +1568,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
-        private Page nextPage;
+        // Inner close flag: gates hasNext() short-circuit after close and the one-shot teardown below. The base
+        // BufferingPageIterator separately gates close()/closeInternal() re-entry; this one also stops iteration.
         private boolean closed = false;
         private long errorCount = 0;
+        /**
+         * Subset of {@link #errorCount} counting only row-dropping events (SKIP_ROW and structural
+         * failures). Field-level NULL_FIELD events leave the row intact and increment
+         * {@code errorCount} but NOT this counter. The chunk-poison gate keys on this so a
+         * benign field-warning under NULL_FIELD does not discard a file's cache merge.
+         */
+        private long rowsSkipped = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
+        /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
+        private final StorageObject cacheableObject;
+        /** Non-null iff stats capture is enabled. Wraps the underlying stream so bytesRead is available at close. */
+        private final CountingInputStream byteCounter;
+        private long rowsEmittedForCache = 0;
+        /** True only when {@link #hasNext()} returned false from natural exhaustion (not from close or an exception). */
+        private boolean naturallyExhausted = false;
+        /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
+        private ColumnStatsAccumulator columnStats;
+
+        /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
+        private final long pinnedMtimeMillis;
+        /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
+        private final boolean chunkMode;
 
         // Reader-level counters shared across this iterator and any sibling segments.
         private final CsvReaderCounters counters;
@@ -1458,6 +1608,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> preResolvedSchema,
             ErrorPolicy errorPolicy,
             String sourceLocation,
+            StorageObject cacheableObject,
+            CountingInputStream byteCounter,
+            long pinnedMtimeMillis,
+            boolean chunkMode,
             CsvReaderCounters counters
         ) {
             this.reader = reader;
@@ -1475,6 +1629,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.cacheableObject = cacheableObject;
+            this.byteCounter = byteCounter;
+            this.pinnedMtimeMillis = pinnedMtimeMillis;
+            this.chunkMode = chunkMode;
             this.counters = counters;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
@@ -1499,7 +1657,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long startError = errorCount;
             try {
                 nextPage = readNextBatch();
-                return nextPage != null;
+                if (nextPage == null) {
+                    naturallyExhausted = true;
+                    return false;
+                }
+                return true;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read CSV batch", e);
             } finally {
@@ -1518,11 +1680,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             Page result = nextPage;
             nextPage = null;
+            rowsEmittedForCache += result.getPositionCount();
+            captureBlockStats(result);
             return result;
         }
 
+        private void captureBlockStats(Page page) {
+            if (cacheableObject == null || columnCount == 0 || projectedAttrs == null) {
+                return;
+            }
+            if (columnStats == null) {
+                columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+            }
+            for (int i = 0; i < columnCount; i++) {
+                columnStats.acceptBlockAt(i, page.getBlock(i));
+            }
+        }
+
         @Override
-        public void close() throws IOException {
+        protected void closeInternal() throws IOException {
             if (closed == false) {
                 closed = true;
                 if (prefetchedRowsBytes > 0) {
@@ -1538,9 +1714,66 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         errorPolicy.mode()
                     );
                 }
+                // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
+                // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
+                // matches the file's true row count even though errorCount > 0 — that read is safe to
+                // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
+                // suppress the whole-file write, and poison parallel chunks so the coordinator
+                // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
+                // before EOF, so naturallyExhausted already gates it out.)
+                if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
+                    if (rowsSkipped == 0) {
+                        Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
+                        OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
+                        String fingerprint = computeConfigFingerprint();
+                        ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
+                        // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
+                        // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
+                        // completion so the coordinator's reconciler only commits the merge then.
+                        publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
+                    } else if (chunkMode) {
+                        // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
+                        // would under-count. Poison the file — the reconciler discards every contribution.
+                        Map<String, Object> poison = new HashMap<>();
+                        poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                        poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                        ExternalStatsCapture.record(sourceLocation, poison);
+                    }
+                }
                 reader.close();
                 stream.close();
             }
+        }
+
+        /** Returns the file's length-derived size when known by the cacheable storage object, else empty. */
+        private OptionalLong sizeInBytesFromLength() {
+            if (cacheableObject == null) {
+                return OptionalLong.empty();
+            }
+            try {
+                return OptionalLong.of(cacheableObject.length());
+            } catch (IOException | UnsupportedOperationException e) {
+                return OptionalLong.empty();
+            }
+        }
+
+        private void publishToCaptureSink(
+            String filePath,
+            long mtimeMillis,
+            String fingerprint,
+            ExternalStats.Stats stats,
+            List<Attribute> resolvedSchema,
+            OptionalLong lengthSize
+        ) {
+            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(stats), lengthSize, resolvedSchema);
+            Map<String, Object> base = new HashMap<>();
+            base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+            base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            if (chunkMode) {
+                base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+            }
+            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
+            ExternalStatsCapture.record(filePath, flat);
         }
 
         private Page readNextBatch() throws IOException {
@@ -2443,6 +2676,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
             }
             errorCount++;
+            rowsSkipped++;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(

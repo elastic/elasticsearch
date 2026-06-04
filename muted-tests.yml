@@ -782,3 +782,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
   method: testSingleVectorCase
   issue: https://github.com/elastic/elasticsearch/issues/150719
+- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
+  method: testSingleVectorCase
+  issue: https://github.com/elastic/elasticsearch/issues/150720

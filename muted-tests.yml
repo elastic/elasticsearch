@@ -701,9 +701,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/150653
-- class: org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileAggregatorFunctionTests
-  method: testWarnsAndSkipsUnparseableBound
-  issue: https://github.com/elastic/elasticsearch/issues/150654
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/150657

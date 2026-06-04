@@ -321,6 +321,7 @@ public abstract class TransportReplicationAction<
      * @param primary      the primary shard to perform the operation on
      */
     protected abstract void shardOperationOnPrimary(
+        Task task,
         Request shardRequest,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
@@ -508,13 +509,16 @@ public abstract class TransportReplicationAction<
             acquirePrimaryOperationPermit(
                 indexShard,
                 primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
-                    } else {
-                        onFailure(e);
+                ActionListener.wrap(
+                    releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable, replicationTask)),
+                    e -> {
+                        if (e instanceof ShardNotInPrimaryModeException) {
+                            onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
+                        } else {
+                            onFailure(e);
+                        }
                     }
-                })
+                )
             );
         }
 
@@ -1235,10 +1239,12 @@ public abstract class TransportReplicationAction<
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
+        private final Task task;
 
-        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
+        PrimaryShardReference(IndexShard indexShard, Releasable operationLock, Task task) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
+            this.task = task;
         }
 
         @Override
@@ -1273,7 +1279,7 @@ public abstract class TransportReplicationAction<
                 });
             }
             assert indexShard.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
-            shardOperationOnPrimary(request, indexShard, listener);
+            shardOperationOnPrimary(task, request, indexShard, listener);
         }
 
         @Override

@@ -34,8 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * End-to-end regression test for ES|QL EXTERNAL aggregations over an uncompressed multi-file CSV/NDJSON
  * glob. Such reads route through {@code SEGMENTABLE_UNCOMPRESSED} → {@code ParallelParsingCoordinator} →
- * {@code OrderedParallelIterator}, which the fix changed to dispatch byte-range segments in a sliding
- * window bounded by the {@code max_concurrent_open_segments} pragma.
+ * {@code AsReadyParallelIterator}, which dispatches byte-range segments in a sliding window bounded by the
+ * {@code max_concurrent_open_segments} pragma and emits their pages as they complete.
  * <p>
  * To actually exercise that path (rather than the single-threaded fallback), each file must be split into
  * several intra-file segments: {@code ParallelParsingCoordinator.parallelRead} only segments when the read

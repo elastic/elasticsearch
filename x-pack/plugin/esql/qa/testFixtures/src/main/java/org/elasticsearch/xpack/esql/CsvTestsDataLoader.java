@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -117,11 +118,25 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "keyword_languages_lookup",
+            "mapping-keyword_languages_lookup.json",
+            "keyword_languages_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset(
+            "partial_message_types_lookup",
+            "mapping-partial_message_types_lookup.json",
+            "partial_message_types_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
+            .withDynamic("false"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -258,13 +273,14 @@ public class CsvTestsDataLoader {
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
+        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -310,7 +326,14 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW))
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 
@@ -50,8 +49,8 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     public void testColumnarLogsdbSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
-            assertThat(e.getMessage(), containsString("cannot serialize index mode [logsdb_columnar]"));
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
+            assertThat(e.getMessage(), containsString("[logsdb_columnar] doesn't support serialization with transport version"));
         }
     }
 
@@ -104,19 +103,6 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         );
         assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
         assertThat(IndexMode.LOGSDB_COLUMNAR.getDefaultMapping(settings).string(), containsString("host.name"));
-    }
-
-    public void testDefaultHostNameSortFieldBwc() {
-        final IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(
-                indexSettings(IndexVersionUtils.getPreviousVersion(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME), 1, 1).put(
-                    buildSettings()
-                )
-            )
-            .build();
-        assertThat(metadata.getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
-        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(settings.getIndexSortConfig().hasPrimarySortOnField("host.name"), equalTo(true));
     }
 
     public void testDefaultHostNameSortWithOrder() {

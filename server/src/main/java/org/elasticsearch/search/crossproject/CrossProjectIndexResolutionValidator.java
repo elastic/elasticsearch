@@ -352,7 +352,7 @@ public class CrossProjectIndexResolutionValidator {
             } else {
                 assert localExpressions.expressions()
                     .stream()
-                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(Strings.format("-%s:*", projectAlias))))
+                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(Strings.format("-%s:*", projectAlias)::equals))
                     : Strings.format("Expected cluster exclusion for %s", projectAlias);
 
                 return checkResolutionFailure(
@@ -366,9 +366,7 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
             // assume that this is the result of sending an exclusion to the remote
-            assert localExpressions.expressions()
-                .stream()
-                .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(projectAlias + ":-")))
+            assert hasProjectExclusionPrefix(localExpressions, projectAlias)
                 : Strings.format("Could not find matching project exclusion for missing remote expression %s", remoteExpression);
 
             return checkResolutionFailure(
@@ -379,6 +377,14 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
+    }
+
+    private static boolean hasProjectExclusionPrefix(ResolvedIndexExpressions localExpressions, String projectAlias) {
+        final String aliasPrefix = "-" + projectAlias + ":";
+        final String indexPrefix = projectAlias + ":-";
+        return localExpressions.expressions()
+            .stream()
+            .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(aliasPrefix) || r.startsWith(indexPrefix)));
     }
 
     public static String[] splitQualifiedResource(String resource) {

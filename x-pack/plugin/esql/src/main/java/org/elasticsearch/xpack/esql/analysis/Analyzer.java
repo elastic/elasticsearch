@@ -1192,9 +1192,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         context
                     );
                 } else {
-                    // resolve the using columns against the left and the right side then assemble the new join config
-                    leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
-                    rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
+                    // resolve each side independently — skip sides that are already resolved
+                    leftKeys = Resolvables.resolved(config.leftFields())
+                        ? config.leftFields()
+                        : resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+                    rightKeys = Resolvables.resolved(config.rightFields())
+                        ? config.rightFields()
+                        : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
@@ -1468,9 +1472,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     resolved.add(resolvedField);
                 } else {
-                    throw new IllegalStateException(
-                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
-                    );
+                    // Multi-key LOOKUP JOIN re-entry after ResolveUnmapped: prior-pass-resolved keys pass through.
+                    resolved.add(col);
                 }
             }
             return resolved;
@@ -3668,12 +3671,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Update the attributes referencing the updated UnionAll output.
+         * <p>
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a fork-output attribute),
+         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * <p>
+         * Before the expression walk, scan the plan for {@code Alias} nodes whose immediate child is an attribute that was just updated.
+         * For each such alias the cached output attribute has the old type, so add a {@code {alias.id → alias.withNewType}} entry to the
+         * update map. The subsequent {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput
         ) {
-            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
+            Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
+            updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
+
+            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            plan.forEachExpressionUp(Alias.class, alias -> {
+                if (alias.child() instanceof Attribute childAttr) {
+                    Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
+                    if (updatedChild != null && childAttr.dataType() != updatedChild.dataType()) {
+                        Attribute aliasOutput = alias.toAttribute();
+                        if (aliasOutput.dataType() != updatedChild.dataType()) {
+                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        }
+                    }
+                }
+            });
+
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;

@@ -22,8 +22,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -37,8 +41,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -211,6 +217,94 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Contract: when a consumer wraps {@link ParallelParsingCoordinator#parallelRead}'s outer
+     * iterator with a {@link StatsCapturingIterator}-bound sink, every per-segment chunk's
+     * {@link ExternalStatsCapture#record} contribution must reach that sink — regardless of which
+     * worker thread the chunk's iterator was drained on. The production {@code CsvFormatReader} /
+     * {@code NdJsonPageIterator} close hooks call {@code ExternalStatsCapture.record(...)} once
+     * per drained chunk; the coordinator-side reconciler relies on those partials plus the outer
+     * finalize marker to reconstruct a whole-file stat. Lose the partials, lose the warm-path
+     * aggregate pushdown for any file large enough to be parallel-parsed.
+     * <p>
+     * {@code ExternalStatsCapture}'s active sink is a plain {@link ThreadLocal} that does not
+     * propagate to executor threads, so the coordinator threads through an explicit
+     * {@code captureSink} parameter and binds it around the per-segment {@code reader.read(...)
+     * .close()} block inside {@code parseSegment}. This test asserts that bind actually wires
+     * each worker's published contribution into the consumer-owned sink.
+     */
+    public void testParallelReadPropagatesPerSegmentPartialsToSink() throws Exception {
+        // Build a multi-segment file. Lines are short so 4 workers each see at least one chunk
+        // when parallelism=4 + minimumSegmentSize=1.
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 200;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+        String path = obj.path().toString();
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(blockFactory(), path);
+
+        // Sanity: this fixture must actually exercise the multi-segment path, otherwise the bug
+        // is masked by the single-segment fast path that runs inline on the caller thread.
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            reader,
+            obj,
+            contentBytes.length,
+            4,
+            reader.minimumSegmentSize()
+        );
+        assertThat("test must drive the multi-segment worker path", segments.size(), Matchers.greaterThanOrEqualTo(2));
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            // Use the explicit-sink overload: the coordinator binds `sink` on each worker around
+            // the per-segment reader.read(...).close() so the close hook's record() call lands in
+            // the same map the consumer's StatsCapturingIterator binds for the outer finalize marker.
+            CloseableIterator<Page> outer = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                false,
+                true,
+                null,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+
+        // One partial per segment is the contract. Cap the lower bound at "at least 2" so the
+        // assertion stays stable against future tweaks to the boundary-probing heuristic.
+        assertThat(
+            "Parallel parsing must propagate per-segment partials to the bound sink. Saw "
+                + contributions.size()
+                + " total contributions, "
+                + partialCount
+                + " partials, across "
+                + segments.size()
+                + " segments. Contributions: "
+                + contributions,
+            partialCount,
+            Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
     public void testParallelReadEmptyFile() throws Exception {
         StorageObject obj = new InMemoryStorageObject(new byte[0]);
         BlockFactory blockFactory = blockFactory();
@@ -233,7 +327,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(6, skipped);
         }
     }
@@ -243,7 +337,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\r\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(7, skipped);
         }
     }
@@ -253,7 +347,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "no-newline-here".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(-1, skipped);
         }
     }
@@ -351,7 +445,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     false,
                     true,
                     null,
-                    maxConcurrentOpenSegments
+                    maxConcurrentOpenSegments,
+                    null
                 )
             ) {
                 while (iter.hasNext()) {
@@ -402,7 +497,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     false,
                     true,
                     null,
-                    1
+                    1,
+                    null
                 )
             ) {
                 while (iter.hasNext()) {
@@ -453,7 +549,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 false,
                 true,
                 null,
-                3
+                3,
+                null
             );
             // Consume just a couple of pages, then abandon the rest and close early.
             int pages = 0;
@@ -913,27 +1010,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-                if (b == '\r') {
-                    int next = stream.read();
-                    consumed++;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                    if (next == -1) {
-                        return consumed - 1;
-                    }
-                    return consumed - 1;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -978,16 +1056,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1093,6 +1163,96 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Wraps {@link LineFormatReader} so each segment's iterator publishes a per-chunk
+     * {@code _stats.*} contribution via {@link ExternalStatsCapture#record} on natural EOF — same
+     * close-hook pattern as the production {@code CsvFormatReader} / {@code NdJsonPageIterator}
+     * chunk paths. Used by {@link #testParallelReadPropagatesPerSegmentPartialsToSink} to
+     * observe whether parallel-parsing worker threads can reach a bound sink.
+     */
+    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StatsPublishingLineReader(BlockFactory blockFactory, String path) {
+            this.delegate = new LineFormatReader(blockFactory);
+            this.path = path;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean chunkMode = context.recordAligned();
+            CloseableIterator<Page> inner = delegate.read(object, context);
+            return new CloseableIterator<>() {
+                long rowsEmitted = 0;
+                boolean naturallyExhausted = false;
+
+                @Override
+                public boolean hasNext() {
+                    if (inner.hasNext()) {
+                        return true;
+                    }
+                    naturallyExhausted = true;
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    Page p = inner.next();
+                    rowsEmitted += p.getPositionCount();
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        if (naturallyExhausted) {
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsEmitted);
+                            if (chunkMode) {
+                                stats.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                            }
+                            ExternalStatsCapture.record(path, stats);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
      * SegmentableFormatReader that records the {@link FormatReadContext} it was handed for each
      * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
      * parsing.
@@ -1118,16 +1278,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1191,16 +1343,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override

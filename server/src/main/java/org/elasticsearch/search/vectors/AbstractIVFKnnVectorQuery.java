@@ -184,7 +184,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      */
     abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK);
 
-
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
         long totalHitsValue = 0;

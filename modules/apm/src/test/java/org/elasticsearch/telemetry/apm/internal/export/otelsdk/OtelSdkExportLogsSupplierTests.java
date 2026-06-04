@@ -26,7 +26,8 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
 
     public void testInstallWhenDisabledIsNoop() {
         OtelSdkExportLogsSupplier supplier = new OtelSdkExportLogsSupplier(Settings.EMPTY);
-        supplier.install(); // disabled by default; must not throw, must not require an endpoint
+        supplier.install();
+        assertFalse("disabled supplier must not install an SDK", supplier.isInstalled());
         supplier.close();
     }
 

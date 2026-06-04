@@ -15,6 +15,7 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
@@ -161,6 +162,6 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
         APMTracer tracer = new APMTracer(settings, traceSupplier, false, 0);
-        return new APMTelemetryProvider(meterService, tracer, flushTimeoutMillis);
+        return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY), flushTimeoutMillis);
     }
 }

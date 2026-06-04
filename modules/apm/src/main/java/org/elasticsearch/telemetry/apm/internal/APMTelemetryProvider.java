@@ -11,11 +11,9 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
@@ -26,19 +24,26 @@ import java.util.concurrent.TimeUnit;
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private final APMLoggingService loggingService;
     private final long flushTimeoutMillis;
-    private final SetOnce<OtelSdkExportLogsSupplier> logsSupplier = new SetOnce<>();
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
         apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
+        loggingService = new APMLoggingService(settings);
         flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, long flushTimeoutMillis) {
+    public APMTelemetryProvider(
+        APMMeterService apmMeterService,
+        APMTracer apmTracer,
+        APMLoggingService loggingService,
+        long flushTimeoutMillis
+    ) {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
+        this.loggingService = loggingService;
         this.flushTimeoutMillis = flushTimeoutMillis;
     }
 
@@ -60,19 +65,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
     public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
-        OtelSdkExportLogsSupplier logs = logsSupplier.get();
-        if (logs != null) {
-            logs.forceFlush();
-        }
-        CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+        CompletableResultCode logs = loggingService.forceFlush();
+        CompletableResultCode.ofAll(List.of(metrics, traces, logs)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Wires the logs supplier after construction. A setter is required rather than a constructor
-     * argument because {@link org.elasticsearch.telemetry.apm.APM} creates the provider in
-     * {@code getTelemetryProvider()} and the supplier in the later {@code createComponents()} call.
-     */
-    public void setLogsSupplier(OtelSdkExportLogsSupplier supplier) {
-        this.logsSupplier.set(supplier);
+    public APMLoggingService getLoggingService() {
+        return loggingService;
     }
 }

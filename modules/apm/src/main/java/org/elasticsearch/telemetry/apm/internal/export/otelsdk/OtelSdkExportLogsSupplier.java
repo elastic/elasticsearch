@@ -13,9 +13,9 @@ import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporter;
 import io.opentelemetry.exporter.otlp.logs.OtlpGrpcLogRecordExporterBuilder;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.OpenTelemetryAppender;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor;
-import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +25,6 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/gRPC, then installs
@@ -51,7 +50,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
     private static final String OTEL_APPENDER_NAME = "audit_otel";
 
     private final Settings settings;
-    private volatile OpenTelemetrySdk sdk;
     private volatile SdkLoggerProvider loggerProvider;
     private volatile OpenTelemetryAppender attachedAppender;
 
@@ -64,7 +62,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
      * attach a freshly-built appender to the audit logger. No-op if the feature is disabled.
      */
     public synchronized void install() {
-        if (sdk != null) {
+        if (loggerProvider != null) {
             return;
         }
         if (OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) == false) {
@@ -82,7 +80,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
 
         SdkLoggerProvider provider = SdkLoggerProvider.builder()
-            .setResource(Resource.builder().put("service.name", "elasticsearch").build())
+            .setResource(OtelSdkResource.get(settings))
             .addLogRecordProcessor(BatchLogRecordProcessor.builder(exporterBuilder.build()).build())
             .build();
 
@@ -113,30 +111,32 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         ctx.updateLoggers();
 
         this.loggerProvider = provider;
-        this.sdk = built;
         this.attachedAppender = appender;
         logger.info("OTel SDK logs export installed; endpoint={}", endpoint);
     }
 
     /**
      * Force an immediate flush of any buffered log records through the {@code BatchLogRecordProcessor}
-     * to the exporter. Bounded to a few seconds to avoid hanging shutdown if the gateway is unreachable.
+     * to the exporter. Returns the {@link CompletableResultCode} so the caller can join it
+     * concurrently with other flush operations.
      */
-    public void forceFlush() {
+    public CompletableResultCode forceFlush() {
         SdkLoggerProvider lp = loggerProvider;
-        if (lp != null) {
-            lp.forceFlush().join(10, TimeUnit.SECONDS);
-        }
+        return lp != null ? lp.forceFlush() : CompletableResultCode.ofSuccess();
+    }
+
+    /** Returns {@code true} if {@link #install()} has been called and the OTel SDK is active. */
+    public boolean isInstalled() {
+        return loggerProvider != null;
     }
 
     @Override
     public synchronized void close() {
         detachAppender();
-        try (SdkLoggerProvider lp = loggerProvider) {
-            // try-with-resources handles lp.close() and surfaces any exception
+        if (loggerProvider != null) {
+            loggerProvider.close();
+            loggerProvider = null;
         }
-        loggerProvider = null;
-        sdk = null;
     }
 
     /** Remove the OTel appender from the audit logger and stop it. */

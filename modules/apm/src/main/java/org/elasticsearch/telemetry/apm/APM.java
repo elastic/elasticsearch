@@ -20,9 +20,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
@@ -81,12 +81,10 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        final OtelSdkExportLogsSupplier logs = new OtelSdkExportLogsSupplier(settings);
-        logs.install();
-        telemetryProvider.get().setLogsSupplier(logs);
+        final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
         logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
 
-        return List.of(apmTracer, apmMeter, logs);
+        return List.of(apmTracer, apmMeter, loggingService);
     }
 
     @Override

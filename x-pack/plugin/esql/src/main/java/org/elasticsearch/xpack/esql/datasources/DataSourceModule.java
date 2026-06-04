@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
@@ -64,8 +67,25 @@ public final class DataSourceModule implements Closeable {
         ExecutorService executor,
         DataSourceCredentials credentials
     ) {
+        this(dataSourcePlugins, capabilities, settings, blockFactory, executor, credentials, null);
+    }
+
+    public DataSourceModule(
+        List<DataSourcePlugin> dataSourcePlugins,
+        DataSourceCapabilities capabilities,
+        Settings settings,
+        BlockFactory blockFactory,
+        ExecutorService executor,
+        DataSourceCredentials credentials,
+        @Nullable ThreadPool threadPool
+    ) {
         this.capabilities = capabilities;
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials);
+        // Off-timer scheduler for the async read-retry backoff, so a retry does not park a GENERIC-pool thread on
+        // Thread.sleep while it waits; DIRECT (run promptly on the executor) when no ThreadPool is supplied (tests).
+        RetryScheduler retryScheduler = threadPool == null
+            ? RetryScheduler.DIRECT
+            : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, retryScheduler);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {

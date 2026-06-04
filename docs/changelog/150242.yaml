@@ -1,0 +1,5 @@
+pr: 150242
+summary: Upgrading commons-lang3 version for inference plugin
+area: Inference
+type: upgrade
+issues: []

@@ -1095,7 +1095,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
         try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
             for (var id : idsToLookup) {
-                assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
+                assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }
         }
     }

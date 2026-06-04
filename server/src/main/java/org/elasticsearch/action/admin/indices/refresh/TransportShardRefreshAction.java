@@ -33,6 +33,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -101,6 +102,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
 
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         BasicReplicationRequest shardRequest,
         IndexShard primary,
         ActionListener<PrimaryResult<ShardRefreshReplicaRequest, ReplicationResponse>> listener

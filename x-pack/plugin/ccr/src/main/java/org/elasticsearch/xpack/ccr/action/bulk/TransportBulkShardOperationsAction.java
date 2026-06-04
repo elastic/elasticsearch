@@ -191,7 +191,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                 assert result.getSeqNo() == targetOp.seqNo();
                 appliedOperations.add(targetOp);
-                location = locationToSync(location, result.getTranslogLocation());
+                location = locationToSync(location, result.getTranslogLocation(), false);
             } else {
                 if (result.getFailure() instanceof final AlreadyProcessedFollowingEngineException failure) {
                     // The existing operations below the global checkpoint won't be replicated as they were processed
@@ -275,7 +275,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 throw ExceptionsHelper.convertToElastic(result.getFailure());
             }
             assert result.getSeqNo() == operation.seqNo();
-            location = locationToSync(location, result.getTranslogLocation());
+            location = locationToSync(location, result.getTranslogLocation(), false);
         }
         assert request.getOperations().size() == 0 || location != null;
         return new WriteReplicaResult<>(request, location, null, replica, logger);

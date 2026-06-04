@@ -107,13 +107,7 @@ c:long
 5
 ;
 
-// `field_extract` against a mapped sub-field returns null on every row,
-// because the typed mapper diverts those values out of the keyed flattened
-// representation that `field_extract` reads from. The query keeps both the
-// `labels.host.ip` and the passthrough `host.ip` columns alongside, so the
-// rows confirm that the same field is still reachable through its typed
-// alias even when `field_extract` cannot see it.
-fieldExtractReturnsNullForMappedSubfield
+// `field_extract` returns null with the mapped subfield
 required_capability: flattened_datatype
 required_capability: fn_field_extract
 

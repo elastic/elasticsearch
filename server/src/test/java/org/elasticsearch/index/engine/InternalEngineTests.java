@@ -8356,7 +8356,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         Engine.Index op1 = new Engine.Index(newUid(doc1), primaryTerm.get(), doc1);
         Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);
-        expectThrows(AssertionError.class, () -> engine.indexBatch(List.of(op1, op2)));
+        var updates = List.of(op1, op2);
+        expectThrows(AssertionError.class, () -> engine.indexBatch(updates, encodeAsEirfBatch(updates)));
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

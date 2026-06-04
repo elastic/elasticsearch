@@ -1446,6 +1446,7 @@ public class InternalEngine extends Engine {
         long maxStartNanos = lastWriteNanos;
 
         final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
+        final var primaryTerm = operations.get(subBatchIdx).primaryTerm();
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
             if (origin != op.origin()) { // verify that origins are uniform
@@ -1453,6 +1454,13 @@ public class InternalEngine extends Engine {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+
+            if (primaryTerm != op.primaryTerm()) { // verify that primary terms are same
+                final var message = "mixed primary terms in sub-batch: " + primaryTerm + " vs " + op.primaryTerm();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }

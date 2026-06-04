@@ -8300,6 +8300,15 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testMixedPrimaryTermThrows() throws IOException {
+        ParsedDocument doc1 = testParsedDocument("1", null, testDocument(), B_1);
+        ParsedDocument doc2 = testParsedDocument("2", null, testDocument(), B_2);
+
+        Engine.Index op1 = new Engine.Index(newUid(doc1), primaryTerm.get(), doc1);
+        Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);
+        expectThrows(AssertionError.class, () -> engine.indexBatch(List.of(op1, op2)));
+    }
+
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
         assertThat(releasable, isPresent());

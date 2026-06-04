@@ -1150,11 +1150,11 @@ required_capability: mv_first_last_date_range
 
 FROM mv_decades
 | WHERE decade == 1950
-| EVAL first = MV_FIRST(date_range)
-| KEEP decade, first
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
 ;
 
-decade:integer | first:date_range
+decade:integer | first_dr:date_range
 1950           | 1950-01-01..1960-01-01
 ;
 
@@ -1165,11 +1165,11 @@ required_capability: mv_first_last_date_range
 
 FROM mv_decades
 | WHERE decade == 1950
-| EVAL last = MV_LAST(date_range)
-| KEEP decade, last
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
 ;
 
-decade:integer | last:date_range
+decade:integer | last_dr:date_range
 1950           | 1955-01-01..1965-01-01
 ;
 
@@ -1180,11 +1180,11 @@ required_capability: mv_first_last_date_range
 
 FROM decades
 | WHERE decade == 1900
-| EVAL first = MV_FIRST(date_range)
-| KEEP decade, first
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
 ;
 
-decade:integer | first:date_range
+decade:integer | first_dr:date_range
 1900           | 1900-01-01..1910-01-01
 ;
 
@@ -1195,40 +1195,42 @@ required_capability: mv_first_last_date_range
 
 FROM decades
 | WHERE decade == 1900
-| EVAL last = MV_LAST(date_range)
-| KEEP decade, last
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
 ;
 
-decade:integer | last:date_range
+decade:integer | last_dr:date_range
 1900           | 1900-01-01..1910-01-01
 ;
 
-// MV_FIRST with ROW returns the first element of an inline multivalued date_range.
+// MV_FIRST on a multivalued date_range field from mv_decades returns the first element.
 mvFirstDateRangeRow
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
 
-ROW a = [TO_DATE_RANGE("2020-01-01..2021-01-01"), TO_DATE_RANGE("2022-01-01..2023-01-01"), TO_DATE_RANGE("2024-01-01..2025-01-01")]
-| EVAL first = MV_FIRST(a)
-| KEEP first
+FROM mv_decades
+| WHERE decade == 2000
+| EVAL first_dr = MV_FIRST(date_range)
+| KEEP decade, first_dr
 ;
 
-first:date_range
-2020-01-01..2021-01-01
+decade:integer | first_dr:date_range
+2000           | 1995-01-01..2005-01-01
 ;
 
-// MV_LAST with ROW returns the last element of an inline multivalued date_range.
+// MV_LAST on a multivalued date_range field from mv_decades returns the last element.
 mvLastDateRangeRow
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
 
-ROW a = [TO_DATE_RANGE("2020-01-01..2021-01-01"), TO_DATE_RANGE("2022-01-01..2023-01-01"), TO_DATE_RANGE("2024-01-01..2025-01-01")]
-| EVAL last = MV_LAST(a)
-| KEEP last
+FROM mv_decades
+| WHERE decade == 2000
+| EVAL last_dr = MV_LAST(date_range)
+| KEEP decade, last_dr
 ;
 
-last:date_range
-2024-01-01..2025-01-01
+decade:integer | last_dr:date_range
+2000           | 2000-01-01..2010-01-01
 ;
 
 // MV_FIRST with ROW on a single date_range value returns it unchanged.
@@ -1237,11 +1239,11 @@ required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
 
 ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
-| EVAL first = MV_FIRST(a)
-| KEEP first
+| EVAL first_dr = MV_FIRST(a)
+| KEEP first_dr
 ;
 
-first:date_range
+first_dr:date_range
 2023-06-01..2023-12-31
 ;
 
@@ -1251,11 +1253,11 @@ required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
 
 ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
-| EVAL last = MV_LAST(a)
-| KEEP last
+| EVAL last_dr = MV_LAST(a)
+| KEEP last_dr
 ;
 
-last:date_range
+last_dr:date_range
 2023-06-01..2023-12-31
 ;
 

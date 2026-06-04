@@ -72,7 +72,8 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            true
+            true,
+            false
         );
 
         String ip = "2001:db8::2:1";
@@ -122,6 +123,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false,
             false,
             false
@@ -357,6 +359,7 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             Collections.emptyMap(),
+            false,
             false,
             false,
             false

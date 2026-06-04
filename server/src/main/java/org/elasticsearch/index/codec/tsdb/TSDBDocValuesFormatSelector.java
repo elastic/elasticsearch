@@ -11,12 +11,14 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.routing.TsidBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatFactory;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 
 /**
  * Selects the appropriate TSDB doc values format based on index settings,
@@ -29,10 +31,14 @@ public final class TSDBDocValuesFormatSelector {
     /**
      * Selects the TSDB doc values format for the given index settings.
      *
-     * @param indexSettings the index settings to base the selection on
+     * @param indexSettings        the index settings to base the selection on
+     * @param fieldContextResolver bridge from the mapper layer that supplies the
+     *                             per-field {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldContext}
+     *                             used by the ES95 pipeline resolver, or {@code null}
+     *                             when mapper metadata is not available
      * @return the selected doc values format
      */
-    public static DocValuesFormat select(final IndexSettings indexSettings) {
+    public static DocValuesFormat select(final IndexSettings indexSettings, @Nullable final FieldContextResolver fieldContextResolver) {
         final IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         final boolean useLargeNumericBlockSize = indexSettings.isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
         final boolean useLargeBinaryBlockSize = indexSettings.isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
@@ -41,7 +47,12 @@ public final class TSDBDocValuesFormatSelector {
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
 
         if (useES95(indexSettings)) {
-            return ES95TSDBDocValuesFormatFactory.get(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
+            return ES95TSDBDocValuesFormatFactory.create(
+                useLargeNumericBlockSize,
+                useLargeBinaryBlockSize,
+                writePartitions,
+                fieldContextResolver
+            );
         }
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
             indexCreatedVersion,

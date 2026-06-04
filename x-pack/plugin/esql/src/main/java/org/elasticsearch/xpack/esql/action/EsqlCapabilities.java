@@ -2774,6 +2774,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         /**
+         * Move rules for TS translation into the Analyzer
+         */
+        TIME_SERIES_TRANSLATION_IN_ANALYZER,
+
+        /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
          * See https://github.com/elastic/elasticsearch/issues/144914
          */

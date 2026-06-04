@@ -3073,10 +3073,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
             // A non-indexed field has no configured [similarity] (it cannot be set when index:false). Default to
-            // cosine when the query does not override it.
+            // cosine when the query does not override it (bit vectors only support l2_norm / Hamming).
+            VectorSimilarity defaultSimilarity = element.elementType() == ElementType.BIT
+                ? VectorSimilarity.L2_NORM
+                : VectorSimilarity.COSINE;
             VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride
                 : similarity != null ? similarity
-                : VectorSimilarity.COSINE;
+                : defaultSimilarity;
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)
@@ -3126,13 +3129,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         /**
          * Scores a non-indexed (index:false) field, whose vectors are stored as binary doc values rather than
-         * KNN vector values, by decoding each document's vector and applying the
-         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function. The metric is the
-         * query's {@code similarity_function} override, falling back to cosine since a non-indexed field has no
-         * mapped similarity.
+         * KNN vector values, by decoding each document's vector. Float and byte vectors apply the
+         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function — the query's
+         * {@code similarity_function} override, falling back to cosine since a non-indexed field has no mapped
+         * similarity. Bit vectors are scored by Hamming distance (their only metric), matching the indexed path.
          */
         private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
-            VectorSimilarityFunction function = effectiveSimilarity.rawVectorSimilarityFunction();
             return switch (element.elementType()) {
                 case FLOAT, BFLOAT16 -> {
                     float[] queryVector = resolvedQueryVector.asFloatVector();
@@ -3146,7 +3148,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             squaredMagnitude
                         );
                     }
-                    yield new DenseVectorQuery.Floats(queryVector, name(), null, function, element.elementType(), indexVersionCreated);
+                    yield new DenseVectorQuery.Floats(
+                        queryVector,
+                        name(),
+                        null,
+                        effectiveSimilarity.rawVectorSimilarityFunction(),
+                        element.elementType(),
+                        indexVersionCreated
+                    );
                 }
                 case BYTE -> {
                     byte[] queryVector = resolvedQueryVector.asByteVector();
@@ -3155,17 +3164,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                         element.checkVectorMagnitude(effectiveSimilarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
                     }
-                    yield new DenseVectorQuery.Bytes(queryVector, name(), null, function, indexVersionCreated);
+                    yield new DenseVectorQuery.Bytes(
+                        queryVector,
+                        name(),
+                        null,
+                        effectiveSimilarity.rawVectorSimilarityFunction(),
+                        ElementType.BYTE,
+                        indexVersionCreated
+                    );
                 }
-                // BIT scoring is Hamming distance over packed bits, which VectorSimilarityFunction does not model;
-                // there is no raw doc-values scorer for it, so a non-indexed bit field is unsupported here.
-                case BIT -> throw new IllegalArgumentException(
-                    "["
-                        + CONTENT_TYPE
-                        + "] exact queries on non-indexed ["
-                        + ElementType.BIT
-                        + "] fields are not supported; set [index] to [true]"
-                );
+                // Bit vectors have no VectorSimilarityFunction; the scorer computes Hamming distance directly,
+                // matching the indexed path's (numBits - xorBitCount) / numBits.
+                case BIT -> {
+                    byte[] queryVector = resolvedQueryVector.asByteVector();
+                    element.checkDimensions(dims, queryVector.length);
+                    yield new DenseVectorQuery.Bytes(queryVector, name(), null, null, ElementType.BIT, indexVersionCreated);
+                }
             };
         }
 

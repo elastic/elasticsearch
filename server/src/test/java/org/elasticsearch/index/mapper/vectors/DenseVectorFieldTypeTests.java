@@ -505,6 +505,24 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             () -> field.createExactKnnQuery(VectorData.fromFloats(queryVector), null)
         );
         assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
+
+        // A non-indexed bit field is scored by Hamming distance from doc values (it defaults to l2_norm).
+        int bitDims = dims - (dims % Byte.SIZE);
+        DenseVectorFieldType bitField = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BIT,
+            bitDims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        byte[] bitQuery = new byte[bitDims / Byte.SIZE];
+        random().nextBytes(bitQuery);
+        Query bitQueryResult = bitField.createExactKnnQuery(VectorData.fromBytes(bitQuery), null, null, false);
+        assertTrue(bitQueryResult instanceof DenseVectorQuery.Bytes);
     }
 
     public void testFloatCreateKnnQuery() {

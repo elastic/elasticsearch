@@ -37,6 +37,7 @@ import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
@@ -371,8 +372,9 @@ public abstract class DenseVectorQuery extends Query {
 
         private final byte[] query;
         private final VectorSimilarityFunction function;
-        // Non-null only for non-indexed (index:false) byte fields, which are scored from binary doc values;
-        // see the doc-values constructor.
+        // Non-null only for non-indexed (index:false) byte/bit fields, which are scored from binary doc values;
+        // see the doc-values constructor. elementType selects byte (function.compare) vs bit (Hamming) scoring.
+        private final ElementType docValuesElementType;
         private final IndexVersion docValuesIndexVersion;
 
         /**
@@ -389,17 +391,26 @@ public abstract class DenseVectorQuery extends Query {
          * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
          */
         public Bytes(byte[] query, String field, Query filter, VectorSimilarityFunction function) {
-            this(query, field, filter, function, null);
+            this(query, field, filter, function, null, null);
         }
 
         /**
-         * Scores a non-indexed (index:false) byte field from binary doc values, decoding each document's
-         * vector and applying {@code function}. Use only when the field has no KNN values.
+         * Scores a non-indexed (index:false) byte or bit field from binary doc values, decoding each
+         * document's vector. {@code byte} fields apply {@code function}; {@code bit} fields score by Hamming
+         * distance. Use only when the field has no KNN values.
          */
-        public Bytes(byte[] query, String field, Query filter, VectorSimilarityFunction function, IndexVersion indexVersion) {
+        public Bytes(
+            byte[] query,
+            String field,
+            Query filter,
+            VectorSimilarityFunction function,
+            ElementType elementType,
+            IndexVersion indexVersion
+        ) {
             super(field, filter);
             this.query = query;
             this.function = function;
+            this.docValuesElementType = elementType;
             this.docValuesIndexVersion = indexVersion;
         }
 
@@ -425,7 +436,7 @@ public abstract class DenseVectorQuery extends Query {
             } else if (rewritten == filter) {
                 return this;
             } else {
-                return new Bytes(query, field, rewritten, function, docValuesIndexVersion);
+                return new Bytes(query, field, rewritten, function, docValuesElementType, docValuesIndexVersion);
             }
         }
 
@@ -440,7 +451,7 @@ public abstract class DenseVectorQuery extends Query {
                         if (docValues == null) {
                             return null;
                         }
-                        return new DocValuesByteVectorScorer(docValues, query, function, docValuesIndexVersion);
+                        return new DocValuesByteVectorScorer(docValues, query, function, docValuesElementType, docValuesIndexVersion);
                     }
                     ByteVectorValues vectorValues = leafReaderContext.reader().getByteVectorValues(field);
                     if (vectorValues == null) {
@@ -467,26 +478,39 @@ public abstract class DenseVectorQuery extends Query {
                 && Objects.deepEquals(query, other.query)
                 && Objects.equals(filter, other.filter)
                 && function == other.function
+                && docValuesElementType == other.docValuesElementType
                 && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesIndexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion);
         }
 
-        /** Decodes each document's byte vector from binary doc values and applies {@code function}. */
+        /**
+         * Decodes each document's vector from binary doc values. {@code byte} fields apply {@code function};
+         * {@code bit} fields score by Hamming distance, matching Lucene's {@code FlatBitVectorsScorer}:
+         * {@code (numBits - xorBitCount) / numBits}.
+         */
         private static final class DocValuesByteVectorScorer implements VectorScorer {
             private final BinaryDocValues values;
             private final byte[] target;
             private final VectorSimilarityFunction function;
+            private final ElementType elementType;
             private final IndexVersion indexVersion;
             private final byte[] decoded;
 
-            DocValuesByteVectorScorer(BinaryDocValues values, byte[] target, VectorSimilarityFunction function, IndexVersion indexVersion) {
+            DocValuesByteVectorScorer(
+                BinaryDocValues values,
+                byte[] target,
+                VectorSimilarityFunction function,
+                ElementType elementType,
+                IndexVersion indexVersion
+            ) {
                 this.values = values;
                 this.target = target;
                 this.function = function;
+                this.elementType = elementType;
                 this.indexVersion = indexVersion;
                 this.decoded = new byte[target.length];
             }
@@ -494,6 +518,10 @@ public abstract class DenseVectorQuery extends Query {
             @Override
             public float score() throws IOException {
                 VectorEncoderDecoder.decodeDenseVector(indexVersion, values.binaryValue(), decoded);
+                if (elementType == ElementType.BIT) {
+                    int numBits = decoded.length * Byte.SIZE;
+                    return (numBits - VectorUtil.xorBitCount(target, decoded)) / (float) numBits;
+                }
                 return function.compare(target, decoded);
             }
 

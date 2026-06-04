@@ -55,6 +55,13 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
                 public TokenStream create(TokenStream tokenStream) {
                     return new ASCIIFoldingFilter(tokenStream, false);
                 }
+
+                @Override
+                public Object sharingKey() {
+                    // Synonym-time delegate: always preserveOriginal=false. Constant for all
+                    // ASCIIFolding factories regardless of their own preserveOriginal setting.
+                    return SYNONYM_KEY;
+                }
             };
         }
     }
@@ -64,4 +71,12 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
         return new ASCIIFoldingFilter(tokenStream, false);
     }
 
+    @Override
+    public Object sharingKey() {
+        return new Key(preserveOriginal);
+    }
+
+    private record Key(boolean preserveOriginal) {}
+
+    private static final Object SYNONYM_KEY = new Object();
 }

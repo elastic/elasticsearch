@@ -48,4 +48,11 @@ public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory imp
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
+    @Override
+    public Object sharingKey() {
+        // Normalizer2 is an opaque ICU object without a stable equals/hashCode contract,
+        // so we use identity equality via the instance reference itself.
+        return normalizer;
+    }
+
 }

@@ -34,6 +34,8 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean removeTrailing;
 
+    private final Object sharingKey;
+
     public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
@@ -46,6 +48,7 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory {
             NAMED_STOP_WORDS,
             ignoreCase
         );
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
     }
 
     @Override
@@ -64,5 +67,12 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory {
     public boolean ignoreCase() {
         return ignoreCase;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
 
 }

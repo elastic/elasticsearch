@@ -47,6 +47,16 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
+    public Object sharingKey() {
+        // Identity: the referenced sub-filters ("filters") are resolved by name against the index's
+        // full filter map and need NOT appear in the analyzer's own filter chain, so they are not
+        // folded into the analyzer's cache key. Keying on the names alone would let two indices whose
+        // referenced filters differ wrongly share. Returning identity keeps each index's
+        // multiplexer-bearing analyzer distinct — correct, at the cost of not sharing these.
+        return this;
+    }
+
+    @Override
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
@@ -111,6 +121,15 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public Object sharingKey() {
+                // The result of MultiplexerTokenFilterFactory#getChainAwareTokenFilterFactory is
+                // unique per invocation (it captures the freshly-resolved chain). Identity is
+                // the correct semantics — sharing happens through the outer
+                // {@link MultiplexerTokenFilterFactory#sharingKey}.
+                return this;
+            }
         };
     }
 
@@ -127,6 +146,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                     tokenStream = tff.create(tokenStream);
                 }
                 return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Per-call chain wrapper. Not directly addressable from a recipe, so identity.
+                return this;
             }
         };
     }

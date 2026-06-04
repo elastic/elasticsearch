@@ -45,6 +45,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private RuleType ruletype;
     private boolean isDaitchMokotoff;
 
+    private final Object sharingKey;
+
     public PhoneticTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.languageset = null;
@@ -105,7 +107,28 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
+        // Commons-codec Encoder implementations don't have a structural equals/hashCode, so we
+        // identify them by their class — each branch above instantiates a fixed concrete type
+        // with no per-instance configuration that would affect sharing.
+        Class<? extends Encoder> encoderType = this.encoder == null ? null : this.encoder.getClass();
+        List<String> languagesetCopy = this.languageset == null ? null : List.copyOf(this.languageset);
+        this.sharingKey = new Key(encoderType, replace, maxcodelength, languagesetCopy, nametype, ruletype, isDaitchMokotoff);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(
+        Class<? extends Encoder> encoderType,
+        boolean replace,
+        int maxcodelength,
+        List<String> languageset,
+        NameType nametype,
+        RuleType ruletype,
+        boolean isDaitchMokotoff
+    ) {}
 
     @Override
     public TokenStream create(TokenStream tokenStream) {

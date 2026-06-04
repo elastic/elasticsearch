@@ -58,6 +58,16 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
     }
 
     @Override
+    public Object sharingKey() {
+        // Identity: the referenced sub-filters ("filter") are resolved by name against the index's
+        // full filter map and need NOT appear in the analyzer's own filter chain, so they are not
+        // folded into the analyzer's cache key. Keying on the names alone would let two indices whose
+        // referenced filters differ wrongly share. Returning identity keeps each index's
+        // condition-bearing analyzer distinct — correct, at the cost of not sharing these.
+        return this;
+    }
+
+    @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
         IndexCreationContext context,
         TokenizerFactory tokenizer,
@@ -94,6 +104,13 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     return in;
                 };
                 return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Chain-aware wrapper: a per-resolution instance. Sharing happens through the
+                // outer factory's key, which captures the recipe.
+                return this;
             }
         };
     }

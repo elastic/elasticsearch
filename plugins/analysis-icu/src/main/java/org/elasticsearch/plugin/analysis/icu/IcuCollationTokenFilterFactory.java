@@ -166,4 +166,11 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new ICUCollationKeyFilter(tokenStream, collator);
     }
+
+    @Override
+    public Object sharingKey() {
+        // Collator is an opaque ICU object without a stable structural equals/hashCode for
+        // our purposes; use identity equality via the instance reference itself.
+        return collator;
+    }
 }

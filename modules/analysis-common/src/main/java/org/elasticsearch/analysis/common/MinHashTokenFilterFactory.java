@@ -26,16 +26,29 @@ import java.util.Map;
 public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final MinHashFilterFactory minHashFilterFactory;
+    private final Object sharingKey;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
+        Map<String, String> luceneSettings = convertSettings(settings);
+        // Snapshot the settings for the sharing key BEFORE constructing the Lucene factory: its
+        // constructor consumes (removes) entries from the map as it reads them, which would leave
+        // the key empty and make every min_hash configuration share the same analyzer.
+        this.sharingKey = new Key(Map.copyOf(luceneSettings));
+        minHashFilterFactory = new MinHashFilterFactory(luceneSettings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return minHashFilterFactory.create(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Map<String, String> luceneSettings) {}
 
     private static Map<String, String> convertSettings(Settings settings) {
         Map<String, String> settingMap = new HashMap<>();

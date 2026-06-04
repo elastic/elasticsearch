@@ -24,9 +24,12 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;
 
+    private final Object sharingKey;
+
     DutchStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(exclusions));
     }
 
     @Override
@@ -34,4 +37,11 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
         tokenStream = new SetKeywordMarkerFilter(tokenStream, exclusions);
         return new SnowballFilter(tokenStream, new DutchStemmer());
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet exclusions) {}
 }

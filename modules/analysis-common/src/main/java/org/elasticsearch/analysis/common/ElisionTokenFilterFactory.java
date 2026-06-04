@@ -23,12 +23,18 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
 
     private final CharArraySet articles;
 
+    private final Object sharingKey;
+
     ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.articles = Analysis.parseArticles(env, settings);
         if (this.articles == null) {
             throw new IllegalArgumentException("elision filter requires [articles] or [articles_path] setting");
         }
+        // articles_case toggles case-insensitive matching (see Analysis#parseArticles); it changes
+        // behavior but not the set's stored content, so it must be part of the sharing key.
+        boolean articlesCase = settings.getAsBoolean("articles_case", false);
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(articles, articlesCase));
     }
 
     @Override
@@ -36,4 +42,10 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
         return new ElisionFilter(tokenStream, articles);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet articles) {}
 }

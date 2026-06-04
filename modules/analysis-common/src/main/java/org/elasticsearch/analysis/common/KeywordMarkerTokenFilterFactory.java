@@ -43,6 +43,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final CharArraySet keywordLookup;
     private final Pattern keywordPattern;
     private final AnalysisMode analysisMode;
+    private final Object sharingKey;
 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -70,6 +71,12 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         }
         boolean updateable = settings.getAsBoolean("updateable", false);
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
+        this.sharingKey = new Key(
+            keywordPattern == null ? null : keywordPattern.pattern(),
+            keywordPattern == null ? 0 : keywordPattern.flags(),
+            keywordLookup == null ? null : new Analysis.StableCharArraySet(keywordLookup, ignoreCase),
+            analysisMode
+        );
     }
 
     @Override
@@ -86,4 +93,10 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(String pattern, int flags, Analysis.StableCharArraySet keywords, AnalysisMode analysisMode) {}
 }

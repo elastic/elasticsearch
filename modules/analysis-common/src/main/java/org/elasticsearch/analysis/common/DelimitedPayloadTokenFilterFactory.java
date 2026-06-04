@@ -31,6 +31,8 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
     private final char delimiter;
     private final PayloadEncoder encoder;
 
+    private final Object sharingKey;
+
     DelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         String delimiterConf = settings.get(DELIMITER);
@@ -53,6 +55,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         } else {
             encoder = DEFAULT_ENCODER;
         }
+        this.sharingKey = new Key(delimiter, encoder);
     }
 
     @Override
@@ -60,4 +63,10 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         return new DelimitedPayloadTokenFilter(tokenStream, delimiter, encoder);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(char delimiter, PayloadEncoder encoder) {}
 }

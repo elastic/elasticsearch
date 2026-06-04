@@ -20,7 +20,9 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter.CATENATE_ALL;
@@ -41,6 +43,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final int flags;
     private final CharArraySet protoWords;
     private final boolean adjustOffsets;
+    private final Object sharingKey;
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -84,6 +87,15 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
         this.adjustOffsets = settings.getAsBoolean("adjust_offsets", true);
+        // protected_words_case toggles case-insensitive matching of the protected set; it changes
+        // behavior but not the set's stored content, so it must be part of the sharing key.
+        boolean protectedWordsCase = settings.getAsBoolean("protected_words_case", false);
+        this.sharingKey = new Key(
+            charTypeTable,
+            flags,
+            protoWords == null ? null : new Analysis.StableCharArraySet(protoWords, protectedWordsCase),
+            adjustOffsets
+        );
     }
 
     @Override
@@ -101,5 +113,32 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
             return flag;
         }
         return 0;
+    }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    /** Custom equals/hashCode to compare byte[] by content. */
+    private record Key(byte[] charTypeTable, int flags, Analysis.StableCharArraySet protoWords, boolean adjustOffsets) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof Key other) {
+                return flags == other.flags
+                    && adjustOffsets == other.adjustOffsets
+                    && Objects.equals(protoWords, other.protoWords)
+                    && Arrays.equals(charTypeTable, other.charTypeTable);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(charTypeTable) * 31 + flags * 17 + Objects.hashCode(protoWords) + Boolean.hashCode(adjustOffsets);
+        }
     }
 }

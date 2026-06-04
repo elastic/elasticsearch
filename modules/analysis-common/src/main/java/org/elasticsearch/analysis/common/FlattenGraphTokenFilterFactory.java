@@ -26,4 +26,9 @@ public class FlattenGraphTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new FlattenGraphFilter(tokenStream);
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

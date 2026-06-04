@@ -20,9 +20,11 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -44,6 +46,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
+    private final Object sharingKey;
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -84,6 +87,14 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
+        // protected_words_case toggles case-insensitive matching of the protected set; it changes
+        // behavior but not the set's stored content, so it must be part of the sharing key.
+        boolean protectedWordsCase = settings.getAsBoolean("protected_words_case", false);
+        this.sharingKey = new Key(
+            charTypeTable,
+            flags,
+            protoWords == null ? null : new Analysis.StableCharArraySet(protoWords, protectedWordsCase)
+        );
     }
 
     @Override
@@ -94,6 +105,32 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     @Override
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
+    }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    /** Custom equals/hashCode to compare byte[] by content. */
+    private record Key(byte[] charTypeTable, int flags, Analysis.StableCharArraySet protoWords) {
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof Key other) {
+                return flags == other.flags
+                    && Objects.equals(protoWords, other.protoWords)
+                    && Arrays.equals(charTypeTable, other.charTypeTable);
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(charTypeTable) * 31 + flags * 17 + Objects.hashCode(protoWords);
+        }
     }
 
     public static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {

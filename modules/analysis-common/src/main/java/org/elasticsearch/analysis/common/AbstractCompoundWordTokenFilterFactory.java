@@ -30,6 +30,7 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final CharArraySet wordList;
     // TODO expose this parameter?
     protected final boolean reuseChars;
+    protected final Analysis.StableCharArraySet wordListKey;
 
     protected AbstractCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -44,6 +45,11 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         if (wordList == null) {
             throw new IllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }
+        // word_list_case toggles case-insensitive matching of the dictionary; it changes behavior
+        // but not the set's stored content, so it must be part of the sharing key (the subclasses
+        // fold wordListKey into their Key records).
+        boolean wordListCase = settings.getAsBoolean("word_list_case", false);
+        wordListKey = new Analysis.StableCharArraySet(wordList, wordListCase);
     }
 
     @Override

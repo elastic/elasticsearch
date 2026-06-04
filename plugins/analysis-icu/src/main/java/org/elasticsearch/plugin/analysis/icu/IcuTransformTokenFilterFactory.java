@@ -50,4 +50,11 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
         return new ICUTransformFilter(tokenStream, transliterator);
     }
 
+    @Override
+    public Object sharingKey() {
+        // Transliterator is an opaque ICU object without a stable equals/hashCode contract,
+        // so we use identity equality via the instance reference itself.
+        return transliterator;
+    }
+
 }

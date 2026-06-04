@@ -34,6 +34,8 @@ public class SmartChineseStopTokenFilterFactory extends AbstractTokenFilterFacto
 
     private final boolean removeTrailing;
 
+    private final Object sharingKey;
+
     public SmartChineseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
@@ -46,6 +48,7 @@ public class SmartChineseStopTokenFilterFactory extends AbstractTokenFilterFacto
             NAMED_STOP_WORDS,
             ignoreCase
         );
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), ignoreCase, removeTrailing);
     }
 
     @Override
@@ -56,5 +59,12 @@ public class SmartChineseStopTokenFilterFactory extends AbstractTokenFilterFacto
             return new SuggestStopFilter(tokenStream, stopWords);
         }
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet stopWords, boolean ignoreCase, boolean removeTrailing) {}
 
 }

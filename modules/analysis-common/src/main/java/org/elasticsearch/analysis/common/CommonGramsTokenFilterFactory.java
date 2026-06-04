@@ -28,6 +28,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean queryMode;
 
+    private final Object sharingKey;
+
     CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
@@ -39,6 +41,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
                 "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter"
             );
         }
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(words), ignoreCase, queryMode);
     }
 
     @Override
@@ -55,4 +58,11 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet words, boolean ignoreCase, boolean queryMode) {}
 }

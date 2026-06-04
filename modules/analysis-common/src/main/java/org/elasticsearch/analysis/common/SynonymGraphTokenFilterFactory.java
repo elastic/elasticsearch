@@ -57,6 +57,7 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         return buildChainedFactory(
             name(),
+            sharingKey(),
             synonyms,
             analysisMode,
             rulesReader.resources(),

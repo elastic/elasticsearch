@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -181,6 +183,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
+    private final Object sharingKey;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -205,6 +208,66 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
         this.circuitBreaker = circuitBreaker;
+        this.sharingKey = buildSharingKey();
+    }
+
+    /**
+     * Snapshot the resource identity at construction time so {@link #sharingKey()} returns a stable
+     * value that encodes "which rules will this factory load".
+     *
+     * <p>Updateable (search-time) synonyms are identified by their source inputs alone — set names
+     * or file path — and deliberately NOT by a content version. There is a single shared live
+     * instance per recipe on the node, and {@code _reload_search_analyzers} refreshes that one
+     * instance in place for every sharer. This is safe because these filters are search-time only
+     * (the mapping layer rejects them as the index-time analyzer) and the underlying resource is
+     * cluster-global, so reload can only change query-time tokenization, never indexed data.
+     *
+     * <p>Non-updateable file synonyms are the exception: they are applied at index time and baked
+     * into the segments, so two indices built from different file contents must NOT share. Those
+     * keep a content stamp (mtime+size) in the key.
+     */
+    private Object buildSharingKey() {
+        Object resourceStamp = switch (synonymsSource) {
+            // INLINE rules live in settings; capture them explicitly here so the key owns every
+            // behavior-affecting input rather than leaning on the raw Settings blob. The raw list
+            // is sufficient: identical inline rules build an identical SynonymMap. Settings#getAsList
+            // returns an immutable List<String> with stable equals/hashCode.
+            case INLINE -> settings.getAsList(SynonymsSource.INLINE.getSettingName());
+            // synonyms_set is always search-time (rejected otherwise), hence updateable: identify the
+            // recipe by its set names. Reload re-reads the .synonyms index for the shared instance.
+            case INDEX -> settings.getAsList(SynonymsSource.INDEX.getSettingName()).stream().sorted().toList();
+            // synonyms_path: updateable (search-time) files share by path and refresh on reload.
+            // Non-updateable files are baked in at index time, so stamp their content (mtime+size)
+            // to keep indices built from different file contents on distinct cache entries.
+            case LOCAL_FILE -> {
+                String path = settings.get(SynonymsSource.LOCAL_FILE.getSettingName());
+                if (path == null) {
+                    yield null;
+                }
+                if (analysisMode == AnalysisMode.SEARCH_TIME) {
+                    yield path;
+                }
+                Path resolved = environment.configDir().resolve(path);
+                try {
+                    yield new FileStamp(path, Files.getLastModifiedTime(resolved).toMillis(), Files.size(resolved));
+                } catch (IOException e) {
+                    yield new FileStamp(path, -1, -1);
+                }
+            }
+        };
+        // No need to fold the factory class in here: AnalysisRegistry keys every chain slot by
+        // (factory class, sharingKey()), so SynonymGraphTokenFilterFactory — which inherits this
+        // method — can never collide with synonym even though they share this Key shape.
+        return new Key(synonymsSource, format, expand, lenient, analysisMode, resourceStamp);
+    }
+
+    private record FileStamp(String path, long mtime, long size) {}
+
+    private record Key(SynonymsSource source, String format, boolean expand, boolean lenient, AnalysisMode mode, Object resourceStamp) {}
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
     }
 
     @Override
@@ -228,7 +291,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resources(), ts -> new SynonymFilter(ts, synonyms, false));
+        return buildChainedFactory(
+            name(),
+            sharingKey(),
+            synonyms,
+            analysisMode,
+            rulesReader.resources(),
+            ts -> new SynonymFilter(ts, synonyms, false)
+        );
     }
 
     /**
@@ -237,6 +307,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
      */
     protected static TokenFilterFactory buildChainedFactory(
         String name,
+        Object outerSharingKey,
         SynonymMap synonyms,
         AnalysisMode analysisMode,
         Set<String> resourceNames,
@@ -279,6 +350,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             @Override
             public Set<String> getResourceNames() {
                 return resourceNames;
+            }
+
+            @Override
+            public Object sharingKey() {
+                // Propagate the outer factory's sharing key. AnalyzerComponents stores chain-aware
+                // wrapped factories (this anonymous class), so the cache must key on the same value
+                // the outer factory reports — otherwise an analyzer wrapping its synonym filter
+                // would never match the recipe computed from the un-wrapped factory chain.
+                return outerSharingKey;
             }
         };
     }

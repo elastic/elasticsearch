@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.Analysis;
 import org.xml.sax.InputSource;
 
 import java.io.InputStream;
@@ -31,6 +32,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     private final boolean noSubMatches;
     private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
+    private final Object sharingKey;
 
     HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
@@ -51,6 +53,28 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
         noSubMatches = settings.getAsBoolean("no_sub_matches", false);
         noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
+        // Capture a file stamp at construction so the cache invalidates if the hyphenation file
+        // changes between index opens. HyphenationTree itself has no stable equality.
+        Object fileStamp;
+        try {
+            fileStamp = new FileStamp(
+                hyphenationPatternsPath,
+                Files.getLastModifiedTime(hyphenationPatternsFile).toMillis(),
+                Files.size(hyphenationPatternsFile)
+            );
+        } catch (Exception e) {
+            fileStamp = new FileStamp(hyphenationPatternsPath, -1, -1);
+        }
+        this.sharingKey = new Key(
+            minWordSize,
+            minSubwordSize,
+            maxSubwordSize,
+            onlyLongestMatch,
+            wordListKey,
+            noSubMatches,
+            noOverlappingMatches,
+            fileStamp
+        );
     }
 
     @Override
@@ -67,4 +91,22 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             noOverlappingMatches
         );
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record FileStamp(String path, long mtime, long size) {}
+
+    private record Key(
+        int minWordSize,
+        int minSubwordSize,
+        int maxSubwordSize,
+        boolean onlyLongestMatch,
+        Analysis.StableCharArraySet wordList,
+        boolean noSubMatches,
+        boolean noOverlappingMatches,
+        Object hyphenationFile
+    ) {}
 }

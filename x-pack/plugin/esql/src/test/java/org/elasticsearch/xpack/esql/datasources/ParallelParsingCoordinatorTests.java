@@ -32,7 +32,9 @@ import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -1198,6 +1200,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * Minimal SegmentableFormatReader that scans for newlines.
      */
     private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final long minSegmentSize;
 
@@ -1244,6 +1250,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
     private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
 
@@ -1365,6 +1375,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * observe whether parallel-parsing worker threads can reach a bound sink.
      */
     private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final LineFormatReader delegate;
         private final String path;
@@ -1453,6 +1467,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * parsing.
      */
     private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
@@ -1528,6 +1546,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final BlockFactory blockFactory;
         private final int failAfterLines;

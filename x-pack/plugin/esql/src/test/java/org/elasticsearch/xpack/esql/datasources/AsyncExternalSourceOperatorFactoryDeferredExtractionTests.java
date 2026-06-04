@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -360,6 +362,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      */
     private static final class NonProducerAwareReader implements NoConfigFormatReader, ColumnExtractorAware {
         @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;
         }
@@ -568,6 +575,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * — the shape a reader produces when every data column has been moved to deferred extraction.
      */
     private static final class RowPositionOnlyReader implements NoConfigFormatReader, ColumnExtractorAware {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         private final AtomicInteger extractorsCreated;
         private final int rows;
 
@@ -653,6 +665,10 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
      * the assigned extractor id into the high bits before downstream operators see it.
      */
     private static final class FormatReader_RowPositionEmitting implements NoConfigFormatReader, ColumnExtractorAware {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
 
         private final AtomicInteger readCount;
         private final AtomicInteger extractorsCreated;
@@ -751,6 +767,11 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     /** Same shape as the row-position emitting reader minus the {@link ColumnExtractorAware} mixin. */
     private static final class PlainFormatReader implements NoConfigFormatReader {
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;

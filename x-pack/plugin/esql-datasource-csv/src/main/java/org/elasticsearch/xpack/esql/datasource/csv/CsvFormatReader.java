@@ -52,7 +52,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -1188,6 +1190,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public AggregatePushdownSupport aggregatePushdownSupport() {
         return new TextAggregatePushdownSupport();
+    }
+
+    @Override
+    public RowPositionStrategy rowPositionStrategy() {
+        // CSV's per-batch CsvBatchIterator fills the {@code _rowPosition} slot natively from the
+        // file-global byte offset computed at record-read time (see {@link CsvBatchIterator#rowStartBytes}).
+        return PassThroughRowPositionStrategy.INSTANCE;
     }
 
     @Override

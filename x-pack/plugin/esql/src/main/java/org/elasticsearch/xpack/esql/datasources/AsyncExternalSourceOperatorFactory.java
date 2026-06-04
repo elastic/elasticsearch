@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -928,6 +929,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Applies the reader's {@link RowPositionStrategy} to {@code pages}. The strategy decides whether
+     * the inner iterator already carries the {@code _rowPosition} column ({@link
+     * org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy} — no-op), needs a
+     * NULL splice ({@link org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy}),
+     * or some future shape. The dispatcher does not switch on reader type: it asks the reader for its
+     * strategy and invokes {@code apply} polymorphically.
+     */
+    private static CloseableIterator<Page> applyRowPositionStrategy(
+        FormatReader reader,
+        CloseableIterator<Page> pages,
+        List<String> projectedColumns
+    ) {
+        // Pre-compute the slot index once per reader.read() — strategies inspect a primitive
+        // instead of walking projectedColumns per apply(). Returns -1 when _rowPosition is not
+        // in the projection, which strategies short-circuit on.
+        int rowPositionSlot = SyntheticColumns.rowPositionIndexInNames(projectedColumns);
+        return reader.rowPositionStrategy().apply(pages, rowPositionSlot);
+    }
+
+    /**
      * Translates the unified query projection (column names in unified-schema shape, identical for every
      * file in the query) into a per-file query projection (the subset present in this file's schema,
      * ordered to match the file's natural layout).
@@ -1580,6 +1601,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
+                pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
                 state.currentObject = obj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
@@ -1668,6 +1690,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
+            pages = applyRowPositionStrategy(rangeReader, pages, cols);
             state.pages = pages;
             return true;
         } catch (Exception e) {
@@ -1758,6 +1781,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
+            pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
             pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
@@ -1809,7 +1833,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
-            consumePagesInBackground(iterator, buffer, driverContext, storageObject, projectedColumns);
+            CloseableIterator<Page> wrapped = applyRowPositionStrategy(reader, iterator, projectedColumns);
+            consumePagesInBackground(wrapped, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
@@ -1855,6 +1880,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
+            pages = applyRowPositionStrategy(reader, pages, projectedColumns);
             pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
             // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline

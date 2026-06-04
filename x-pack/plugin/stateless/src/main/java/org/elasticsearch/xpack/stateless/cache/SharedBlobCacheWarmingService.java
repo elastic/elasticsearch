@@ -871,14 +871,14 @@ public class SharedBlobCacheWarmingService {
         if (shardsOnSource <= 0) {
             shardsOnSource = 1;
         }
-        int relocationsToTarget = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
+        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
         // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
-        if (relocationsToTarget <= 0) {
-            relocationsToTarget = 1;
+        if (ongoingRelocations <= 0) {
+            ongoingRelocations = 1;
         }
         final double timeoutMs = (remaining / (double) shardsOnSource)
             * searchRecoveryWarmingSourceShutdownShareFactor
-            * relocationsToTarget;
+            * ongoingRelocations;
         return TimeValue.timeValueMillis(Math.round(timeoutMs));
     }
 

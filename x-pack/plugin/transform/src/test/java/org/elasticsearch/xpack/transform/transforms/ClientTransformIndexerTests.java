@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -100,6 +99,7 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -336,7 +336,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             var client = new PitMockClient(threadPool, false);
             var configManager = mock(IndexBasedTransformConfigManager.class);
-            var freshlyLoaded = new PersistedCloudCredential("k2", new SecureString("v".toCharArray()));
+            var freshlyLoaded = randomPersistedCloudCredential("k2");
             doAnswer(invocation -> {
                 ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
                 l.onResponse(freshlyLoaded);
@@ -357,7 +357,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             var context = mock(TransformContext.class);
-            var displaced = new PersistedCloudCredential("k1", new SecureString("v".toCharArray()));
+            var displaced = randomPersistedCloudCredential("k1");
             when(context.replacePersistedCredential(eq(freshlyLoaded))).thenReturn(displaced);
 
             var indexer = new MockClientTransformIndexer(

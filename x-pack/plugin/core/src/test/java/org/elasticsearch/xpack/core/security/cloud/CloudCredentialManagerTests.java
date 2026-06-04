@@ -21,6 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CloudCredentialManagerTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
     }
 
     public void testNoopResolverOfPersistedThrows() {
-        var persisted = new PersistedCloudCredential("an-id", new CloudCredentialEncryptedData("key-1", new byte[29]));
+        var persisted = randomPersistedCloudCredential();
         expectThrows(UnsupportedOperationException.class, () -> manager.resolverOf(persisted));
     }
 
@@ -76,7 +77,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
             // not crash a request path that carries a dormant persisted credential from a
             // previously-active config.
             var credential = new CloudCredential(new SecureString("v".toCharArray()));
-            var persisted = new PersistedCloudCredential("an-id", new CloudCredentialEncryptedData("key-1", new byte[29]));
+            var persisted = randomPersistedCloudCredential();
             CloudCredentialResolver throwingResolver = () -> { throw new AssertionError("resolver must not be invoked on Noop"); };
 
             assertThat(manager.wrapClient(delegate, throwingResolver), sameInstance(delegate));

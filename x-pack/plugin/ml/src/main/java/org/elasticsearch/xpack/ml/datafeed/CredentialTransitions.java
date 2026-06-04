@@ -195,12 +195,10 @@ public final class CredentialTransitions {
         }
         apiKeyServiceSupplier.get().revokeCloudAuthentication(cred, ActionListener.wrap(ignored -> {
             auditor.info(config.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED));
-            cred.close();
             continuation.run();
         }, e -> {
             logger.warn(() -> "[" + datafeedId + "] Failed to revoke internal cloud API key [" + cred.id() + "] on datafeed delete", e);
             auditor.info(config.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED, cred.id()));
-            cred.close();
             continuation.run();
         }));
     }
@@ -283,11 +281,9 @@ public final class CredentialTransitions {
             }
             apiKeyServiceSupplier.get().revokeCloudAuthentication(minted, ActionListener.wrap(ignored -> {
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED));
-                minted.close();
                 listener.onFailure(e);
             }, revokeFailure -> {
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED, minted.id()));
-                minted.close();
                 listener.onFailure(e);
             }));
         });
@@ -348,7 +344,6 @@ public final class CredentialTransitions {
     ) {
         apiKeyServiceSupplier.get().revokeCloudAuthentication(oldCredential, ActionListener.wrap(ignored -> {
             auditor.info(patchedConfig.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED));
-            oldCredential.close();
             listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
         }, e -> {
             logger.warn(() -> "[" + datafeedId + "] Failed to revoke superseded internal cloud API key [" + oldCredential.id() + "]", e);
@@ -356,7 +351,6 @@ public final class CredentialTransitions {
                 patchedConfig.getJobId(),
                 Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED, oldCredential.id())
             );
-            oldCredential.close();
             listener.onResponse(new PutDatafeedAction.Response(patchedConfig));
         }));
     }
@@ -468,11 +462,9 @@ public final class CredentialTransitions {
             delegate::onResponse,
             e -> apiKeyServiceSupplier.get().revokeCloudAuthentication(mintedCredential, ActionListener.wrap(ignored -> {
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOKED));
-                mintedCredential.close();
                 delegate.onFailure(e);
             }, revokeFailure -> {
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_KEY_REVOCATION_FAILED, mintedCredential.id()));
-                mintedCredential.close();
                 delegate.onFailure(e);
             }))
         );

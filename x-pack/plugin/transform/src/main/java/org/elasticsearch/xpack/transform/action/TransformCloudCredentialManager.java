@@ -83,19 +83,15 @@ public class TransformCloudCredentialManager {
     /**
      * Converts a {@link PersistedCloudCredential} (internal API key from storage) into a
      * {@link CloudCredential} suitable for attaching to a validate-transform request payload.
-     * Closes {@code persisted} after conversion — the returned credential is owned by the caller
-     * and must be closed via {@link ActionListener#releaseAfter} on the validate request.
+     * The returned credential is owned by the caller and must be closed via
+     * {@link ActionListener#releaseAfter} on the validate request.
      */
     @Nullable
     public CloudCredential cloudCredentialFromPersisted(@Nullable PersistedCloudCredential persisted) {
         if (persisted == null) {
             return null;
         }
-        try {
-            return credentialManager.resolverOf(persisted).resolve();
-        } finally {
-            persisted.close();
-        }
+        return credentialManager.resolverOf(persisted).resolve();
     }
 
     /**
@@ -175,17 +171,13 @@ public class TransformCloudCredentialManager {
                 logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
                 configManager.putTransformCloudCredential(transformId, persisted, ActionListener.wrap(success -> {
-                    // Close the SecureString now that the id has been persisted.
-                    try (persisted) {
-                        auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
-                        l.onResponse(persisted.id());
-                    }
+                    auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
+                    l.onResponse(persisted.id());
                 }, persistFailure -> {
-                    // The UIAM grant succeeded but the storage write failed. Revoke at UIAM so
-                    // the token doesn't exist with no config reference and no storage doc.
-                    // revokeAndClose owns the close of persisted; callers are still notified of
-                    // the original failure and may also attempt their own compensating cleanup,
-                    // which is fine because UIAM revoke is idempotent.
+                    // The UIAM grant succeeded but the storage write failed. Revoke at UIAM so the
+                    // token doesn't exist with no config reference and no storage doc. Callers are
+                    // still notified of the original failure and may also attempt their own
+                    // compensating cleanup, which is fine because UIAM revoke is idempotent.
                     logger.warn(
                         () -> "[" + transformId + "] persist of cloud credential [" + persisted.id() + "] failed; revoking at UIAM",
                         persistFailure
@@ -198,37 +190,33 @@ public class TransformCloudCredentialManager {
     }
 
     /**
-     * Revokes the given persisted cloud credential with UIAM and closes its {@code SecureString}.
-     * Fire-and-forget: failures are logged + audited but not propagated to the caller, because the
-     * serverless revoke API is idempotent so a future retry / GC sweep can still clean up. No-op
-     * for null credentials and when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off (the
+     * Revokes the given persisted cloud credential with UIAM. Fire-and-forget: failures are logged
+     * + audited but not propagated to the caller, because the serverless revoke API is idempotent so
+     * a future retry / GC sweep can still clean up. No-op for null credentials and when the
+     * {@code TRANSFORM_CROSS_PROJECT} feature flag is off (the
      * {@link InternalCloudApiKeyService.Default} implementation throws
      * {@link UnsupportedOperationException} on revoke).
      *
      * <p>The {@code transformId} is used for the audit row attribution.
      */
     public void revokeAndClose(String transformId, @Nullable PersistedCloudCredential credential) {
-        if (credential == null) {
-            return;
-        }
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            credential.close();
+        if (credential == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
             return;
         }
         String credId = credential.id();
-        apiKeyService.revokeCloudAuthentication(credential, ActionListener.releaseAfter(ActionListener.wrap(unused -> {
+        apiKeyService.revokeCloudAuthentication(credential, ActionListener.wrap(unused -> {
             logger.debug("[{}] revoked cloud credential [{}]", transformId, credId);
             auditor.info(transformId, "revoked cloud credential [" + credId + "]");
         }, e -> {
             logger.warn(() -> "[" + transformId + "] failed to revoke cloud credential [" + credId + "]", e);
             auditor.warning(transformId, "failed to revoke cloud credential [" + credId + "]: " + e.getMessage());
-        }), credential));
+        }));
     }
 
     /**
-     * Revokes the given in-memory persisted credential at UIAM, deletes its storage doc, and closes
-     * its {@code SecureString}. Fire-and-forget: failures are logged but not propagated. Use this
-     * in the indexer's credential-swap path where the caller already holds the displaced
+     * Revokes the given in-memory persisted credential at UIAM and deletes its storage doc.
+     * Fire-and-forget: failures are logged but not propagated. Use this in the indexer's
+     * credential-swap path where the caller already holds the displaced
      * {@link PersistedCloudCredential} object (so no redundant storage read is needed). No-op for
      * null credentials and when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off.
      *
@@ -236,15 +224,11 @@ public class TransformCloudCredentialManager {
      * @param credential  the displaced credential to revoke + delete; null is silently ignored
      */
     public void revokeCloseAndDelete(String transformId, @Nullable PersistedCloudCredential credential) {
-        if (credential == null) {
-            return;
-        }
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            credential.close();
+        if (credential == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
             return;
         }
         String credId = credential.id();
-        apiKeyService.revokeCloudAuthentication(credential, ActionListener.releaseAfter(ActionListener.wrap(unused -> {
+        apiKeyService.revokeCloudAuthentication(credential, ActionListener.wrap(unused -> {
             logger.debug("[{}] revoked cloud credential [{}]", transformId, credId);
             auditor.info(transformId, "revoked cloud credential [" + credId + "]");
             configManager.deleteCloudCredentialByTokenId(
@@ -261,7 +245,7 @@ public class TransformCloudCredentialManager {
             logger.warn(() -> "[" + transformId + "] failed to revoke cloud credential [" + credId + "]", e);
             auditor.warning(transformId, "failed to revoke cloud credential [" + credId + "]: " + e.getMessage());
             // Leave the storage doc in place so the startup sweep or delete API can retry.
-        }), credential));
+        }));
     }
 
     /**

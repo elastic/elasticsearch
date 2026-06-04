@@ -307,7 +307,7 @@ public class TransformContext {
 
     /**
      * Atomically replaces the held active credential with {@code next} and returns the
-     * previously-held credential for the caller to revoke + close. Returns {@code null} if there
+     * previously-held credential for the caller to revoke. Returns {@code null} if there
      * was no prior credential.
      */
     @Nullable
@@ -316,16 +316,13 @@ public class TransformContext {
     }
 
     /**
-     * Releases the held active cloud credential. Idempotent. Does NOT revoke with UIAM — shutdown
-     * may be transient (node restart) and the credential may still be valid; revocation happens
-     * at delete time and after a successful rotation swap (see
+     * Clears the reference to the held active cloud credential. Idempotent. Does NOT revoke with
+     * UIAM — shutdown may be transient (node restart) and the credential may still be valid;
+     * revocation happens at delete time and after a successful rotation swap (see
      * {@code ClientTransformIndexer.doMaybeRefreshCloudToken}).
      */
     void close() {
-        PersistedCloudCredential prevActive = replacePersistedCredential(null);
-        if (prevActive != null) {
-            prevActive.close();
-        }
+        replacePersistedCredential(null);
     }
 
     void shutdown() {

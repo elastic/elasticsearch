@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -83,6 +82,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -481,7 +481,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
         var transformId = "testCloudCredentialLoad";
-        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var persisted = randomPersistedCloudCredential("an-id");
         var transformsConfigManager = new InMemoryTransformConfigManager();
         transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
 
@@ -502,7 +502,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
         var transformId = "testCloudCredentialRetry";
-        var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
+        var persisted = randomPersistedCloudCredential("an-id");
         // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
         // retry path and (b) the scheduler-driven retry's first attempt failing — which flips the
         // task into "Retrying transform start." state.
@@ -558,21 +558,9 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         var configManager = new InMemoryTransformConfigManager();
         // prime with three credentials: one active, two dangling
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(activeId, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(danglingId1, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
-        configManager.putTransformCloudCredential(
-            transformId,
-            new PersistedCloudCredential(danglingId2, new SecureString("k".toCharArray())),
-            ActionListener.noop()
-        );
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(activeId), ActionListener.noop());
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(danglingId1), ActionListener.noop());
+        configManager.putTransformCloudCredential(transformId, randomPersistedCloudCredential(danglingId2), ActionListener.noop());
         putTransformConfiguration(configManager, transformId, activeId);
 
         // mock apiKeyService so revoke calls succeed
@@ -630,7 +618,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 listener.onFailure(new IllegalStateException("index unavailable"));
             }
         };
-        var persisted = new PersistedCloudCredential(activeId, new SecureString("k".toCharArray()));
+        var persisted = randomPersistedCloudCredential(activeId);
         configManager.putTransformCloudCredential(transformId, persisted, ActionListener.noop());
         putTransformConfiguration(configManager, transformId, activeId);
 

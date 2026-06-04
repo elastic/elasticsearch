@@ -64,7 +64,7 @@ public class PersistedCloudCredentialTests extends ESTestCase {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, v1Json)) {
             // ConstructingObjectParser wraps constructor exceptions in XContentParseException
             XContentParseException ex = expectThrows(XContentParseException.class, () -> PersistedCloudCredential.fromXContent(parser));
-            assertThat(ex.getCause().getMessage(), containsString("unsupported PersistedCloudCredential at-rest version [1]"));
+            assertThat(ex.getCause().getMessage(), containsString("unsupported at-rest version [1]"));
         }
     }
 

@@ -42,7 +42,6 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField ENCRYPTED_FIELD = new ParseField("encrypted");
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PersistedCloudCredential, Void> PARSER = new ConstructingObjectParser<>(
         "persisted_cloud_credential",
         true,
@@ -50,12 +49,12 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
             int version = (int) args[0];
             if (version != CURRENT_VERSION) {
                 throw new IllegalStateException(
-                    "unsupported PersistedCloudCredential at-rest version [" + version + "]; only [" + CURRENT_VERSION + "] is supported"
+                    "unsupported at-rest version [" + version + "]; only [" + CURRENT_VERSION + "] is supported"
                 );
             }
             CloudCredentialEncryptedData encrypted = (CloudCredentialEncryptedData) args[2];
             if (encrypted == null) {
-                throw new IllegalStateException("PersistedCloudCredential v2 requires [encrypted] field");
+                throw new IllegalStateException("encrypted field is required");
             }
             return new PersistedCloudCredential((String) args[1], encrypted);
         }
@@ -82,7 +81,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         this.id = in.readString();
         this.encrypted = switch (wireVersion) {
             case 2 -> new CloudCredentialEncryptedData(in);
-            default -> throw new IllegalStateException("unsupported PersistedCloudCredential wire version [" + wireVersion + "]");
+            default -> throw new IllegalStateException("unsupported wire version [" + wireVersion + "]");
         };
         this.version = CURRENT_VERSION;
     }
@@ -103,7 +102,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(CLOUD_CREDENTIAL_ENCRYPTION) == false) {
             throw new IllegalStateException(
-                "cannot serialize PersistedCloudCredential to a peer that does not support transport version ["
+                "cannot serialize to a peer that does not support transport version ["
                     + CLOUD_CREDENTIAL_ENCRYPTION
                     + "]; ensure all nodes are upgraded before publishing cloud credentials"
             );

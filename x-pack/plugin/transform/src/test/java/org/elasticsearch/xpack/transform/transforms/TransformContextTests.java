@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
@@ -20,6 +19,7 @@ import org.junit.Before;
 
 import java.time.Instant;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -204,13 +204,9 @@ public class TransformContextTests extends ESTestCase {
         assertThat(context.getPersistedCloudCredential(), is(sameInstance(first)));
 
         var second = randomPersistedCloudCredential();
-        // replace returns the displaced credential; caller is responsible for closing it
+        // replace returns the displaced credential; the caller is responsible for revoking it
         assertThat(context.replacePersistedCredential(second), is(sameInstance(first)));
         assertThat(context.getPersistedCloudCredential(), is(sameInstance(second)));
-
-        // replacement does NOT eagerly close — verify the displaced is still usable
-        assertThat(first.internalApiKey().length(), is(equalTo("v".length())));
-        first.close();
     }
 
     public void testCloseClearsActive() {
@@ -221,8 +217,6 @@ public class TransformContextTests extends ESTestCase {
         context.close();
 
         assertThat(context.getPersistedCloudCredential(), is(nullValue()));
-        // SecureString was closed; subsequent length() throws
-        expectThrows(IllegalStateException.class, () -> active.internalApiKey().length());
     }
 
     public void testReplacePersistedCredentialIsAtomicUnderContention() throws Exception {
@@ -266,9 +260,5 @@ public class TransformContextTests extends ESTestCase {
         int expected = threadCount * perThread;
         int accounted = displaced.size() + (held == null ? 0 : 1);
         assertThat(accounted, equalTo(expected));
-    }
-
-    private static PersistedCloudCredential randomPersistedCloudCredential() {
-        return new PersistedCloudCredential(randomAlphaOfLengthBetween(4, 12), new SecureString("v".toCharArray()));
     }
 }

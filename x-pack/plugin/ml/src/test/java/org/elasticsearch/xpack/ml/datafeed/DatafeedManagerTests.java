@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -318,7 +319,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("minted-key-id-2", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id-2");
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
@@ -393,7 +394,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("minted-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("minted-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
@@ -463,7 +464,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("test-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("new-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("new-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
         mockRevokeSucceeds(apiKeyService);
 
@@ -521,7 +522,7 @@ public class DatafeedManagerTests extends ESTestCase {
         CloudCredential extractedCredential = new CloudCredential(new SecureString("test-token".toCharArray()));
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
 
-        PersistedCloudCredential persisted = new PersistedCloudCredential("update-key-id", new SecureString("secret".toCharArray()));
+        PersistedCloudCredential persisted = randomPersistedCloudCredential("update-key-id");
         mockGrantSucceeds(apiKeyService, persisted);
         mockRevokeSucceeds(apiKeyService);
         mockSearchProbeSucceeds(credentialManager, client);
@@ -806,7 +807,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(true);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("existing-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("existing-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -869,7 +870,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("old-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -978,7 +979,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         when(credentialManager.hasCloudManagedCredential(any())).thenReturn(false);
 
-        PersistedCloudCredential existingCred = new PersistedCloudCredential("old-key-id", new SecureString("e".toCharArray()));
+        PersistedCloudCredential existingCred = randomPersistedCloudCredential("old-key-id");
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
         withCpsSearchSurface(existingBuilder);
@@ -1202,7 +1203,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         mockSearchProbeSucceeds(credentialManager, client);
-        PersistedCloudCredential minted = new PersistedCloudCredential("minted-key", new SecureString("s".toCharArray()));
+        PersistedCloudCredential minted = randomPersistedCloudCredential("minted-key");
         mockGrantSucceeds(apiKeyService, minted);
         mockRevokeSucceeds(apiKeyService);
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingBuilder.build(), new RuntimeException("persist failed"));

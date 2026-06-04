@@ -10,17 +10,16 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -122,9 +121,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
             leaderClient().prepareIndex(leaderIndex).setSource("f", i).get();
         }
         // Empty follower primaries must be assigned to nodes with the remote cluster client role
-        awaitFollowerClusterState(
-            state -> followerPrimariesOnNodes(state, followerIndex, dataAndRemoteNodes)
-        );
+        awaitFollowerClusterState(state -> followerPrimariesOnNodes(state, followerIndex, dataAndRemoteNodes));
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin()
             .indices()

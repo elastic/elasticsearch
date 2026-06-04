@@ -230,6 +230,27 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
+fieldExtractFromLookupJoinFlattenedField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_otel_logs
+| EVAL host_name = field_extract(resource.attributes, "host.name")
+| LOOKUP JOIN host_info_lookup ON host_name
+| EVAL team = field_extract(info, "team")
+| WHERE team IS NOT NULL
+| SORT @timestamp
+| LIMIT 3
+| KEEP @timestamp, host_name, team
+;
+
+@timestamp:date          | host_name:keyword                                | team:keyword
+2020-01-01T00:00:00.000Z | equal-host                                       | dev
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr                             | infra
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal | devops
+;
+
 // host.ip stores multiple values for this @timestamp. Both the block-loader pushdown and
 // the per-row parse path produce a real multi-value keyword block, so MV_COUNT reports the
 // number of values regardless of which path runs.

@@ -1702,6 +1702,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
                 }
+                if (logical instanceof LogicalTypeAnnotation.BsonLogicalTypeAnnotation) {
+                    yield DataType.UNSUPPORTED;
+                }
                 yield DataType.KEYWORD;
             }
             default -> DataType.UNSUPPORTED;

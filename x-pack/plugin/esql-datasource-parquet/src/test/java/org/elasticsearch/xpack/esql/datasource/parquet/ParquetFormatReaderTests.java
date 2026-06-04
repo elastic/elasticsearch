@@ -1306,6 +1306,51 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- JSON/BSON logical type tests ---
+
+    public void testJsonLogicalType() throws Exception {
+        // BINARY + JSON annotation: UTF-8 encoded JSON string, maps to KEYWORD.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.jsonType())
+            .named("payload")
+            .named("test_schema");
+
+        byte[] jsonBytes = "{\"x\":1}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("payload", Binary.fromConstantByteArray(jsonBytes))));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("JSON annotation should map to KEYWORD", DataType.KEYWORD, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef(jsonBytes), block.getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testBsonLogicalType() throws Exception {
+        // BINARY + BSON annotation: opaque binary, not human-readable — maps to UNSUPPORTED.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.bsonType())
+            .named("doc")
+            .named("test_schema");
+
+        StorageObject so = createStorageObject(
+            createParquetFile(schema, f -> List.of(f.newGroup().append("doc", Binary.fromConstantByteArray(new byte[] { 0x05, 0x00 }))))
+        );
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("BSON annotation should map to UNSUPPORTED", DataType.UNSUPPORTED, metadata.schema().get(0).dataType());
+    }
+
     // --- INT96 timestamp tests ---
 
     public void testReadInt96TimestampColumn() throws Exception {

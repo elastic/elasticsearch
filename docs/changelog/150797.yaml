@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 150797
+summary: Share analyzers across indices on a node
+type: enhancement

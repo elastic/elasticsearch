@@ -80,7 +80,8 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
             new NoOpClient(threadPool),
             NamedXContentRegistry.EMPTY
         );
-        ComponentTemplate mappingsTemplate = registry.getComponentTemplateConfigs().get(QueryLoggingTemplateRegistry.QUERY_LOGGING_MAPPINGS_NAME);
+        ComponentTemplate mappingsTemplate = registry.getComponentTemplateConfigs()
+            .get(QueryLoggingTemplateRegistry.QUERY_LOGGING_MAPPINGS_NAME);
         assertNotNull(mappingsTemplate);
         CompressedXContent mappings = mappingsTemplate.template().mappings();
         assertNotNull(mappings);

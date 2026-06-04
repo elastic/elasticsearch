@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -190,11 +190,11 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     public void testGaugeUnsupportedFunctionWrapsCounterWithToGauge() {
         // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
-        AvgOverTime avgOverTime = avgOverTimeFromPromql(
+        Avg avg = avgOverTimeFromPromql(
             "PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (avg_over_time(network.total_bytes_in[10m])))"
         );
 
-        ToGauge toGauge = as(avgOverTime.field(), ToGauge.class);
+        ToGauge toGauge = as(avg.field(), ToGauge.class);
         FieldAttribute field = as(toGauge.field(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.total_bytes_in"));
         assertTrue(isCounter(field.dataType()));
@@ -202,17 +202,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     public void testGaugeUnsupportedFunctionSkipsWrapForPlainNumericInput() {
         // network.cost is mapped as a plain double (k8s-mappings.json)
-        AvgOverTime avgOverTime = avgOverTimeFromPromql("PROMQL index=k8s step=5m avg_cost=(avg_over_time(network.cost[5m]))");
+        Avg avg = avgOverTimeFromPromql("PROMQL index=k8s step=5m avg_cost=(avg_over_time(network.cost[5m]))");
 
-        FieldAttribute field = as(avgOverTime.field(), FieldAttribute.class);
+        FieldAttribute field = as(avg.field(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.cost"));
         assertFalse(isCounter(field.dataType()));
     }
 
-    private AvgOverTime avgOverTimeFromPromql(String query) {
+    private Avg avgOverTimeFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
         TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
-        return tsAggregate.aggregates().getFirst().collect(AvgOverTime.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
     }
 
     /**

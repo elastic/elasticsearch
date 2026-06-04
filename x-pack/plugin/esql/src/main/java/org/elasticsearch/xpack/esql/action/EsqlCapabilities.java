@@ -1328,6 +1328,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME,
+
+        /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
          * (from a subquery in FROM) or a {@code Fork}.
          */
@@ -2260,7 +2265,7 @@ public class EsqlCapabilities {
         TS_COLLAPSE,
 
         /**
-         * Support for`WITHOUT` grouping function
+         * Support for `WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
         ESQL_WITHOUT_GROUPING,
@@ -2769,6 +2774,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         /**
+         * Move rules for TS translation into the Analyzer
+         */
+        TIME_SERIES_TRANSLATION_IN_ANALYZER,
+
+        /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
          * See https://github.com/elastic/elasticsearch/issues/144914
          */
@@ -3022,6 +3032,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
         APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
+
+        /**
+         * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
+         */
+        APPROXIMATION_FIX_MV_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

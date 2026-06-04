@@ -274,6 +274,7 @@ public class CsvTestsDataLoader {
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
         new TestDataset("flattened_typed"),
+        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",

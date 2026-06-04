@@ -155,6 +155,12 @@ tests:
 - class: org.elasticsearch.ingest.geoip.ConsumerAwareIpDatabaseDownloadIT
   method: testConsumerScopedDownloads
   issue: https://github.com/elastic/elasticsearch/issues/150231
+- class: org.elasticsearch.xpack.inference.external.http.HttpClientTests
+  method: testStream_CancelAfterPauseReleasesConnection
+  issue: https://github.com/elastic/elasticsearch/issues/150742
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
+  method: testQuantizedXY
+  issue: https://github.com/elastic/elasticsearch/issues/150782
 
 # Examples:
 #
@@ -635,15 +641,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/150705
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zstd/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150744
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/150708
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/S3]}
   issue: https://github.com/elastic/elasticsearch/issues/150710
-- class: org.elasticsearch.xpack.inference.services.mistral.MistralServiceTests
-  method: testUnifiedCompletionStreamingNotFoundError
-  issue: https://github.com/elastic/elasticsearch/issues/150711
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/150712
@@ -671,3 +677,6 @@ tests:
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/150762
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/LOCAL]}
+  issue: https://github.com/elastic/elasticsearch/issues/150771

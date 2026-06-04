@@ -84,40 +84,48 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
 
     @Override
     public void fetch(ActionListener<CachedToken> listener) {
-        threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                var clientAuth = new ClientSecretBasic(clientId, clientSecret);
-                var request = new TokenRequest.Builder(tokenUri, clientAuth, new ClientCredentialsGrant()).scope(scope).build();
-                var httpRequest = request.toHTTPRequest();
-                httpRequest.setConnectTimeout(oauth2ClusterSettings.connectTimeoutMillis());
-                httpRequest.setReadTimeout(oauth2ClusterSettings.readTimeoutMillis());
-                var response = TokenResponse.parse(httpRequest.send());
-                if (response.indicatesSuccess() == false) {
-                    var errorObject = response.toErrorResponse().getErrorObject();
-                    listener.onFailure(
-                        new ElasticsearchException(
-                            Strings.format(
-                                "Failed to retrieve access token for request for inference id [%s]: [%s] %s",
-                                inferenceId,
-                                errorObject.getCode(),
-                                errorObject.getDescription()
-                            )
-                        )
-                    );
-                    return;
-                }
+        try {
+            threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME).execute(() -> fetchToken(listener));
+        } catch (Exception e) {
+            listener.onFailure(
+                new ElasticsearchException(Strings.format("Failed to execute token fetch for inference id [%s]", inferenceId), e)
+            );
+        }
+    }
 
-                var accessToken = response.toSuccessResponse().getTokens().getAccessToken();
-                var expiresAt = Instant.now(clock).plusSeconds(accessToken.getLifetime());
-                listener.onResponse(new CachedToken(accessToken.getValue(), expiresAt));
-            } catch (Exception e) {
+    private void fetchToken(ActionListener<CachedToken> listener) {
+        try {
+            var clientAuth = new ClientSecretBasic(clientId, clientSecret);
+            var request = new TokenRequest.Builder(tokenUri, clientAuth, new ClientCredentialsGrant()).scope(scope).build();
+            var httpRequest = request.toHTTPRequest();
+            httpRequest.setConnectTimeout(oauth2ClusterSettings.connectTimeoutMillis());
+            httpRequest.setReadTimeout(oauth2ClusterSettings.readTimeoutMillis());
+            var response = TokenResponse.parse(httpRequest.send());
+            if (response.indicatesSuccess() == false) {
+                var errorObject = response.toErrorResponse().getErrorObject();
                 listener.onFailure(
                     new ElasticsearchException(
-                        Strings.format("Failed to retrieve access token for request for inference id [%s]", inferenceId),
-                        e
+                        Strings.format(
+                            "Failed to retrieve access token for request for inference id [%s]: [%s] %s",
+                            inferenceId,
+                            errorObject.getCode(),
+                            errorObject.getDescription()
+                        )
                     )
                 );
+                return;
             }
-        });
+
+            var accessToken = response.toSuccessResponse().getTokens().getAccessToken();
+            var expiresAt = Instant.now(clock).plusSeconds(accessToken.getLifetime());
+            listener.onResponse(new CachedToken(accessToken.getValue(), expiresAt));
+        } catch (Exception e) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    Strings.format("Failed to retrieve access token for request for inference id [%s]", inferenceId),
+                    e
+                )
+            );
+        }
     }
 }

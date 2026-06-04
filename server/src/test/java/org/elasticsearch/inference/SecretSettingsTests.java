@@ -30,7 +30,7 @@ public class SecretSettingsTests extends ESTestCase {
 
     private static final String FIELD = "secret_field";
     private static final String OTHER_FIELD = "other_field";
-    private static final String SCOPE = "service_settings";
+    private static final String SCOPE = "some_scope";
     private static final Set<String> FIELDS = Set.of(FIELD, OTHER_FIELD);
 
     // --- updateOnlyField tests ---

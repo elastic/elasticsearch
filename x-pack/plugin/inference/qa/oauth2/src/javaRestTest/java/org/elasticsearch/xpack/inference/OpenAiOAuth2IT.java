@@ -154,7 +154,11 @@ public class OpenAiOAuth2IT extends InferenceBaseRestTest {
         idp.enqueueCallback(tokenCallback());
         openai.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDINGS_RESPONSE));
         updateEndpoint(ENDPOINT_ID, """
-            { "service_settings": { "client_secret": "secret-b" } }
+            {
+                "service_settings": {
+                    "client_secret": "secret-b"
+                }
+            }
             """, TaskType.TEXT_EMBEDDING);
 
         // Infer #2 — must acquire a fresh token with the rotated secret.

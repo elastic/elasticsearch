@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.WAIT_FOR_UPGRADE_TO_COMPLETE_EXCEPTION;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.waitForUpgradeToCompleteException;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -279,7 +279,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
         } else if (oAuth2Settings != null) {
-            throw WAIT_FOR_UPGRADE_TO_COMPLETE_EXCEPTION;
+            throw waitForUpgradeToCompleteException();
         }
     }
 

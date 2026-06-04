@@ -46,17 +46,19 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final Set<String> REQUIRED_FIELDS = Set.of(CLIENT_ID_FIELD, SCOPES_FIELD);
 
-    public static final ElasticsearchStatusException WAIT_FOR_UPGRADE_TO_COMPLETE_EXCEPTION = new ElasticsearchStatusException(
-        "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
-        RestStatus.BAD_REQUEST
-    );
-
     public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
         "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
             + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
 
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
+
+    public static ElasticsearchStatusException waitForUpgradeToCompleteException() {
+        return new ElasticsearchStatusException(
+            "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
+            RestStatus.BAD_REQUEST
+        );
+    }
 
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.

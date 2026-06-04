@@ -154,10 +154,7 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
     public void testAmbientAuthRejectedWhenClusterSettingDisabled() throws IOException {
         try {
             setAmbientCredentialsEnabled(false);
-            ResponseException ex = expectThrows(
-                ResponseException.class,
-                () -> putAmbientDataSource(DATASOURCE_NAME, fixture.getAddress())
-            );
+            ResponseException ex = expectThrows(ResponseException.class, () -> putAmbientDataSource(DATASOURCE_NAME, fixture.getAddress()));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 org.apache.http.util.EntityUtils.toString(ex.getResponse().getEntity()),
@@ -234,11 +231,7 @@ public class GcsAmbientAuthIT extends ESRestTestCase {
     private static void setAmbientCredentialsEnabled(boolean enabled) throws IOException {
         Request req = new Request("PUT", "/_cluster/settings");
         try (XContentBuilder b = jsonBuilder()) {
-            b.startObject()
-                .startObject("persistent")
-                .field("esql.datasource.ambient_credentials.enabled", enabled)
-                .endObject()
-                .endObject();
+            b.startObject().startObject("persistent").field("esql.datasource.ambient_credentials.enabled", enabled).endObject().endObject();
             req.setJsonEntity(Strings.toString(b));
         }
         Response r = client().performRequest(req);

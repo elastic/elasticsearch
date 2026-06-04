@@ -62,6 +62,7 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -316,12 +317,13 @@ public abstract class TransportReplicationAction<
 
     /**
      * Primary operation on node with primary copy.
+     * <p>
+     * Threading: invoked on the executor returned by {@link #handlerExecutor}.
      *
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
     protected abstract void shardOperationOnPrimary(
-        Task task,
         Request shardRequest,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
@@ -330,6 +332,8 @@ public abstract class TransportReplicationAction<
     /**
      * Execute the specified replica operation. This is done under a permit from
      * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, Executor)}.
+     * <p>
+     * Threading: invoked on the executor returned by {@link #handlerExecutor}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -435,9 +439,31 @@ public abstract class TransportReplicationAction<
         );
         ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
+            logger.debug(
+                () -> format(
+                    "Transport replication action request [%s] for Index shard [%s] is cancelled pre-submission.",
+                    request.getDescription(),
+                    request.getRequest().shardId()
+                )
+            );
+            return;
+        }
+
         handlerExecutor(indexShard).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
+                if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
+                    logger.debug(
+                        () -> format(
+                            "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
+                            request.getDescription(),
+                            request.getRequest().shardId()
+                        )
+                    );
+                    return;
+                }
+
                 new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
             }
 
@@ -509,16 +535,13 @@ public abstract class TransportReplicationAction<
             acquirePrimaryOperationPermit(
                 indexShard,
                 primaryRequest.getRequest(),
-                ActionListener.wrap(
-                    releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable, replicationTask)),
-                    e -> {
-                        if (e instanceof ShardNotInPrimaryModeException) {
-                            onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
-                        } else {
-                            onFailure(e);
-                        }
+                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
+                    if (e instanceof ShardNotInPrimaryModeException) {
+                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
+                    } else {
+                        onFailure(e);
                     }
-                )
+                })
             );
         }
 
@@ -1239,12 +1262,10 @@ public abstract class TransportReplicationAction<
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
-        private final Task task;
 
-        PrimaryShardReference(IndexShard indexShard, Releasable operationLock, Task task) {
+        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
-            this.task = task;
         }
 
         @Override
@@ -1279,7 +1300,7 @@ public abstract class TransportReplicationAction<
                 });
             }
             assert indexShard.getActiveOperationsCount() != 0 : "must perform shard operation under a permit";
-            shardOperationOnPrimary(task, request, indexShard, listener);
+            shardOperationOnPrimary(request, indexShard, listener);
         }
 
         @Override

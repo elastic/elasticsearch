@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleTests;
@@ -24,19 +25,23 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.stateless.IndexShardCacheWarmer;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.junit.AfterClass;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -48,6 +53,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class HollowShardsServiceTests extends ESTestCase {
+
+    private static final TestThreadPool threadPool = new TestThreadPool(HollowShardsServiceTests.class.getName());
+
+    @AfterClass
+    public static void terminateThreadPool() {
+        TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
 
     public void testHollowSetting() throws Exception {
         var testHarness = TestHarness.create(
@@ -189,6 +201,34 @@ public class HollowShardsServiceTests extends ESTestCase {
         assertTrue(testHarness.hollowShardsService.isHollowableIndexShard(testHarness.indexShard));
     }
 
+    public void testDelayedMutableOperationUsesExecutorOnDelay() {
+        var harness = TestHarness.create(
+            true,
+            true,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            ESTestCase::randomNonNegativeLong,
+            false,
+            1,
+            true,
+            ESTestCase::randomNonNegativeLong,
+            randomBoolean()
+        );
+        harness.hollowShardsService.addHollowShard(harness.indexShard, "test");
+
+        var executorUsed = new AtomicBoolean(false);
+        var unhollowListener = new PlainActionFuture<Void>();
+        Executor trackingExecutor = command -> {
+            executorUsed.set(true);
+            command.run();
+        };
+
+        harness.hollowShardsService.onMutableOperation(harness.indexShard, true, trackingExecutor, unhollowListener);
+
+        safeGet(unhollowListener);
+        assertTrue("executor must be used to dispatch the delayed listener", executorUsed.get());
+    }
+
     private record TestHarness(HollowShardsService hollowShardsService, IndexShard indexShard) {
         public static TestHarness create(
             boolean hasNodeIndexRole,
@@ -258,6 +298,7 @@ public class HollowShardsServiceTests extends ESTestCase {
 
             when(indexShard.shardId()).thenReturn(shardId);
             when(indexShard.getEngineOrNull()).thenReturn(engine);
+            when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
 
             Settings settings = Settings.builder()
                 .put("node.roles", hasNodeIndexRole ? DiscoveryNodeRole.INDEX_ROLE.roleName() : DiscoveryNodeRole.DATA_ROLE.roleName())
@@ -273,11 +314,18 @@ public class HollowShardsServiceTests extends ESTestCase {
                     mock(ObjectStoreService.class),
                     mock(StatelessCommitService.class),
                     mock(IndexShardCacheWarmer.class),
-                    mock(ThreadPool.class),
+                    threadPool,
                     HollowShardsMetrics.NOOP,
                     relativeTimeSupplierInMillis,
                     mock(Executor.class)
-                ),
+                ) {
+                    @Override
+                    protected void unhollow(ShardId shardId) {
+                        // Simulates the happy path: real unhollowing dispatches to the generic pool and,
+                        // once complete, calls removeHollowShard to release the ingestion blocker.
+                        threadPool.generic().execute(() -> removeHollowShard(indexShard, "unhollowing gen"));
+                    }
+                },
                 indexShard
             );
         }

@@ -63,7 +63,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -155,12 +154,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void shardOperationOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        primary.ensureMutable(listener.delegateFailure((l, ignored) -> doExecuteShardOperationOnPrimary(request, primary, l)), true);
+        primary.ensureMutable(
+            listener.delegateFailure((l, ignored) -> doExecuteShardOperationOnPrimary(request, primary, l)),
+            true,
+            executor(primary)
+        );
     }
 
     @Override
@@ -182,6 +184,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE);
         var pressureExpansionTracker = indexingPressure.trackPrimaryOperationExpansion(
             primaryOperationCount(request),
             getMaxOperationMemoryOverhead(request),

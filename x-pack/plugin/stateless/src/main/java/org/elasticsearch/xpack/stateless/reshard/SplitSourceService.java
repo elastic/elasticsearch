@@ -345,7 +345,7 @@ public class SplitSourceService {
 
         logger.debug("preparing for handoff to {}", targetShardId);
         SubscribableListener<Releasable> withPermits = SubscribableListener.<Void>newForked(
-            afterMutable -> sourceShard.ensureMutable(afterMutable, false)
+            afterMutable -> sourceShard.ensureMutable(afterMutable, false, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         ).<Engine.FlushResult>andThen(afterFirstFlush -> sourceShard.withEngine(engine -> {
             logger.debug("handoff: flushing {} for {} before acquiring permits", sourceShard.shardId(), targetShardId);
             // Similar to relocation, flush before blocking operations because we expect this to reduce the amount of work done by the

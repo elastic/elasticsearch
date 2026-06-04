@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
 
+import java.util.concurrent.Executor;
+
 /**
  * An index event listener is the primary extension point for plugins and build-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
@@ -93,17 +95,24 @@ public interface IndexEventListener {
      *     <li>Force merges</li>
      *     <li>Pre-updates</li>
      * </ul>
-     *
+     * <p>
      * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
      * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
      * The provided listener should be notified once the shard is prepared to proceed with the operation.
      * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *  @param indexShard     the shard where the mutable operation will be performed
      *
-     * @param indexShard     the shard where the mutable operation will be performed
-     * @param permitAcquired whether the operation has acquired an operation permit on the shard
-     * @param listener       the listener to be notified when the shard is ready to proceed
+     * @param permitAcquired  whether the operation has acquired an operation permit on the shard
+     * @param executorOnDelay executor used to notify the listener if the shard is not yet mutable;
+     *                        if the shard is already mutable the listener is notified on the calling thread
+     * @param listener        the listener to be notified when the shard is ready to proceed
      */
-    default void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+    default void beforeIndexShardMutableOperation(
+        IndexShard indexShard,
+        boolean permitAcquired,
+        Executor executorOnDelay,
+        ActionListener<Void> listener
+    ) {
         listener.onResponse(null);
     }
 

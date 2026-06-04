@@ -66,7 +66,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -95,7 +94,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -132,14 +130,6 @@ import static org.mockito.Mockito.when;
 public class TransportReplicationActionTests extends ESTestCase {
 
     private static final ShardId NO_SHARD_ID = null;
-    private final ReplicationTask replicationTask = new ReplicationTask(
-        randomLong(),
-        randomIdentifier(),
-        randomIdentifier(),
-        randomIdentifier(),
-        null,
-        Map.of()
-    );
 
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
@@ -489,14 +479,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:test-action", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
-                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
+                super.shardOperationOnPrimary(shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
 
@@ -830,14 +819,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
-                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
+                super.shardOperationOnPrimary(shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
 
@@ -892,14 +880,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
-                Task replicationTask,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
             ) {
                 assertPhase(task, "primary");
                 assertFalse(executed.getAndSet(true));
-                super.shardOperationOnPrimary(replicationTask, shardRequest, primary, listener);
+                super.shardOperationOnPrimary(shardRequest, primary, listener);
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
         assertThat(executed.get(), equalTo(true));
@@ -918,7 +905,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 fail("releasable is closed twice");
             }
         };
-        TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable, replicationTask);
+        TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request(NO_SHARD_ID);
         shard.runUnderPrimaryPermit(() -> primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
             final ElasticsearchException exception = new ElasticsearchException("testing");
@@ -1064,7 +1051,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             indicesService
         );
 
-        action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
+        action.handlePrimaryRequest(
+            concreteShardRequest,
+            createTransportChannel(listener),
+            new ReplicationTask(0, null, null, null, null, null)
+        );
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
         assertThat(requestsToReplicas, arrayWithSize(1));
         @SuppressWarnings("unchecked")
@@ -1101,7 +1092,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         new TestAction(Settings.EMPTY, "internal:testAction2", transportService, clusterService, shardStateAction, threadPool) {
             @Override
             protected void shardOperationOnPrimary(
-                Task task,
                 Request shardRequest,
                 IndexShard primary,
                 ActionListener<PrimaryResult<Request, TestResponse>> listener
@@ -1112,7 +1102,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 } else if (respondWithError) {
                     listener.onFailure(new ElasticsearchException("simulated exception, as a response"));
                 } else {
-                    super.shardOperationOnPrimary(task, request, primary, listener);
+                    super.shardOperationOnPrimary(request, primary, listener);
                 }
             }
         }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
@@ -1725,7 +1715,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         protected void shardOperationOnPrimary(
-            Task task,
             Request shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<Request, TestResponse>> listener

@@ -36,6 +36,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -169,6 +170,13 @@ public final class GcsStorageProvider implements StorageProvider {
             return buildIdentityPoolCredentials(config);
         }
         if (config != null && config.isAmbient()) {
+            // Test-only shortcut: inject a static bearer token via system property so integration
+            // tests can verify the full auth flow without a live GCE metadata server.
+            // This property is never set in production.
+            String testToken = System.getProperty("tests.gcs.ambient_access_token");
+            if (testToken != null) {
+                return GoogleCredentials.create(new AccessToken(testToken, Date.from(Instant.now().plusSeconds(3600))));
+            }
             // Use the GCE/GKE metadata server directly. GoogleCredentials.getApplicationDefault()
             // is excluded: it reads GOOGLE_APPLICATION_CREDENTIALS (a file) and the well-known
             // ~/.config/gcloud/application_default_credentials.json file, both of which are

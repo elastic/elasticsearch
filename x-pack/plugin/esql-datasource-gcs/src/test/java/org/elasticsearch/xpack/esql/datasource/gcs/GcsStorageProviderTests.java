@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.auth.Credentials;
+import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 
@@ -185,5 +186,33 @@ public class GcsStorageProviderTests extends ESTestCase {
         assertFalse(config.hasCredentials());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
+    }
+
+    /**
+     * auth=ambient with {@code tests.gcs.ambient_access_token} set returns a static
+     * {@code GoogleCredentials} carrying that token — the same path integration tests exercise
+     * by setting the system property before running queries against a mock GCS server.
+     */
+    public void testAmbientCredentialsFromSystemProperty() throws Exception {
+        System.setProperty("tests.gcs.ambient_access_token", "test-ambient-gcs-token");
+        try {
+            GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
+            Credentials creds = GcsStorageProvider.credentials(config);
+            assertThat(creds, instanceOf(GoogleCredentials.class));
+            assertEquals("test-ambient-gcs-token", ((GoogleCredentials) creds).getAccessToken().getTokenValue());
+        } finally {
+            System.clearProperty("tests.gcs.ambient_access_token");
+        }
+    }
+
+    /**
+     * auth=ambient without the test system property returns {@link ComputeEngineCredentials} —
+     * the production path that contacts the GCE metadata server.
+     */
+    public void testAmbientCredentialsFallsBackToComputeEngine() throws Exception {
+        System.clearProperty("tests.gcs.ambient_access_token");
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("auth", "ambient"));
+        Credentials creds = GcsStorageProvider.credentials(config);
+        assertThat(creds, instanceOf(ComputeEngineCredentials.class));
     }
 }

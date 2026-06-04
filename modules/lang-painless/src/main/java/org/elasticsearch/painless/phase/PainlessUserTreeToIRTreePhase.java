@@ -416,10 +416,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
             irThrowNode.setExpressionNode(irLoadVariableNode);
 
-            // Cancellation signals must propagate unwrapped so QueryPhase / the surrounding caller
-            // can convert them to the appropriate response (timed_out flag, task-cancelled status).
-            // Wrapping them in ScriptException would surface them to clients as runtime errors
-            // instead.
             for (Class<? extends Throwable> rethrow : List.of(
                 ContextIndexSearcher.TimeExceededException.class,
                 TaskCancelledException.class

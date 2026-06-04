@@ -43,11 +43,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.crossproject.LinkedProjectsProvider;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -73,6 +75,7 @@ import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
@@ -329,6 +332,21 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             hasLinkedProjects = projectId -> false;
         }
 
+        // Built once and reused: SecurityContext is a stateless wrapper around the shared
+        // ThreadContext singleton; per-request state lives in the ThreadContext's thread-local view.
+        // Null when security is disabled, which useSecondaryAuthIfAvailable handles as a no-op pass-through.
+        var securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, services.threadPool().getThreadContext())
+            : null;
+        var cloudCredentialManager = new TransformCloudCredentialManager(
+            services.threadPool(),
+            securityContext,
+            getTransformExtension().getCloudCredentialManager(),
+            getTransformExtension().getCloudApiKeyService(),
+            configManager,
+            auditor
+        );
+
         transformServices.set(
             new TransformServices(
                 configManager,
@@ -338,7 +356,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 transformNode,
                 crossProjectModeDecider,
                 hasLinkedProjects,
-                services.projectResolver()
+                services.projectResolver(),
+                cloudCredentialManager
             )
         );
 

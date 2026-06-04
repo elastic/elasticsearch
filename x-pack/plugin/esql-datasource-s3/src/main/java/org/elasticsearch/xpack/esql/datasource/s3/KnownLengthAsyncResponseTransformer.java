@@ -259,7 +259,14 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // double-close. The destination ByteBuffer's position/limit set above is observable
             // through drb.buffer() since they share the same NIO view.
             DirectReadBuffer transferred = destinationBuf.getAndSet(null);
-            resultFuture.complete(transferred);
+            // If a concurrent exceptionOccurred already failed the future, complete() returns false and
+            // nobody else holds this buffer (we won the getAndSet) — release it so its direct-memory
+            // reservation is not orphaned. On the normal path complete() succeeds and ownership passes
+            // to the caller. (transferred can only be null if a concurrent releaseOnFailure took it,
+            // which also failed the future, so skipping completion here is safe.)
+            if (transferred != null && resultFuture.complete(transferred) == false) {
+                transferred.close();
+            }
         }
 
         void releaseOnFailure() {

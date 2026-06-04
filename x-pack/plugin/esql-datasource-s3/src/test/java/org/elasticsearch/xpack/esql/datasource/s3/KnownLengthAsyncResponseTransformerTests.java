@@ -235,6 +235,39 @@ public class KnownLengthAsyncResponseTransformerTests extends ESTestCase {
         }
     }
 
+    public void testOnCompleteReleasesBufferWhenItLosesTheCompletionRace() throws Exception {
+        // A concurrent exceptionOccurred (the AtomicReference exists precisely because that can race the
+        // subscriber's terminal callbacks) can fail the result future in the window before onComplete hands
+        // the buffer off. onComplete then loses the completion race — complete() returns false — but still
+        // owns the buffer it took via getAndSet. It must release it, or the direct-memory reservation leaks.
+        // A child allocator makes that leak observable as non-zero allocated memory.
+        try (BufferAllocator child = ALLOCATOR.newChildAllocator("onComplete-race", 0, Long.MAX_VALUE)) {
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(child);
+            byte[] payload = randomByteArrayOfLength(256);
+            KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+                payload.length,
+                factory
+            );
+            CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+            transformer.onResponse(response(payload.length));
+
+            RuntimeException raced = new RuntimeException("exceptionOccurred won the completion race");
+            transformer.onStream(new SdkPublisher<>() {
+                @Override
+                public void subscribe(Subscriber<? super ByteBuffer> s) {
+                    s.onSubscribe(new TestSubscription());
+                    s.onNext(ByteBuffer.wrap(payload)); // fills the destination: offset == capacity
+                    future.completeExceptionally(raced); // a concurrent exceptionOccurred fails the future first
+                    s.onComplete(); // onComplete loses the race; it must release the buffer it could not hand off
+                }
+            });
+
+            ExecutionException ex = expectThrows(ExecutionException.class, future::get);
+            assertSame(raced, ex.getCause());
+            assertEquals("onComplete must release the buffer it could not hand off", 0L, child.getAllocatedMemory());
+        }
+    }
+
     public void testResponseObjectExposedViaGetter() throws Exception {
         byte[] payload = randomByteArrayOfLength(between(8, 256));
         GetObjectResponse expectedResponse = response(payload.length);

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
+import com.azure.identity.WorkloadIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -21,6 +23,10 @@ import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.common.StorageSharedKeyCredential;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -28,11 +34,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
 
 /**
  * StorageProvider implementation for Azure Blob Storage.
@@ -64,19 +73,50 @@ import java.util.NoSuchElementException;
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
  * Authentication via connection string, account+key, SAS token, {@code auth=none} for public
- * containers, or {@code auth=workload_identity} for managed-identity credentials via Azure IMDS.
- * {@code DefaultAzureCredential} is excluded: it includes file-reading and process-spawning sources
- * blocked by entitlements. AKS Workload Identity (token-file injection) is the v2 follow-up.
+ * containers, or {@code auth=workload_identity}. The workload-identity chain checks AKS Workload
+ * Identity first (federated token file at the entitled symlink under {@code ${ES_PATH_CONF}}) and
+ * falls back to {@code ManagedIdentityCredential} via Azure IMDS.
+ * {@code DefaultAzureCredential} is excluded: it bundles file-reading and process-spawning
+ * credential sources blocked by entitlements.
  */
 public final class AzureStorageProvider implements StorageProvider {
+
+    private static final Logger LOGGER = LogManager.getLogger(AzureStorageProvider.class);
+
+    /** Operator-managed AKS Workload Identity token symlink, relative to {@code ${ES_PATH_CONF}}. */
+    public static final String AKS_FEDERATED_TOKEN_FILE_LOCATION = "esql-datasource-azure/azure-federated-token";
+
+    /**
+     * Test-only system property that disables Microsoft Entra instance discovery on the Azure SDK
+     * credential builders. Without this, the SDK probes the real Microsoft Entra discovery
+     * endpoint at startup to validate the configured authority/tenant, which hangs in offline
+     * test environments where {@code AZURE_AUTHORITY_HOST} is redirected to a local fixture.
+     * Mirrors the same property name used by {@code repository-azure}'s {@code AzureClientProvider}
+     * so a single test-cluster system property toggles both surfaces consistently.
+     */
+    private static final boolean DISABLE_INSTANCE_DISCOVERY = Booleans.parseBoolean(
+        System.getProperty("tests.azure.credentials.disable_instance_discovery", "false")
+    );
 
     private record Clients(BlobServiceClient sync, BlobServiceAsyncClient async) {}
 
     private volatile Clients clients;
     private final AzureConfiguration config;
+    private final Environment environment;
 
+    /**
+     * Test-friendly constructor: equivalent to production behavior on a node where AKS Workload
+     * Identity is not configured (no {@link Environment} means we cannot resolve the entitled
+     * federated-token path, so the workload-identity chain falls back to {@code ManagedIdentity}
+     * only).
+     */
     public AzureStorageProvider(AzureConfiguration config) {
+        this(config, null);
+    }
+
+    public AzureStorageProvider(AzureConfiguration config, Environment environment) {
         this.config = config;
+        this.environment = environment;
         if (config != null && (config.hasCredentials() || config.isAnonymous())) {
             BlobServiceClientBuilder builder = configureBlobServiceClientBuilder(config, null);
             this.clients = new Clients(builder.buildClient(), builder.buildAsyncClient());
@@ -88,6 +128,7 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     public AzureStorageProvider(BlobServiceClient blobServiceClient) {
         this.config = null;
+        this.environment = null;
         this.clients = new Clients(blobServiceClient, null);
     }
 
@@ -105,7 +146,67 @@ public final class AzureStorageProvider implements StorageProvider {
         return clients;
     }
 
-    private static BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
+    /**
+     * Builds an AKS Workload Identity credential when all three preconditions hold:
+     * <ol>
+     *   <li>{@link Environment} is available (i.e. the plugin's {@code createComponents} ran),</li>
+     *   <li>the AKS env triple ({@code AZURE_FEDERATED_TOKEN_FILE}, {@code AZURE_CLIENT_ID},
+     *       {@code AZURE_TENANT_ID}) is present, and</li>
+     *   <li>the entitled federated-token symlink at
+     *       {@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token} exists and is
+     *       readable.</li>
+     * </ol>
+     * Returns {@code null} otherwise so the caller can fall back to {@code ManagedIdentity}-only.
+     *
+     * <p>The K8s-injected path in {@code AZURE_FEDERATED_TOKEN_FILE} is ignored on purpose: it
+     * lives outside the entitlement-allowlisted area and would be blocked at runtime. Operators
+     * are expected to symlink the K8s-managed token to the entitled location.
+     */
+    private TokenCredential maybeBuildAksWorkloadIdentityCredential() {
+        return maybeBuildAksWorkloadIdentityCredential(System::getenv);
+    }
+
+    /**
+     * Test seam: env-var lookups are routed through {@code envLookup} so unit tests can inject a
+     * stub map without manipulating real {@code System.getenv} state.
+     */
+    TokenCredential maybeBuildAksWorkloadIdentityCredential(Function<String, String> envLookup) {
+        if (environment == null) {
+            return null;
+        }
+        String federatedTokenEnvVar = envLookup.apply("AZURE_FEDERATED_TOKEN_FILE");
+        String clientId = envLookup.apply("AZURE_CLIENT_ID");
+        String tenantId = envLookup.apply("AZURE_TENANT_ID");
+        if (Strings.hasText(federatedTokenEnvVar) == false || Strings.hasText(clientId) == false || Strings.hasText(tenantId) == false) {
+            return null;
+        }
+        Path tokenPath = environment.configDir().resolve(AKS_FEDERATED_TOKEN_FILE_LOCATION);
+        if (Files.exists(tokenPath) == false) {
+            LOGGER.warn(
+                "AKS Workload Identity env triple is set (AZURE_FEDERATED_TOKEN_FILE=[{}]) but the entitled symlink [{}] is missing; "
+                    + "falling back to ManagedIdentityCredential",
+                federatedTokenEnvVar,
+                tokenPath
+            );
+            return null;
+        }
+        if (Files.isReadable(tokenPath) == false) {
+            LOGGER.warn(
+                "AKS Workload Identity entitled symlink [{}] exists but is not readable; falling back to ManagedIdentityCredential",
+                tokenPath
+            );
+            return null;
+        }
+        WorkloadIdentityCredentialBuilder workloadIdentityBuilder = new WorkloadIdentityCredentialBuilder().clientId(clientId)
+            .tenantId(tenantId)
+            .tokenFilePath(tokenPath.toString());
+        if (DISABLE_INSTANCE_DISCOVERY) {
+            workloadIdentityBuilder.disableInstanceDiscovery();
+        }
+        return workloadIdentityBuilder.build();
+    }
+
+    private BlobServiceClientBuilder configureBlobServiceClientBuilder(AzureConfiguration config, String accountFromPath) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
 
         if (config != null && config.isAnonymous()) {
@@ -146,12 +247,28 @@ public final class AzureStorageProvider implements StorageProvider {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
         } else if (config != null && config.isWorkloadIdentity()) {
-            // Managed Identity only (Azure IMDS). EnvironmentCredential is excluded: it reads
-            // AZURE_CLIENT_* env vars, which are a dev/CI convention and open a JVM-global-state
-            // override on production nodes. AKS Workload Identity (token-file injection) is the v2
-            // follow-up. DefaultAzureCredential is excluded entirely: it includes file-reading and
-            // process-spawning credential sources blocked by entitlements.
-            var credential = new ManagedIdentityCredentialBuilder().build();
+            // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
+            //
+            // 1. If the AKS Workload Identity env triple is present AND the entitled
+            // federated-token symlink is readable, use WorkloadIdentityCredential pinned to
+            // the entitled symlink. We deliberately ignore AZURE_FEDERATED_TOKEN_FILE so the
+            // K8s-injected path stays out of the entitlement allowlist.
+            //
+            // Crucially we do NOT also add ManagedIdentityCredential here:
+            // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
+            // and would re-enter the K8s path through its IdentityClient, hitting the
+            // entitlement and surfacing as a misleading "Managed Identity authentication is
+            // not available" error. WorkloadIdentityCredential already covers the AKS case.
+            //
+            // 2. Otherwise (no AKS env triple, no entitled symlink), fall back to
+            // ManagedIdentityCredential — covers Azure IMDS, the v1 surface.
+            //
+            // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
+            // which are a dev/CI convention and open a JVM-global-state override on production
+            // nodes. DefaultAzureCredential is also excluded — it bundles file-reading and
+            // process-spawning sources blocked by entitlements.
+            TokenCredential workloadIdentity = maybeBuildAksWorkloadIdentityCredential();
+            TokenCredential credential = workloadIdentity != null ? workloadIdentity : new ManagedIdentityCredentialBuilder().build();
             String endpoint = Strings.hasText(config.endpoint())
                 ? config.endpoint()
                 : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);

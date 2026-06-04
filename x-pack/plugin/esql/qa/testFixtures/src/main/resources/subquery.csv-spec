@@ -1732,3 +1732,104 @@ FROM k8s, (from many_numbers)
 z:long
 3
 ;
+
+subqueryInFromWithRenameOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithRenameChainOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x, x AS y
+| KEEP y
+| SORT y
+| LIMIT 1
+;
+
+y:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithDoubleRenameOnMixedDateAndDateNanos
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_nanos)
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| RENAME x AS y
+| KEEP *
+| SORT y
+| LIMIT 1
+;
+
+y:date_nanos
+2023-10-23T12:15:03.360000000Z
+;
+
+subqueryInFromWithRenameAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long
+1698063303360
+;
+
+subqueryInFromWithRenameChainAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x, x AS y
+| KEEP y
+| SORT y
+| LIMIT 1
+;
+
+y:long
+1698063303360
+;
+
+subqueryInFromWithDoubleRenameAndExplicitCastOnMixedDateAndLong
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM sample_data, (FROM sample_data_ts_long)
+| EVAL @timestamp = @timestamp::long
+| KEEP @timestamp
+| RENAME @timestamp AS x
+| RENAME x AS y
+| KEEP *
+| SORT y
+| LIMIT 1
+;
+
+y:long
+1698063303360
+;

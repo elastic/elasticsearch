@@ -178,6 +178,7 @@ id:integer | labels.message:text
 // Loading the flattened root with `labels`
 loadFlattenedRootIncludesNonTextMappedSubfields
 required_capability: flattened_datatype
+request_stored: skip
 
 FROM flattened_typed
 | KEEP id, labels

@@ -136,7 +136,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 `TOP_SNIPPETS` can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 `TOP_SNIPPETS` will extract the best snippets for a given query string.
 
+                :::{tip}
                 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+                :::
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),

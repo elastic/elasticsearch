@@ -157,7 +157,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             `MATCH` returns true if the provided query matches the row.
 
+            :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
             """,
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),

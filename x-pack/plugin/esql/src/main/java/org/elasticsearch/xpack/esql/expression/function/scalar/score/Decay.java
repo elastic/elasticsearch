@@ -145,7 +145,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             while cartesian points use numeric values. For date queries, scale and offset use time_duration values.
             For numeric queries you also use numeric values.
 
+            :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
             """,
         examples = { @Example(file = "decay", tag = "decay") }
     )

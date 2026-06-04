@@ -53,6 +53,7 @@ public class EncryptionPlugin extends Plugin implements ExtensiblePlugin {
         }
         ProjectEncryptionKeyService pekService = ProjectEncryptionKeyService.create(services.clusterService(), services.projectResolver());
         AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
+        encryptedDataHandlerProviders.forEach(p -> p.onEncryptionServiceAvailable(encryptionService));
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),

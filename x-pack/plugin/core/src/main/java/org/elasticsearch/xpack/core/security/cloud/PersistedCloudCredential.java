@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.cloud;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,58 +21,70 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Persistence envelope for a cloud-managed credential, pairing the public API key {@code id} with
- * the raw internal API key text. The {@code version} field exists so that a future envelope encoding
- * (e.g. an encrypted payload) can be introduced without breaking documents written today.
+ * Persistence envelope for a cloud-managed credential. v2 stores AES-256-GCM ciphertext
+ * ({@link CloudCredentialEncryptedData}) instead of the plaintext API key.
+ * The at-rest XContent format is always v2; v1 documents are rejected at parse time.
  */
-public final class PersistedCloudCredential implements Writeable, ToXContentObject, Releasable {
+public final class PersistedCloudCredential implements Writeable, ToXContentObject {
 
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
+
+    /**
+     * Guards the v2 wire format. Peers that do not yet support this version cannot receive
+     * a v2 credential on the wire; publishing to such peers will throw {@link IllegalStateException}.
+     */
+    public static final TransportVersion CLOUD_CREDENTIAL_ENCRYPTION = TransportVersion.fromName("cloud_credential_encryption");
 
     private static final ParseField VERSION_FIELD = new ParseField("version");
     private static final ParseField ID_FIELD = new ParseField("id");
-    private static final ParseField VALUE_FIELD = new ParseField("value");
+    private static final ParseField ENCRYPTED_FIELD = new ParseField("encrypted");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PersistedCloudCredential, Void> PARSER = new ConstructingObjectParser<>(
         "persisted_cloud_credential",
         true,
-        args -> new PersistedCloudCredential((int) args[0], (String) args[1], (SecureString) args[2])
+        args -> {
+            int version = (int) args[0];
+            if (version != CURRENT_VERSION) {
+                throw new IllegalStateException(
+                    "unsupported PersistedCloudCredential at-rest version [" + version + "]; only [" + CURRENT_VERSION + "] is supported"
+                );
+            }
+            CloudCredentialEncryptedData encrypted = (CloudCredentialEncryptedData) args[2];
+            if (encrypted == null) {
+                throw new IllegalStateException("PersistedCloudCredential v2 requires [encrypted] field");
+            }
+            return new PersistedCloudCredential((String) args[1], encrypted);
+        }
     );
 
     static {
         PARSER.declareInt(constructorArg(), VERSION_FIELD);
         PARSER.declareString(constructorArg(), ID_FIELD);
-        PARSER.declareField(
-            constructorArg(),
-            (p, c) -> new SecureString(p.text().toCharArray()),
-            VALUE_FIELD,
-            ObjectParser.ValueType.STRING
-        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> CloudCredentialEncryptedData.fromXContent(p), ENCRYPTED_FIELD);
     }
 
     private final int version;
     private final String id;
-    private final SecureString internalApiKey;
+    private final CloudCredentialEncryptedData encrypted;
 
-    public PersistedCloudCredential(String id, SecureString internalApiKey) {
-        this(CURRENT_VERSION, id, internalApiKey);
-    }
-
-    private PersistedCloudCredential(int version, String id, SecureString internalApiKey) {
-        if (version <= 0 || version > CURRENT_VERSION) {
-            throw new IllegalStateException(
-                "unsupported PersistedCloudCredential version [" + version + "]; supported versions are [1.." + CURRENT_VERSION + "]"
-            );
-        }
-        this.version = version;
+    public PersistedCloudCredential(String id, CloudCredentialEncryptedData encrypted) {
+        this.version = CURRENT_VERSION;
         this.id = Objects.requireNonNull(id, "id must not be null");
-        this.internalApiKey = Objects.requireNonNull(internalApiKey, "internalApiKey must not be null");
+        this.encrypted = Objects.requireNonNull(encrypted, "encrypted must not be null");
     }
 
     public PersistedCloudCredential(StreamInput in) throws IOException {
-        this(in.readVInt(), in.readString(), in.readSecureString());
+        int wireVersion = in.readVInt();
+        this.id = in.readString();
+        this.encrypted = switch (wireVersion) {
+            case 2 -> new CloudCredentialEncryptedData(in);
+            default -> throw new IllegalStateException("unsupported PersistedCloudCredential wire version [" + wireVersion + "]");
+        };
+        this.version = CURRENT_VERSION;
     }
 
     public int version() {
@@ -85,15 +95,22 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         return id;
     }
 
-    public SecureString internalApiKey() {
-        return internalApiKey;
+    public CloudCredentialEncryptedData encrypted() {
+        return encrypted;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(version);
+        if (out.getTransportVersion().supports(CLOUD_CREDENTIAL_ENCRYPTION) == false) {
+            throw new IllegalStateException(
+                "cannot serialize PersistedCloudCredential to a peer that does not support transport version ["
+                    + CLOUD_CREDENTIAL_ENCRYPTION
+                    + "]; ensure all nodes are upgraded before publishing cloud credentials"
+            );
+        }
+        out.writeVInt(2);
         out.writeString(id);
-        out.writeSecureString(internalApiKey);
+        encrypted.writeTo(out);
     }
 
     @Override
@@ -101,7 +118,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         builder.startObject();
         builder.field(VERSION_FIELD.getPreferredName(), version);
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(VALUE_FIELD.getPreferredName(), internalApiKey.toString());
+        builder.field(ENCRYPTED_FIELD.getPreferredName(), encrypted);
         return builder.endObject();
     }
 
@@ -109,32 +126,22 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         return PARSER.parse(parser, null);
     }
 
-    /**
-     * Releases the underlying {@link SecureString}.
-     */
-    @Override
-    public void close() {
-        internalApiKey.close();
-    }
-
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
+        if (this == o) return true;
         if (o instanceof PersistedCloudCredential other) {
-            return version == other.version && id.equals(other.id) && internalApiKey.equals(other.internalApiKey);
+            return version == other.version && id.equals(other.id) && encrypted.equals(other.encrypted);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, id, internalApiKey);
+        return Objects.hash(version, id, encrypted);
     }
 
     @Override
     public String toString() {
-        return "PersistedCloudCredential{version=" + version + ", id=" + id + ", internalApiKey=::es_redacted::}";
+        return "PersistedCloudCredential{version=" + version + ", id=" + id + ", keyId=" + encrypted.keyId() + "}";
     }
 }

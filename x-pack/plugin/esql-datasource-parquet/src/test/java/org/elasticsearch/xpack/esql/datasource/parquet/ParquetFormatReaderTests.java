@@ -449,18 +449,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * The optimized iterator is page-at-a-time and does not bulk-allocate row groups. The only
-     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch
-     * reservation, but that path catches the {@link CircuitBreakingException} and falls back to
-     * sync I/O (see {@code OptimizedParquetColumnIterator#triggerNextRowGroupPrefetch}). So a
-     * mid-iteration trip is only observable through the parquet-mr footer/index allocator.
+     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch,
+     * whose bytes are accounted via the Arrow allocator on the REQUEST breaker. If the breaker
+     * trips during a prefetch, the future fails and {@code takePendingPrefetch} falls back to
+     * sync I/O for that row group (see {@code OptimizedParquetColumnIterator}).
      *
      * <p>This test verifies two related properties:
      * <ul>
      *   <li>A breaker too tight to accommodate the file footer trips on file-open and releases
      *       all reserved bytes.</li>
-     *   <li>A breaker tight enough that the prefetcher cannot reserve, but large enough for the
-     *       footer, still produces correct results via the sync fallback and releases all bytes
-     *       on close.</li>
+     *   <li>A breaker tight enough that the per-row-group prefetch cannot fit, but large enough
+     *       for the footer and the sliding window, still produces correct results via the sync
+     *       fallback and releases all bytes on close.</li>
      * </ul>
      */
     public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
@@ -508,14 +508,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(0, tinyBreaker.getUsed());
         }
 
-        // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
-        // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
+        // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
+        // Per-row-group prefetches that exceed the headroom trip the Arrow allocator, fail their
+        // future, and trigger the sync-I/O fallback in {@code takePendingPrefetch}. The iteration
+        // still produces all rows and releases every byte on close. Exact prefetch-vs-fallback
+        // mix depends on row-group size and codec, which is fine — the regression we care about
+        // here is "no leaks and no errors under a tight allocator budget".
         {
-            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
-            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
             var smallBreaker = new LimitedBreaker(
                 "test",
-                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 64 * 1024)
             );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
@@ -1678,6 +1680,43 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+    }
+
+    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // Overwrite every byte in the data area (between PAR1 header and footer) so that column
+        // data is completely garbled, triggering a decoding error on read(). The footer at the
+        // end of the file stays intact so metadata() still succeeds.
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData, "https://host/corrupt.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // metadata() should still succeed (footer is intact)
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertNotNull(metadata);
+        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("id"));
     }
 
     public void testValidateFooterIntegrityRejectsNullsInRequiredColumn() {
@@ -3186,4 +3225,5 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(iterator.hasNext());
         }
     }
+
 }

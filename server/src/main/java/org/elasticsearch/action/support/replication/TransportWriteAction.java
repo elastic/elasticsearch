@@ -38,6 +38,8 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -205,20 +207,34 @@ public abstract class TransportWriteAction<
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
             throw failure;
         } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+            location = locationToSync(currentLocation, operationResult.getTranslogLocation(), false);
         }
         return location;
     }
 
-    public static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next, boolean isBatch) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
          * locations even though they are not in the same file. When the translog rolls over files
          * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        assert assertLocation(current, next, isBatch);
         return next;
+    }
+
+    private static boolean assertLocation(Location current, Location next, boolean isBatch) {
+        if (next == null) {
+            throw new AssertionError("next operation can't be null");
+        }
+        if (current != null) {
+            int cmp = current.compareTo(next);
+            if (isBatch ? cmp > 0 : cmp >= 0) {
+                throw new AssertionError(
+                    isBatch ? "all batch operations must be the same or increasing" : "translog locations are not increasing"
+                );
+            }
+        }
+        return true;
     }
 
     @Override
@@ -234,13 +250,37 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         Request request,
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
+        assert task instanceof CancellableTask;
+        if (((CancellableTask) task).notifyIfCancelled(listener)) {
+            logger.debug(
+                () -> format(
+                    "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled pre-submission.",
+                    request.getDescription(),
+                    request.shardId
+                )
+            );
+            return;
+        }
+
         executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
+                if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                    logger.debug(
+                        () -> format(
+                            "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled post-submission.",
+                            request.getDescription(),
+                            request.shardId
+                        )
+                    );
+                    return;
+                }
+
                 dispatchedShardOperationOnPrimary(request, primary, listener);
             }
 

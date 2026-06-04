@@ -17,6 +17,7 @@ import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -25,9 +26,9 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMMeterService apmMeterService;
     private final long flushTimeoutMillis;
 
-    public APMTelemetryProvider(Settings settings) {
-        apmTracer = new APMTracer(settings);
-        apmMeterService = new APMMeterService(settings);
+    public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
+        apmMeterService = new APMMeterService(settings, diskBufferPath);
+        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 

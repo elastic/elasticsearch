@@ -59,6 +59,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             queryFilter,
             visitRatio,
             random().nextBoolean(),
+            1.0f,
             SLICE_FIELD,
             querySlice
         );
@@ -66,7 +67,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
 
     @Override
     IVFKnnFloatVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean());
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean(), 1.0f);
     }
 
     @Before
@@ -271,6 +272,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                             filterQuery,
                             1.0f,
                             random().nextBoolean(),
+                            1.0f,
                             SLICE_FIELD,
                             new BytesRef("" + slice)
                         );
@@ -292,6 +294,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                         filterQuery,
                         1.0f,
                         random().nextBoolean(),
+                        1.0f,
                         SLICE_FIELD,
                         new BytesRef("invalid")
                     );

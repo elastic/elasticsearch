@@ -319,7 +319,7 @@ public enum FieldData {
                 return FieldData.singleton(toString(singleton));
             }
         }
-        return new SortedBinaryDocValues() {
+        return new SortedBinaryDocValues(values) {
 
             @Override
             public boolean advanceExact(int doc) throws IOException {

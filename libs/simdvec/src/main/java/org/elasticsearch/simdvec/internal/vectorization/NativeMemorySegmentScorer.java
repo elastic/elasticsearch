@@ -23,8 +23,8 @@ import java.lang.foreign.MemorySegment;
  * <p>Subclasses provide only the native dot-product function and bit-scale constants;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
  */
-abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q4Scorer,
-    NativeD2Q4Scorer, NativeD4Q4Scorer {
+abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q1Scorer,
+    NativeD1Q4Scorer, NativeD2Q4Scorer, NativeD2Q4PackedScorer, NativeD4Q4Scorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;

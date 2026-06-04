@@ -33,9 +33,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.fielddata.ProcessedDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -107,6 +109,7 @@ class DownsampleShardIndexer {
     private final DownsampleShardPersistentTaskState state;
     private final String[] dimensions;
     private final AbstractFieldDownsampler.DownsamplerCountPerValueType fieldCounts;
+    private final String temporalityFieldName;
     private volatile boolean abort = false;
     ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
     ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
@@ -145,6 +148,9 @@ class DownsampleShardIndexer {
                 null
             );
             this.dimensions = dimensions;
+            this.temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(
+                searchExecutionContext.getIndexSettings().getSettings()
+            );
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
@@ -383,6 +389,12 @@ class DownsampleShardIndexer {
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
 
+        /**
+         * The array index of the dimension storing the temporality in {@link #dimensionDownsamplers}.
+         * {@code -1} if there is no temporality dimension.
+         */
+        private final int temporalityDimensionIndex;
+
         TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
             int dimensionFieldIndex = 0;
@@ -429,6 +441,17 @@ class DownsampleShardIndexer {
                     default -> throw new IllegalArgumentException("Unknown field downsampler type: " + fieldDownsampler.getClass());
                 }
             }
+
+            int resolvedTemporalityIndex = -1;
+            if (temporalityFieldName != null && temporalityFieldName.isEmpty() == false) {
+                for (int i = 0; i < dimensionDownsamplers.length; i++) {
+                    if (temporalityFieldName.equals(dimensionDownsamplers[i].name())) {
+                        resolvedTemporalityIndex = i;
+                        break;
+                    }
+                }
+            }
+            this.temporalityDimensionIndex = resolvedTemporalityIndex;
 
             this.downsampleBucketBuilder = new DownsampleBucketBuilder(
                 fieldDownsamplers,
@@ -608,11 +631,15 @@ class DownsampleShardIndexer {
                     }
                     downsampleBucketBuilder.dimensionsCollected = true;
                 }
+                Temporality temporality = Temporality.DEFAULT;
+                if (temporalityDimensionIndex != -1) {
+                    temporality = Temporality.fromDimensionValue(dimensionDownsamplers[temporalityDimensionIndex].dimensionValue());
+                }
                 if (aggregateCounterDownsamplers.length > 0) {
                     assert timestampValues != null;
                     long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
                     for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer);
+                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer, temporality);
                     }
                 }
 
@@ -623,7 +650,8 @@ class DownsampleShardIndexer {
                 docIdBuffer.elementsCount = 0;
             }
 
-            private <T> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues) throws IOException {
+            private <T extends ProcessedDocValues> void collect(AbstractFieldDownsampler<T>[] downsamplers, T[] docValues)
+                throws IOException {
                 assert downsamplers.length == docValues.length
                     : "Number of downsamplers [" + downsamplers.length + "] does not match number of doc values [" + docValues.length + "]";
                 for (int i = 0; i < downsamplers.length; i++) {

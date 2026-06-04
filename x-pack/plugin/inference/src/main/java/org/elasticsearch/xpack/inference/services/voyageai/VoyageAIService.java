@@ -185,11 +185,6 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

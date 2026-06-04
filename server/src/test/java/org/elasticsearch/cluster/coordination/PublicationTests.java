@@ -523,9 +523,12 @@ public class PublicationTests extends ESTestCase {
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }
 
+    private static final String PUBLICATION_LOGGER_NAME = "org.elasticsearch.cluster.coordination.Publication";
+    private static final String PUBLICATION_DEBUG_LOGGING = PUBLICATION_LOGGER_NAME + ":DEBUG";
+
     @TestLogging(
         reason = "verifying that transient network failures in PublishResponseHandler are logged at DEBUG",
-        value = "org.elasticsearch.cluster.coordination.Publication:DEBUG"
+        value = PUBLICATION_DEBUG_LOGGING
     )
     public void testPublishResponseHandlerLogsDebugOnConnectTransportException() {
         VotingConfiguration config = VotingConfiguration.of(n1);
@@ -541,7 +544,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "ConnectTransportException should be logged at DEBUG",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.DEBUG,
                     "PublishResponseHandler"
                 )
@@ -549,7 +552,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "ConnectTransportException should not be logged at WARN",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.WARN,
                     "PublishResponseHandler"
                 )
@@ -561,7 +564,7 @@ public class PublicationTests extends ESTestCase {
 
     @TestLogging(
         reason = "verifying that expected election-related rejections in PublishResponseHandler are logged at DEBUG",
-        value = "org.elasticsearch.cluster.coordination.Publication:DEBUG"
+        value = PUBLICATION_DEBUG_LOGGING
     )
     public void testPublishResponseHandlerLogsDebugOnCoordinationStateRejected() {
         VotingConfiguration config = VotingConfiguration.of(n1);
@@ -577,7 +580,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "CoordinationStateRejectedException should be logged at DEBUG",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.DEBUG,
                     "PublishResponseHandler"
                 )
@@ -585,7 +588,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "CoordinationStateRejectedException should not be logged at WARN",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.WARN,
                     "PublishResponseHandler"
                 )
@@ -610,7 +613,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unexpected exception should be logged at WARN",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.WARN,
                     "PublishResponseHandler"
                 )
@@ -618,7 +621,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "unexpected exception should not be logged at DEBUG",
-                    Publication.class.getCanonicalName(),
+                    PUBLICATION_LOGGER_NAME,
                     Level.DEBUG,
                     "PublishResponseHandler"
                 )

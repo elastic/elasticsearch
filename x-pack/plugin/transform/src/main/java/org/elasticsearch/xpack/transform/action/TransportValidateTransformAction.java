@@ -52,6 +52,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportValidateTransformAction(
@@ -83,10 +84,14 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, Request request, ActionListener<Response> rawListener) {
+        // Ensure the credential's SecureString is closed once validation completes (success or failure).
+        final ActionListener<Response> listener = ActionListener.releaseAfter(rawListener, request);
+
         final ClusterState clusterState = clusterService.state();
         if (request.isDeferValidation() == false) {
             TransformNodes.throwIfNoTransformNodes(clusterState);
@@ -108,9 +113,6 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         var config = request.getConfig();
-        var function = FunctionFactory.create(config);
-        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        var parentClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
@@ -125,6 +127,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             );
             return;
         }
+
+        var function = FunctionFactory.create(config);
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
 
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {

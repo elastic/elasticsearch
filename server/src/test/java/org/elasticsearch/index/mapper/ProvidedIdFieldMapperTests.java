@@ -142,11 +142,10 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         // Document with columnar is the default:
         mapperService = createMapperService(
-            Settings.builder().put("index.mapping.use_colulmnar_id_mode_by_default", true).build(),
+            Settings.builder().put("index.mapping.use_columnar_id_mode_by_default", true).build(),
             topMapping(b -> b.startObject("_id").field("mode", "document").endObject())
         );
         mapping = mapperService.documentMapper().mapping().toString();
-        // empty because document is the default:
         assertThat(mapping, containsString("\"mode\":\"document\""));
     }
 
@@ -177,7 +176,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
     }
 
-    public void testDocumentModeIdLoaderUsesDocValues() throws IOException {
+    public void testDocumentModeIdLoaderUsesStoredFields() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));

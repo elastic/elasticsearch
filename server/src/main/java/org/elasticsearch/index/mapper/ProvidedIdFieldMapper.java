@@ -49,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * A mapper for the {@code _id} field that reads the from the
@@ -79,15 +80,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         Builder(boolean columnarIdByDefault) {
             super(NAME);
-            mode = new Parameter<>(
+            mode = Parameter.enumParam(
                 "mode",
                 false,
-                () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
-                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
                 m -> ((ProvidedIdFieldMapper) m).mode,
-                (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-                v -> v.toString().toLowerCase(Locale.ROOT)
-            ).setSerializerCheck((includeDefaults, isConfigured, value) -> isConfigured);
+                (Supplier<Mode>) () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
+                Mode.class
+            );
             this.columnarIdByDefault = columnarIdByDefault;
         }
 
@@ -129,7 +128,12 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
      */
     public enum Mode {
         DOCUMENT,
-        COLUMNAR
+        COLUMNAR;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
     }
 
     static final class IdFieldType extends AbstractIdFieldType {

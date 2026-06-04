@@ -1014,7 +1014,7 @@ public final class IndexSettings {
      * Proxy mainly exists for tests to easily randomly test with columnar id mode.
      */
     public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
-        "index.mapping.use_colulmnar_id_mode_by_default",
+        "index.mapping.use_columnar_id_mode_by_default",
         settings -> {
             if (settings == null) {
                 return Boolean.FALSE.toString();

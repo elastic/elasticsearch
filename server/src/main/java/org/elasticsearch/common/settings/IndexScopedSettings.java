@@ -50,6 +50,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
+
 /**
  * Encapsulates all valid index level settings.
  * @see Property#IndexScope
@@ -168,7 +170,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 IndexSettings.IGNORE_ABOVE_SETTING,
                 IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES,
-                IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
@@ -276,6 +277,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        }
+        if (EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

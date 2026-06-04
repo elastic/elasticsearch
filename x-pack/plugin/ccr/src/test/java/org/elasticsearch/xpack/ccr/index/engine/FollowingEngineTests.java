@@ -789,7 +789,7 @@ public class FollowingEngineTests extends ESTestCase {
                 settingsBuilder.put("index.mode", indexMode.getName());
                 settingsBuilder.put("index.disable_sequence_numbers", "false");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
-                settingsBuilder.put("index.mapping.use_colulmnar_id_mode_by_default", false);
+                settingsBuilder.put("index.mapping.use_columnar_id_mode_by_default", false);
                 break;
             case LOOKUP:
                 settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());

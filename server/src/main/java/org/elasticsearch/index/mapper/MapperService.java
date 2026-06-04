@@ -840,12 +840,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *         or by default in the index settings; false otherwise.
      */
     public boolean isUseColumnarId() {
-        var idFieldMapper = mappingLookup().getMapping().getMetadataMapperByClass(ProvidedIdFieldMapper.class);
-        if (idFieldMapper != null) {
-            return idFieldMapper.isColumnarMode();
-        } else {
+        if (this.mapper == null) {
             return indexSettings.isUseColumnarIdByDefault();
         }
+
+        return mappingLookup().isColumnarId();
     }
 
     @Override

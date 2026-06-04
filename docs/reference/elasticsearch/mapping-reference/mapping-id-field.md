@@ -59,10 +59,6 @@ The `_id` field accepts the following mapping parameter:
     - `document` — The `_id` is stored as a stored field and indexed. This is the standard behaviour. This is default for document based index modes.
     - `columnar` — The `_id` is stored as binary doc values and indexed, but not as a stored field. This reduces per-document overhead when the index uses a columnar storage layout (for example, the `logsdb_columnar` index mode) where doc values are already being read for most fields. This is the default for columnar based index modes.
 
-    ::::{note}
-    The `mode` parameter is only accepted when the `id_field_mode` feature flag is enabled. It cannot be set on time-series indices.
-    ::::
-
     ```console
     PUT my-columnar-index
     {

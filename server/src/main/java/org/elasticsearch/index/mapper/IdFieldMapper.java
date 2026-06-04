@@ -48,7 +48,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             var indexMode = parserContext.getIndexSettings().getMode();
             if (indexMode == IndexMode.TIME_SERIES) {
-                throw new MapperParsingException(name + " is not configurable");
+                throw new MapperParsingException(name + " is not configurable if index mode is time_series");
             } else {
                 return super.parse(name, node, parserContext);
             }

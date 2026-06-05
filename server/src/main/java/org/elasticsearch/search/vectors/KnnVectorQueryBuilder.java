@@ -567,14 +567,6 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
         String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
-        if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
-            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
-            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
-            // default strategy, but once materialized as a bitset on every execution they become
-            // significantly more expensive, making caching essential.
-            filterQuery = new CachingEnableFilterQuery(filterQuery);
-        }
-
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,

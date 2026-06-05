@@ -38,7 +38,7 @@ public class DataStreamFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE);
+        return Set.of(DataStream.DATA_STREAM_FAILURE_STORE_FEATURE, DataStream.TIME_SERIES_PAST_INDEX_CREATION_FEATURE);
     }
 
     @Override

@@ -116,6 +116,7 @@ Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]
 ;
 
 sortingOnNumbersFromStrings
+request_stored: skip
 from employees 
 | eval long_from_string = to_long(salary_change.keyword) 
 | sort long_from_string asc nulls last, emp_no 

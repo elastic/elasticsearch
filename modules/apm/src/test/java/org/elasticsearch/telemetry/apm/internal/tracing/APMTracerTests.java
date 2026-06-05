@@ -477,7 +477,7 @@ public class APMTracerTests extends ESTestCase {
         ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
         Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
         Mockito.verify(recordedSpan, never()).recordException(Mockito.any());
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getCanonicalName()));
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getName()));
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), is("boom"));
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.stacktrace")), nullValue());
     }
@@ -505,7 +505,7 @@ public class APMTracerTests extends ESTestCase {
 
         ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
         Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getCanonicalName()));
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getName()));
         assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
     }
 

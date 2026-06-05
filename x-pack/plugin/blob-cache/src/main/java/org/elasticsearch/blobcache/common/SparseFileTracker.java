@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
@@ -295,7 +296,7 @@ public class SparseFileTracker {
         final Range lastEarlierRange = ranges.lower(targetRange);
         if (lastEarlierRange != null) {
             if (range.start() < lastEarlierRange.end) {
-                boolean unclaimed = false;
+                boolean claimed = true;
                 if (lastEarlierRange.isPending()) {
                     if (lastEarlierRange.claimed == false) {
                         // Split at range.start() so the gap we return starts within range
@@ -310,13 +311,13 @@ public class SparseFileTracker {
                             // partsAtEnd[1] = [range.end(), lastEarlierRange.end) — outside range, not added
                         }
                         pendingRanges.add(innerRange);
-                        unclaimed = true;
+                        claimed = false;
                     } else {
                         pendingRanges.add(lastEarlierRange);
                     }
                 }
                 targetRange.start = Math.min(range.end(), lastEarlierRange.end);
-                return unclaimed;
+                return !claimed;
             }
         }
         return false;

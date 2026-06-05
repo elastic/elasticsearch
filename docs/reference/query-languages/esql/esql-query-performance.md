@@ -452,12 +452,14 @@ POST _tasks/<task_id>/_cancel
 
 ## Related pages
 
-- [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md): log slow DSL, EQL, KQL, and {{esql}} queries through a managed data stream
-- [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): configure {{esql}} memory limits and troubleshoot circuit breaker errors
-- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): monitor and cancel long-running queries
-- [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md): trade exact results for faster aggregations on large datasets
-- [{{esql}} troubleshooting](/reference/query-languages/esql/esql-troubleshooting.md): file a support case for slow or failing queries
-- [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): control which fields are indexed and how
-- [{{esql}} for search](docs-content://solutions/search/esql-for-search.md): use {{esql}} for full-text search, vector search, and AI-powered retrieval
-- [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md): columnar storage for sorting, aggregations, and fast field reads
-- [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md): the original JSON document stored with each record
+- Inspect query logs:
+  - (recommended) [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) {applies_to}`stack: preview 9.4`: Log all query types through a managed data stream
+  - [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md) {applies_to}`stack: ga 9.1+`: Log {{esql}} queries to a file on each node
+- [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): Configure {{esql}} memory limits and troubleshoot circuit breaker errors
+- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): Monitor and cancel long-running queries
+- [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md) {applies_to}`stack: preview 9.4+`: Trade exact results for faster aggregations on large datasets
+- [Filing a support case](/reference/query-languages/esql/esql-troubleshooting.md#filing-a-support-case): Learn what to include when reporting a slow or failing query
+- [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): Control which fields are indexed and how
+- [{{esql}} for search](docs-content://solutions/search/esql-for-search.md): Use {{esql}} for full-text search, vector search, and AI-powered retrieval
+- [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md): Learn how columnar storage enables fast sorting, aggregations, and field reads
+- [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md): Learn how the original JSON document is stored with each record

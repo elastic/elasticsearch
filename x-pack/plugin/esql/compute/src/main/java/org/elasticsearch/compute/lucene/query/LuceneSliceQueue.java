@@ -105,6 +105,19 @@ public final class LuceneSliceQueue {
     public static final int MIN_DOCS_PER_SLICE = 50_000;
 
     /**
+     * Target number of {@link PartitioningStrategy#DOC} slices per unit of {@code task_concurrency}.
+     *
+     * <p>DOC slice <em>size</em> is chosen so a shard yields roughly {@code DOC_SLICE_OVERSUBSCRIBE × taskConcurrency}
+     * slices, independent of shard size — rather than capping slice size at a fixed {@link #MAX_DOCS_PER_SLICE} and
+     * letting the slice <em>count</em> grow without bound (a 1B-doc shard would otherwise enqueue ~4000 slices). A few
+     * slices per driver gives the work-stealing queue ({@link #nextSlice}) headroom to rebalance stragglers; beyond that,
+     * extra slices only add per-slice scorer setup with no benefit. Cancellation responsiveness is independent of slice
+     * size — operators re-check cancellation every few thousand docs while scanning — so load balancing is the only
+     * reason to split below {@code totalDocs / taskConcurrency}.
+     */
+    public static final int DOC_SLICE_OVERSUBSCRIBE = 4;
+
+    /**
      * Per-leaf hint that suppresses sub-segment splitting for the
      * {@link PartitioningStrategy#DOC} partitioner.
      *
@@ -271,6 +284,30 @@ public final class LuceneSliceQueue {
         Function<ShardContext, ScoreMode> scoreModeFunction,
         LeafSplitGuard leafSplitGuard
     ) {
+        return create(
+            contexts,
+            queryFunction,
+            dataPartitioning,
+            autoStrategy,
+            docThresholdForAutoStrategy,
+            taskConcurrency,
+            scoreModeFunction,
+            leafSplitGuard,
+            MIN_DOCS_PER_SLICE
+        );
+    }
+
+    public static LuceneSliceQueue create(
+        IndexedByShardId<? extends ShardContext> contexts,
+        Function<ShardContext, List<QueryAndTags>> queryFunction,
+        DataPartitioning dataPartitioning,
+        Function<Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
+        int taskConcurrency,
+        Function<ShardContext, ScoreMode> scoreModeFunction,
+        LeafSplitGuard leafSplitGuard,
+        int minDocsPerSlice
+    ) {
         List<LuceneSlice> slices = new ArrayList<>();
         Map<String, PartitioningStrategy> partitioningStrategies = new HashMap<>();
 
@@ -307,7 +344,8 @@ public final class LuceneSliceQueue {
                         ctx.searcher(),
                         taskConcurrency,
                         weightAndCache.weight,
-                        leafSplitGuard
+                        leafSplitGuard,
+                        minDocsPerSlice
                     );
                     boolean queryHead = true;
                     for (List<PartialLeafReaderContext> group : groups) {
@@ -352,7 +390,13 @@ public final class LuceneSliceQueue {
          */
         SHARD(0) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency, Weight weight, LeafSplitGuard guard) {
+            List<List<PartialLeafReaderContext>> groups(
+                IndexSearcher searcher,
+                int taskConcurrency,
+                Weight weight,
+                LeafSplitGuard guard,
+                int minDocsPerSlice
+            ) {
                 return List.of(searcher.getLeafContexts().stream().map(PartialLeafReaderContext::new).toList());
             }
         },
@@ -368,11 +412,17 @@ public final class LuceneSliceQueue {
          */
         SEGMENT(1) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency, Weight weight, LeafSplitGuard guard) {
+            List<List<PartialLeafReaderContext>> groups(
+                IndexSearcher searcher,
+                int taskConcurrency,
+                Weight weight,
+                LeafSplitGuard guard,
+                int minDocsPerSlice
+            ) {
                 IndexSearcher.LeafSlice[] gs = ContextIndexSearcher.computeSlices(
                     searcher.getLeafContexts(),
                     Math.max(1, taskConcurrency),
-                    MIN_DOCS_PER_SLICE
+                    minDocsPerSlice
                 );
                 return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }
@@ -380,11 +430,13 @@ public final class LuceneSliceQueue {
         /**
          * See {@link DataPartitioning#DOC}.
          *
-         * <p>Aims for {@code taskConcurrency} slices: {@code desiredSliceSize} =
-         * {@code clamp(totalDocs / taskConcurrency, MIN_DOCS_PER_SLICE, MAX_DOCS_PER_SLICE)}.
-         * {@code maxSegmentsPerSlice} scales with {@code totalSegments / taskConcurrency} (with a
-         * {@link #MAX_SEGMENTS_PER_SLICE} floor) so that a heavily fragmented index doesn't force
-         * a slice count well above the chosen parallelism.
+         * <p>Aims for about {@code DOC_SLICE_OVERSUBSCRIBE * taskConcurrency} slices regardless of shard size:
+         * {@code desiredSliceSize = max(minDocsPerSlice, totalDocs / (DOC_SLICE_OVERSUBSCRIBE * taskConcurrency))}.
+         * The slice <em>size</em> scales with the shard rather than being capped at a fixed
+         * {@link #MAX_DOCS_PER_SLICE}, so the slice <em>count</em> stays bounded to a few per driver instead of
+         * growing with the shard (see {@link #DOC_SLICE_OVERSUBSCRIBE}). {@code maxSegmentsPerSlice} scales with
+         * {@code totalSegments / taskConcurrency} (with a {@link #MAX_SEGMENTS_PER_SLICE} floor) so that a heavily
+         * fragmented index doesn't force a slice count well above the chosen parallelism.
          *
          * <p>When the largest unguarded segment is within ~1.5× of {@code desiredSliceSize}, every
          * non-guarded leaf can be kept whole; we then balance leaves across {@code taskConcurrency}
@@ -398,10 +450,20 @@ public final class LuceneSliceQueue {
          */
         DOC(2) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency, Weight weight, LeafSplitGuard guard) {
+            List<List<PartialLeafReaderContext>> groups(
+                IndexSearcher searcher,
+                int taskConcurrency,
+                Weight weight,
+                LeafSplitGuard guard,
+                int minDocsPerSlice
+            ) {
                 final List<LeafReaderContext> leaves = searcher.getLeafContexts();
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
-                int desiredSliceSize = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), MIN_DOCS_PER_SLICE, MAX_DOCS_PER_SLICE);
+                // Size slices so the shard yields ~DOC_SLICE_OVERSUBSCRIBE * taskConcurrency slices regardless of shard
+                // size, floored at minDocsPerSlice. Deliberately not capped at MAX_DOCS_PER_SLICE: a fixed per-slice
+                // cap would let the slice count grow with the shard (a 1B-doc shard would enqueue ~4000 slices); here
+                // the slice size grows instead, keeping the count bounded to a few per driver.
+                int desiredSliceSize = Math.max(minDocsPerSlice, Math.ceilDiv(totalDocCount, DOC_SLICE_OVERSUBSCRIBE * taskConcurrency));
                 Set<LeafReaderContext> keepWhole = wholeLeaves(leaves, weight, guard);
                 int largestUnguarded = 0;
                 for (LeafReaderContext leaf : leaves) {
@@ -421,7 +483,13 @@ public final class LuceneSliceQueue {
          */
         TIME_SERIES(3) {
             @Override
-            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency, Weight weight, LeafSplitGuard guard) {
+            List<List<PartialLeafReaderContext>> groups(
+                IndexSearcher searcher,
+                int taskConcurrency,
+                Weight weight,
+                LeafSplitGuard guard,
+                int minDocsPerSlice
+            ) {
                 try {
                     return new TimeSeriesPartitioner().partition(searcher.getLeafContexts(), taskConcurrency, MAX_DOCS_PER_SLICE);
                 } catch (IOException e) {
@@ -460,12 +528,13 @@ public final class LuceneSliceQueue {
             IndexSearcher searcher,
             int taskConcurrency,
             Weight weight,
-            LeafSplitGuard guard
+            LeafSplitGuard guard,
+            int minDocsPerSlice
         );
 
         // Package-private helper for tests that don't need a guard / weight.
         List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
-            return groups(searcher, taskConcurrency, null, LeafSplitGuard.NEVER);
+            return groups(searcher, taskConcurrency, null, LeafSplitGuard.NEVER, MIN_DOCS_PER_SLICE);
         }
 
         /**

@@ -25,6 +25,7 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -450,6 +452,57 @@ public class LuceneSliceQueueTests extends ESTestCase {
         // Small leaf is grouped via IndexSearcher.slices (its own one-slice group).
         long smallSliceCount = slices.stream().filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == small)).count();
         assertThat(smallSliceCount, equalTo(1L));
+    }
+
+    /**
+     * The {@code min_docs_per_slice} override (surfaced as the {@code min_docs_per_slice} query pragma) lets a small
+     * index actually exercise DOC partitioning: with the default {@link LuceneSliceQueue#MIN_DOCS_PER_SLICE} floor a
+     * one-segment index below the floor collapses to a single slice (no parallelism), but lowering the floor splits the
+     * segment into multiple slices. This is what makes DOC/SEGMENT parallelism testable without indexing tens of
+     * thousands of documents.
+     */
+    public void testDocPartitioningHonorsMinDocsPerSliceOverride() throws IOException {
+        IndexSearcher searcher = new IndexSearcher(new MultiReader(new MockLeafReader(1_000)));
+        int taskConcurrency = 4;
+        // Default floor (50k) ≫ the 1_000-doc segment: one slice, no parallelism.
+        var defaultSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+        assertThat(defaultSlices, hasSize(1));
+        // Lowered floor: the segment splits so several drivers can share the scan.
+        var overriddenSlices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            100
+        );
+        assertThat(overriddenSlices.size(), greaterThan(1));
+    }
+
+    /**
+     * DOC slice <em>count</em> stays bounded to about {@link LuceneSliceQueue#DOC_SLICE_OVERSUBSCRIBE} slices per
+     * {@code taskConcurrency}, independent of shard size — slice <em>size</em> grows with the shard instead of being
+     * capped at a fixed {@link LuceneSliceQueue#MAX_DOCS_PER_SLICE}. A 1B-doc shard therefore enqueues a few dozen
+     * slices, not {@code totalDocs / MAX_DOCS_PER_SLICE} (~4000).
+     */
+    public void testDocPartitioningBoundsSliceCountForHugeShards() throws IOException {
+        int taskConcurrency = 8;
+        IndexSearcher searcher = new IndexSearcher(new MultiReader(new MockLeafReader(1_000_000_000)));
+        var slices = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            null,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
+        );
+        assertThat(slices, hasSize(LuceneSliceQueue.DOC_SLICE_OVERSUBSCRIBE * taskConcurrency));
+        // Far below the ~4000 a fixed MAX_DOCS_PER_SLICE cap would have produced.
+        assertThat(slices.size(), lessThan(1_000_000_000 / LuceneSliceQueue.MAX_DOCS_PER_SLICE));
     }
 
     public void testCreateSlice() throws IOException {

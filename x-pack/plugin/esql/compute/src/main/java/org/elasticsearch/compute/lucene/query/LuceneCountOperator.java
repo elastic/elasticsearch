@@ -55,7 +55,8 @@ public class LuceneCountOperator extends LuceneOperator {
             int taskConcurrency,
             List<ElementType> tagTypes,
             int limit,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             super(
                 contexts,
@@ -71,6 +72,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 false,
                 shardContext -> ScoreMode.COMPLETE_NO_SCORES,
                 directoryBytesRead,
+                minDocsPerSlice,
                 LuceneCountOperator::leafHasCountShortcut
             );
             this.shardRefCounters = contexts;

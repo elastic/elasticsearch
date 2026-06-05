@@ -82,7 +82,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit,
             boolean needsScore,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             super(
                 shardContexts,
@@ -96,7 +97,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 limit,
                 needsScore,
                 shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
-                directoryBytesRead
+                directoryBytesRead,
+                minDocsPerSlice
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;

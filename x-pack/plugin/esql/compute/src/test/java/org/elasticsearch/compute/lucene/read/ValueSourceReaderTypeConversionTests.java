@@ -284,7 +284,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             pageSize,
             LuceneOperator.NO_LIMIT,
             false, // no scoring
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         return luceneFactory.get(context);
     }
@@ -870,7 +871,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
             false, // no scoring
-            () -> 0L
+            () -> 0L,
+            LuceneSliceQueue.MIN_DOCS_PER_SLICE
         );
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
             reader(indexKey),
@@ -1050,7 +1052,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 1000,
                 LuceneOperator.NO_LIMIT,
                 false, // no scoring
-                () -> 0L
+                () -> 0L,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             // TODO add index2
             MappedFieldType ft = mapperService(indexKey).fieldType("key");

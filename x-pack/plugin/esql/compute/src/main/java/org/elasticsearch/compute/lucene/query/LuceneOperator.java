@@ -155,7 +155,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int limit,
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction,
-            LongSupplier directoryBytesRead
+            LongSupplier directoryBytesRead,
+            int minDocsPerSlice
         ) {
             this(
                 contextsByShardId,
@@ -168,6 +169,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 needsScore,
                 scoreModeFunction,
                 directoryBytesRead,
+                minDocsPerSlice,
                 LuceneSliceQueue.LeafSplitGuard.NEVER
             );
         }
@@ -183,6 +185,7 @@ public abstract class LuceneOperator extends SourceOperator {
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction,
             LongSupplier directoryBytesRead,
+            int minDocsPerSlice,
             LuceneSliceQueue.LeafSplitGuard leafSplitGuard
         ) {
             this.directoryBytesRead = directoryBytesRead;
@@ -196,7 +199,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 scoreModeFunction,
-                leafSplitGuard
+                leafSplitGuard,
+                minDocsPerSlice
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;

@@ -87,7 +87,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 limit,
                 needsScore,
                 scoreModeFunction(sorts, needsScore),
-                directoryBytesRead
+                directoryBytesRead,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -2788,7 +2789,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2799,7 +2801,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2818,7 +2821,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("ts")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2829,7 +2833,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2840,7 +2845,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2851,7 +2857,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2862,7 +2869,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
         assertQuery(
@@ -2877,7 +2885,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     attribute("d.e")
                 ),
                 null,
-                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e"))
+                new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
+                TimeSeriesAggregate.Origin.TS_COMMAND
             )
         );
     }
@@ -4581,6 +4590,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall, instanceOf(ToCounter.class));
                 report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
+            }
+            if (EsqlCapabilities.Cap.TO_GAUGE.isEnabled()) {
+                // gauge is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.GAUGE_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToGauge.class));
+                report.field(DataType.GAUGE_CAST_NAME, ToGauge.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);

@@ -16,9 +16,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -60,6 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
 
     private final String sourcePath;
     private final String sourceType;
@@ -324,7 +327,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeString(sourcePath);
         out.writeString(sourceType);
         out.writeNamedWriteableCollection(attributes);
-        out.writeGenericValue(config);
+        // Encrypted secrets in _datasource ride to data nodes that support the carrier; strip them for
+        // older targets, which cannot deserialize the carrier and revert to prior behavior.
+        out.writeGenericValue(
+            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? config : ExternalSourceResolver.planConfig(config)
+        );
         out.writeGenericValue(sourceMetadata);
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
@@ -663,10 +670,20 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+    public List<Object> nodeProperties() {
+        // config and sourceMetadata may carry SecureString (dataset path) or plaintext String
+        // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
+        // debug-log output.
+        return List.of(sourcePath, sourceType, attributes);
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // sourcePath (external location) and pushedFilter (opaque local-only filter) are free-form
+        // user content — redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
-            sb.append("[filter=").append(pushedFilter).append("]");
+            sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }
         if (pushedLimit != FormatReader.NO_LIMIT) {
             sb.append("[limit=").append(pushedLimit).append("]");
@@ -685,6 +702,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        NodeUtils.toString(sb, attributes, format);
+        NodeUtils.toString(sb, attributes, format, mapper);
     }
 }

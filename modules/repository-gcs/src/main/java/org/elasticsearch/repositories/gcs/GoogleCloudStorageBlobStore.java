@@ -232,7 +232,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     // Strip path prefix and trailing slash
                     final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
                     if (suffixName.isEmpty() == false) {
-                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                        mapBuilder.put(suffixName, blobContainer(path.add(suffixName)));
                     }
                 }
             });

@@ -7,16 +7,57 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 
 import java.util.Map;
 import java.util.Set;
 
-public class S3DataSourceValidatorTests extends ESTestCase {
+public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
+
+    @Override
+    protected DataSourceValidator validator() {
+        return validator;
+    }
+
+    @Override
+    protected String expectedType() {
+        return "s3";
+    }
+
+    @Override
+    protected Map<String, Object> sampleConfigWithAllSecrets() {
+        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "session_token", "FwoG_sample", "region", "us-east-1");
+    }
+
+    @Override
+    protected Set<String> expectedSecretFieldNames() {
+        return Set.of("access_key", "secret_key", "session_token");
+    }
+
+    @Override
+    protected String sampleResource() {
+        return "s3://bucket/path/*.parquet";
+    }
+
+    @Override
+    protected String wrongSchemeResource() {
+        return "gs://bucket/path";
+    }
+
+    @Override
+    protected Map<String, DataSourceSetting> storedSettingsFromSampleConfig() {
+        return S3Configuration.fromMap(sampleConfigWithAllSecrets()).toStoredSettings();
+    }
+
+    @Override
+    protected Map<String, Object> datasetSettingsWithMultipleErrors() {
+        return Map.of("error_mode", "banana", "schema_sample_size", "abc");
+    }
 
     // Must stay in sync with CsvDataSourcePlugin.FORMAT_CONFIG_KEYS. Direct reference is not
     // possible due to cross-plugin test dependency constraints; CsvFormatReaderRecognizedKeysTests
@@ -42,23 +83,13 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         Set.of("s3", "s3a", "s3n")
     ).withFormatConfigKeyResolver(ext -> ".csv".equals(ext) ? CSV_CONFIG_KEYS : null, Set.of(".gz"));
 
-    public void testType() {
-        assertEquals("s3", validator.type());
-    }
-
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
         assertTrue(result.get("access_key").secret());
-        try (var s = result.get("access_key").secretValue()) {
-            assertEquals("AKIA123", s.toString());
-        }
+        assertEquals("AKIA123", result.get("access_key").rawValue());
         assertTrue(result.get("secret_key").secret());
         assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertFalse(result.get("region").secret());
-    }
-
-    public void testValidateDatasourceEmpty() {
-        assertTrue(validator.validateDatasource(Map.of()).isEmpty());
     }
 
     public void testValidateDatasourceRejectsUnknown() {
@@ -82,16 +113,28 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         );
     }
 
+    public void testValidateDatasourceWithSessionToken() {
+        var result = validator.validateDatasource(
+            Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")
+        );
+        assertTrue(result.get("session_token").secret());
+        assertEquals("FwoGZXIvYXdz", result.get("session_token").rawValue());
+        assertTrue(result.get("access_key").secret());
+    }
+
+    public void testValidateDatasourceSessionTokenConflictsWithAuthNone() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "session_token", "FwoGZXIvYXdz"))
+        );
+    }
+
     public void testValidateDatasourceAccumulatesMultipleErrors() {
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("unknown_field", "x", "also_unknown", "y"))
         );
         assertEquals(2, e.validationErrors().size());
-    }
-
-    public void testValidateDatasourceNullSettings() {
-        assertTrue(validator.validateDatasource(null).isEmpty());
     }
 
     public void testValidateDatasourceSkipsNullValues() {
@@ -134,21 +177,6 @@ public class S3DataSourceValidatorTests extends ESTestCase {
     public void testValidateDatasetSchemeCaseInsensitive() {
         // URI schemes are case-insensitive, consistent with DataSourceCapabilities.supportsScheme()
         assertNotNull(validator.validateDataset(Map.of(), "S3://bucket/path", Map.of()));
-    }
-
-    public void testValidateDatasetRequiresResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), null, Map.of()));
-    }
-
-    public void testValidateDatasetBlankResource() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> validator.validateDataset(Map.of(), "", Map.of()));
-    }
-
-    public void testValidateDatasetWrongScheme() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "gs://bucket/path", Map.of())
-        );
     }
 
     public void testValidateDatasetAllSchemes() {
@@ -232,29 +260,6 @@ public class S3DataSourceValidatorTests extends ESTestCase {
             () -> validator.validateDataset(Map.of(), "gs://wrong-scheme", Map.of("error_mode", "banana"))
         );
         assertEquals(2, e.validationErrors().size());
-    }
-
-    public void testValidateDatasetAccumulatesMultipleErrors() {
-        var e = expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> validator.validateDataset(Map.of(), "s3://b/p", Map.of("error_mode", "banana", "schema_sample_size", "abc"))
-        );
-        assertEquals(2, e.validationErrors().size());
-    }
-
-    public void testValidateDatasetNullSettings() {
-        assertTrue(validator.validateDataset(Map.of(), "s3://b/p", null).isEmpty());
-    }
-
-    public void testToStoredSettingsSecretClassification() {
-        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "AKIA", "secret_key", "secret", "region", "us-east-1"));
-        var result = config.toStoredSettings();
-        assertTrue(result.get("access_key").secret());
-        assertTrue(result.get("secret_key").secret());
-        assertFalse(result.get("region").secret());
-        try (var s = result.get("access_key").secretValue()) {
-            assertEquals("AKIA", s.toString());
-        }
     }
 
     // --- Format-aware validation tests ---

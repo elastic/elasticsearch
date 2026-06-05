@@ -137,11 +137,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -168,7 +168,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         // Assert that the reindexing task on the first node failed
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
         final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
         final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();
@@ -283,12 +283,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
 
         internalCluster().client(dataNodeRunningReindex).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -393,11 +393,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Start the reindexing task on the coordinating node
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -421,7 +421,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertTrue(
             "reindex should surface coordinator shutdown as a transport failure or as bulk failures on the response",
             reindexClientIndicatesCoordinatingNodeClosed(error, response)
@@ -473,11 +473,11 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         // Start the reindexing task
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -501,7 +501,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
         assertTrue("reindex listener should complete", listenerDone.await(60, TimeUnit.SECONDS));
 
         assertNull(failure.get());
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertNotNull(response);
         assertTrue(response.getBulkFailures().isEmpty());
         assertTrue(response.getSearchFailures().isEmpty());
@@ -514,12 +514,12 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
 
     /**
      * When the coordinating node stops mid-reindex, the client may get {@link ActionListener#onFailure} with
-     * {@link NodeClosedException}, or {@link ActionListener#onResponse} with a {@link BulkByScrollResponse} whose
-     * {@link BulkByScrollResponse#getBulkFailures()} wrap {@link NodeClosedException} after bulk indexing hits a closing node.
+     * {@link NodeClosedException}, or {@link ActionListener#onResponse} with a {@link BulkByPaginatedSearchResponse} whose
+     * {@link BulkByPaginatedSearchResponse#getBulkFailures()} wrap {@link NodeClosedException} after bulk indexing hits a closing node.
      */
     private static boolean reindexClientIndicatesCoordinatingNodeClosed(
         final Throwable clientFailure,
-        final BulkByScrollResponse response
+        final BulkByPaginatedSearchResponse response
     ) {
         if (clientFailure != null && ExceptionsHelper.unwrapCause(clientFailure) instanceof NodeClosedException) {
             return true;
@@ -579,7 +579,7 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
             return "search_context_missing_nodes_exception".equals(errorType);
         }
         final Map<String, Object> responseMap = taskResult.getResponseAsMap();
-        final Object failuresObj = responseMap.get(BulkByScrollResponse.FAILURES_FIELD);
+        final Object failuresObj = responseMap.get(BulkByPaginatedSearchResponse.FAILURES_FIELD);
         if (failuresObj instanceof List<?> failureList) {
             for (Object entry : failureList) {
                 if (entry instanceof Map<?, ?> failureMap) {

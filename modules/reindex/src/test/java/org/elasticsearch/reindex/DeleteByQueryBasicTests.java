@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
@@ -20,9 +21,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -43,6 +47,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DeleteByQueryBasicTests extends ReindexTestCase {
@@ -171,6 +176,66 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(prepareSearch().setSize(0), docs - expected);
     }
 
+    public void testSliceRoutingValidationAndFiltering() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assertAcked(
+            prepareCreate("slice-enabled").setSettings(Settings.builder().put("index.slice.enabled", true).put("number_of_shards", 1))
+        );
+        assertAcked(
+            prepareCreate("slice-disabled").setSettings(Settings.builder().put("index.slice.enabled", false).put("number_of_shards", 1))
+        );
+        ensureGreen("slice-enabled", "slice-disabled");
+
+        client().index(new IndexRequest("slice-enabled").id("1").routing("s1").setRoutingFromSlice(true).source("foo", "a")).actionGet();
+        client().index(new IndexRequest("slice-enabled").id("2").routing("s1").setRoutingFromSlice(true).source("foo", "b")).actionGet();
+        client().index(new IndexRequest("slice-enabled").id("3").routing("s2").setRoutingFromSlice(true).source("foo", "a")).actionGet();
+        client().index(new IndexRequest("slice-disabled").id("1").source("foo", "a")).actionGet();
+        indicesAdmin().prepareRefresh("slice-enabled", "slice-disabled").get();
+
+        DeleteByQueryRequest missingSlice = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        IllegalArgumentException missingSliceException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteByQueryAction.INSTANCE, missingSlice).actionGet()
+        );
+        assertThat(missingSliceException.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        DeleteByQueryRequest routingOnly = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        routingOnly.getSearchRequest().routing("s1");
+        IllegalArgumentException routingOnlyException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteByQueryAction.INSTANCE, routingOnly).actionGet()
+        );
+        assertThat(routingOnlyException.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+
+        DeleteByQueryRequest disabledSlice = new DeleteByQueryRequest("slice-disabled").setQuery(termQuery("foo", "a"));
+        disabledSlice.getSearchRequest().searchSlice("s1");
+        IllegalArgumentException disabledSliceException = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(DeleteByQueryAction.INSTANCE, disabledSlice).actionGet()
+        );
+        assertThat(disabledSliceException.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+
+        DeleteByQueryRequest sliceS1A = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        sliceS1A.getSearchRequest().searchSlice("s1");
+        sliceS1A.setRefresh(true);
+        assertThat(client().execute(DeleteByQueryAction.INSTANCE, sliceS1A).actionGet(), matcher().deleted(1));
+
+        DeleteByQueryRequest sliceS1ANoMatches = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        sliceS1ANoMatches.getSearchRequest().searchSlice("s1");
+        sliceS1ANoMatches.setRefresh(true);
+        assertThat(client().execute(DeleteByQueryAction.INSTANCE, sliceS1ANoMatches).actionGet(), matcher().deleted(0));
+
+        DeleteByQueryRequest sliceS2A = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "a"));
+        sliceS2A.getSearchRequest().searchSlice("s2");
+        sliceS2A.setRefresh(true);
+        assertThat(client().execute(DeleteByQueryAction.INSTANCE, sliceS2A).actionGet(), matcher().deleted(1));
+
+        DeleteByQueryRequest sliceS1B = new DeleteByQueryRequest("slice-enabled").setQuery(termQuery("foo", "b"));
+        sliceS1B.getSearchRequest().searchSlice("s1");
+        sliceS1B.setRefresh(true);
+        assertThat(client().execute(DeleteByQueryAction.INSTANCE, sliceS1B).actionGet(), matcher().deleted(1));
+    }
+
     public void testDeleteByMatchQuery() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
 
@@ -250,7 +315,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
                 // Fire off the delete-by-query first
-                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse = deleteByQuery().source("test")
+                final ActionFuture<BulkByPaginatedSearchResponse> deleteByQueryResponse = deleteByQuery().source("test")
                     .filter(QueryBuilders.matchAllQuery())
                     .refresh(true)
                     .execute();
@@ -352,7 +417,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
+        BulkByPaginatedSearchResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
             .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();

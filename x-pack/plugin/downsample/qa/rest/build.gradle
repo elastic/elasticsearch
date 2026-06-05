@@ -38,6 +38,14 @@ if (buildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
+if (buildParams.snapshotBuild == false) {
+  tasks.named("yamlRestTest").configure {
+    filter {
+      excludeTestsMatching "*110_downsample_temporality*"
+    }
+  }
+}
+
 configurations {
   basicRestSpecs {
     attributes {

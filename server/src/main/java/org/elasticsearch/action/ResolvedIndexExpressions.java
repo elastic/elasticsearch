@@ -11,6 +11,7 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions;
+import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -81,14 +82,6 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
-        /**
-         * Add a new resolved expression.
-         * @param expression       the expression you want to add.
-         */
-        public void addExpression(ResolvedIndexExpression expression) {
-            expressions.add(expression);
-        }
-
         public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);
@@ -106,15 +99,31 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
         /**
          * Exclude the given expressions from the local expressions of all prior added {@link ResolvedIndexExpression}.
+         * When {@code originOnlyExclusion} is {@code true}, a matching entry's local side is cleared but any remote
+         * expressions are preserved; otherwise the matching entry is dropped entirely.
+         * <p>
+         * Only entries whose {@link LocalIndexResolutionResult} is {@link LocalIndexResolutionResult#SUCCESS} are
+         * removed or cleared on an exact-original match. Entries that already represent a resolution failure
+         * (e.g. {@link LocalIndexResolutionResult#CONCRETE_RESOURCE_NOT_VISIBLE} or
+         * {@link LocalIndexResolutionResult#CONCRETE_RESOURCE_UNAUTHORIZED}) are preserved so that downstream
+         * validation can still surface the original 404 or 403 — an exclusion like {@code -foo} must not silently
+         * suppress an error from a preceding failed inclusion of {@code foo}.
          */
-        public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
+        public void excludeFromExpressions(Set<String> expressionsToExclude, boolean originOnlyExclusion) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                final var iter = expressions.iterator();
+                final var iter = expressions.listIterator();
                 while (iter.hasNext()) {
                     final ResolvedIndexExpression current = iter.next();
                     if (expressionsToExclude.contains(current.original())) {
-                        iter.remove();
+                        if (current.localExpressions().localIndexResolutionResult() != LocalIndexResolutionResult.SUCCESS) {
+                            continue;
+                        }
+                        if (originOnlyExclusion && false == current.remoteExpressions().isEmpty()) {
+                            iter.set(new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                        } else {
+                            iter.remove();
+                        }
                         continue;
                     }
                     final Set<String> localExpressions = current.localExpressions().indices();

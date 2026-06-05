@@ -11,8 +11,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -35,6 +41,7 @@ import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.MapMatcher;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -272,7 +279,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             1,
             between(1, 8),
             testCase.tagTypes(),
-            limit
+            limit,
+            () -> 0L
         );
     }
 
@@ -327,6 +335,109 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         testCount(contexts, 0, limit);
     }
 
+    /**
+     * Exercises {@link DataPartitioning#DOC} partitioning explicitly, with multiple concurrent
+     * drivers per shard so that several sub-segment slices share each leaf. Locks in the
+     * correctness of {@link LuceneCountOperator}'s {@code coversFullLeaf} guard against the
+     * Lucene-query-cache shortcut hazard (see the comment on
+     * {@link LuceneCountOperator#partitioningStrategyForCount}). Without that guard, every
+     * sub-range driver on the same leaf would call {@code Weight.count(leaf)} and receive the
+     * full-leaf total, producing a count multiplied by the slice count.
+     */
+    public void testDocPartitioning() {
+        int size = between(1_000, 20_000);
+        int limit = randomBoolean() ? between(10, size) : Integer.MAX_VALUE;
+        LuceneCountOperator.Factory factory = simple(DataPartitioning.DOC, size, limit);
+        List<Page> results = new CopyOnWriteArrayList<>();
+        List<Driver> drivers = new ArrayList<>();
+        int taskConcurrency = between(2, 8);
+        for (int i = 0; i < taskConcurrency; i++) {
+            DriverContext ctx = driverContext();
+            drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
+        }
+        new TestDriverRunner().run(drivers);
+        testCase.checkPages(size, limit, results);
+        for (Driver driver : drivers) {
+            LuceneOperator.Status status = (LuceneOperator.Status) driver.status().completedOperators().get(0).status();
+            assertNotNull(status);
+            for (var strategy : status.partitioningStrategies().values()) {
+                assertThat(strategy, is(LuceneSliceQueue.PartitioningStrategy.DOC));
+            }
+        }
+    }
+
+    /**
+     * Regression test for {@link LuceneCountOperator#count} under DOC partitioning: uses a
+     * {@link TermQuery}, whose {@code Weight.count(leaf)} returns the leaf-wide
+     * {@code docFreq} as a built-in shortcut (no cache required). Without the
+     * {@code coversFullLeaf} guard, every sub-segment driver on the same leaf applies
+     * that leaf-total to its own slice, producing a count multiplied by the slice count.
+     * The assertion enforces the exact expected count, so a regression appears immediately.
+     */
+    public void testDocPartitioningRespectsCountShortcutSliceBoundaries() throws IOException {
+        // numDocs must be large enough for AdaptivePartitioner to classify the leaf as "large" and
+        // split it (threshold = 5 * desiredSliceSize = 5 * numDocs / taskConcurrency, so numDocs
+        // >= 5 * numDocs / taskConcurrency simplifies to taskConcurrency >= 5). Use both a high
+        // doc count and a high task_concurrency to guarantee sub-segment slices.
+        final int partitioningTaskConcurrency = 8;
+        int numDocs = between(100_000, 200_000);
+        try (Directory dir = newDirectory()) {
+            int expectedMatches;
+            // Use the default merge policy so forceMerge(1) consolidates into a single leaf —
+            // NoMergePolicy would silently disable forceMerge and leave many small segments,
+            // each owned by exactly one driver, hiding the cache-shortcut hazard.
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+                int matches = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    Document doc = new Document();
+                    boolean match = d % 3 == 0;
+                    doc.add(new StringField("kw", match ? "match" : "other", StringField.Store.NO));
+                    if (match) {
+                        matches++;
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                expectedMatches = matches;
+                try (IndexReader r = writer.getReader()) {
+                    runDocPartitionedTermQueryCount(r, expectedMatches, partitioningTaskConcurrency);
+                }
+            }
+        }
+    }
+
+    private void runDocPartitionedTermQueryCount(IndexReader r, int expectedMatches, int partitioningTaskConcurrency) {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(r, 0);
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFn = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new TermQuery(new Term("kw", "match")), List.of())
+        );
+        LuceneCountOperator.Factory factory = new LuceneCountOperator.Factory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            queryFn,
+            DataPartitioning.DOC,
+            1,
+            partitioningTaskConcurrency,
+            List.of(),
+            Integer.MAX_VALUE,
+            () -> 0L
+        );
+        int driverCount = partitioningTaskConcurrency;
+        List<Page> results = new CopyOnWriteArrayList<>();
+        List<Driver> drivers = new ArrayList<>();
+        for (int i = 0; i < driverCount; i++) {
+            DriverContext driverCtx = driverContext();
+            drivers.add(
+                TestDriverFactory.create(driverCtx, factory.get(driverCtx), List.of(), new TestResultPageSinkOperator(results::add))
+            );
+        }
+        new TestDriverRunner().run(drivers);
+        long total = 0;
+        for (Page p : results) {
+            total += getCount(p);
+        }
+        assertThat("DOC-partitioned count must equal the true match count", total, equalTo((long) expectedMatches));
+    }
+
     private void testCount(Supplier<DriverContext> contexts, int size, int limit) {
         DataPartitioning dataPartitioning = randomFrom(DataPartitioning.values());
         LuceneCountOperator.Factory factory = simple(dataPartitioning, size, limit);
@@ -343,7 +454,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
         var expectedStrategy = switch (dataPartitioning) {
             case SHARD -> LuceneSliceQueue.PartitioningStrategy.SHARD;
             case SEGMENT -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
-            case AUTO, DOC -> size >= 1 ? testCase.expectedPartitioning() : LuceneSliceQueue.PartitioningStrategy.SHARD;
+            case DOC -> LuceneSliceQueue.PartitioningStrategy.DOC;
+            case AUTO -> size >= 1 ? testCase.expectedPartitioning() : LuceneSliceQueue.PartitioningStrategy.SHARD;
         };
         for (Driver driver : drivers) {
             LuceneOperator.Status status = (LuceneOperator.Status) driver.status().completedOperators().get(0).status();
@@ -386,5 +498,125 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             }
         }
         return totals;
+    }
+
+    /**
+     * Same shape as {@link #testDocPartitioningRespectsCountShortcutSliceBoundaries} but the
+     * leaf-wide count shortcut comes from the {@link LRUQueryCache} rather than from a built-in
+     * {@code Weight.count()}. This is the exact scenario the original
+     * {@link LuceneCountOperator#partitioningStrategyForCount} comment warned about: a query that
+     * has no built-in count shortcut still gets one once it lands in the cache, because
+     * {@code CachingWrapperWeight.count(leaf)} returns the cardinality of the cached bitset
+     * (leaf-wide, ignoring slice bounds). Without the {@code coversFullLeaf} guard, sub-segment
+     * drivers would each apply that leaf cardinality to their slice and over-count.
+     */
+    public void testDocPartitioningCorrectWhenQueryIsCached() throws IOException {
+        final int partitioningTaskConcurrency = 8;
+        int numDocs = between(100_000, 200_000);
+        try (Directory dir = newDirectory()) {
+            int expectedMatches;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+                int matches = 0;
+                for (int d = 0; d < numDocs; d++) {
+                    Document doc = new Document();
+                    boolean match = d % 3 == 0;
+                    doc.add(new StringField("kw", match ? "match" : "other", StringField.Store.NO));
+                    if (match) {
+                        matches++;
+                    }
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+                expectedMatches = matches;
+                try (IndexReader r = writer.getReader()) {
+                    // Force the LRUQueryCache to wrap every query so Weight.count(leaf) returns the
+                    // cached bitset's cardinality on subsequent calls.
+                    QueryCachingPolicy alwaysCache = new QueryCachingPolicy() {
+                        @Override
+                        public void onUse(org.apache.lucene.search.Query query) {}
+
+                        @Override
+                        public boolean shouldCache(org.apache.lucene.search.Query query) {
+                            return true;
+                        }
+                    };
+                    ContextIndexSearcher cachingSearcher = new ContextIndexSearcher(
+                        r,
+                        IndexSearcher.getDefaultSimilarity(),
+                        new LRUQueryCache(100, 100 * 1024 * 1024),
+                        alwaysCache,
+                        true,
+                        Runnable::run,
+                        10,
+                        50_000
+                    );
+                    // Warm the cache so the next access uses the cached Weight.
+                    cachingSearcher.count(new TermQuery(new Term("kw", "match")));
+
+                    ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(cachingSearcher, 0);
+                    Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFn = c -> List.of(
+                        new LuceneSliceQueue.QueryAndTags(new TermQuery(new Term("kw", "match")), List.of())
+                    );
+                    LuceneCountOperator.Factory factory = new LuceneCountOperator.Factory(
+                        new IndexedByShardIdFromSingleton<>(ctx),
+                        queryFn,
+                        DataPartitioning.DOC,
+                        1,
+                        partitioningTaskConcurrency,
+                        List.of(),
+                        Integer.MAX_VALUE,
+                        () -> 0L
+                    );
+                    int driverCount = partitioningTaskConcurrency;
+                    List<Page> results = new CopyOnWriteArrayList<>();
+                    List<Driver> drivers = new ArrayList<>();
+                    for (int i = 0; i < driverCount; i++) {
+                        DriverContext driverCtx = driverContext();
+                        drivers.add(
+                            TestDriverFactory.create(
+                                driverCtx,
+                                factory.get(driverCtx),
+                                List.of(),
+                                new TestResultPageSinkOperator(results::add)
+                            )
+                        );
+                    }
+                    new TestDriverRunner().run(drivers);
+                    long total = 0;
+                    for (Page p : results) {
+                        total += getCount(p);
+                    }
+                    assertThat(
+                        "DOC-partitioned count under LRUQueryCache must equal the true match count",
+                        total,
+                        equalTo((long) expectedMatches)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Direct test of {@link LuceneOperator.LuceneScorer#coversFullLeaf(int, int, int)}: locks the
+     * {@code >=} comparison against {@code Integer.MAX_VALUE}, which Lucene's
+     * {@code IndexSearcher.LeafReaderContextPartition.createForEntireSegment} uses as the
+     * open-ended upper bound. A future tightening to {@code ==} would break SHARD-partitioned
+     * counts (silently fall back from the {@code Weight.count()} shortcut to iteration).
+     */
+    public void testCoversFullLeafBoundary() {
+        // Whole-leaf slices: position=0, maxPosition spans the leaf.
+        assertTrue("[0, leafMaxDoc) covers full leaf", LuceneOperator.LuceneScorer.coversFullLeaf(0, 1000, 1000));
+        assertTrue(
+            "[0, Integer.MAX_VALUE) covers full leaf (createForEntireSegment sentinel)",
+            LuceneOperator.LuceneScorer.coversFullLeaf(0, Integer.MAX_VALUE, 1000)
+        );
+
+        // Sub-segment slices: any non-zero start or any short end falsifies the predicate.
+        assertFalse("[500, leafMaxDoc) is a sub-slice", LuceneOperator.LuceneScorer.coversFullLeaf(500, 1000, 1000));
+        assertFalse("[0, leafMaxDoc/2) is a sub-slice", LuceneOperator.LuceneScorer.coversFullLeaf(0, 500, 1000));
+        assertFalse("[100, 900) is a sub-slice", LuceneOperator.LuceneScorer.coversFullLeaf(100, 900, 1000));
+
+        // Empty leaf: trivially covered.
+        assertTrue("empty leaf covered by [0, 0)", LuceneOperator.LuceneScorer.coversFullLeaf(0, 0, 0));
     }
 }

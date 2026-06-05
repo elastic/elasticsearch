@@ -25,6 +25,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.not;
@@ -86,6 +87,7 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
         CompressedXContent mappings = mappingsTemplate.template().mappings();
         assertNotNull(mappings);
 
+        Set<String> validMatchMappingTypes = Set.of("object", "string", "long", "double", "boolean", "date", "binary");
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, mappings.string())) {
             Map<String, Object> mappingsMap = parser.map();
             @SuppressWarnings("unchecked")
@@ -99,6 +101,32 @@ public class QueryLoggingTemplateRegistryTests extends ESTestCase {
                         1,
                         entry.size()
                     );
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> templateDef = (Map<String, Object>) entry.values().iterator().next();
+                    Object matchMappingType = templateDef.get("match_mapping_type");
+                    if (matchMappingType instanceof String s) {
+                        assertTrue(
+                            "dynamic_templates["
+                                + i
+                                + "].match_mapping_type ["
+                                + s
+                                + "] is not a valid type; valid: "
+                                + validMatchMappingTypes,
+                            validMatchMappingTypes.contains(s)
+                        );
+                    } else if (matchMappingType instanceof List<?> list) {
+                        for (Object t : list) {
+                            assertTrue(
+                                "dynamic_templates["
+                                    + i
+                                    + "].match_mapping_type ["
+                                    + t
+                                    + "] is not a valid type; valid: "
+                                    + validMatchMappingTypes,
+                                validMatchMappingTypes.contains(t)
+                            );
+                        }
+                    }
                 }
             }
         }

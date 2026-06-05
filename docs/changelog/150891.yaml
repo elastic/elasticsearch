@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 150891
+summary: Optionally always sign S3 uploads
+type: enhancement

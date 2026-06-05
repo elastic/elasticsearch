@@ -54,7 +54,7 @@ public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEnc
         return new IvfSegmentConfig(raw.quantEncoding(), raw.usePrecondition(), effective);
     }
 
-    /** Per-leaf IVF collector size (includes 2× factor for overspill duplicates). */
+    /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */
     public static int leafCollectorBudget(int resultK, float segmentOversample) {
         return Math.round(2f * resultK * segmentOversample);
     }

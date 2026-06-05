@@ -84,4 +84,28 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testApproximationUnsupportedSubqueryBugMatchesLimitByBeforeStats() {
+        String query = "SET approximation={}; FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),employees";
+        String error = "verification_exception: line 1:42: approximation not supported: "
+            + "query with [LIMIT 12 BY color] before [STATS] cannot be approximated";
+
+        assertTrue(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
+    }
+
+    public void testApproximationUnsupportedSubqueryBugRequiresSubquery() {
+        String query = "SET approximation={}; FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)";
+        String error = "verification_exception: line 1:42: approximation not supported: "
+            + "query with [LIMIT 12 BY color] before [STATS] cannot be approximated";
+
+        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
+    }
+
+    public void testApproximationUnsupportedSubqueryBugRequiresLimitBy() {
+        String query = "SET approximation={}; FROM (FROM colors | LIMIT 12 | INLINE STATS c = COUNT(*)),employees";
+        String error = "verification_exception: line 1:42: approximation not supported: "
+            + "query with [LIMIT 12] before [STATS] cannot be approximated";
+
+        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
+    }
+
 }

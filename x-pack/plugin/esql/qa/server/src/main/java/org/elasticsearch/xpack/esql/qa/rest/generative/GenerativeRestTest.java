@@ -495,7 +495,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isApproximationUnsupportedSubqueryBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1123,6 +1124,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
+    private static final Pattern APPROXIMATION_LIMIT_BY_BEFORE_STATS_PATTERN = Pattern.compile(
+        ".*approximation not supported: query with \\[LIMIT \\d+ BY .*] before \\[STATS] cannot be approximated.*",
+        Pattern.DOTALL
+    );
 
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
         ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
@@ -1168,6 +1173,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return OPTIMIZED_INCORRECTLY_AGGREGATE_EXEC_PATTERN.matcher(errorMessage).matches()
             && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
             && INLINE_STATS_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    /**
+     * Approximation currently rejects subqueries where {@code LIMIT ... BY} sits before a downstream {@code STATS}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>.
+     */
+    static boolean isApproximationUnsupportedSubqueryBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return APPROXIMATION_LIMIT_BY_BEFORE_STATS_PATTERN.matcher(errorMessage).matches()
+            && SUBQUERY_IN_FROM_PATTERN.matcher(query).find()
+            && INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

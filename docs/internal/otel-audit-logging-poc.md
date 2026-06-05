@@ -24,6 +24,7 @@ References for the requirements below:
 - **ES-13255**: broader "ES logs over OTel". [Jira](https://elasticco.atlassian.net/browse/ES-13255). Tracks any non-audit ES log streams; out of scope here.
 - **elasticsearch-team#2170**: tracking issue for audit-in-serverless work; the issue body itself is a one-line pointer to the `#log-delivery-project-team` Slack channel where the work is being discussed. [GitHub](https://github.com/elastic/elasticsearch-team/issues/2170).
 - **Customer-facing audit log configuration TDD**: *TDD — Customer-facing audit log configuration in Serverless* (Julio Camarero). [Google Doc](https://docs.google.com/document/d/1M9Uzq6M8s3R6cfKMdJcoIkgswbADQbbANnS40anbb3E/edit). Covers how customers configure audit logging (and other log streams) in serverless: Project API shape, cross-app consistency between ES and Kibana, and the structural relationship between per-setting plumbing and a framework-level solution. See also [§4.15](#sec-4-15) and [§5.5](#sec-5-5).
+- **TRACING.md**: *Tracing in Elasticsearch* (inline ES doc). [GitHub](https://github.com/elastic/elasticsearch/blob/b037081bb93f8e9466438980c4855fd740a38a79/TRACING.md). Documents the existing OTel tracing infrastructure in ES — the `tracing` package abstraction, the APM agent, and telemetry configuration (including the optional auth credentials `telemetry.secret_token` / `telemetry.api_key`). Background context for the `modules/apm/` module this work extends.
 
 Each requirement below has a status of *Satisfied*, *Partially satisfied*, or *Gap*. The status line points to [§3](#sec-3) evidence or [§4](#sec-4) gap analysis.
 
@@ -406,7 +407,7 @@ ES and Kibana audit records must use consistent field names — customers config
 
 ### <a id="sec-5-3"></a>5.3 Where the SDK setup lives
 
-`OtelSdkExportLogsSupplier` lives in `modules/apm/`, alongside the meter/tracer suppliers. The apm module's stated purpose is "ES's own observability" (metrics + traces back to Elastic). Customer-facing audit-log delivery is conceptually different; it ships data the customer cares about, not telemetry about ES itself.
+`OtelSdkExportLogsSupplier` lives in `modules/apm/`, alongside the meter/tracer suppliers. The apm module's stated purpose is "ES's own observability" (metrics + traces back to Elastic); see [TRACING.md](https://github.com/elastic/elasticsearch/blob/b037081bb93f8e9466438980c4855fd740a38a79/TRACING.md) for the existing infrastructure there. Customer-facing audit-log delivery is conceptually different; it ships data the customer cares about, not telemetry about ES itself.
 
 Options:
 - Keep it in `modules/apm/`. Cheap, consistent with the metrics/tracer pattern, tolerable in the short term.

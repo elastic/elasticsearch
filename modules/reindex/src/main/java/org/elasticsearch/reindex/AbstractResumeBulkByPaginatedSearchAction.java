@@ -32,16 +32,16 @@ import java.util.concurrent.Executor;
 
 /// Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
 /// node, then returns a [ResumeBulkByPaginatedSearchResponse] containing the task id of the delegate action.
-public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
+public abstract class AbstractResumeBulkByPaginatedSearchAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
     HandledTransportAction<ResumeBulkByPaginatedSearchRequest, ResumeBulkByPaginatedSearchResponse> {
 
-    private static final Logger logger = LogManager.getLogger(AbstractResumeBulkByScrollAction.class);
+    private static final Logger logger = LogManager.getLogger(AbstractResumeBulkByPaginatedSearchAction.class);
 
     private final ClusterService clusterService;
     private final ActionType<BulkByPaginatedSearchResponse> delegateAction;
     private final NodeClient nodeClient;
 
-    protected AbstractResumeBulkByScrollAction(
+    protected AbstractResumeBulkByPaginatedSearchAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,

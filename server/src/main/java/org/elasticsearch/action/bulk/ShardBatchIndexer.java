@@ -127,7 +127,6 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-
             final List<Engine.Index> operations = ShardBatchMapper.parseMappings(items, batch, primary, chunkEnd, chunkStart, resolution);
             if (operations == null) {
                 return;

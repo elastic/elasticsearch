@@ -19,7 +19,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -80,10 +79,6 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.TASK_SETTINGS);
         }
-    }
-
-    public static CohereEmbeddingsTaskSettings fromXContent(XContentParser parser) {
-        return PERSISTENT_PARSER.apply(parser, null);
     }
 
     /**

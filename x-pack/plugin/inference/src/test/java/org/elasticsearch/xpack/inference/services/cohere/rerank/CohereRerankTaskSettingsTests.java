@@ -21,6 +21,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class CohereRerankTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereRerankTaskSettings> {
 
+    private final boolean supportsUnknownFields = randomBoolean();
+
     public static CohereRerankTaskSettings createRandom() {
         var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
@@ -197,11 +199,11 @@ public class CohereRerankTaskSettingsTests extends AbstractXContentSerializingTe
 
     @Override
     protected CohereRerankTaskSettings doParseInstance(XContentParser parser) throws IOException {
-        return CohereRerankTaskSettings.fromXContent(parser);
+        return CohereRerankTaskSettings.createParser(supportsUnknownFields).apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return supportsUnknownFields;
     }
 }

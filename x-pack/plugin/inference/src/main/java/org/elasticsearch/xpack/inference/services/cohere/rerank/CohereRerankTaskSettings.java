@@ -91,10 +91,6 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
         }
     }
 
-    public static CohereRerankTaskSettings fromXContent(XContentParser parser) {
-        return PERSISTENT_PARSER.apply(parser, null);
-    }
-
     /**
      * Creates a new {@link CohereRerankTaskSettings} by preferring non-null fields from the request settings over the original settings.
      *

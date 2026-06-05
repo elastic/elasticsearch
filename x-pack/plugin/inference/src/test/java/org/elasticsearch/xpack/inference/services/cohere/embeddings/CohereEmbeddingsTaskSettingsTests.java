@@ -28,6 +28,8 @@ import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereEmbeddingsTaskSettings> {
 
+    private final boolean supportsUnknownFields = randomBoolean();
+
     public static CohereEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
         var truncation = randomBoolean() ? randomFrom(Truncation.values()) : null;
@@ -157,12 +159,12 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializi
 
     @Override
     protected CohereEmbeddingsTaskSettings doParseInstance(XContentParser parser) throws IOException {
-        return CohereEmbeddingsTaskSettings.fromXContent(parser);
+        return CohereEmbeddingsTaskSettings.createParser(supportsUnknownFields).apply(parser, null);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return supportsUnknownFields;
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

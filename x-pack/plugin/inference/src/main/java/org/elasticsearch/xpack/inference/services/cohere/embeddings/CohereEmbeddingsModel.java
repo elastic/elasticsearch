@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
-    public static CohereEmbeddingsModel createWithOverridenTaskSettings(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
+    public static CohereEmbeddingsModel createWithOverriddenTaskSettings(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = CohereEmbeddingsTaskSettings.fromMap(taskSettings, ConfigurationParseContext.REQUEST);
         return new CohereEmbeddingsModel(model, CohereEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }

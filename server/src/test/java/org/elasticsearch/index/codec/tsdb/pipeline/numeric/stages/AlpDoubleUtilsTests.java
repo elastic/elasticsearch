@@ -112,15 +112,21 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         assertEquals(0, AlpDoubleUtils.computeBitSavings(values, blockSize, 0, 0));
     }
 
-    public void testMaxExceptionPercentReturnsZeroWhenNoSavings() {
-        assertEquals(0, AlpDoubleUtils.maxExceptionPercent(0, AlpDoubleUtils.DOUBLE_EXCEPTION_COST));
-        assertEquals(0, AlpDoubleUtils.maxExceptionPercent(-1, AlpDoubleUtils.DOUBLE_EXCEPTION_COST));
+    public void testMaxExceptionsReturnsZeroWhenNoSavings() {
+        assertEquals(0, AlpDoubleUtils.maxExceptions(0, 512, AlpDoubleUtils.DOUBLE_EXCEPTION_COST));
+        assertEquals(0, AlpDoubleUtils.maxExceptions(-1, 512, AlpDoubleUtils.DOUBLE_EXCEPTION_COST));
     }
 
-    public void testMaxExceptionPercentScalesWithBitsSaved() {
-        final int small = AlpDoubleUtils.maxExceptionPercent(8, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
-        final int large = AlpDoubleUtils.maxExceptionPercent(32, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
+    public void testMaxExceptionsScalesWithBitsSaved() {
+        final int small = AlpDoubleUtils.maxExceptions(8, 512, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
+        final int large = AlpDoubleUtils.maxExceptions(32, 512, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
         assertTrue("more bits saved must tolerate more exceptions", large > small);
+    }
+
+    public void testMaxExceptionsScalesWithBlockSize() {
+        final int small = AlpDoubleUtils.maxExceptions(8, 128, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
+        final int large = AlpDoubleUtils.maxExceptions(8, 2048, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
+        assertTrue("larger blocks must tolerate more exceptions for the same bit saving", large > small);
     }
 
     public void testFindBestEFKeepsExceptionsBoundedFor2dpDecimals() {

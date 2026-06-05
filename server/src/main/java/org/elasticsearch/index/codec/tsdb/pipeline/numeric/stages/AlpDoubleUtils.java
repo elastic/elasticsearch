@@ -237,15 +237,20 @@ final class AlpDoubleUtils {
     }
 
     /**
-     * Maximum tolerated exception fraction, in percent, for the given per-value bit
-     * saving and per-exception byte cost. The {@code 2x} safety margin biases the
-     * decision against marginal wins where metadata overhead can erode the saving.
+     * Maximum tolerated exception count for a block of {@code valueCount} values given the
+     * per-value bit-width saving and per-exception byte cost. The threshold is the
+     * break-even point where the block-wide saving from ALP's narrower mantissa stream
+     * (bitsSaved * valueCount bits) is exceeded by the per-exception metadata cost
+     * (exceptionCost bytes each), with a {@code 2x} safety margin so marginal wins do not
+     * trigger.
      */
-    static int maxExceptionPercent(int bitsSaved, int exceptionCost) {
+    static int maxExceptions(int bitsSaved, int valueCount, int exceptionCost) {
         if (bitsSaved <= 0) {
             return 0;
         }
-        return (bitsSaved * 100) / (8 * exceptionCost * 2);
+        final long savedBits = (long) bitsSaved * valueCount;
+        final long perExceptionBits = (long) exceptionCost * 8 * 2;
+        return (int) (savedBits / perExceptionBits);
     }
 
     /**

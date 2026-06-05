@@ -95,9 +95,9 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     private final long[] excValues;
     private int cachedE = -1;
     private int cachedF = -1;
-    // Cached dynamic threshold (in percent of the block) from the last successful encode.
-    // Reused on cache hit so we skip recomputing computeBitSavings every block.
-    private int cachedMaxAllowedPercent = -1;
+    // Dynamic threshold (absolute exception count) from the last successful encode,
+    // reused on cache hit so we skip recomputing computeBitSavings every block.
+    private int cachedMaxAllowed = -1;
 
     /**
      * Creates a stage with the standard exponent range and scratch buffers sized to the
@@ -137,8 +137,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         if (cachedE >= 0) {
             final int bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, cachedE, cachedF);
             final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
-            final int dynamicMaxAllowed = (valueCount * cachedMaxAllowedPercent) / 100;
-            if (bestExceptions <= cacheMaxAllowed && bestExceptions <= dynamicMaxAllowed) {
+            if (bestExceptions <= cacheMaxAllowed && bestExceptions <= cachedMaxAllowed) {
                 writeAlpBlock(values, valueCount, cachedE, cachedF, context);
                 return;
             }
@@ -154,15 +153,14 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         if (bitsSaved <= 0) {
             return;
         }
-        final int maxAllowedPercent = AlpDoubleUtils.maxExceptionPercent(bitsSaved, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
-        final int maxAllowed = (valueCount * maxAllowedPercent) / 100;
+        final int maxAllowed = AlpDoubleUtils.maxExceptions(bitsSaved, valueCount, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
         if (bestExceptions > maxAllowed) {
             return;
         }
 
         cachedE = bestE;
         cachedF = bestF;
-        cachedMaxAllowedPercent = maxAllowedPercent;
+        cachedMaxAllowed = maxAllowed;
 
         writeAlpBlock(values, valueCount, bestE, bestF, context);
     }

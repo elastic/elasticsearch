@@ -623,3 +623,6 @@ tests:
 - class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
   method: testScoringWithMultipleChildren
   issue: https://github.com/elastic/elasticsearch/issues/150813
+- class: org.elasticsearch.xpack.esql.qa.csv.ExternalCsvMultiNodePushdownIT
+  method: testCountStarColdThenWarmShortCircuitsAcrossNodes
+  issue: https://github.com/elastic/elasticsearch/issues/150594

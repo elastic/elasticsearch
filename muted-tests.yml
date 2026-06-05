@@ -50,8 +50,11 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/143697
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/143697
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
@@ -113,8 +116,11 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:PROMQL}
+  issue: https://github.com/elastic/elasticsearch/issues/146923
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
@@ -271,8 +277,8 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
@@ -349,8 +355,8 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
   method: testStatelessFallbackAllocation
   issue: https://github.com/elastic/elasticsearch/issues/149947
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.floatEqualsDouble}
@@ -464,9 +470,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleSamplingMode
   issue: https://github.com/elastic/elasticsearch/issues/150478
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
-  method: testLegacyFormatInferenceIdUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/150481
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshesAreBlockedUntilBlockIsRemoved
   issue: https://github.com/elastic/elasticsearch/issues/150492
@@ -602,15 +605,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
   method: testFewVectorManyTimes
   issue: https://github.com/elastic/elasticsearch/issues/150717
-- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150718
-- class: org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedBFloat16VectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150719
-- class: org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormatTests
-  method: testSingleVectorCase
-  issue: https://github.com/elastic/elasticsearch/issues/150720
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722
@@ -650,3 +644,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150844
+- class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
+  method: testNullClusterUuidDoesNotNpe
+  issue: https://github.com/elastic/elasticsearch/issues/150887
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/150867
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:topN.topNLongRangeWildcardSort}
+  issue: https://github.com/elastic/elasticsearch/issues/150874
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotReadFromObjectStore
+  issue: https://github.com/elastic/elasticsearch/issues/150883
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/150884
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testDeleteMountedFrozenIndexBeforeSwap
+  issue: https://github.com/elastic/elasticsearch/issues/150892
+- class: org.elasticsearch.index.reindex.UpdateByQueryRequestTests
+  method: testForSlice
+  issue: https://github.com/elastic/elasticsearch/issues/150895
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
+  issue: https://github.com/elastic/elasticsearch/issues/150897
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
+  issue: https://github.com/elastic/elasticsearch/issues/150898

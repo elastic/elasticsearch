@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.googleaistudio;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
 
-public abstract class GoogleAiStudioModel extends Model {
+public abstract class GoogleAiStudioModel extends RateLimitGroupingModel {
 
     private final GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -36,5 +37,15 @@ public abstract class GoogleAiStudioModel extends Model {
 
     public GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        return rateLimitServiceSettings.modelId().hashCode();
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitServiceSettings.rateLimitSettings();
     }
 }

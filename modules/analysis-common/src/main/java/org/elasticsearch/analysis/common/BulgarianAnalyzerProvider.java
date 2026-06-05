@@ -28,7 +28,7 @@ public class BulgarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bul
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, BulgarianAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new BulgarianAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

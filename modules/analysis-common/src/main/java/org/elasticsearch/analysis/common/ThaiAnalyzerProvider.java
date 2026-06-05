@@ -26,7 +26,7 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnal
         super(name);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet());
         analyzer = new ThaiAnalyzer(stopWords);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override

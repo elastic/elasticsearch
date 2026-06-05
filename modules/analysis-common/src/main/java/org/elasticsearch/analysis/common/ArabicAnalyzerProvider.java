@@ -28,7 +28,7 @@ public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arabic
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         arabicAnalyzer = new ArabicAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

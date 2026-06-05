@@ -31,7 +31,7 @@ public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Li
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, LithuanianAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new LithuanianAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

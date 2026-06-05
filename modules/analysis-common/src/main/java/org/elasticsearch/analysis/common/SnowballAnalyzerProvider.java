@@ -59,7 +59,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(language, stopWords);
-        this.sharingKey = new Key(language, new Analysis.StableCharArraySet(stopWords));
+        this.sharingKey = new Key(language, Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override

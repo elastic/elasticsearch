@@ -26,7 +26,7 @@ public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAn
         super(name);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet());
         analyzer = new GreekAnalyzer(stopWords);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override

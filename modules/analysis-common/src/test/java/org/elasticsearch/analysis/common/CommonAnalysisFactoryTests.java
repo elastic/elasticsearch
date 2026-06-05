@@ -226,14 +226,25 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         p.put("simple", stateless());
         p.put("whitespace", stateless());
         p.put("chinese", stateless());
-        p.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "2").affects("stopwords", List.of("the")));
-        p.put("pattern", settings().affects("pattern", "\\d+").affects("lowercase", "false").affects("stopwords", List.of("the")));
-        p.put("snowball", settings().affects("language", "French").affects("stopwords", List.of("the")));
-        // stop and the language analyzers are keyed on their stop-word set; stopwords_case is read
-        // but intentionally NOT keyed (the analyzers lower-case before the stop filter), so it must
-        // leave the key unchanged.
-        p.put("stop", settings().affects("stopwords", List.of("zzzqux")).ignored("stopwords_case", "true"));
-        p.put("english", settings().affects("stopwords", List.of("zzzqux")).ignored("stopwords_case", "true"));
+        p.put(
+            "fingerprint",
+            settings().affects("separator", "+")
+                .affects("max_output_size", "2")
+                .affects("stopwords", List.of("the"))
+                .affects("stopwords_case", "true")
+        );
+        p.put(
+            "pattern",
+            settings().affects("pattern", "\\d+")
+                .affects("lowercase", "false")
+                .affects("stopwords", List.of("the"))
+                .affects("stopwords_case", "true")
+        );
+        p.put("snowball", settings().affects("language", "French").affects("stopwords", List.of("the")).affects("stopwords_case", "true"));
+        // stop and the language analyzers are keyed on their stop-word set. stopwords_case toggles the
+        // case-sensitivity of stop-word matching, so it is behavior-affecting and must change the key.
+        p.put("stop", settings().affects("stopwords", List.of("zzzqux")).affects("stopwords_case", "true"));
+        p.put("english", settings().affects("stopwords", List.of("zzzqux")).affects("stopwords_case", "true"));
         for (String lang : List.of(
             "arabic",
             "armenian",
@@ -271,7 +282,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "thai",
             "turkish"
         )) {
-            p.put(lang, settings().affects("stopwords", List.of("zzzqux")));
+            p.put(lang, settings().affects("stopwords", List.of("zzzqux")).affects("stopwords_case", "true"));
         }
         return p;
     }

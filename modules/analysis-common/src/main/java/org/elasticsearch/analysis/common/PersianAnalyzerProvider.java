@@ -75,7 +75,7 @@ public class PersianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stopw
                 }
             };
         }
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), modern);
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), modern);
     }
 
     @Override

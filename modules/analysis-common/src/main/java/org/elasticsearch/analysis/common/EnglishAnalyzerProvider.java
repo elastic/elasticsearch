@@ -28,7 +28,7 @@ public class EnglishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Engli
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, EnglishAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new EnglishAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

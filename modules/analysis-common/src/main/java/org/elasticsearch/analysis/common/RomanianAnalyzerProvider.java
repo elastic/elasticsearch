@@ -64,7 +64,7 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stop
         // {@code modernRomanian} captures the version-dependent behavioral fork so we don't need
         // to put indexVersionCreated in the cache key.
         this.sharingKey = new Key(
-            new Analysis.StableCharArraySet(stopwords),
+            Analysis.stableStopWords(settings, stopwords),
             new Analysis.StableCharArraySet(stemExclusionSet),
             modernRomanian
         );

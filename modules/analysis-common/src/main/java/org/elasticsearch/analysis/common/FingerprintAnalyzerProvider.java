@@ -42,7 +42,7 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
         this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
-        this.sharingKey = new Key(separator, maxOutputSize, new Analysis.StableCharArraySet(stopWords));
+        this.sharingKey = new Key(separator, maxOutputSize, Analysis.stableStopWords(settings, stopWords));
     }
 
     @Override

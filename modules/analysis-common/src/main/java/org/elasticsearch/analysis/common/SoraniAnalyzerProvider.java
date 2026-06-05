@@ -31,7 +31,7 @@ public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<Sorani
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, SoraniAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new SoraniAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

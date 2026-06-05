@@ -174,6 +174,17 @@ public class Analysis {
         return parseWords(env, settings, "stopwords", defaultStopWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
+    /**
+     * Wraps a stop-word set for inclusion in an analyzer provider's {@code sharingKey()}. {@link
+     * #parseStopWords(Environment, Settings, CharArraySet)} builds the runtime set with the
+     * {@code stopwords_case} flag, which toggles case-sensitive matching, so two recipes that differ
+     * only in {@code stopwords_case} can tokenize differently. Folding the flag into the key here is
+     * what keeps those recipes from resolving to one shared instance.
+     */
+    public static StableCharArraySet stableStopWords(Settings settings, CharArraySet stopWords) {
+        return new StableCharArraySet(stopWords, settings.getAsBoolean("stopwords_case", false));
+    }
+
     private static CharArraySet resolveNamedWords(Collection<String> words, Map<String, Set<?>> namedWords, boolean ignoreCase) {
         if (namedWords == null) {
             return new CharArraySet(words, ignoreCase);

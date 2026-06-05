@@ -28,7 +28,7 @@ public class SwedishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Swedi
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, SwedishAnalyzer.getDefaultStopSet());
         CharArraySet stemExclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         analyzer = new SwedishAnalyzer(stopWords, stemExclusions);
-        this.sharingKey = new Key(new Analysis.StableCharArraySet(stopWords), new Analysis.StableCharArraySet(stemExclusions));
+        this.sharingKey = new Key(Analysis.stableStopWords(settings, stopWords), new Analysis.StableCharArraySet(stemExclusions));
     }
 
     @Override

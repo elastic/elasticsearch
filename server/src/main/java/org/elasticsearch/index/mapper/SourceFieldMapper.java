@@ -520,14 +520,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 try (var b = XContentFactory.jsonBuilder()) {
                     sourceLeafLoader.write(storedFieldLoader, docId, b);
                     BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
-                    // Remove individual _ignored_source entries collected during parsing — their contents are
+                    // Remove per-field fallback entries collected during parsing — their contents are
                     // subsumed by the whole-document entry written below, and binary doc values only allow
-                    // one field instance per document.
-                    String countsFieldName = IgnoredSourceFieldMapper.NAME
-                        + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-                    context.doc()
-                        .getFields()
-                        .removeIf(f -> IgnoredSourceFieldMapper.NAME.equals(f.name()) || countsFieldName.equals(f.name()));
+                    // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
+                    // still used after indexing by block loaders or queries.
+                    context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
                     IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
                         .writeIgnoredFields(
                             List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
@@ -537,6 +534,29 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
             }
         }
+    }
+
+    /**
+     * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
+     * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
+     *
+     * <p>The following are removed:</p>
+     * <ul>
+     *   <li>{@code _ignored_source} per-field entries
+     *   <li>{@code <field>._ignore_malformed} (and {@code .counts})</li>
+     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and
+     *       normalized values</li>
+     * </ul>
+     *
+     */
+    private static boolean isRedundantInColumnarStoredSource(String fieldName) {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        return IgnoredSourceFieldMapper.NAME.equals(fieldName)
+            || (IgnoredSourceFieldMapper.NAME + counts).equals(fieldName)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts);
     }
 
     /**

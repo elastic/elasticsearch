@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
+import java.util.OptionalInt;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -62,6 +63,21 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
 
     /**
+     * Size of the write buffer passed to the GCS SDK for resumable uploads. Controls the amount of
+     * data buffered in memory before each HTTP PUT request. When not set the SDK default of 16 MiB
+     * is used. GCS requires this value to be a multiple of 256 KiB; values that are not will be
+     * rounded up automatically.
+     */
+    static final Setting<ByteSizeValue> RESUMABLE_WRITE_BUFFER = byteSizeSetting(
+        "resumable_write_buffer",
+        ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
+        ByteSizeValue.ofKb(128),
+        ByteSizeValue.ofBytes(GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE),
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
      * with the following parameters
      */
@@ -89,6 +105,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
     private final GcsRepositoryStatsCollector statsCollector;
+    private final OptionalInt resumableWriteBuffer;
 
     GoogleCloudStorageRepository(
         @Nullable final ProjectId projectId,
@@ -120,6 +137,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
         this.statsCollector = statsCollector;
+        this.resumableWriteBuffer = RESUMABLE_WRITE_BUFFER.exists(metadata.settings())
+            ? OptionalInt.of(Math.toIntExact(getSetting(RESUMABLE_WRITE_BUFFER, metadata).getBytes()))
+            : OptionalInt.empty();
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
@@ -150,6 +170,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
+            resumableWriteBuffer,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector
         );
@@ -162,6 +183,11 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     GcsRepositoryStatsCollector statsCollector() {
         return statsCollector;
+    }
+
+    // package private for testing
+    OptionalInt getResumableWriteBuffer() {
+        return resumableWriteBuffer;
     }
 
     /**

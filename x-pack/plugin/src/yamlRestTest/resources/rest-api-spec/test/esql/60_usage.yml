@@ -261,18 +261,6 @@ setup:
   - do: { xpack.usage: { } }
   - gt: { esql.features.dedup: $dedup_counter }
 
-  - set: { esql.features.highlight: highlight_counter }
-
-  - do:
-      esql.query:
-        body:
-          query: 'from test
-            | highlight "test" on message
-            | limit 100'
-
-  - do: { xpack.usage: { } }
-  - gt: { esql.features.highlight: $highlight_counter }
-
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
   - requires:

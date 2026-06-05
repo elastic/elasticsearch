@@ -546,6 +546,6 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
 
     @Override
     public String toString() {
-        return "NativeFlatVectorScorer()";
+        return "PanamaFlatVectorScorer()";
     }
 }

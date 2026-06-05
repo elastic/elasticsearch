@@ -80,7 +80,7 @@ public class ES93HnswBinaryQuantizedBFloat16VectorsFormatTests extends BaseQuant
 
         String defaultScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
         String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
-        String nativeScorer = expected.replaceAll("\\{}", "NativeFlatVectorScorer()");
+        String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));

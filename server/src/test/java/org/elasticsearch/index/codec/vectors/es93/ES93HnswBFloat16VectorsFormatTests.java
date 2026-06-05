@@ -127,7 +127,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
         );
         String defaultScorer = format(Locale.ROOT, expected, "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
         String memSegScorer = format(Locale.ROOT, expected, "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
-        String nativeScorer = format(Locale.ROOT, expected, "NativeFlatVectorScorer()");
+        String nativeScorer = format(Locale.ROOT, expected, "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
         assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer, nativeScorer))));

@@ -174,7 +174,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnV
 
         String defaultScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=DefaultFlatVectorScorer())");
         String memSegScorer = expected.replaceAll("\\{}", "ESDefaultFlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())");
-        String nativeScorer = expected.replaceAll("\\{}", "NativeFlatVectorScorer()");
+        String nativeScorer = expected.replaceAll("\\{}", "PanamaFlatVectorScorer()");
 
         KnnVectorsFormat format = new ES93BinaryQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT, false);
         assertThat(format, hasToString(oneOf(defaultScorer, memSegScorer, nativeScorer)));

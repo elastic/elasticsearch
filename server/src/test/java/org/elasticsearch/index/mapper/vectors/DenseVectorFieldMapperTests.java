@@ -2135,7 +2135,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
@@ -2220,7 +2220,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                     + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                    + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                                    + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                             ),
                             containsString(
                                 "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
@@ -2279,7 +2279,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
@@ -2388,7 +2388,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
-                                + "ES93GenericFlatVectorScorer(delegate=NativeFlatVectorScorer())))"
+                                + "ES93GenericFlatVectorScorer(delegate=PanamaFlatVectorScorer())))"
                         ),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="

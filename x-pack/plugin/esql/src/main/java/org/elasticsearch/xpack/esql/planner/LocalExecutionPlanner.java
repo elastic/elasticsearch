@@ -2144,11 +2144,20 @@ public class LocalExecutionPlanner {
         }
 
         public List<Driver> createDrivers(String sessionId) {
+            return createDrivers(sessionId, Integer.MAX_VALUE);
+        }
+
+        /**
+         * Creates driver instances for execution, capping all factories to {@code maxParallelism}
+         * instances. This is used to apply backpressure when the worker queue is under load.
+         */
+        public List<Driver> createDrivers(String sessionId, int maxParallelism) {
             List<Driver> drivers = new ArrayList<>();
             boolean success = false;
             try {
                 for (DriverFactory df : driverFactories) {
-                    for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                    int instanceCount = Math.min(df.driverParallelism.instanceCount(), maxParallelism);
+                    for (int i = 0; i < instanceCount; i++) {
                         logger.trace("building {} {}", i, df);
                         drivers.add(df.driverSupplier.apply(sessionId));
                     }

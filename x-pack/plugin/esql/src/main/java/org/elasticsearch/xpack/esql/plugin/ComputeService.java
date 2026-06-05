@@ -106,6 +106,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -114,6 +115,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_QUEUE_BACKPRESSURE_THRESHOLD;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
 /**
@@ -185,6 +187,7 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private volatile double workerQueueBackpressureThreshold;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -203,12 +206,17 @@ public class ComputeService {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.workerQueueBackpressureThreshold = ESQL_WORKER_QUEUE_BACKPRESSURE_THRESHOLD.get(
+            transportActionServices.clusterService().getSettings()
+        );
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.clusterService = transportActionServices.clusterService();
+        this.clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ESQL_WORKER_QUEUE_BACKPRESSURE_THRESHOLD, v -> workerQueueBackpressureThreshold = v);
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
             this,
@@ -233,6 +241,36 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    int maxDataParallelism() {
+        return maxDataParallelism(
+            transportService.getThreadPool().executor(ESQL_WORKER_THREAD_POOL_NAME),
+            workerQueueBackpressureThreshold
+        );
+    }
+
+    /**
+     * Returns the maximum number of DATA_PARALLELISM driver instances to create for a single
+     * {@link LocalExecutionPlanner.LocalExecutionPlan#createDrivers} call, based on how much of
+     * the esql_worker queue is currently free.
+     *
+     * <p>Backpressure is applied at driver-creation time rather than submission time: creating fewer
+     * drivers means all drivers run at full concurrency with each other, while still leaving headroom
+     * in the queue for drivers from other concurrent queries.
+     *
+     * <p>Returns {@link Integer#MAX_VALUE} (no limit) when {@code threshold} is ≤ 0 or the executor
+     * queue is not inspectable (e.g. direct executor in tests).
+     */
+    static int maxDataParallelism(Executor workerExecutor, double threshold) {
+        if (threshold <= 0.0) {
+            return Integer.MAX_VALUE;
+        }
+        if (workerExecutor instanceof ThreadPoolExecutor tpe) {
+            int remaining = tpe.getQueue().remainingCapacity();
+            return Math.max(1, (int) Math.ceil(remaining * threshold));
+        }
+        return Integer.MAX_VALUE;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1243,7 +1281,7 @@ public class ComputeService {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
-            var drivers = localExecutionPlan.createDrivers(driverSessionId);
+            var drivers = localExecutionPlan.createDrivers(driverSessionId, maxDataParallelism());
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
             // incremented) by the source operators, and the DocVectors. Since The contexts are pre-created with a count of 1, and then
             // incremented by the relevant source operators, after creating the *data* drivers (and therefore, the source operators), we can

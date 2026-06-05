@@ -173,6 +173,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.NodeScope
     );
 
+    /**
+     * Fraction (0.0–1.0) of the esql_worker queue's remaining capacity that a single driver-batch submission may consume.
+     * Setting this to 0.0 disables backpressure (all drivers are submitted immediately).
+     * Default is 1% so that no single query monopolises the queue under concurrent load.
+     */
+    public static final Setting<Double> ESQL_WORKER_QUEUE_BACKPRESSURE_THRESHOLD = Setting.doubleSetting(
+        "esql.worker.queue.backpressure_threshold",
+        0.01,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
         true,
@@ -447,6 +461,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 ESQL_WORKER_THREAD_POOL_SIZE,
+                ESQL_WORKER_QUEUE_BACKPRESSURE_THRESHOLD,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
                 ViewService.MAX_VIEWS_COUNT_SETTING,

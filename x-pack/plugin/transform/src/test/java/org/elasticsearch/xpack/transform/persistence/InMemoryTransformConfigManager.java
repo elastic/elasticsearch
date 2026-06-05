@@ -13,6 +13,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -24,7 +25,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -42,6 +45,10 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     private final Map<String, List<TransformCheckpoint>> checkpoints = new HashMap<>();
     private final Map<String, TransformConfig> configs = new HashMap<>();
     private final Map<String, TransformStoredDoc> transformStoredDocs = new HashMap<>();
+    // keyed by tokenId (credential.id()), not transformId — matches the production index keying
+    private final Map<String, PersistedCloudCredential> cloudCredentialsByTokenId = new HashMap<>();
+    // tracks which transform owns each persisted credential for deleteTransform semantics
+    private final Map<String, String> credentialTokenIdToTransformId = new HashMap<>();
 
     // for mocking updates
     private final Map<String, List<TransformCheckpoint>> oldCheckpoints = new HashMap<>();
@@ -308,7 +315,66 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
     public void deleteTransform(String transformId, ActionListener<Boolean> listener) {
         configs.remove(transformId);
         oldConfigs.remove(transformId);
+        // drop any credentials owned by this transform — mirrors the DBQ in IndexBasedTransformConfigManager
+        credentialTokenIdToTransformId.entrySet().removeIf(e -> {
+            if (transformId.equals(e.getValue())) {
+                cloudCredentialsByTokenId.remove(e.getKey());
+                return true;
+            }
+            return false;
+        });
         resetTransform(transformId, listener);
+    }
+
+    @Override
+    public void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener) {
+        var tokenId = credential.id();
+        if (cloudCredentialsByTokenId.putIfAbsent(tokenId, credential) != null) {
+            listener.onFailure(
+                new org.elasticsearch.ResourceAlreadyExistsException("Cloud credential for token [" + tokenId + "] already exists")
+            );
+            return;
+        }
+        credentialTokenIdToTransformId.put(tokenId, transformId);
+        listener.onResponse(true);
+    }
+
+    @Override
+    public void getTransformCloudCredentialByTokenId(
+        String tokenId,
+        boolean allowNoMatch,
+        ActionListener<PersistedCloudCredential> listener
+    ) {
+        PersistedCloudCredential credential = cloudCredentialsByTokenId.get(tokenId);
+        if (credential == null && allowNoMatch == false) {
+            listener.onFailure(new ResourceNotFoundException("No cloud credential found for token [" + tokenId + "]"));
+            return;
+        }
+        listener.onResponse(credential);
+    }
+
+    @Override
+    public void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener) {
+        boolean removed = cloudCredentialsByTokenId.remove(tokenId) != null;
+        credentialTokenIdToTransformId.remove(tokenId);
+        listener.onResponse(removed);
+    }
+
+    @Override
+    public void forEachTransformCloudCredential(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        ActionListener<Void> listener
+    ) {
+        // Snapshot before iterating so that the consumer (which may delete entries) does not cause ConcurrentModificationException.
+        var snapshot = credentialTokenIdToTransformId.entrySet()
+            .stream()
+            .filter(e -> transformId.equals(e.getValue()))
+            .map(e -> cloudCredentialsByTokenId.get(e.getKey()))
+            .filter(Objects::nonNull)
+            .toList();
+        snapshot.forEach(action);
+        listener.onResponse(null);
     }
 
     public void putOrUpdateOldTransformStoredDoc(

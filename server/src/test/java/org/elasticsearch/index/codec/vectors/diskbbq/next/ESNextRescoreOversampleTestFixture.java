@@ -53,14 +53,6 @@ public final class ESNextRescoreOversampleTestFixture {
 
     private ESNextRescoreOversampleTestFixture() {}
 
-    /**
-     * Merge resolver matching {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper} when
-     * {@code auto_calibrate} is enabled.
-     */
-    public static IvfMergeConfigResolver productionMergeResolver(int vectorsPerCluster) {
-        return IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster);
-    }
-
     /** Shared codec helpers for IVF writer + merge replay. */
     public static Codec createDiskBbqCodec(IvfFlushConfigSource flushConfig, IvfMergeConfigResolver mergeResolver) {
         int vpc = 128;
@@ -168,7 +160,7 @@ public final class ESNextRescoreOversampleTestFixture {
 
     /**
      * Builds two flushed segments with disagreeing calibration metadata, then force-merges to one segment
-     * using {@link #productionMergeResolver(int)} so merge-time auto-calibration runs.
+     *  so merge-time auto-calibration runs.
      */
     public static DirectoryReader buildForceMergedWithDisagreeingFlushCalibration(
         Directory dir,
@@ -188,7 +180,7 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
-        Codec codec = createDiskBbqCodec(flushConfig, productionMergeResolver(vectorsPerCluster));
+        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
         writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 
@@ -223,7 +215,7 @@ public final class ESNextRescoreOversampleTestFixture {
             }
             return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 3f));
         };
-        Codec codec = createDiskBbqCodec(flushConfig, productionMergeResolver(vectorsPerCluster));
+        Codec codec = createDiskBbqCodec(flushConfig, IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster));
         IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec).setMergePolicy(NoMergePolicy.INSTANCE);
         writeTwoCommits(rnd, vectorsPerSegment, vectorDimensions, dir, iwcNoMerge);
 

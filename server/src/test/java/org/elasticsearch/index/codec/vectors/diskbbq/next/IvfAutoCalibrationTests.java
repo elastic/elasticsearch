@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class IvfAutoCalibrationTests extends ESTestCase {
 
-    private static final int DIM = 4;
+    private static final int DIM = 64;
     private static final int VPC = 128;
 
     private static final IvfSegmentConfig CODEC_DEFAULT = IvfSegmentConfig.fromCodecDefaults(
@@ -83,7 +83,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     16,
                     2f,
                     4f,
-                    ESNextRescoreOversampleTestFixture.productionMergeResolver(VPC),
+                    IvfAutoCalibration.mergeConfigResolver(VPC),
                     DEFAULT_CALIBRATED_OVERSAMPLE
                 )
             ) {

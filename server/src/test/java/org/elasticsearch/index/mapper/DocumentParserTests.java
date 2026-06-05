@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -971,6 +972,41 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("bar")));
         assertEquals(0, doc.rootDoc().getFields("bar").size());
+    }
+
+    // In columnar mode, unmapped fields with dynamic:false must be dropped entirely rather than
+    // stored in _ignored_source (documented data loss, not a bug).
+    public void testColumnarDynamicFalseValueDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("unmapped_field", "some_value")));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_field").size());
+        assertNull(
+            "unmapped dynamic:false leaf must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseObjectDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("unmapped_obj").field("key", "value").endObject()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_obj.key").size());
+        assertNull(
+            "unmapped dynamic:false object must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseArrayDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("unmapped_arr").value(1).value(2).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_arr").size());
+        assertNull(
+            "unmapped dynamic:false array must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
     }
 
     public void testDynamicStrictNull() throws Exception {
@@ -2874,6 +2910,48 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
+    public void testSubobjectsFalseWithStrictDynamicSkipsDynamicForMappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that DocumentParser#parseObjectDynamic(...) isn't invoked.
+        // DocumentParser#parseObjectDynamic(...) fails because dynamic=strict.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Object notation for a pre-mapped prefix must succeed. If parseObjectDynamic were
+        // called for "host", strict mode would throw "dynamic introduction of [host]".
+        ParsedDocument doc = mapper.parse(source("""
+            { "host": { "name": "localhost" } }
+            """));
+        assertThat(doc.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+    }
+
+    public void testSubobjectsFalseWithStrictDynamicRejectsUnmappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that invoking DocumentParser#parseObjectDynamic(...) fails.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // "env" has no mapped fields with it as a prefix, so the dynamic path is taken and strict rejects it.
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+            { "env": { "name": "prod" } }
+            """)));
+        assertThat(ex.getMessage(), containsString("dynamic introduction of [env]"));
+    }
+
     public void testSubobjectsFalseDocWithInnerObjectsNullValues() throws Exception {
         // null values are handled separately while parsing hence we want to make sure that the field paths are propagated correctly
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
@@ -3192,6 +3270,49 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(1, root.mappers.size());
         assertThat(root.getMapper("location"), instanceOf(GeoPointFieldMapper.class));
         assertNotNull(parsedDocument.dynamicMappingsUpdate());
+    }
+
+    /**
+     * When subobjects are disabled, an intermediate object that matches no dynamic template is auto-flattened:
+     * its children are mapped as leaf fields prefixed with the object's name.
+     */
+    public void testSubobjectsFalseObjectWithNoMatchingDynamicTemplateIsFlattened() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                b.startObject("timestamps");
+                {
+                    b.field("match", "timestamp");
+                    b.startObject("mapping");
+                    {
+                        b.field("type", "date");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.endObject();
+            }
+            b.endArray();
+            b.field("subobjects", false);
+        }));
+
+        ParsedDocument parsedDocument = mapper.parse(source("""
+            {
+              "metrics" : {
+                "cpu": 1.5,
+                "memory": 2.0
+              }
+            }
+            """));
+
+        // The intermediate "metrics" object must not appear as a mapper; its children are flattened.
+        RootObjectMapper root = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate()).getRoot();
+        assertNull(root.getMapper("metrics"));
+        assertThat(root.getMapper("metrics.cpu"), instanceOf(NumberFieldMapper.class));
+        assertThat(root.getMapper("metrics.memory"), instanceOf(NumberFieldMapper.class));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.cpu"));
+        assertNotNull(parsedDocument.rootDoc().getField("metrics.memory"));
     }
 
     public void testSubobjectsFalseIngestDifferentObjectsRepresentation() throws Exception {

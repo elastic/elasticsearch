@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 
 import java.io.IOException;
 import java.util.Set;
@@ -61,6 +63,7 @@ public class SearchEngineHeapBudgetLeakInvariantTests extends AbstractEngineTest
         ClusterSettings clusterSettings,
         NodeEnvironment nodeEnvironment
     ) {
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
@@ -69,14 +72,15 @@ public class SearchEngineHeapBudgetLeakInvariantTests extends AbstractEngineTest
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
             newReaderHeapBreaker(),
-            StatelessReaderHeapMetrics.NOOP
+            StatelessReaderHeapMetrics.NOOP,
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment);
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardSearchFilters);
                 }
             }
 

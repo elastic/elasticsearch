@@ -1258,7 +1258,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (response.getFailedShards() != 0) {
                     final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
                     for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
-                        if (ExceptionsHelper.unwrap(shardFailure.getCause(), MergePolicy.MergeAbortedException.class) == null) {
+                        // Remote MergeAbortedException is serialized as IOException so that we also check the message
+                        if (ExceptionsHelper.unwrapCausesAndSuppressed(
+                            shardFailure.getCause(),
+                            t -> t instanceof MergePolicy.MergeAbortedException
+                                || (t.getMessage() != null && t.getMessage().contains("merge is aborted"))
+                        ).isEmpty()) {
                             assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
                         }
                     }

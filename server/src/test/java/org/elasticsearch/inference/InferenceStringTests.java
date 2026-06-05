@@ -10,10 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -330,13 +334,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testToStringList_withAllTextInferenceStrings() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> InferenceString.ofText(s)).toList();
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).toList();
         assertThat(InferenceString.toStringList(inferenceStrings), is(rawStrings));
     }
 
     public void testToStringList_throwsAssertionError_whenAnyInferenceStringIsNotText() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> InferenceString.ofText(s)).collect(Collectors.toList());
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
         inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));
@@ -443,5 +447,15 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static String randomDataURI() {
         return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
+
+    public static Map<String, Object> inferenceStringToMap(InferenceString inferenceString) {
+        try {
+            var builder = XContentFactory.contentBuilder(XContentType.JSON);
+            inferenceString.toXContent(builder, null);
+            return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        } catch (IOException ioException) {
+            throw new AssertionError("Exception when converting InferenceString to map", ioException);
+        }
     }
 }

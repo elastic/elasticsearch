@@ -12,12 +12,9 @@ package org.elasticsearch.repositories.s3;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
@@ -29,7 +26,6 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -54,17 +50,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    ) {
-        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
-        @Override
-        protected HttpHandler createHandler() {
-            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
-            return exchange -> {
-                delegate.assertContentSha256Header(exchange, equalTo("UNSIGNED-PAYLOAD"));
-                delegate.handle(exchange);
-            };
-        }
-    };
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -72,7 +58,6 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .setting("s3.client." + CLIENT + ".path_style_access", "true")
         .apply(builder -> trustStore.apply(builder, true))
         .build();

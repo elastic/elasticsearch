@@ -1,9 +1,9 @@
 import { execSync } from "child_process";
 import { resolve } from "path";
 
-import { RunnableCommand } from "../domain";
+import { RunnableCommand } from "../domain.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 /**
  * Run each RunnableCommand sequentially via execSync, streaming output to the

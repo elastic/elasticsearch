@@ -46,6 +46,32 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         return factory.bytesRefs(expectedCount);
     }
 
+    // For ConditionalBlockLoader:
+    @Override
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
+            return ConstantNull.ROW_READER;
+        }
+
+        AbstractBytesRefsFromBinaryReader columnAtATimeReader = (AbstractBytesRefsFromBinaryReader) reader(breaker, context);
+        return new RowStrideReader() {
+            @Override
+            public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                columnAtATimeReader.read(docId, storedFields, builder);
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return columnAtATimeReader.canReuse(startingDocID);
+            }
+
+            @Override
+            public void close() {
+                columnAtATimeReader.close();
+            }
+        };
+    }
+
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
@@ -56,7 +82,15 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
         if (readInArrayOrder) {
-            TrackingSortedDocValues offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            TrackingSortedDocValues offsets;
+            try {
+                offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            } catch (Exception e) {
+                // We already reserved breaker space for the binary and counts doc values above. If acquiring the offsets companion fails
+                // (ex. circuit breaker) we must release that reservation here, otherwise it leaks.
+                Releasables.close(bc.binary(), bc.counts());
+                throw e;
+            }
             if (offsets != null) {
                 return new ArrayOrder(bc.binary(), bc.counts(), offsets);
             }

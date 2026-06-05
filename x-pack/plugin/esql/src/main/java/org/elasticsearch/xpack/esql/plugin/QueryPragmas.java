@@ -111,6 +111,13 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
     /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
      * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
      * This applies to forks and subqueries.
      */
@@ -130,8 +137,9 @@ public final class QueryPragmas implements Writeable {
      * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
      * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
      * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
-     * consumer drains segments strictly in order, so this is a shallow read-ahead depth, not a
-     * parallelism. It is deliberately not {@code parsing_parallelism}: a file is already split into about
+     * consumer emits a segment's pages as soon as that segment finishes parsing (completion order, not
+     * strict segment order), so this is a shallow read-ahead width, not a parallelism. It is deliberately
+     * not {@code parsing_parallelism}: a file is already split into about
      * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
      * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
      * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
@@ -168,6 +176,11 @@ public final class QueryPragmas implements Writeable {
      * of doc-sequence loading.
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
+    /**
+     *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
+     */
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -352,6 +365,10 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    public boolean runtimeLexicalSearch() {
+        return RUNTIME_LEXICAL_SEARCH.get(settings);
     }
 
     public boolean isEmpty() {

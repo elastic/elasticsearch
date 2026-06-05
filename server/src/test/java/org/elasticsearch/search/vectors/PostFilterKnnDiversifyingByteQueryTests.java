@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.search.vectors;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnByteVectorField;
+
+public class PostFilterKnnDiversifyingByteQueryTests extends AbstractPostFilterDiversifyingKnnQueryTests {
+
+    @Override
+    protected AssertingKnnQuery.VectorType vectorType() {
+        return AssertingKnnQuery.VectorType.DIVERSIFYING_BYTE;
+    }
+
+    @Override
+    protected void addVectorField(Document doc, String field, float value) {
+        doc.add(new KnnByteVectorField(field, new byte[] { (byte) value }));
+    }
+}

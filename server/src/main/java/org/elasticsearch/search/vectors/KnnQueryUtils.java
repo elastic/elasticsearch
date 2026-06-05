@@ -51,23 +51,6 @@ public final class KnnQueryUtils {
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
-    /**
-     * Combines a pre-filter with an {@link ExcludeDocsQuery} over already-collected docs into a
-     * single filter for the augmented post-filter fallback. Returns {@code baseFilter} unchanged
-     * when {@code excludedDocs} is empty, and the bare {@link ExcludeDocsQuery} when
-     * {@code baseFilter} is null.
-     */
-    public static Query augmentFilter(Query baseFilter, int[] excludedDocs, IndexReader reader) {
-        if (excludedDocs == null || excludedDocs.length == 0) {
-            return baseFilter;
-        }
-        Query exclude = new ExcludeDocsQuery(excludedDocs, reader);
-        if (baseFilter == null) {
-            return exclude;
-        }
-        return new BooleanQuery.Builder().add(baseFilter, BooleanClause.Occur.FILTER).add(exclude, BooleanClause.Occur.FILTER).build();
-    }
-
     public static FilterWeight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
         if (filter == null) {
             return null;
@@ -161,28 +144,15 @@ public final class KnnQueryUtils {
     }
 
     /**
-     * Returns the sorted union of two sorted int arrays (deduped).
+     * Merges two disjoint sorted int arrays into a single sorted array.
      */
-    public static int[] sortedUnion(int[] a, int[] b) {
+    public static int[] sortedMerge(int[] a, int[] b) {
         if (a.length == 0) return b.length == 0 ? a : b.clone();
         if (b.length == 0) return a.clone();
-        int[] buf = new int[a.length + b.length];
-        int ai = 0, bi = 0, out = 0;
-        while (ai < a.length && bi < b.length) {
-            if (a[ai] < b[bi]) {
-                buf[out++] = a[ai++];
-            } else if (a[ai] > b[bi]) {
-                buf[out++] = b[bi++];
-            } else {
-                buf[out++] = a[ai++];
-                bi++;
-            }
-        }
-        while (ai < a.length)
-            buf[out++] = a[ai++];
-        while (bi < b.length)
-            buf[out++] = b[bi++];
-        return out == buf.length ? buf : Arrays.copyOf(buf, out);
+        int[] merged = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, merged, a.length, b.length);
+        Arrays.sort(merged);
+        return merged;
     }
 
     public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {

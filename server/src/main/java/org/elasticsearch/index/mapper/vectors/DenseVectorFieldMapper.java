@@ -3293,7 +3293,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null
+                && hasIndexSort == false
+                && postFilterSelectivityThreshold < 1.0f
+                && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3345,7 +3348,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null
+                && hasIndexSort == false
+                && postFilterSelectivityThreshold < 1.0f
+                && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
@@ -3478,7 +3484,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
+            if (filter != null
+                && hasIndexSort == false
+                && postFilterSelectivityThreshold < 1.0f
+                && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
                 knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {

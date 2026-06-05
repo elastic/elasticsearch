@@ -38,6 +38,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     private final boolean earlyTermination;
     private final BitSetProducer parentsFilter;
     private final int[] seedDocs;
+    private List<LeafReaderContext> leaves;
+    private TopDocs[] rawPerLeafResults;
 
     public ESDiversifyingChildrenFloatKnnVectorQuery(
         String field,
@@ -84,7 +86,14 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        this.leaves = searcher.getIndexReader().leaves();
+        return super.rewrite(searcher);
+    }
+
+    @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
+        this.rawPerLeafResults = perLeafResults;
         TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
@@ -116,23 +125,6 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
-        Query newFilter = KnnQueryUtils.augmentFilter(getFilter(), excludedDocs, reader);
-        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
-        return new ESDiversifyingChildrenFloatKnnVectorQuery(
-            field,
-            getTargetCopy(),
-            newFilter,
-            remainingK,
-            retryNumCands,
-            parentsFilter,
-            searchStrategy,
-            earlyTermination,
-            null
-        );
-    }
-
-    @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
         int scaledK = (int) Math.clamp(
@@ -152,27 +144,12 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             searchStrategy,
             earlyTermination,
             null
-        ) {
-            private List<LeafReaderContext> leaves;
-            private ScoreDoc[][] perLeafCandidates;
+        );
+    }
 
-            @Override
-            public Query rewrite(IndexSearcher searcher) throws IOException {
-                this.leaves = searcher.getIndexReader().leaves();
-                return super.rewrite(searcher);
-            }
-
-            @Override
-            protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
-                perLeafCandidates = PostFilterableKnnQuery.buildPerLeafCandidates(perLeafResults, leaves);
-                return super.mergeLeafResults(perLeafResults);
-            }
-
-            @Override
-            public ScoreDoc[][] getPostFilterCandidates() {
-                return perLeafCandidates;
-            }
-        };
+    @Override
+    public ScoreDoc[][] getPostFilterCandidates() {
+        return rawPerLeafResults != null ? PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves) : null;
     }
 
     @Override

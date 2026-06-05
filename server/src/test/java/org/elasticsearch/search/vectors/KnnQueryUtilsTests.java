@@ -19,11 +19,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -194,8 +191,8 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     filterWeight,
                     searcher.getIndexReader().leaves()
                 );
-                assertPerLeafMatchingDocs(result.matching(), new int[] { 0, 2, 4 }, new float[] { 0.9f, 0.7f, 0.5f });
-                assertArrayEquals(new int[] { 1, 3 }, result.filteredOutDocIds());
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[] { 0, 2, 4 }, new float[] { 0.9f, 0.7f, 0.5f });
+                assertArrayEquals(new int[] { 1, 3 }, result.filteredOutPerLeaf()[0]);
             }
         }
     }
@@ -246,8 +243,8 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     filterWeight,
                     searcher.getIndexReader().leaves()
                 );
-                assertPerLeafMatchingDocs(result.matching(), new int[0], new float[0]);
-                assertArrayEquals(new int[] { 0 }, result.filteredOutDocIds());
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[0], new float[0]);
+                assertArrayEquals(new int[] { 0 }, result.filteredOutPerLeaf()[0]);
             }
         }
     }
@@ -387,8 +384,9 @@ public class KnnQueryUtilsTests extends ESTestCase {
                     filterWeight,
                     searcher.getIndexReader().leaves()
                 );
-                assertPerLeafMatchingDocs(result.matching(), new int[] { 0, 2, 4 }, new float[] { 0.5f, 0.6f, 0.9f });
-                assertArrayEquals(new int[] { 1, 5 }, result.filteredOutDocIds());
+                assertPerLeafMatchingDocs(result.matchingPerLeaf(), new int[] { 0, 2, 4 }, new float[] { 0.5f, 0.6f, 0.9f });
+                assertArrayEquals(new int[] { 1 }, result.filteredOutPerLeaf()[0]);
+                assertArrayEquals(new int[] { 5 }, result.filteredOutPerLeaf()[1]);
             }
         }
     }
@@ -443,46 +441,6 @@ public class KnnQueryUtilsTests extends ESTestCase {
                 IndexSearcher searcher = newSearcher(reader);
                 Weight w = searcher.createWeight(searcher.rewrite(new TermQuery(new Term("tag", "a"))), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 assertEquals(0f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 0), 0f);
-            }
-        }
-    }
-
-    public void testAugmentFilterReturnsBaseWhenExcludedIsEmptyOrNull() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query base = new TermQuery(new Term("tag", "a"));
-                assertSame(base, KnnQueryUtils.augmentFilter(base, new int[0], reader));
-                assertSame(base, KnnQueryUtils.augmentFilter(base, null, reader));
-            }
-        }
-    }
-
-    public void testAugmentFilterReturnsBareExcludeWhenBaseIsNull() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query result = KnnQueryUtils.augmentFilter(null, new int[] { 0 }, reader);
-                assertTrue("expected ExcludeDocsQuery but got " + result.getClass(), result instanceof ExcludeDocsQuery);
-            }
-        }
-    }
-
-    public void testAugmentFilterCombinesBaseAndExclude() throws IOException {
-        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.addDocument(new Document());
-            writer.commit();
-            try (IndexReader reader = DirectoryReader.open(dir)) {
-                Query base = new TermQuery(new Term("tag", "a"));
-                Query result = KnnQueryUtils.augmentFilter(base, new int[] { 0 }, reader);
-                assertTrue("expected BooleanQuery but got " + result.getClass(), result instanceof BooleanQuery);
-                BooleanQuery bq = (BooleanQuery) result;
-                assertEquals(2, bq.clauses().size());
-                for (BooleanClause c : bq.clauses()) {
-                    assertEquals(BooleanClause.Occur.FILTER, c.occur());
-                }
             }
         }
     }

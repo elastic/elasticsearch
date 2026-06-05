@@ -187,3 +187,17 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 1007                  | 2024-05-10T00:19:48.000Z | prod            | two
 1006                  | 2024-05-10T00:13:50.000Z | qa              | one
 ;
+
+
+topNLongRangeWildcardSort
+required_capability: date_range_field_type_v6
+
+// Exact query for https://github.com/elastic/elasticsearch/issues/150383.
+// The STATS makes the wildcard query result stable while still materializing
+// the long-range field through TopN.
+FROM mv_* | SORT decade | LIMIT 1000 | WHERE date_range IS NOT NULL | STATS MAX(decade)
+;
+
+MAX(decade):integer
+2000
+;

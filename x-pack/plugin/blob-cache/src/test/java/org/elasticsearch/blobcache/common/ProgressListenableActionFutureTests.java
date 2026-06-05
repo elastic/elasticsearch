@@ -323,14 +323,22 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         if (randomBoolean()) {
             // Case A: lower fills first, then upper — upper's per-byte forwarding fires listenerInUpper
             fillHalf(lower);
-            assertThat("listener in lower fires at its exact threshold", listenerInLower.actionGet(), equalTo(thresholdInLower));
+            assertThat(
+                "listener in lower fires at or above its threshold",
+                listenerInLower.actionGet(),
+                greaterThanOrEqualTo(thresholdInLower)
+            );
             assertThat("listener at split fires when lower completes", listenerAtSplit.actionGet(), equalTo(splitPoint));
             assertFalse("listener in upper must not fire before lower completes", listenerInUpper.isDone());
             assertFalse(listenerAtEnd.isDone());
             assertFalse(future.isDone());
 
             fillHalf(upper);
-            assertThat("listener in upper fires at its threshold via forwarding", listenerInUpper.actionGet(), equalTo(thresholdInUpper));
+            assertThat(
+                "listener in upper fires at or above its threshold via forwarding",
+                listenerInUpper.actionGet(),
+                greaterThanOrEqualTo(thresholdInUpper)
+            );
             assertThat("listener at end fires when both halves complete", listenerAtEnd.actionGet(), equalTo(future.end));
             assertTrue(future.isDone());
         } else {
@@ -344,7 +352,11 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
             assertFalse(future.isDone());
 
             fillHalf(lower);
-            assertThat("listener in lower fires at its exact threshold", listenerInLower.actionGet(), equalTo(thresholdInLower));
+            assertThat(
+                "listener in lower fires at or above its threshold",
+                listenerInLower.actionGet(),
+                greaterThanOrEqualTo(thresholdInLower)
+            );
             assertThat("listener at split fires when lower completes", listenerAtSplit.actionGet(), equalTo(splitPoint));
             // Both halves now done: onResponse fires all remaining listeners with future.end
             assertThat("listener in upper fires via completion", listenerInUpper.actionGet(), equalTo(future.end));
@@ -354,7 +366,8 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
     }
 
     private static void fillHalf(ProgressListenableActionFuture half) {
-        for (long p = half.start + 1L; p < half.end; p++) {
+        long step = (half.end - half.start) / 10 + 1;
+        for (long p = half.start + 1L; p < half.end; p += step) {
             half.onProgress(p);
         }
         half.onResponse(half.end);

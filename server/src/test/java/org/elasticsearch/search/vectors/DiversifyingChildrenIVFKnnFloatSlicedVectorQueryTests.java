@@ -21,16 +21,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
@@ -49,15 +45,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.rarely;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 
 /** Tests for {@link DiversifyingChildrenIVFKnnFloatSlicedVectorQuery}. */
@@ -233,38 +225,16 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                 Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.001f);
             }
-        }
-    }
-
-    void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count)
-        throws IOException {
-        IndexReader reader = searcher.getIndexReader();
-        Query rewritten = query.rewrite(searcher);
-        Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
-        Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
-        // prior to advancing, score is undefined
-        assertEquals(-1, scorer.docID());
-        expectThrows(ArrayIndexOutOfBoundsException.class, scorer::score);
-        DocIdSetIterator it = scorer.iterator();
-        Map<String, Float> idToScore = IntStream.range(0, possibleIds.length)
-            .boxed()
-            .collect(Collectors.toMap(i -> possibleIds[i], i -> possibleScores[i]));
-        for (int i = 0; i < count; i++) {
-            int docId = it.nextDoc();
-            assertNotEquals(NO_MORE_DOCS, docId);
-            String actualId = reader.storedFields().document(docId).get("id");
-            assertTrue(idToScore.containsKey(actualId));
-            assertEquals(idToScore.get(actualId), scorer.score(), 0.001);
         }
     }
 

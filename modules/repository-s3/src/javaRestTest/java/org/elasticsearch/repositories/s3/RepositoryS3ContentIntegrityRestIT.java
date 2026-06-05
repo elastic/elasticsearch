@@ -162,37 +162,43 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     /// Test suite is parametric in this config.
     public static final class TestConfig {
-        private static final String DISABLE_CHUNKED_ENCODING = "disable_chunked_encoding";
-
         private final boolean https;
         private final boolean chunkedEncoding;
+        private final boolean alwaysSignUploads;
 
-        TestConfig(boolean https, boolean chunkedEncoding) {
+        TestConfig(boolean https, boolean chunkedEncoding, boolean alwaysSignUploads) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
+            this.alwaysSignUploads = alwaysSignUploads;
         }
 
         @Override
         public String toString() {
-            return Strings.format("{scheme=%s,chunkedEncoding=%s}", https ? "https" : "http", chunkedEncoding);
+            return Strings.format(
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignUploads=%s}",
+                https ? "https" : "http",
+                chunkedEncoding,
+                alwaysSignUploads
+            );
         }
 
         Settings getRepositorySettings() {
             final var builder = Settings.builder();
-            if (chunkedEncoding) {
-                if (randomBoolean()) {
-                    builder.put(DISABLE_CHUNKED_ENCODING, false);
-                } else {
-                    builder.putNull(DISABLE_CHUNKED_ENCODING);
-                }
-            } else {
-                builder.put(DISABLE_CHUNKED_ENCODING, true);
-            }
+            addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
+            addBooleanSettingDefaultFalse(builder, "always_sign_uploads", alwaysSignUploads);
             return builder.build();
         }
 
+        private void addBooleanSettingDefaultFalse(Settings.Builder builder, String key, boolean value) {
+            if (value == false && randomBoolean()) {
+                builder.putNull(key);
+            } else {
+                builder.put(key, value);
+            }
+        }
+
         String getExpectedContentSha256Header() {
-            return https
+            return (https && alwaysSignUploads == false)
                 ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
@@ -210,11 +216,22 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getClientName() {
-            return "content_integrity_client_" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return "content_integrity_client_"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_uploads_"
+                + alwaysSignUploads;
         }
 
         String getRepositoryBasePath() {
-            return BASE_PATH + "/" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return BASE_PATH
+                + "/"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_uploads_"
+                + alwaysSignUploads;
         }
 
         static TestConfig fromPath(String path) {

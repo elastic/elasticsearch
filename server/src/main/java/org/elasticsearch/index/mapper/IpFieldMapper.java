@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
@@ -269,7 +270,8 @@ public class IpFieldMapper extends FieldMapper {
                     dimension.getValue(),
                     context.isSourceSynthetic(),
                     usesBinaryDocValues(),
-                    readInArrayOrder
+                    readInArrayOrder,
+                    docValuesParameters.getValue()
                 ),
                 builderParams(this, context),
                 context.isSourceSynthetic(),
@@ -293,6 +295,7 @@ public class IpFieldMapper extends FieldMapper {
         private final boolean hasPoints;
         private final boolean usesBinaryDocValues;
         private final boolean readInArrayOrder;
+        private final DocValuesParameter.Values docValuesParams;
 
         public IpFieldType(
             String name,
@@ -304,7 +307,8 @@ public class IpFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource,
             boolean usesBinaryDocValues,
-            boolean readInArrayOrder
+            boolean readInArrayOrder,
+            DocValuesParameter.Values docValuesParams
         ) {
             super(name, indexType, stored, meta);
             this.nullValue = nullValue;
@@ -314,6 +318,7 @@ public class IpFieldMapper extends FieldMapper {
             this.hasPoints = indexType.hasPoints();
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.readInArrayOrder = readInArrayOrder;
+            this.docValuesParams = docValuesParams;
         }
 
         public IpFieldType(String name) {
@@ -325,7 +330,19 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         public IpFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, IndexType.points(isIndexed, hasDocValues), false, null, null, Collections.emptyMap(), false, false, false, false);
+            this(
+                name,
+                IndexType.points(isIndexed, hasDocValues),
+                false,
+                null,
+                null,
+                Collections.emptyMap(),
+                false,
+                false,
+                false,
+                false,
+                null
+            );
         }
 
         @Override
@@ -541,6 +558,10 @@ public class IpFieldMapper extends FieldMapper {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     if (usesBinaryDocValues) {
+                        if (docValuesParams != null && docValuesParams.multiValue() == false) {
+                            // Single-valued binary doc values are written as plain (no separate counts column), so read them as plain.
+                            return new BytesRefsFromBinaryBlockLoader(name());
+                        }
                         return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name(), readInArrayOrder);
                     } else {
                         return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize(), readInArrayOrder);

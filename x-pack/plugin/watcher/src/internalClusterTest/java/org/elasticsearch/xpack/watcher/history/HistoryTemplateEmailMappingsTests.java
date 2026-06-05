@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -18,8 +19,8 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -39,17 +40,20 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegrationTestCase {
 
-    private EmailServer server;
+    private static volatile EmailServer server;
 
-    @Before
-    public void startEmailServer() throws Exception {
-        server = EmailServer.localhost(logger);
-    }
+    @ClassRule
+    public static final ExternalResource emailServerSetup = new ExternalResource() {
+        @Override
+        protected void before() {
+            server = EmailServer.localhost(LogManager.getLogger(HistoryTemplateEmailMappingsTests.class));
+        }
 
-    @After
-    public void cleanup() throws Exception {
-        server.stop();
-    }
+        @Override
+        protected void after() {
+            server.stop();
+        }
+    };
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

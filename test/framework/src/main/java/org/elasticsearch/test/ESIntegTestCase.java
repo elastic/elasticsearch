@@ -2985,6 +2985,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return INSTANCE == null;
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
+    }
+
     @Before
     public final void setupTestCluster() throws Exception {
         if (runTestScopeLifecycle()) {

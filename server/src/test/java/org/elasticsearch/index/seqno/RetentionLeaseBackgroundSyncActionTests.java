@@ -13,6 +13,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -47,6 +49,14 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
     private ShardStateAction shardStateAction;
+    private final ReplicationTask replicationTask = new ReplicationTask(
+        randomLong(),
+        randomIdentifier(),
+        randomIdentifier(),
+        randomIdentifier(),
+        null,
+        Map.of()
+    );
 
     @Override
     public void setUp() throws Exception {
@@ -107,12 +117,17 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         );
 
         final CountDownLatch latch = new CountDownLatch(1);
-        action.shardOperationOnPrimary(request, indexShard, new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
-            // the retention leases on the shard should be persisted
-            verify(indexShard).persistRetentionLeases();
-            // we should forward the request containing the current retention leases to the replica
-            assertThat(result.replicaRequest(), sameInstance(request));
-        }), latch));
+        action.shardOperationOnPrimary(
+            replicationTask,
+            request,
+            indexShard,
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
+                // the retention leases on the shard should be persisted
+                verify(indexShard).persistRetentionLeases();
+                // we should forward the request containing the current retention leases to the replica
+                assertThat(result.replicaRequest(), sameInstance(request));
+            }), latch)
+        );
         latch.await();
     }
 

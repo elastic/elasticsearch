@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 150905
+summary: Backpressure on `esql_worker` queue
+type: enhancement

@@ -743,6 +743,17 @@ public final class IndexSettings {
     }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
 
     /**
+     * Indicates that slice is validated and can be utilized as configured given the current cluster state
+     */
+    public static final Setting<Boolean> SLICE_VALIDATED = Setting.boolSetting(
+        "index.slice.validated",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    /**
     * The {@link IndexMode "mode"} of the index.
     */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -1510,6 +1521,15 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
+        if (sliceEnabled && SLICE_VALIDATED.get(settings) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "unknown setting [%s] please check that any required plugins are installed.",
+                    SLICE_ENABLED.getKey()
+                )
+            );
+        }
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);

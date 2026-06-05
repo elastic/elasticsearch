@@ -106,14 +106,8 @@ public class Augmentation {
     // instead of covariant overrides for every possibility, we just return receiver as 'def' for now
     // that way if someone chains the calls, everything works.
 
-    /** Iterates through an Iterable, passing each item to the given consumer. */
-    public static <T> Object each(Iterable<T> receiver, Consumer<T> consumer) {
-        receiver.forEach(consumer);
-        return receiver;
-    }
-
     /**
-     * Cancellation-aware overload of {@link #each(Iterable, Consumer)} resolved by the lookup
+     * Cancellation-aware {@code each} augmentation resolved by the lookup
      * builder in script contexts whose base class supports cancellation.  Calls
      * {@link PainlessScript#_pollCancellation()} once per element so the script's shared poll
      * counter advances and the search timeout can interrupt a long iteration even when the consumer

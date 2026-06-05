@@ -85,7 +85,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         assert valueCount <= excPositions.length
             : "valueCount (" + valueCount + ") must not exceed blockSize (" + excPositions.length + ")";
 
-        if (baselineAlreadyNearOptimal(values, valueCount)) {
+        if (AlpDoubleUtils.baselineAlreadyNearOptimal(values, valueCount)) {
             return;
         }
 
@@ -152,36 +152,6 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         for (int i = 0; i < excCount; i++) {
             values[metadata.readVInt()] = metadata.readLong();
         }
-    }
-
-    /**
-     * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
-     * a spread no larger than {@link AlpDoubleUtils#DELTA_SPREAD_THRESHOLD}. Characterises
-     * monotonic doubles that stay inside a single IEEE 754 exponent (a slow drift gauge
-     * in a narrow range) where the integer baseline already reaches ~1 bit per value.
-     * Constant blocks (stride 0) are deliberately excluded; ALP handles those in 7 bytes
-     * versus the baseline's 12.
-     */
-    private static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
-        if (valueCount < 3) {
-            return false;
-        }
-        final long firstStride = values[1] - values[0];
-        if (firstStride == 0) {
-            return false;
-        }
-        long min = firstStride;
-        long max = firstStride;
-        for (int i = 2; i < valueCount; i++) {
-            final long stride = values[i] - values[i - 1];
-            min = Math.min(min, stride);
-            max = Math.max(max, stride);
-        }
-        final long spread = max - min;
-        if (spread < 0) {
-            return false;
-        }
-        return spread <= AlpDoubleUtils.DELTA_SPREAD_THRESHOLD;
     }
 
     public static void encodeStatic(final AlpDoubleTransformStage stage, final long[] values, int valueCount, final EncodingContext context)

@@ -55,11 +55,12 @@ final class AlpDoubleUtils {
      */
     static final long DELTA_SPREAD_THRESHOLD = 16L;
 
-    /** Direct-indexed candidate pool: {@code candCounts[e * CAND_STRIDE + f]}, no hashing or scan. */
-    static final int CAND_STRIDE = MAX_EXPONENT + 1;
-    static final int CAND_POOL_SIZE = CAND_STRIDE * CAND_STRIDE;
+    /** Direct-indexed candidate pool size; the layout is internal to this class. */
+    static final int CAND_POOL_SIZE = (MAX_EXPONENT + 1) * (MAX_EXPONENT + 1);
 
-    static int candidateKey(int e, int f) {
+    private static final int CAND_STRIDE = MAX_EXPONENT + 1;
+
+    private static int candidateKey(int e, int f) {
         return e * CAND_STRIDE + f;
     }
 
@@ -89,6 +90,36 @@ final class AlpDoubleUtils {
             POWERS_OF_TEN[i] = Math.pow(10, i);
             NEG_POWERS_OF_TEN[i] = Math.pow(10, -i);
         }
+    }
+
+    /**
+     * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
+     * a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. Characterises monotonic
+     * doubles that stay inside a single IEEE 754 exponent (a slow drift gauge in a narrow
+     * range) where the integer baseline already reaches ~1 bit per value. Constant blocks
+     * (stride 0) are deliberately excluded; ALP handles those in 7 bytes versus the
+     * baseline's 12.
+     */
+    static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
+        if (valueCount < 3) {
+            return false;
+        }
+        final long firstStride = values[1] - values[0];
+        if (firstStride == 0) {
+            return false;
+        }
+        long min = firstStride;
+        long max = firstStride;
+        for (int i = 2; i < valueCount; i++) {
+            final long stride = values[i] - values[i - 1];
+            min = Math.min(min, stride);
+            max = Math.max(max, stride);
+        }
+        final long spread = max - min;
+        if (spread < 0) {
+            return false;
+        }
+        return spread <= DELTA_SPREAD_THRESHOLD;
     }
 
     /**

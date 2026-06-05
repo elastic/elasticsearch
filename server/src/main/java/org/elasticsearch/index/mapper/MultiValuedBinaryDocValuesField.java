@@ -224,6 +224,10 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         // Held here so addToDoc can update the count on each value without a second keyedFields lookup.
         NumericDocValuesField countField;
 
+        public NumericDocValuesField countField() {
+            return countField;
+        }
+
         public SeparateCount(String name, ValueOrdering ordering) {
             super(name, ordering);
         }

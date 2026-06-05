@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.action.downsample;
+package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +18,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,7 +40,7 @@ public record DownsampleShardTaskParams(
 
     public static TransportVersion DOWNSAMPLED_ADD_MULTI_FIELDS_SOURCES = TransportVersion.fromName("downsample_add_multi_field_sources");
 
-    public static final String NAME = "rollup-shard";
+    public static final String NAME = DownsampleShardTask.TASK_NAME;
     private static final ParseField DOWNSAMPLE_CONFIG = new ParseField("downsample_config");
     private static final ParseField DOWNSAMPLE_INDEX = new ParseField("rollup_index");
     private static final ParseField INDEX_START_TIME_MILLIS = new ParseField("index_start_time_millis");
@@ -64,7 +64,7 @@ public record DownsampleShardTaskParams(
         PARSER.declareObject(Builder::multiFieldSources, (p, c) -> p.map(), MULTI_FIELD_SOURCES);
     }
 
-    public DownsampleShardTaskParams(final StreamInput in) throws IOException {
+    DownsampleShardTaskParams(final StreamInput in) throws IOException {
         this(
             new DownsampleConfig(in),
             in.readString(),

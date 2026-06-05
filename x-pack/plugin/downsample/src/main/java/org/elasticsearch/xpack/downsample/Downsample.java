@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleAction;
-import org.elasticsearch.action.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;

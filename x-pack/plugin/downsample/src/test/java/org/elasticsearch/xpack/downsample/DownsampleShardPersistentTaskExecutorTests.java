@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;

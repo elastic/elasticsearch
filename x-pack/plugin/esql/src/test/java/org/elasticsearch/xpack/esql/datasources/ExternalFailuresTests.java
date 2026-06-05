@@ -90,6 +90,65 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
+    public void testIoExceptionBuriedUnderRuntimeWrapperBecomesClientException() {
+        // Reproduces the parallel-parsing path: a worker read IOException rewrapped in a RuntimeException.
+        // Keyed on the top-level type alone this is a 500; the cause-chain backstop must surface it as 400.
+        var ioe = new IOException("record exceeded max_record_size [67108864] ... for format [tsv]");
+        var wrapped = new RuntimeException("Streaming parallel parsing failed", ioe);
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        // The full wrapper chain is preserved as the cause, but the actionable message comes from the IOException.
+        assertSame(wrapped, classified.getCause());
+        assertThat(classified.getMessage(), org.hamcrest.Matchers.containsString("max_record_size"));
+    }
+
+    public void testDeeplyNestedIoExceptionIsFound() {
+        // The data-class cause can sit several wrappers down, including under a bug-class type. The deepest
+        // data-class cause still drives the 400 — wrapping never escalates a data error to a server fault.
+        for (Throwable buried : new Throwable[] {
+            new RuntimeException("a", new IllegalStateException("b", new IOException("truncated"))),
+            new RuntimeException("outer", new EOFException("eof")),                       // IOException subclass
+            new RuntimeException("outer", new UncheckedIOException(new IOException("x"))), // already-unchecked IO
+            new IllegalStateException("wrap", new IOException("nested")) }) {
+            RuntimeException classified = ExternalFailures.classify(buried);
+            assertThat("expected 400 for " + buried, classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        }
+    }
+
+    public void testNonIoCausesStayServerException() {
+        // The backstop must not over-trigger: a bug-class throwable whose chain holds no data-class cause is
+        // still our fault (500). Guards against the cause-chain unwrap silently downgrading real bugs.
+        for (Throwable bug : new Throwable[] {
+            new RuntimeException("outer", new IllegalStateException("inner bug")),
+            new IllegalStateException("broken", new NullPointerException()) }) {
+            RuntimeException classified = ExternalFailures.classify(bug);
+            assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+            assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+        }
+    }
+
+    public void testExplicitServerExceptionWrappingIoStays500() {
+        // An intentional ExternalServerException (a broken invariant in our own reader) keeps its 500 even
+        // when it wraps an IOException: the ElasticsearchException branch wins before the backstop runs, so
+        // the unwrap never downgrades a deliberately-classified server fault.
+        var server = new ExternalServerException(new IOException("io detail"), "invariant violated");
+        var classified = ExternalFailures.classify(server);
+        assertSame(server, classified);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+    }
+
+    public void testCycleInCauseChainDoesNotHang() {
+        // A self-referential cause chain (pathological, but possible) must terminate, not spin forever.
+        var a = new RuntimeException("a");
+        var b = new RuntimeException("b", a);
+        a.initCause(b);
+        var classified = ExternalFailures.classify(a);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+    }
+
     public void testBugLikeExceptionsBecomeServerException() {
         for (Throwable bug : new Throwable[] {
             new IllegalStateException("broken invariant"),

@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
@@ -33,6 +35,7 @@ import java.util.zip.GZIPOutputStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -41,6 +44,16 @@ import static org.hamcrest.Matchers.equalTo;
  * so {@code STATS COUNT(*)} returns the exact row count on every path.
  */
 public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
+
+    /**
+     * Schema sample size used by the cap-tripping tests. Kept small so the unclosed quote can sit just
+     * past the sample window: schema inference reads only the first {@code SCHEMA_SAMPLE} clean rows and
+     * succeeds, and the malformed record is reached later, on the read/cap path — which is what we test.
+     */
+    private static final int SCHEMA_SAMPLE = 5_000;
+
+    /** Row whose middle field opens an unclosed quote in {@link QuoteShape#UNCLOSED_LEADING}; past {@link #SCHEMA_SAMPLE}. */
+    private static final int UNCLOSED_QUOTE_ROW = 10_000;
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -129,11 +142,88 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A middle field past the schema-sample window <em>begins</em> with a {@code "} and never closes it;
+     * every other row is quote-free. Unlike a mid-field quote (treated as a literal), a field-leading quote
+     * opens a quoted field, so the record-boundary scanner finds no unquoted newline and grows until it
+     * trips {@code max_record_size}. Schema inference samples only the earlier clean rows and succeeds, so
+     * the failure lands on the read/cap path: it raises an {@code IOException} ("record exceeded
+     * max_record_size … possible unclosed quote"). That is a data error (the input cannot be decoded), so
+     * the query must fail with HTTP 400 — not a 500 caused by the error class being lost in a
+     * RuntimeException wrap on the parallel path.
+     */
+    public void testGzipStreamOnlyUnclosedLeadingQuoteTripsCapAs400() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        int rows = 150_000; // a few MB uncompressed — comfortably past the 1mb cap once the quote opens
+        Path file = writeTsv(rows, Codec.GZIP, QuoteShape.UNCLOSED_LEADING);
+        try {
+            assertCapTrippedAs400(file, pragmas(4, "1mb"));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /**
+     * Twin of {@link #testGzipStreamOnlyUnclosedLeadingQuoteTripsCapAs400} on the segmentable uncompressed
+     * parallel path ({@code ParallelParsingCoordinator}): the same field-leading unclosed quote trips the
+     * cap and must surface HTTP 400. Guards the second coordinator's rewrap site, not just the streaming one.
+     */
+    public void testUncompressedParallelUnclosedLeadingQuoteTripsCapAs400() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        int rows = 250_000; // > 2 chunks so the parallel splitter engages, and > 1mb so the cap is reached
+        Path file = writeTsv(rows, Codec.NONE, QuoteShape.UNCLOSED_LEADING);
+        try {
+            assertCapTrippedAs400(file, pragmas(4, "1mb"));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /**
+     * Companion to the cap tests on the planning path: when the unclosed quote lands <em>inside</em> the
+     * schema-sample window, schema inference itself fails to decode the row. That is still a data error, so
+     * the query must fail 400 — not the 500 produced when the resolver buries the client-class failure in an
+     * {@code ExecutionException} from the schema cache and relabels it a server fault.
+     */
+    public void testMalformedSchemaSampleFailsAs400() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        int rows = 200; // tiny: the quote sits at row 0, well inside the default sample window
+        Path file = writeTsv(rows, Codec.GZIP, QuoteShape.UNCLOSED_AT_START);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(file) + "\" WITH {\"header_row\": false} | STATS c = COUNT(*)";
+            Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest(query), TimeValue.timeValueMinutes(2)).close());
+            assertThat("undecodable schema sample is a 400, not a 500", ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /** Runs {@code STATS COUNT(*)} expecting the read to trip the record cap, and asserts an actionable 400. */
+    private void assertCapTrippedAs400(Path file, QueryPragmas pragmas) {
+        String query = "EXTERNAL \""
+            + StoragePath.fileUri(file)
+            + "\" WITH {\"header_row\": false, \"schema_sample_size\": "
+            + SCHEMA_SAMPLE
+            + "} | STATS c = COUNT(*)";
+        Exception e = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest(query).pragmas(pragmas), TimeValue.timeValueMinutes(2)).close()
+        );
+        assertThat("a record we cannot decode is a 400, not a 500", ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat("the failure must stay actionable through classification", e.getMessage(), containsString("max_record_size"));
+    }
+
     private enum QuoteShape {
         /** Row 0 has one literal mid-field quote, the rest are quote-free (forces a no-boundary chunk). */
         SINGLE_LEADING,
         /** Every row has an even number of literal mid-field quotes. */
-        DENSE
+        DENSE,
+        /** One row past the schema-sample window opens a quote that never closes — undecodable, trips the cap. */
+        UNCLOSED_LEADING,
+        /** Row 0 opens a quote that never closes — undecodable inside the schema sample, fails resolution. */
+        UNCLOSED_AT_START
     }
 
     private QueryPragmas pragmas(int parsingParallelism, String maxRecordSize) {
@@ -168,6 +258,9 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
                 String mid = switch (shape) {
                     case SINGLE_LEADING -> i == 0 ? "a\"b" : "a" + i; // one literal quote, only on row 0
                     case DENSE -> "x\"y\"z"; // two literal quotes every row
+                    // open a quote past the schema-sample window so it is reached on the read path, not sampling
+                    case UNCLOSED_LEADING -> i == UNCLOSED_QUOTE_ROW ? "\"open" : "a" + i;
+                    case UNCLOSED_AT_START -> i == 0 ? "\"open" : "a" + i; // quote inside the schema sample
                 };
                 w.write("f0_" + i + "\t" + mid + "\tf2_" + i + "\n");
             }

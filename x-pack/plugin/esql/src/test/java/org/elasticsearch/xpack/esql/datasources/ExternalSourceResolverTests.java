@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -1317,6 +1319,33 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals(1L, stats2.get("schema_cache.misses"));
             assertEquals(1L, stats2.get("schema_cache.hits"));
             assertEquals(1, stats2.get("schema_cache.count"));
+        }
+    }
+
+    /**
+     * A metadata-resolution failure on a malformed/undecodable source is a client error (400). The schema
+     * cache wraps the loader's {@link IllegalArgumentException} in a {@link java.util.concurrent.ExecutionException};
+     * the resolver must unwrap it so the failure keeps its 400 instead of being relabeled a 500. RED before the
+     * unwrap fix (cache path surfaced the {@code ExecutionException} as an {@code ElasticsearchException}/500).
+     */
+    public void testSchemaResolutionFailureSurfacesAs400ThroughCache() throws Exception {
+        // No schema configured for the path → the stub provider's metadata() throws IllegalArgumentException.
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), new HashMap<>());
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true) // cache on → loader failure is wrapped in ExecutionException
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, new HashMap<>(), cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/missing.parquet"), Map.of(), f);
+            Exception e = expectThrows(Exception.class, f::actionGet);
+            assertEquals("a source we cannot resolve is a 400, not a 500", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
         }
     }
 

@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -191,16 +192,25 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
-                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        listener.onFailure(e);
-                        return;
                     } catch (Exception e) {
-                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                        String exceptionMessage = e.getMessage();
-                        String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
+                        // The schema cache wraps a loader failure in an ExecutionException; unwrap it so a
+                        // client-class error (e.g. the IllegalArgumentException raised for a malformed or
+                        // undecodable source) keeps its 400 instead of being relabeled a 500 by the generic
+                        // branch below. Same defect class as the parallel-read path — a meaningful error
+                        // type lost in an intermediate wrap (see ExternalFailures).
+                        Throwable cause = e instanceof ExecutionException && e.getCause() != null ? e.getCause() : e;
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, cause.getMessage(), cause);
+                        if (cause instanceof IllegalArgumentException iae) {
+                            listener.onFailure(iae);
+                            return;
+                        }
+                        if (cause instanceof UnsupportedOperationException uoe) {
+                            listener.onFailure(uoe);
+                            return;
+                        }
+                        String errorDetail = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                         String errorMessage = String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, errorDetail);
-                        listener.onFailure(new ElasticsearchException(errorMessage, e));
+                        listener.onFailure(new ElasticsearchException(errorMessage, cause));
                         return;
                     }
                 }

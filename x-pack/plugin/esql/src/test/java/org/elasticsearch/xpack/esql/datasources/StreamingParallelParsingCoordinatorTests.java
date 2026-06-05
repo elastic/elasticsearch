@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -40,6 +43,7 @@ import org.hamcrest.Matchers;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -892,6 +896,13 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
             assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
+            // The cap failure is a read IOException — a data error. The coordinator must preserve it as an
+            // UncheckedIOException so ExternalFailures classifies it 400 (bad input), not 500 (our bug).
+            assertThat(ex, Matchers.instanceOf(UncheckedIOException.class));
+            assertThat(ex.getCause(), Matchers.instanceOf(IOException.class));
+            RuntimeException classified = ExternalFailures.classify(ex);
+            assertThat(classified, Matchers.instanceOf(ExternalClientException.class));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         } finally {
             executor.shutdownNow();
         }

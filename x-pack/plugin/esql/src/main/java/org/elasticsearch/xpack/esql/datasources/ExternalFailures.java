@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
@@ -39,6 +41,12 @@ import java.util.Set;
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
  *     never reach here as plain I/O errors: the storage layer raises them as {@link ExternalException}
  *     (503) first.</li>
+ *     <li>Failing the above, the cause chain is unwrapped as a backstop: if a data-class failure (an
+ *     {@link IOException}/{@link UncheckedIOException} or a known third-party decoding exception) is buried
+ *     under a non-IO wrapper (e.g. a parsing coordinator that rewraps a worker read failure), the deepest
+ *     such cause still means "could not read or decode" and the failure is classified 400. The throw sites
+ *     preserve the {@link IOException} directly; this catches any remaining path that does not, so a data
+ *     error is never mislabeled a 500.</li>
  *     <li>Anything else ({@link IllegalStateException}, {@link NullPointerException}, an unrecognized
  *     {@link RuntimeException}) indicates a broken invariant in our own code rather than bad input,
  *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible.</li>
@@ -81,10 +89,44 @@ public final class ExternalFailures {
         if (t instanceof IllegalArgumentException iae) {
             return iae;
         }
-        if (t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t)) {
+        if (isDataException(t)) {
             return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
         }
+        // Backstop: a data-class failure can be buried under a non-IO wrapper before it reaches here — e.g.
+        // the parallel parsing coordinators historically rewrapped a worker IOException in a bare
+        // RuntimeException, losing the 400. "Could not read or decode" is bad input, not a bug in our own
+        // code, so the deepest data-class cause drives the status (400) while the full chain is preserved as
+        // the cause and its message stays actionable. The throw sites preserve the IOException directly; this
+        // catches any remaining path that does not.
+        Throwable dataCause = findDataCause(t);
+        if (dataCause != null) {
+            return new ExternalClientException(t, "Failed to read external source: {}", dataCause.getMessage());
+        }
         return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
+    }
+
+    /**
+     * A failure that, by contract, means we could not read or decode the resource (bad input, 400) rather
+     * than a bug in our own code: an {@link IOException}/{@link UncheckedIOException} or one of the known
+     * third-party decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}.
+     */
+    private static boolean isDataException(Throwable t) {
+        return t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t);
+    }
+
+    /**
+     * Walks the cause chain (cycle-safe) and returns the first {@link #isDataException data-class} cause, or
+     * {@code null} if none is found. The top-level throwable is excluded — callers test it directly first.
+     */
+    private static Throwable findDataCause(Throwable t) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        seen.add(t);
+        for (Throwable c = t.getCause(); c != null && seen.add(c); c = c.getCause()) {
+            if (isDataException(c)) {
+                return c;
+            }
+        }
+        return null;
     }
 
     private static boolean isMalformedDataException(Throwable t) {

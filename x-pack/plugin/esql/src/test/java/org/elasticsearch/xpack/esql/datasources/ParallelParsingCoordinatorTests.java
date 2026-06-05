@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -667,6 +670,18 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 "Should contain the injected error message",
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
             );
+            // The injected failure is a read IOException — a data error. Here the reader pre-wraps it in a
+            // RuntimeException before the coordinator sees it, so the IOException is buried rather than the
+            // top-level type. ExternalFailures must still classify it 400 (bad input) via the cause-chain
+            // backstop, not 500 (our bug). This guards the path the throw-site fix alone does not cover.
+            assertThat(
+                "the read IOException must survive in the cause chain",
+                ExceptionsHelper.unwrap(ex, IOException.class),
+                Matchers.notNullValue()
+            );
+            RuntimeException classified = ExternalFailures.classify(ex);
+            assertThat(classified, Matchers.instanceOf(ExternalClientException.class));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         } finally {
             exec.shutdown();
         }

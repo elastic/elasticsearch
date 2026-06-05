@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -771,6 +772,11 @@ public final class ParallelParsingCoordinator {
             if (t != null) {
                 if (t instanceof RuntimeException re) {
                     throw re;
+                }
+                // Preserve an IOException as the throwable type so ExternalFailures.classify keys it to a
+                // 400 (bad input) rather than burying it in a bare RuntimeException that classifies to 500.
+                if (t instanceof IOException ioe) {
+                    throw new UncheckedIOException(ioe);
                 }
                 throw new RuntimeException("Parallel parsing failed", t);
             }

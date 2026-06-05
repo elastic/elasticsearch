@@ -142,38 +142,22 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
      */
     public static SortedNumericLongValues getLongValues(String fieldName, LeafReader reader) throws IOException {
         SortedNumericDocValues values = DocValues.getSortedNumeric(reader, fieldName);
-        DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
-        if (skipper != null) {
-            boolean isDense = skipper.docCount() == reader.maxDoc();
-            return wrap(values, isDense);
-        } else {
-            // Checking field info for DocumentLeafReader
-            FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
-            PointValues pointValues = fieldInfo != null && fieldInfo.getPointIndexDimensionCount() != 0
-                ? reader.getPointValues(fieldName)
-                : null;
-            if (pointValues != null) {
-                boolean isDense = pointValues.getDocCount() == reader.maxDoc();
-                return wrap(values, isDense);
-            }
-        }
-        return wrap(values, false);
-    }
-
-    /**
-     * Converts a {@link SortedNumericDocValues} iterator to a {@link SortedNumericLongValues}
-     *
-     * Note that if the wrapped iterator can be unwrapped to a singleton {@link NumericDocValues}
-     * instance, then the returned {@link SortedNumericLongValues} can also be unwrapped to
-     * a {@link LongValues} instance via {@link #unwrapSingleton(SortedNumericLongValues)}
-     */
-    public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
-        return wrap(values, false);
-    }
-
-    static SortedNumericLongValues wrap(SortedNumericDocValues values, boolean isDense) {
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         if (singleton != null) {
+            boolean isDense = false;
+            DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
+            if (skipper != null) {
+                isDense = skipper.docCount() == reader.maxDoc();
+            } else {
+                // Checking field info for DocumentLeafReader
+                FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(fieldName);
+                PointValues pointValues = fieldInfo != null && fieldInfo.getPointIndexDimensionCount() != 0
+                    ? reader.getPointValues(fieldName)
+                    : null;
+                if (pointValues != null) {
+                    isDense = pointValues.getDocCount() == reader.maxDoc();
+                }
+            }
             final LongValues longValues;
             if (isDense) {
                 longValues = new DenseLongValues() {
@@ -200,6 +184,33 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
                     }
                 };
             }
+            return singleton(longValues);
+        } else {
+            return wrap(values);
+        }
+    }
+
+    /**
+     * Converts a {@link SortedNumericDocValues} iterator to a {@link SortedNumericLongValues}
+     *
+     * Note that if the wrapped iterator can be unwrapped to a singleton {@link NumericDocValues}
+     * instance, then the returned {@link SortedNumericLongValues} can also be unwrapped to
+     * a {@link LongValues} instance via {@link #unwrapSingleton(SortedNumericLongValues)}
+     */
+    public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final LongValues longValues = new LongValues() {
+                @Override
+                public long longValue() throws IOException {
+                    return singleton.longValue();
+                }
+
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            };
             return singleton(longValues);
         } else {
             return new SortedNumericLongValues(false, values) {

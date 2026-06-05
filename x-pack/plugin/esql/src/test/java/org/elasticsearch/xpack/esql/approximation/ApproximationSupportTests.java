@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgSerializationTests;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;

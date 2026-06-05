@@ -106,19 +106,16 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        boolean multiValue = DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false
+            || FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+    }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -168,6 +165,10 @@ public class NumberFieldMapper extends FieldMapper {
             this.type = type;
             this.scriptCompiler = Objects.requireNonNull(compiler);
             this.indexSettings = Objects.requireNonNull(indexSettings);
+            this.docValuesParameters = DocValuesParameter.of(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters()
+            );
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -241,7 +242,9 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
-            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
+            this.docValuesParameters.setValue(
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
+            );
             return this;
         }
 

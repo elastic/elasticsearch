@@ -945,7 +945,7 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), loadSeqNo);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), loadSeqNo);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);

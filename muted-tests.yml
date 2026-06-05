@@ -641,3 +641,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150844
+- class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
+  method: testNullClusterUuidDoesNotNpe
+  issue: https://github.com/elastic/elasticsearch/issues/150887

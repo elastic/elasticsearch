@@ -582,6 +582,10 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
+    }
+
     public void testPrefixQueryDocValuesOnly() {
         MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
         MatchOnlyTextFieldType binary = binaryDocValuesOnly();

@@ -605,10 +605,46 @@ public class SharingKeyTests extends ESTestCase {
         // showing the stale token list (e.g. [i-pod, ipod]) rather than the new one.
         List<String> tokensAfter = tokens(naA, "i-pod");
         assertTrue(
-            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: " + tokensAfter
+            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: "
+                + tokensAfter
                 + " (bug: B claimed the reload token but found null settings for 'search_a',"
                 + " so reload was silently skipped for the whole broadcast)",
             tokensAfter.contains("mp3-player")
+        );
+    }
+
+    /**
+     * B5 regression: when two indices share an analyzer via the registry cache, the
+     * {@link NamedAnalyzer} handed to the second index must carry that index's own local name.
+     * With the bug, {@code handOff()} returns the raw cached instance whose name was set by
+     * the first builder ("search_a"). Index B maps this under key "search_b" in its
+     * {@code analyzers} map, but {@code namedAnalyzer.name()} still returns "search_a".
+     * {@code FieldMapper.Parameter.analyzerParam} serializes via {@code namedAnalyzer.name()},
+     * so index B's mapping emits {@code "search_analyzer": "search_a"}.
+     * {@code MapperService.assertSerialization} (enabled with {@code -ea}) then re-parses and
+     * fails: "analyzer [search_a] has not been configured in mappings" (HTTP 400).
+     */
+    public void testSharedAnalyzerCarriesCallingIndexLocalName() throws IOException {
+        Settings sA = Settings.builder()
+            .put("index.analysis.analyzer.search_a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.search_a.filter", "lowercase")
+            .build();
+        Settings sB = Settings.builder()
+            .put("index.analysis.analyzer.search_b.tokenizer", "standard")
+            .putList("index.analysis.analyzer.search_b.filter", "lowercase")
+            .build();
+        IndexAnalyzers ia = build(sA);
+        IndexAnalyzers ib = build(sB);
+        NamedAnalyzer naA = ia.get("search_a");
+        NamedAnalyzer naB = ib.get("search_b");
+        assertNotNull("search_a must be found in index A", naA);
+        assertNotNull("search_b must be found in index B", naB);
+        assertSame("precondition: same recipe shares the same NamedAnalyzer instance", naA, naB);
+        assertEquals(
+            "the NamedAnalyzer returned to index B must carry index B's local name 'search_b',"
+                + " not the original builder's name 'search_a'",
+            "search_b",
+            naB.name()
         );
     }
 

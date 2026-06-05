@@ -125,3 +125,23 @@ setup:
                 query: hey
                 analyzer: my_search_analyzer_a
   - match: { hits.total.value: 1 }
+
+---
+"Mapping field with search_analyzer pointing to shared analyzer local name succeeds":
+  # B5: handOff() returns the raw cached NamedAnalyzer whose name was set by the first-created
+  # index ("my_search_analyzer_z"), not index_a_shared's local name ("my_search_analyzer_a").
+  # FieldMapper.Parameter.analyzerParam serializes using namedAnalyzer.name(), so the mapping for
+  # index_a_shared writes "search_analyzer": "my_search_analyzer_z". MapperService.assertSerialization
+  # (called with -ea, which all ES test builds enable) re-parses the serialized mapping against
+  # index_a_shared's index settings; "my_search_analyzer_z" is not defined there and it throws:
+  #   IllegalArgumentException: analyzer [my_search_analyzer_z] has not been configured in mappings
+  # This surfaces to the user as HTTP 400 on index creation or mapping update.
+  - do:
+      indices.put_mapping:
+        index: index_a_shared
+        body:
+          properties:
+            content:
+              type: text
+              search_analyzer: my_search_analyzer_a
+  - match: { acknowledged: true }

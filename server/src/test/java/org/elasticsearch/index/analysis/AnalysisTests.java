@@ -161,6 +161,22 @@ public class AnalysisTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("[最終契約] in user dictionary at line [5]"));
     }
 
+    /**
+     * Regression test for the B2 NPE in {@link Analysis.StableCharArraySet#equals}.
+     * {@code computeHash} returns 0 for both a {@code null} set and an empty set
+     * (line: {@code if (set == null || set.isEmpty()) return 0}), so the two instances
+     * hash to the same value and {@code equals()} is invoked. The {@code equals} body then
+     * evaluates {@code set == other.set || set.equals(other.set)} without a null-check,
+     * so when {@code this.set} is {@code null} the call {@code null.equals(...)} throws NPE.
+     */
+    public void testStableCharArraySetEqualsNullVsEmptyDoesNotNpe() {
+        Analysis.StableCharArraySet withNull = new Analysis.StableCharArraySet(null, false);
+        Analysis.StableCharArraySet withEmpty = new Analysis.StableCharArraySet(new CharArraySet(List.of(), false), false);
+        assertEquals("null and empty sets both produce hash 0", withNull.hashCode(), withEmpty.hashCode());
+        assertFalse("null set must not equal empty set — and must not throw NPE", withNull.equals(withEmpty));
+        assertFalse("empty set must not equal null set — and must not throw NPE", withEmpty.equals(withNull));
+    }
+
     public void testParseDuplicatesWComments() throws IOException {
         Path tempDir = createTempDir();
         Path dict = tempDir.resolve("foo.dict");

@@ -906,7 +906,7 @@ public class SharedBlobCacheWarmingService {
                 if (offsetsToWarm.getValue() > 0) {
                     // Offline byte-range warming resolves the timestamp at the blob level (an approximation): we stamp the warmed range
                     // with the most recent timestamp among the compound commits that contribute to this blob.
-                    long timestampMillis = timestampsPerBlobFile == null
+                    long timestampMillis = timestampsPerBlobFile == null || cacheService.isCacheBoostPreferenceEnabled() == false
                         ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
                         : timestampsPerBlobFile.getOrDefault(offsetsToWarm.getKey(), SharedBlobCacheService.UNKNOWN_TIMESTAMP);
                     warmBlobByteRange(
@@ -1099,7 +1099,9 @@ public class SharedBlobCacheWarmingService {
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
-            final long timestampMillis = directory.getTimestampMillis(fileName);
+            final long timestampMillis = cacheService.isCacheBoostPreferenceEnabled()
+                ? directory.getTimestampMillis(fileName)
+                : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);

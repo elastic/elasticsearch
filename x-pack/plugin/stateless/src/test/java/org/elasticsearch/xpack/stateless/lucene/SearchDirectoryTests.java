@@ -528,6 +528,81 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
+    public void testOnDemandReadStampsMidpointTimestampWhenBoostEnabled() throws IOException {
+        assertOnDemandReadTimestamp(true);
+    }
+
+    public void testOnDemandReadUsesUnknownTimestampWhenBoostDisabled() throws IOException {
+        assertOnDemandReadTimestamp(false);
+    }
+
+    private void assertOnDemandReadTimestamp(boolean boostEnabled) throws IOException {
+        var regionSize = ByteSizeValue.ofBytes(4096);
+        var cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 100L);
+        final var capturedTimestamp = new AtomicLong(Long.MIN_VALUE);
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+                    .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), boostEnabled)
+                    .build();
+            }
+
+            @Override
+            protected StatelessSharedBlobCacheService createCacheService(
+                NodeEnvironment nodeEnvironment,
+                Settings settings,
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
+            ) {
+                StatelessSharedBlobCacheService service = new StatelessSharedBlobCacheService(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    BlobCacheMetrics.NOOP,
+                    new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+                ) {
+                    @Override
+                    protected boolean assertOffsetsWithinFileLength(long offset, long length, long fileLength) {
+                        return true;
+                    }
+
+                    @Override
+                    public CacheFile getCacheFile(
+                        FileCacheKey cacheKey,
+                        long length,
+                        SharedBlobCacheService.CacheMissHandler cacheMissHandler,
+                        long timestampMillis
+                    ) {
+                        capturedTimestamp.set(timestampMillis);
+                        return super.getCacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
+                    }
+                };
+                service.assertInvariants();
+                return service;
+            }
+        }) {
+            final var searchDirectory = SearchDirectory.unwrapDirectory(node.searchStore.directory());
+
+            final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+            final var withTimestamp = new BlobFileRanges(createBlobLocation(1L, 1L, 0L, 100L), range);
+            searchDirectory.updateMetadata(Map.of("file-with-ts", withTimestamp), 200L);
+
+            try (var input = searchDirectory.openInput("file-with-ts", IOContext.DEFAULT)) {
+                assertNotNull(input);
+            }
+
+            if (boostEnabled) {
+                assertEquals(BlobFileRanges.midpointMillisOrUnknown(range), capturedTimestamp.get());
+            } else {
+                assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, capturedTimestamp.get());
+            }
+        }
+    }
+
     private static StatelessCompoundCommit createCommit(ShardId shardId, List<BlobLocation> commitLocations, List<String> files) {
         Map<String, BlobLocation> commitFiles = new HashMap<>(commitLocations.size(), 1.0f);
         for (int i = 0; i < commitLocations.size(); i++) {

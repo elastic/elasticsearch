@@ -245,8 +245,13 @@ public class SearchCommitPrefetcher {
 
             logger.debug("[{}] Missing ranges [{}] for new commit [{}]", shardId, bccRangesToPrefetch, notification);
 
-            // The timestamp resolution here is at the blob level (an approximation)
-            Map<BlobFile, Long> timestampPerBlob = computeTimestampPerBlob(compoundCommit, bccRangesToPrefetch.keySet());
+            Map<BlobFile, Long> timestampPerBlob;
+            if (cacheService.isCacheBoostPreferenceEnabled()) {
+                // The timestamp resolution here is at the blob level (an approximation)
+                timestampPerBlob = computeTimestampPerBlob(compoundCommit, bccRangesToPrefetch.keySet());
+            } else {
+                timestampPerBlob = Map.of();
+            }
 
             for (Map.Entry<BlobFile, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
                 var blobFile = bccRangeToPrefetch.getKey();

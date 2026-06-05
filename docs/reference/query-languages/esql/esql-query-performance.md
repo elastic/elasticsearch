@@ -279,11 +279,11 @@ FROM logs-*
 
 Common reductions include: bucketing timestamps with [`DATE_TRUNC`](/reference/query-languages/esql/functions-operators/date-time-functions/date_trunc.md) or [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md), using `url.path` instead of `url.full`, and filtering to a known subset before the [`STATS`](/reference/query-languages/esql/commands/stats-by.md).
 
-### Prefer keyword fields over text
+### Prefer fields backed by doc values
 
-Fields mapped as `keyword` are backed by doc values, which are fast columnar reads. Fields mapped as `text` or `match_only_text` are not. Any operation that needs the raw value, whether returning it, filtering on it, or grouping by it, falls back to reading the full `_source` for each matching document.
+{{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, numeric, `date`, and `ip` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
 
-When a `.keyword` subfield exists, prefer it for filtering, grouping, and projection. When one does not, filter aggressively to limit the number of documents that require `_source` reads.
+When a `.keyword` subfield exists, prefer it for filtering, grouping, and returning. When one does not, filter aggressively to limit the number of documents that require `_source` reads.
 
 ❌ **Don't:** Group by an analyzed field
 ```esql

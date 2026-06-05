@@ -44,14 +44,17 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
 
+    /** Returns the sum of squared differences of the two vectors. */
+    float squareDistance(byte[] a, byte[] b);
+
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    float squareDistance(byte[] a, byte[] b, int offset, int length);
+
     float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
 
     float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
-
-    /** Returns the sum of squared differences of the two vectors. */
-    float squareDistance(byte[] a, byte[] b);
 
     /**
      * Compute dot product between {@code q} and {@code d}
@@ -93,35 +96,28 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
-
     void squareDistanceBulk(
         float[] query,
         int queryOffset,
-        int length,
         float[] v0,
         float[] v1,
         float[] v2,
         float[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     );
-
-    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
-    float squareDistance(byte[] a, byte[] b, int offset, int length);
-
-    void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
 
     void squareDistanceBulk(
         byte[] query,
         int queryOffset,
-        int length,
         byte[] v0,
         byte[] v1,
         byte[] v2,
         byte[] v3,
         int distancesOffset,
-        float[] distances
+        float[] distances,
+        int length
     );
 
     void soarDistanceBulk(

@@ -479,20 +479,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, 0f);
     }
 
-    public void testSquareDistanceBulk() {
-        int vectorSize = randomIntBetween(1, 2048);
-        float[] query = generateRandomVector(vectorSize);
-        float[] v0 = generateRandomVector(vectorSize);
-        float[] v1 = generateRandomVector(vectorSize);
-        float[] v2 = generateRandomVector(vectorSize);
-        float[] v3 = generateRandomVector(vectorSize);
-        float[] expectedDistances = new float[4];
-        float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, panamaDistances);
-        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
-    }
-
     public void testSquareDistanceRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);
@@ -515,8 +501,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, expectedDistances);
-        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, expectedDistances, length);
+        panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, panamaDistances, length);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
     }
 

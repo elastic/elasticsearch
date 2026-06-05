@@ -536,6 +536,82 @@ public class SharingKeyTests extends ESTestCase {
         assertNotSame("a new reload request must rebuild the shared analyzer", afterFirst, rca.getComponents());
     }
 
+    /**
+     * Regression test for the reload/local-name mismatch bug: when two indices share a
+     * {@link ReloadableCustomAnalyzer} but each refers to it under a different local name
+     * (index A calls it {@code search_a}, index B calls it {@code search_b}),
+     * {@code reloadAnalyzerInPlace} looks up the requesting index's settings by
+     * {@code currentReference.name()} — which is always the original builder's name
+     * ({@code "search_a"}) regardless of which index is currently reloading.
+     *
+     * <p>If B's shard processes first:
+     * <ol>
+     *   <li>{@code tryClaimReload(token)} returns {@code true} — the token is claimed.</li>
+     *   <li>Settings lookup: {@code B_settings.get("search_a")} → {@code null}.</li>
+     *   <li>Silent bail-out — no reload happens.</li>
+     *   <li>A's shard arrives with the same token → {@code tryClaimReload} returns {@code false}
+     *       → A also skips.</li>
+     * </ol>
+     * Result: reload is silently missed for the whole broadcast, but the response reports success.
+     *
+     * <p>This test deliberately calls {@code ib.reload(...)} before {@code ia.reload(...)} to
+     * trigger the bug deterministically rather than relying on nondeterministic shard ordering.
+     */
+    public void testReloadWithDifferentLocalNamesActuallyReloads() throws IOException {
+        Path file = configDir.resolve("syn_localnames.txt");
+        Files.writeString(file, "i-pod, ipod\n");
+
+        // Same filter recipe, different local analyzer names.
+        Settings sA = Settings.builder()
+            .put("index.analysis.filter.syn.type", "synonym")
+            .put("index.analysis.filter.syn.synonyms_path", "syn_localnames.txt")
+            .put("index.analysis.filter.syn.updateable", true)
+            .put("index.analysis.analyzer.search_a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.search_a.filter", "lowercase", "syn")
+            .build();
+        Settings sB = Settings.builder()
+            .put("index.analysis.filter.syn.type", "synonym")
+            .put("index.analysis.filter.syn.synonyms_path", "syn_localnames.txt")
+            .put("index.analysis.filter.syn.updateable", true)
+            .put("index.analysis.analyzer.search_b.tokenizer", "standard")
+            .putList("index.analysis.analyzer.search_b.filter", "lowercase", "syn")
+            .build();
+
+        IndexAnalyzers ia = build(sA);
+        IndexAnalyzers ib = build(sB);
+
+        NamedAnalyzer naA = ia.get("search_a");
+        NamedAnalyzer naB = ib.get("search_b");
+        assertNotNull("search_a must be found in index A", naA);
+        assertNotNull("search_b must be found in index B", naB);
+        // Same recipe → same underlying ReloadableCustomAnalyzer.
+        assertSame("same recipe must share the underlying analyzer", naA.analyzer(), naB.analyzer());
+
+        // Confirm baseline: "mp3-player" is not yet a synonym.
+        List<String> tokensBefore = tokens(naA, "i-pod");
+        assertFalse("mp3-player must not be a synonym before reload, got: " + tokensBefore, tokensBefore.contains("mp3-player"));
+
+        // Update the file so reload would add "mp3-player" as a synonym for "i-pod".
+        Files.writeString(file, "i-pod, ipod, mp3-player\n");
+
+        // Simulate the order that triggers the bug: B's shard processes first, then A's,
+        // both within the same reload request (same token).
+        Object token = new Object();
+        ib.reload(registry, settingsFor(sB), null, false, token);
+        ia.reload(registry, settingsFor(sA), null, false, token);
+
+        // After reload, querying "i-pod" must expand to include "mp3-player".
+        // If the bug is present the components are never updated and this fails,
+        // showing the stale token list (e.g. [i-pod, ipod]) rather than the new one.
+        List<String> tokensAfter = tokens(naA, "i-pod");
+        assertTrue(
+            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: " + tokensAfter
+                + " (bug: B claimed the reload token but found null settings for 'search_a',"
+                + " so reload was silently skipped for the whole broadcast)",
+            tokensAfter.contains("mp3-player")
+        );
+    }
+
     /** Changing only the tokenizer of an otherwise-identical chain changes the recipe. */
     public void testDifferentTokenizerInSameChainDoesNotShare() throws IOException {
         Settings sA = Settings.builder()

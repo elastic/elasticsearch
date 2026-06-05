@@ -1,0 +1,127 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{rule_id}
+          capabilities: [ synonyms_refresh_param ]
+      reason: >
+        Synonyms API with updateable synonym filters requires 8.10.0;
+        synonyms_refresh_param needed to update synonyms without an immediate auto-reload
+        so that the explicit reload order can be controlled.
+
+  - do:
+      synonyms.put_synonym:
+        id: shared_set
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi"
+              id: "rule-1"
+
+  # index_z_orig is created FIRST — its analyzer name "my_search_analyzer_z" is registered in
+  # the shared cache. In a single-node cluster the node-level reload broadcast processes
+  # indices in creation order, so index_z_orig is visited FIRST when "shared_set" is reloaded.
+  - do:
+      indices.create:
+        index: index_z_orig
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                syn_filter:
+                  type: synonym
+                  synonyms_set: shared_set
+                  updateable: true
+              analyzer:
+                my_search_analyzer_z:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, syn_filter ]
+
+  # index_a_shared is created SECOND. When shared_analyzers is enabled it reuses the same
+  # ReloadableCustomAnalyzer instance (whose internal name is "my_search_analyzer_z").
+  #
+  # Bug (B3): if index_a_shared is asked to reload first, reloadAnalyzerInPlace looks up
+  # settings using currentReference.name() = "my_search_analyzer_z", but index_a_shared only
+  # has "my_search_analyzer_a" in its settings -> null -> bail, yet the per-request reload
+  # token is already claimed. index_z_orig then processes second and finds the token claimed
+  # -> also bails. Neither index receives the updated synonyms.
+  - do:
+      indices.create:
+        index: index_a_shared
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+            analysis:
+              filter:
+                syn_filter:
+                  type: synonym
+                  synonyms_set: shared_set
+                  updateable: true
+              analyzer:
+                my_search_analyzer_a:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, syn_filter ]
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index_z_orig", "_id": "1"}}'
+          - '{"content": "hello"}'
+          - '{"index": {"_index": "index_a_shared", "_id": "1"}}'
+          - '{"content": "hello"}'
+
+---
+"After reload with sharer processed first, both indices pick up the new synonym":
+  # Update synonyms without auto-reload so we control which index is reloaded first.
+  - do:
+      synonyms.put_synonym:
+        id: shared_set
+        refresh: false
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi, hey"
+
+  - match: { result: "updated" }
+  - not_exists: reload_analyzers_details
+
+  # Explicitly reload with index_a_shared listed FIRST. index_a_shared owns a slot named
+  # "my_search_analyzer_a" but the shared cache entry carries the name "my_search_analyzer_z"
+  # (set by the first-created index). Listing index_a_shared first causes its shard to be
+  # processed before index_z_orig's shard. With the B3 bug present, index_a_shared claims the
+  # reload token but finds null settings (wrong name lookup) and bails; index_z_orig then
+  # finds the token already claimed and also bails — neither index is reloaded.
+  - do:
+      indices.reload_search_analyzers:
+        index: index_a_shared,index_z_orig
+
+  # Querying "hey" with my_search_analyzer_z must match the "hello" document because "hey"
+  # is now a synonym for "hello". This fails when the B3 bug is present.
+  - do:
+      search:
+        index: index_z_orig
+        body:
+          query:
+            match:
+              content:
+                query: hey
+                analyzer: my_search_analyzer_z
+  - match: { hits.total.value: 1 }
+
+  # The same must hold for index_a_shared.
+  - do:
+      search:
+        index: index_a_shared
+        body:
+          query:
+            match:
+              content:
+                query: hey
+                analyzer: my_search_analyzer_a
+  - match: { hits.total.value: 1 }

@@ -26,7 +26,7 @@ This guide serves two audiences:
   - [Reduce what you return](#reduce-what-you-return)
   - [Avoid expensive operations](#avoid-expensive-operations)
 - If you administer clusters and need to monitor query performance fleet-wide, the following section describes the tools available:
-  - [Monitor query performance](#check-query-performance)
+  - [Monitor query performance](#monitor-query-performance)
 
 ### Check your Elastic Stack version
 

@@ -20,10 +20,8 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -31,8 +29,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOSupplier;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -114,14 +112,67 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
-    private static DocIdSetIterator sliceIterator(DocIdSetIterator iterator, SliceAcceptDocs slice) {
+    private static DocIdSetIterator sliceIterator(DocIdSetIterator iterator, SliceAcceptDocs slice) throws IOException {
         if (slice == null) {
             return iterator;
         }
-        int startDoc = slice.startDoc();
-        int endDoc = slice.endDoc();
-        DocIdSetIterator sliceIterator = DocIdSetIterator.range(startDoc, endDoc);
-        return ConjunctionUtils.intersectIterators(List.of(iterator, sliceIterator));
+        return new SliceIterator(iterator, slice);
+    }
+
+    private static class SliceIterator extends DocIdSetIterator {
+        private final DocIdSetIterator iterator;
+        private final SliceAcceptDocs slice;
+        private int docID = -1;
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            if (docID < slice.startDoc()) {
+                advance(slice.startDoc());
+            }
+            if (docID != NO_MORE_DOCS) {
+                upTo = Math.min(upTo, slice.endDoc());
+                iterator.intoBitSet(upTo, bitSet, offset);
+            }
+        }
+
+        private SliceIterator(DocIdSetIterator iterator, SliceAcceptDocs slice) {
+            this.iterator = iterator;
+            this.slice = slice;
+        }
+
+        @Override
+        public int docID() {
+            return docID;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(docID + 1);
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            assert target >= docID;
+            if (target >= slice.endDoc()) {
+                docID = NO_MORE_DOCS;
+                return docID;
+            }
+            target = Math.max(target, slice.startDoc());
+            if (target > iterator.docID()) {
+                docID = iterator.advance(target);
+                if (docID >= slice.endDoc()) {
+                    docID = NO_MORE_DOCS;
+                }
+            } else {
+                docID = iterator.docID();
+            }
+            return docID;
+        }
+
+        @Override
+        public long cost() {
+            return Math.min(iterator.cost(), slice.endDoc() - slice.startDoc());
+        }
     }
 
     private static int countBitsInRange(Bits bits, SliceAcceptDocs slice) {
@@ -268,32 +319,40 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     /** An AcceptDocs that wraps a ScorerSupplier. Indicates that a filter was provided. */
     public static final class ScorerSupplierAcceptDocs extends ESAcceptDocs {
-        private final ScorerSupplier scorerSupplier;
+        private final IOSupplier<DocIdSetIterator> docIdIteratorSupplier;
+        private final LongSupplier costSupplier;
         private BitSet acceptBitSet;
         private final Bits liveDocs;
         private final int maxDoc;
         private int cardinality = -1;
 
-        public ScorerSupplierAcceptDocs(ScorerSupplier scorerSupplier, Bits liveDocs, int maxDoc) {
-            this(scorerSupplier, liveDocs, maxDoc, -1, null);
+        public ScorerSupplierAcceptDocs(
+            IOSupplier<DocIdSetIterator> docIdIteratorSupplier,
+            LongSupplier costSupplier,
+            Bits liveDocs,
+            int maxDoc
+        ) {
+            this(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc, -1, null);
         }
 
         public ScorerSupplierAcceptDocs(
-            ScorerSupplier scorerSupplier,
+            IOSupplier<DocIdSetIterator> docIdIteratorSupplier,
+            LongSupplier costSupplier,
             Bits liveDocs,
             int maxDoc,
             int sliceOrd,
             IOSupplier<SliceAcceptDocs> sliceAcceptDocsSupplier
         ) {
             super(sliceOrd, sliceAcceptDocsSupplier);
-            this.scorerSupplier = scorerSupplier;
+            this.docIdIteratorSupplier = docIdIteratorSupplier;
+            this.costSupplier = costSupplier;
             this.liveDocs = liveDocs;
             this.maxDoc = maxDoc;
         }
 
         private void createBitSetIfNecessary(SliceAcceptDocs slice) throws IOException {
             if (acceptBitSet == null) {
-                DocIdSetIterator iterator = scorerSupplier.get(NO_MORE_DOCS).iterator();
+                DocIdSetIterator iterator = docIdIteratorSupplier.get();
                 // Reuse the scorer's BitSet only when there is no slice; with a slice we intersect first so we
                 // never mutate a shared cached filter bitset in place.
                 if (liveDocs == null && iterator instanceof BitSetIterator && slice == null) {
@@ -322,8 +381,8 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
                 return new BitSetIterator(acceptBitSet, iterCost);
             }
             DocIdSetIterator iterator = liveDocs == null
-                ? scorerSupplier.get(NO_MORE_DOCS).iterator()
-                : new FilteredDocIdSetIterator(scorerSupplier.get(NO_MORE_DOCS).iterator()) {
+                ? docIdIteratorSupplier.get()
+                : new FilteredDocIdSetIterator(docIdIteratorSupplier.get()) {
                     @Override
                     protected boolean match(int doc) {
                         return liveDocs.get(doc);
@@ -353,9 +412,9 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             SliceAcceptDocs slice = sliceAcceptDocsOrNull();
             if (slice != null) {
                 long sliceCost = slice.endDoc() - slice.startDoc();
-                return (int) Math.min(scorerSupplier.cost(), sliceCost);
+                return (int) Math.min(costSupplier.getAsLong(), sliceCost);
             }
-            return Math.toIntExact(scorerSupplier.cost());
+            return Math.toIntExact(costSupplier.getAsLong());
         }
     }
 }

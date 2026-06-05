@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -290,6 +291,303 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
             }
         }
         assertEquals("expected all " + n + " concurrent indices to be found", n, found);
+    }
+
+    /**
+     * Stress test for the close()/reload() race on a shared {@link
+     * org.elasticsearch.index.analysis.ReloadableCustomAnalyzer}.
+     *
+     * <p>{@code reload()} is {@code synchronized} on the analyzer object. {@code close()} (called
+     * from {@code releaseFromCache} when the last sharer's refcount drops to 0) is NOT
+     * synchronized. When both sharing indices are deleted while a {@code _reload_search_analyzers}
+     * is in flight, {@code close()} and {@code reload()} can interleave: {@code close()} nulls the
+     * {@code CloseableThreadLocal} hard refs while {@code reload()} is still writing a new
+     * {@code components} generation, potentially yielding an {@code AlreadyClosedException} or
+     * a torn read on the next {@code tokenStream()} call.
+     *
+     * <p>The race was confirmed by injecting a {@code Thread.sleep(200)} into
+     * {@link org.elasticsearch.index.analysis.ReloadableCustomAnalyzer#reload} between the
+     * {@code AnalyzerComponents.createComponents(...)} call and the {@code this.components =
+     * components} volatile write. With that sleep in place this test consistently failed on the
+     * first iteration with:
+     * <pre>
+     *   NullPointerException: Cannot invoke "java.lang.ThreadLocal.get()" because "this.t" is null
+     * </pre>
+     * {@link org.apache.lucene.util.CloseableThreadLocal#close()} nulls the {@code ThreadLocal}
+     * field ({@code t}) itself, so any subsequent {@code storedComponents.get()} call NPEs rather
+     * than throwing a graceful {@code AlreadyClosedException}.
+     *
+     * <p>The test passes consistently (no exception, no hang) iff the race is not exploitable. The
+     * loop count is randomised between 10 and 20 to vary scheduling.
+     */
+    public void testConcurrentReloadAndIndexDeletion() throws Exception {
+        final String synFileName = "syn_race_test.txt";
+        Path configDir = node().getEnvironment().configDir();
+        if (Files.exists(configDir) == false) {
+            Files.createDirectory(configDir);
+        }
+        Path synFile = configDir.resolve(synFileName);
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(
+                    Files.newOutputStream(synFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING),
+                    StandardCharsets.UTF_8
+                )
+            )
+        ) {
+            out.println("hello, hi");
+        }
+
+        final int iterations = randomIntBetween(10, 20);
+        for (int i = 0; i < iterations; i++) {
+            final String indexX = "index_x_" + i;
+            final String indexY = "index_y_" + i;
+
+            // Both indices share the same synonym-based analyzer recipe.
+            assertAcked(
+                indicesAdmin().prepareCreate(indexX)
+                    .setSettings(
+                        indexSettings(1, 0).put("analysis.filter.syn.type", "synonym")
+                            .put("analysis.filter.syn.synonyms_path", synFileName)
+                            .put("analysis.filter.syn.updateable", true)
+                            .put("analysis.analyzer.search_x.tokenizer", "standard")
+                            .putList("analysis.analyzer.search_x.filter", "lowercase", "syn")
+                    )
+            );
+            assertAcked(
+                indicesAdmin().prepareCreate(indexY)
+                    .setSettings(
+                        indexSettings(1, 0).put("analysis.filter.syn.type", "synonym")
+                            .put("analysis.filter.syn.synonyms_path", synFileName)
+                            .put("analysis.filter.syn.updateable", true)
+                            .put("analysis.analyzer.search_y.tokenizer", "standard")
+                            .putList("analysis.analyzer.search_y.filter", "lowercase", "syn")
+                    )
+            );
+
+            prepareIndex(indexX).setId("1").setSource("content", "hello").get();
+            prepareIndex(indexY).setId("1").setSource("content", "hello").get();
+            assertNoFailures(indicesAdmin().prepareRefresh(indexX, indexY).get());
+
+            // Latch so reload and delete race as tightly as possible.
+            final CountDownLatch startGun = new CountDownLatch(1);
+            final AtomicReference<Exception> reloadError = new AtomicReference<>();
+
+            final String capturedX = indexX;
+            final String capturedY = indexY;
+            Thread reloadThread = new Thread(() -> {
+                try {
+                    startGun.await();
+                    client().execute(TransportReloadAnalyzersAction.TYPE, new ReloadAnalyzersRequest(null, false, capturedX, capturedY))
+                        .actionGet();
+                } catch (Exception e) {
+                    // IndexNotFoundException and ResourceNotFoundException are expected when the
+                    // indices have already been deleted before or during the reload. Any other
+                    // exception (AlreadyClosedException, NPE, etc.) indicates a real bug.
+                    String msg = e.getClass().getName() + ": " + e.getMessage();
+                    if (msg.contains("index_not_found") == false
+                        && msg.contains("IndexNotFoundException") == false
+                        && msg.contains("no such index") == false) {
+                        reloadError.set(e);
+                    }
+                }
+            });
+            reloadThread.start();
+
+            // Fire reload and delete as simultaneously as possible.
+            startGun.countDown();
+            try {
+                indicesAdmin().prepareDelete(indexX, indexY).get();
+            } catch (Exception e) {
+                // Indices may already be gone; that is fine.
+            }
+
+            reloadThread.join(30_000);
+            assertFalse("reload thread did not finish within 30s", reloadThread.isAlive());
+            assertNull("iteration " + i + ": unexpected exception from concurrent reload+delete: " + reloadError.get(), reloadError.get());
+        }
+    }
+
+    /**
+     * Documents the interaction between the node-level analyzer sharing cache and the shard-recovery
+     * reload that fires for every new index.
+     *
+     * <p>The sharing key for {@code updateable: true} synonym filters with {@code synonyms_path}
+     * includes only the file <em>path</em>, not the file content. When index_a is created at T0,
+     * index_b is created at T2 with an identical recipe, index_b joins index_a's cache entry and
+     * therefore both indices share a single {@link org.elasticsearch.index.analysis.ReloadableCustomAnalyzer}
+     * instance.
+     *
+     * <p>Crucially, {@link org.elasticsearch.indices.IndicesService}'s {@code beforeIndexShardRecovery}
+     * listener calls {@code reloadSearchAnalyzers(..., null, false, null)} during every index
+     * creation. The {@code null} reload token means the claim is always granted, so each new index's
+     * shard recovery re-reads the synonym file from disk and writes a fresh
+     * {@code AnalyzerComponents} generation to the shared {@code ReloadableCustomAnalyzer}. Because
+     * the instance is shared, this reload is immediately visible to all other indices on the node
+     * that share the same recipe — including index_a. Consequently, when a synonym file is updated
+     * between index_a's and index_b's creations, index_b's shard recovery reads the updated file
+     * and propagates the change to index_a at the same time.
+     */
+    public void testSecondIndexCreationReloadsSharedSynonymAnalyzerForBothIndices() throws IOException {
+        final String synFileName = "syn_stale_test.txt";
+        Path configDir = node().getEnvironment().configDir();
+        if (Files.exists(configDir) == false) {
+            Files.createDirectory(configDir);
+        }
+        Path synFile = configDir.resolve(synFileName);
+
+        // Step 1: write initial synonym file with "hello, hi".
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(
+                    Files.newOutputStream(synFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING),
+                    StandardCharsets.UTF_8
+                )
+            )
+        ) {
+            out.println("hello, hi");
+        }
+
+        // Step 2: create index_a — this builds and caches the analyzer with the initial synonyms.
+        // Shard recovery reloads with the same file content: "hello, hi".
+        assertAcked(
+            indicesAdmin().prepareCreate("index_a")
+                .setSettings(
+                    indexSettings(1, 0).put("analysis.filter.syn.type", "synonym")
+                        .put("analysis.filter.syn.synonyms_path", synFileName)
+                        .put("analysis.filter.syn.updateable", true)
+                        .put("analysis.analyzer.search_syn.tokenizer", "standard")
+                        .putList("analysis.analyzer.search_syn.filter", "lowercase", "syn")
+                )
+        );
+
+        prepareIndex("index_a").setId("1").setSource("content", "hello").get();
+        assertNoFailures(indicesAdmin().prepareRefresh("index_a").get());
+
+        // index_a has the initial synonyms: "hi" matches, "hey" does not.
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hi").analyzer("search_syn")), 1L);
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 0L);
+
+        // Step 3: update the synonym file to add "hey" as a new synonym.
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(
+                    Files.newOutputStream(synFile, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING),
+                    StandardCharsets.UTF_8
+                )
+            )
+        ) {
+            out.println("hello, hi, hey");
+        }
+
+        // Step 4: create index_b with identical recipe. Because updateable synonyms key on path only,
+        // index_b joins index_a's cache entry and shares the same ReloadableCustomAnalyzer.
+        // During shard recovery, beforeIndexShardRecovery fires reloadSearchAnalyzers with a null
+        // reload token; the shared analyzer re-reads the file (now "hello, hi, hey") and updates
+        // its components. Since the instance is shared, index_a also immediately sees "hey".
+        assertAcked(
+            indicesAdmin().prepareCreate("index_b")
+                .setSettings(
+                    indexSettings(1, 0).put("analysis.filter.syn.type", "synonym")
+                        .put("analysis.filter.syn.synonyms_path", synFileName)
+                        .put("analysis.filter.syn.updateable", true)
+                        .put("analysis.analyzer.search_syn.tokenizer", "standard")
+                        .putList("analysis.analyzer.search_syn.filter", "lowercase", "syn")
+                )
+        );
+
+        prepareIndex("index_b").setId("1").setSource("content", "hello").get();
+        assertNoFailures(indicesAdmin().prepareRefresh("index_b").get());
+
+        // Verify that both indices share the same underlying NamedAnalyzer instance.
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        NamedAnalyzer analyzerA = null;
+        NamedAnalyzer analyzerB = null;
+        for (IndexService indexService : indicesService) {
+            if (indexService.index().getName().equals("index_a")) {
+                analyzerA = indexService.getIndexAnalyzers().get("search_syn");
+            } else if (indexService.index().getName().equals("index_b")) {
+                analyzerB = indexService.getIndexAnalyzers().get("search_syn");
+            }
+        }
+        assertNotNull("index_a must be present", analyzerA);
+        assertNotNull("index_b must be present", analyzerB);
+        assertSame(
+            "index_b must share the cached analyzer instance from index_a (identical recipe, path-only key for updateable synonyms)",
+            analyzerA,
+            analyzerB
+        );
+
+        // After index_b's creation, shard recovery reloaded the shared analyzer from the updated
+        // file. Both indices now see the updated synonyms — "hey" matches on both without any
+        // explicit _reload_search_analyzers call.
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
+        assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hi").analyzer("search_syn")), 1L);
+        assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hi").analyzer("search_syn")), 1L);
+    }
+
+    /**
+     * Documents that when N indices concurrently attempt to create an analyzer with the same recipe
+     * and the builder fails (e.g., the synonym file does not exist), ALL N creations fail — not just
+     * the one that triggered the build. The single-flight {@link java.util.concurrent.CompletableFuture}
+     * in {@code AnalysisRegistry.lookupOrIntern} fans the exception out to every joiner via
+     * {@code completeExceptionally}, so all concurrent callers receive the failure.
+     *
+     * <p>After the concurrent failures the cache entry is properly retired ({@code cache.remove} is
+     * called by the failing builder). A subsequent single-threaded attempt with the same nonexistent
+     * file also fails cleanly — confirming the entry was removed and the next attempt retries from
+     * scratch rather than hanging on a permanently-failed future.
+     */
+    public void testConcurrentIndexCreationWithFailingBuilderFansOutError() throws Exception {
+        final String nonexistentFile = "nonexistent_synonym_file.txt";
+        final int n = 4;
+        final Settings s = indexSettings(1, 0).put("analysis.filter.syn.type", "synonym")
+            .put("analysis.filter.syn.synonyms_path", nonexistentFile)
+            .put("analysis.filter.syn.updateable", true)
+            .put("analysis.analyzer.search_fail.tokenizer", "standard")
+            .putList("analysis.analyzer.search_fail.filter", "lowercase", "syn")
+            .build();
+
+        final CountDownLatch ready = new CountDownLatch(n);
+        final CountDownLatch go = new CountDownLatch(1);
+        final AtomicInteger failureCount = new AtomicInteger(0);
+
+        Thread[] threads = new Thread[n];
+        for (int i = 0; i < n; i++) {
+            final String indexName = "index_fail_" + i;
+            threads[i] = new Thread(() -> {
+                ready.countDown();
+                try {
+                    go.await();
+                    indicesAdmin().prepareCreate(indexName).setSettings(s).get();
+                    // If creation unexpectedly succeeds, that is a test failure recorded below.
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                }
+            });
+        }
+        for (Thread t : threads) {
+            t.start();
+        }
+        assertTrue("threads did not get ready in time", ready.await(10, TimeUnit.SECONDS));
+        go.countDown();
+        for (Thread t : threads) {
+            t.join(30_000);
+        }
+
+        assertEquals("all " + n + " concurrent index creations must fail when the synonym file does not exist", n, failureCount.get());
+
+        // After the concurrent failures the cache entry must have been retired. A fresh
+        // single-threaded attempt with the same (still-nonexistent) file must also fail cleanly —
+        // not hang or deadlock — confirming the entry was properly removed from the cache.
+        Exception singleThreadFailure = null;
+        try {
+            indicesAdmin().prepareCreate("index_fail_single").setSettings(s).get();
+        } catch (Exception e) {
+            singleThreadFailure = e;
+        }
+        assertNotNull("single-threaded retry after concurrent failures must also fail (file still does not exist)", singleThreadFailure);
     }
 
     public void testSharedAnalyzerSurvivesDeletionOfOneSharer() throws IOException {

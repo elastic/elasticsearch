@@ -115,7 +115,7 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
             }
 
             if (validateModifications) {
-                validateResourceChanges(resources, referableDefinitions);
+                validateResourceChanges(resources, referableDefinitions, upperBounds);
             }
             validatePrimaryIds(resources, upperBounds, allDefinitions);
         }
@@ -345,14 +345,17 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
 
     private void validateResourceChanges(
         TransportVersionResourcesService resources,
-        Map<String, TransportVersionDefinition> referableDefinitions
+        Map<String, TransportVersionDefinition> referableDefinitions,
+        Map<String, TransportVersionUpperBound> upperBounds
     ) {
         Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
-        Set<String> changedUpperBoundNames = resources.getChangedUpperBoundNames();
         for (String name : changedDefinitionNames) {
             TransportVersionDefinition definition = referableDefinitions.get(name);
-            if (definition != null && resources.getReferableDefinitionFromGitBase(name) == null && changedUpperBoundNames.isEmpty()) {
-                throwDefinitionFailure(definition, "was added but no corresponding upper bounds file was changed");
+            if (definition != null && resources.getReferableDefinitionFromGitBase(name) == null) {
+                boolean hasUpperBound = upperBounds.values().stream().anyMatch(ub -> ub.definitionName().equals(name));
+                if (hasUpperBound == false) {
+                    throwDefinitionFailure(definition, "was added but no corresponding upper bounds file was changed");
+                }
             }
         }
     }

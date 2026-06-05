@@ -243,14 +243,11 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
     def "highest id in an referable definition should exist in an upper bounds file"() {
         given:
         referableAndReferencedTransportVersion("some_tv", "8124000")
-        // Add an unrelated upper bound change so the "was added" check doesn't mask the "highest id" check
-        transportVersionUpperBound("9.3", "existing_92", "8123000")
         when:
         def result = validateResourcesFails()
         then:
-        assertValidateResourcesFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/definitions/referable/some_tv.csv] " +
-            "has the highest transport version id [8124000] but is not present in any upper bounds files")
+        assertValidateResourcesFailure(result,
+            "was added but no corresponding upper bounds file was changed")
     }
 
     def "highest id in an unreferable definition should exist in an upper bounds file"() {

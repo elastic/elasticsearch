@@ -641,3 +641,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
   method: testCountColumnColdThenWarmShortCircuits
   issue: https://github.com/elastic/elasticsearch/issues/150615
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonMultiScanPushdownIT
+  method: testMultiScanColdDoesNotDoubleCountWarmCountStar
+  issue: https://github.com/elastic/elasticsearch/issues/150837

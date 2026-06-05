@@ -2067,6 +2067,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Fix for PromQL label matching on numeric fields, because PromQL treats all labels like strings, even numerics
+         * This capability only exists on 9.4
+         */
+        PROMQL_NUMERIC_LABEL_MATCHING_9_4,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */

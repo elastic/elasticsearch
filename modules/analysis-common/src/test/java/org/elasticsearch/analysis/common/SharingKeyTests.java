@@ -573,10 +573,8 @@ public class SharingKeyTests extends ESTestCase {
 
         // The wrapper handed to each index must carry that index's OWN local name, not the name of
         // whichever index built the shared instance first. Field-mapper serialization emits
-        // NamedAnalyzer.name(); if index B's wrapper leaked "search_a" its mapping would serialize a
-        // search_analyzer that is not configured in index B, and re-parsing (MapperService
-        // assertSerialization, on under -ea) would fail with "analyzer [search_a] has not been
-        // configured in mappings".
+        // NamedAnalyzer.name() and MapperService assertSerialization (on under -ea) round-trips it
+        // against the index's own settings, so index B's wrapper must report "search_b".
         assertEquals("index A's wrapper must keep its own local name", "search_a", naA.name());
         assertEquals("index B's wrapper must keep its own local name, not the shared builder's name", "search_b", naB.name());
 

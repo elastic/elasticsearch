@@ -112,21 +112,19 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Regression test for the shared-analyzer local-name leak: two indices declare a byte-for-byte
-     * identical recipe but name the analyzer differently ({@code ana} vs {@code anb}) and use it as a
-     * field's analyzer. Sharing keys on the recipe, so both fields are backed by one shared analyzer
-     * instance — but the {@link NamedAnalyzer} wrapper handed to each index must keep that index's
-     * OWN local name. {@code FieldMapper} serializes the analyzer via {@code NamedAnalyzer.name()}; if
-     * index_b's wrapper leaked index_a's name ({@code ana}), index_b's mapping would serialize an
-     * analyzer that is not configured in index_b and the round-trip in {@code MapperService}
-     * assertSerialization (run under {@code -ea}) would throw at index-creation time. Creating the
-     * second index is therefore itself the assertion; the explicit checks below document the intent.
+     * Two indices declare a byte-for-byte identical recipe but name the analyzer differently
+     * ({@code ana} vs {@code anb}) and use it as a field's analyzer. Sharing keys on the recipe, so
+     * both fields are backed by one shared analyzer instance — but the {@link NamedAnalyzer} wrapper
+     * handed to each index keeps that index's OWN local name. {@code FieldMapper} serializes the
+     * analyzer via {@code NamedAnalyzer.name()}, and {@code MapperService} assertSerialization (run
+     * under {@code -ea}) round-trips that mapping against the index's own settings, so each index's
+     * mapping must reference the name it actually configured. Creating the second index exercises
+     * that round-trip; the explicit checks below document the intent.
      */
     public void testSharedAnalyzerKeepsPerIndexLocalNameInMappings() throws IOException {
         IndexService a = createIndex("index_a", recipeNamed("ana", "the"), contentFieldMapping("ana"));
-        // With the bug present, this create throws: index_b reuses index_a's shared wrapper (named
-        // "ana"), its content field serializes analyzer "ana", and re-parsing fails because index_b
-        // only configures "anb".
+        // index_b shares index_a's underlying analyzer but under its own local name "anb"; its content
+        // field serializes "anb", which round-trips against index_b's settings.
         IndexService b = createIndex("index_b", recipeNamed("anb", "the"), contentFieldMapping("anb"));
 
         NamedAnalyzer ana = a.getIndexAnalyzers().get("ana");
@@ -143,25 +141,14 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Integration regression test for the reload-ordering bug (B3): when two indices share an
-     * analyzer under different local names, a {@code _reload_search_analyzers} call listing the
-     * "sharer" index (whose local name differs from the cached entry's name) first must still
-     * reload both indices.
+     * When two indices share one synonym analyzer under different local names, a single
+     * {@code _reload_search_analyzers} call must refresh the synonyms for both — regardless of which
+     * index the request lists first and which index's name owns the shared cache entry.
      *
-     * <p>With the bug present:
-     * <ol>
-     *   <li>index_a's shard processes first, claims the reload token, then looks up settings via
-     *       the cached analyzer's name ({@code "search_z"}) in index_a's settings → {@code null}
-     *       → silent bail-out.
-     *   <li>index_z's shard arrives with the same token → {@code tryClaimReload} returns
-     *       {@code false} → also bails.
-     *   <li>Response reports success; no synonyms were reloaded.
-     * </ol>
-     *
-     * <p>Setup ordering that deterministically triggers the bug:
-     * index_z is created first so its analyzer name owns the cache entry. index_a is created
-     * second and shares the cached instance. The reload request lists index_a before index_z,
-     * causing index_a's shard to process first.
+     * <p>The setup makes the names diverge deliberately: index_z is created first so its analyzer name
+     * ({@code search_z}) owns the cached instance, index_a is created second and shares it under its
+     * own name ({@code search_a}), and the reload lists index_a before index_z. After the reload both
+     * indices expand the newly added synonym {@code hey} at search time.
      */
     public void testReloadSharedSynonymsBothIndicesSeeUpdate() throws IOException {
         final String synFileName = "syn_sharing_it.txt";
@@ -222,15 +209,14 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
             out.println("hello, hi, hey");
         }
 
-        // Reload with index_a listed FIRST (the ordering that triggers the B3 bug).
+        // Reload with index_a (the sharer, whose local name differs from the cache entry's) listed first.
         ReloadAnalyzersResponse reloadResponse = client().execute(
             TransportReloadAnalyzersAction.TYPE,
             new ReloadAnalyzersRequest(null, false, "index_a", "index_z")
         ).actionGet();
         assertNoFailures(reloadResponse);
 
-        // After reload both indices must expand "hey" to "hello" at search time.
-        // With the B3 bug the reload is silently skipped and both hit counts are 0.
+        // After reload both indices expand "hey" to "hello" at search time.
         assertHitCount(client().prepareSearch("index_z").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_z")), 1L);
         assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_a")), 1L);
     }
@@ -294,31 +280,14 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Stress test for the close()/reload() race on a shared {@link
-     * org.elasticsearch.index.analysis.ReloadableCustomAnalyzer}.
+     * Concurrency robustness: firing {@code _reload_search_analyzers} and deleting the two indices that
+     * share the reloaded analyzer at the same time must complete cleanly. When the last sharer's
+     * refcount reaches 0 the shared {@link org.elasticsearch.index.analysis.ReloadableCustomAnalyzer}
+     * is closed; this exercises that teardown racing an in-flight reload of the same instance.
      *
-     * <p>{@code reload()} is {@code synchronized} on the analyzer object. {@code close()} (called
-     * from {@code releaseFromCache} when the last sharer's refcount drops to 0) is NOT
-     * synchronized. When both sharing indices are deleted while a {@code _reload_search_analyzers}
-     * is in flight, {@code close()} and {@code reload()} can interleave: {@code close()} nulls the
-     * {@code CloseableThreadLocal} hard refs while {@code reload()} is still writing a new
-     * {@code components} generation, potentially yielding an {@code AlreadyClosedException} or
-     * a torn read on the next {@code tokenStream()} call.
-     *
-     * <p>The race was confirmed by injecting a {@code Thread.sleep(200)} into
-     * {@link org.elasticsearch.index.analysis.ReloadableCustomAnalyzer#reload} between the
-     * {@code AnalyzerComponents.createComponents(...)} call and the {@code this.components =
-     * components} volatile write. With that sleep in place this test consistently failed on the
-     * first iteration with:
-     * <pre>
-     *   NullPointerException: Cannot invoke "java.lang.ThreadLocal.get()" because "this.t" is null
-     * </pre>
-     * {@link org.apache.lucene.util.CloseableThreadLocal#close()} nulls the {@code ThreadLocal}
-     * field ({@code t}) itself, so any subsequent {@code storedComponents.get()} call NPEs rather
-     * than throwing a graceful {@code AlreadyClosedException}.
-     *
-     * <p>The test passes consistently (no exception, no hang) iff the race is not exploitable. The
-     * loop count is randomised between 10 and 20 to vary scheduling.
+     * <p>An {@code IndexNotFoundException} from the reload is expected (the indices may already be
+     * gone); any other exception fails the test. The loop count is randomised between 10 and 20 to
+     * vary scheduling.
      */
     public void testConcurrentReloadAndIndexDeletion() throws Exception {
         final String synFileName = "syn_race_test.txt";
@@ -383,7 +352,7 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
                 } catch (Exception e) {
                     // IndexNotFoundException and ResourceNotFoundException are expected when the
                     // indices have already been deleted before or during the reload. Any other
-                    // exception (AlreadyClosedException, NPE, etc.) indicates a real bug.
+                    // exception (e.g. AlreadyClosedException, NPE) is an unexpected failure.
                     String msg = e.getClass().getName() + ": " + e.getMessage();
                     if (msg.contains("index_not_found") == false
                         && msg.contains("IndexNotFoundException") == false

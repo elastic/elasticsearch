@@ -162,12 +162,10 @@ public class AnalysisTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the B2 NPE in {@link Analysis.StableCharArraySet#equals}.
-     * {@code computeHash} returns 0 for both a {@code null} set and an empty set
-     * (line: {@code if (set == null || set.isEmpty()) return 0}), so the two instances
-     * hash to the same value and {@code equals()} is invoked. The {@code equals} body then
-     * evaluates {@code set == other.set || set.equals(other.set)} without a null-check,
-     * so when {@code this.set} is {@code null} the call {@code null.equals(...)} throws NPE.
+     * A {@link Analysis.StableCharArraySet} built from a {@code null} set and one built from an empty
+     * set both hash to 0, so they collide and {@code equals()} is invoked to disambiguate. They must
+     * compare unequal (and the {@code null}-set receiver must not throw), so the two never share a
+     * cache slot.
      */
     public void testStableCharArraySetEqualsNullVsEmptyDoesNotNpe() {
         Analysis.StableCharArraySet withNull = new Analysis.StableCharArraySet(null, false);

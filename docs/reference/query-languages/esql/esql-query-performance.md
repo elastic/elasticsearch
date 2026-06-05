@@ -59,6 +59,10 @@ If you only aggregate or sort on a field, and never filter, set [`index: false`]
 
 If you never sort or aggregate on a field, disable [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) instead. Every structure you remove is one less thing {{esql}} has to read.
 
+### Know your circuit breaker limits
+
+{{esql}} enforces memory limits through [circuit breakers](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql). When a query exceeds the limit, the cluster rejects it to protect node stability. High-cardinality aggregations are the most common trigger. If you see circuit breaker errors, refer to [Avoid high-cardinality STATS BY](#avoid-high-cardinality-stats-by).
+
 ## Common anti-patterns
 
 These anti-patterns are the most common causes of {{esql}} query latency in production.
@@ -448,9 +452,12 @@ POST _tasks/<task_id>/_cancel
 
 ## Related pages
 
-- [{{esql}} troubleshooting](/reference/query-languages/esql/esql-troubleshooting.md): diagnose problems and file a support case for slow queries
+- [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md): log slow DSL, EQL, KQL, and {{esql}} queries through a managed data stream
+- [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): configure {{esql}} memory limits and troubleshoot circuit breaker errors
+- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): monitor and cancel long-running queries
 - [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md): trade exact results for faster aggregations on large datasets
-- [{{esql}} for search](docs-content://solutions/search/esql-for-search.md): full-text search patterns in {{esql}}
+- [{{esql}} troubleshooting](/reference/query-languages/esql/esql-troubleshooting.md): file a support case for slow or failing queries
 - [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): control which fields are indexed and how
+- [{{esql}} for search](docs-content://solutions/search/esql-for-search.md): use {{esql}} for full-text search, vector search, and AI-powered retrieval
 - [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md): columnar storage for sorting, aggregations, and fast field reads
 - [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md): the original JSON document stored with each record

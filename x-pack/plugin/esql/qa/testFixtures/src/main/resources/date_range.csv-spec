@@ -1239,6 +1239,87 @@ decade:integer | result:date_range
 
 
 ###############################################
+# Equality operators for date_range
+###############################################
+
+dateRangeEquality
+required_capability: date_range_field_type_v6
+required_capability: equality_date_range
+FROM decades
+| WHERE date_range == TO_DATE_RANGE("1900-01-01..1910-01-01")
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1900           | Edwardian Era
+;
+
+dateRangeNotEquals
+required_capability: date_range_field_type_v6
+required_capability: equality_date_range
+FROM decades
+| WHERE date_range != TO_DATE_RANGE("1900-01-01..1910-01-01")
+| KEEP decade
+| SORT decade
+;
+
+decade:integer
+1910
+1920
+1930
+1940
+1950
+1960
+1970
+1980
+1990
+2000
+2010
+2020
+;
+
+dateRangeSelfEquality
+required_capability: date_range_field_type_v6
+required_capability: equality_date_range
+FROM decades
+| EVAL eq = date_range == date_range
+| WHERE eq == true
+| KEEP decade
+| SORT decade
+;
+
+decade:integer
+1900
+1910
+1920
+1930
+1940
+1950
+1960
+1970
+1980
+1990
+2000
+2010
+2020
+;
+
+dateRangeIn
+required_capability: date_range_field_type_v6
+required_capability: equality_date_range
+FROM decades
+| WHERE date_range IN (TO_DATE_RANGE("1900-01-01..1910-01-01"), TO_DATE_RANGE("1920-01-01..1930-01-01"))
+| KEEP decade
+| SORT decade
+;
+
+decade:integer
+1900
+1920
+;
+
+
+###############################################
 # CASE tests
 ###############################################
 

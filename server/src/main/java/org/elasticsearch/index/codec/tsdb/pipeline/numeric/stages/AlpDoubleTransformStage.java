@@ -101,12 +101,10 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         assert valueCount <= excPositions.length
             : "valueCount (" + valueCount + ") must not exceed blockSize (" + excPositions.length + ")";
 
-        // Skip ALP on blocks the integer pipeline already compresses to ~1 bit per value.
         if (AlpDoubleUtils.hasNearConstantStride(values, valueCount)) {
             return;
         }
 
-        // Cache hit: validate via countExceptions only, skip computeBitSavings.
         if (cachedE >= 0) {
             final int bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, cachedE, cachedF);
             final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
@@ -116,7 +114,6 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
             }
         }
 
-        // Cache miss: full top-K search, validate, refresh cache.
         final int bestExceptions = AlpDoubleUtils.findBestEFForBlock(values, valueCount, efOut, candCounts);
         final int bestE = efOut[0];
         final int bestF = efOut[1];

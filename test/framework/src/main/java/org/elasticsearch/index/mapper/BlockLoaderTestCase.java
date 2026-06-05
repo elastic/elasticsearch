@@ -23,6 +23,8 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,6 +52,11 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
+    protected static final SourceFieldMapper.Mode[] SOURCE_MODES = {
+        SourceFieldMapper.Mode.STORED,
+        SourceFieldMapper.Mode.SYNTHETIC,
+        SourceFieldMapper.Mode.COLUMNAR_STORED };
+
     /**
      * A large enough size that loading the field won't circuit break.
      */
@@ -58,19 +65,37 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
-        for (boolean syntheticSource : new boolean[] { false, true }) {
-            for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
-                args.add(new Object[] { new Params(syntheticSource, preference) });
+
+        List<IndexMode> modes = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            ? List.of(IndexMode.STANDARD, IndexMode.COLUMNAR)
+            : List.of(IndexMode.STANDARD);
+
+        for (IndexMode indexMode : modes) {
+            for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
+                if (indexMode.supportedSourceModes().contains(sourceMode) == false) {
+                    continue;
+                }
+                for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
+                    args.add(new Object[] { new Params(indexMode, sourceMode, preference) });
+                }
             }
         }
         return args;
     }
 
-    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
+    public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
+        public boolean syntheticSource() {
+            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+        }
+    }
 
     public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}
 
-    private final String fieldType;
+    protected final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
     protected final BlockLoaderTestRunner runner;
@@ -125,7 +150,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private void testBlockLoader(CircuitBreaker breaker) throws IOException {
         runner.breaker(breaker);
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
 
         var mapping = new MappingGenerator(specification).generate(template);
         runner.document(new DocumentGenerator(specification).generate(template, mapping));
@@ -185,13 +210,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
         runner.document(new DocumentGenerator(specification).generate(template, mapping));
 
         TestContext testContext = new TestContext(false, false);
 
-        if (params.syntheticSource && randomBoolean()) {
+        // synthetic_source_keep is rejected on strict-columnar indices, so the fallback-through-ignored-source path can only be exercised
+        // on non-strict-columnar synthetic-source indices.
+        if (params.syntheticSource() && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
@@ -251,9 +278,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
                 // This is a bit tricky meta-logic.
-                // We want to customize mapping but to do this we need the mapping for the same field type
-                // so we use name to untangle this.
-                if (request.fieldName().equals("parent") == false) {
+                // We want to customize mapping but to do this we need the mapping for the same field type so we use name to untangle this.
+                // In strict-columnar mode, the buildSpecification wrapper renames "parent" to "_columnar_inner_parent" when it recurses
+                // through the handler chain; match that too so the {fields: {mf: …}} subtree still lands on the parent mapping.
+                if (request.fieldName().equals("parent") == false && request.fieldName().equals("_columnar_inner_parent") == false) {
                     return null;
                 }
 
@@ -286,7 +314,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         });
         customHandlers.addAll(customDataSourceHandlers);
-        var specification = buildSpecification(customHandlers);
+        var specification = buildSpecification(customHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
         @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
@@ -302,30 +330,67 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     protected Settings.Builder getSettingsForParams() {
+        return getSettingsForParams(params);
+    }
+
+    public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        if (params.syntheticSource) {
-            builder.put("index.mapping.source.mode", "synthetic");
-        }
+        builder.put("index.mapping.source.mode", params.sourceMode().name());
+        builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         return builder;
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
+        return buildSpecification(customHandlers, IndexMode.STANDARD);
+    }
+
+    public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers, IndexMode indexMode) {
+        var coreHandlers = new ArrayList<DataSourceHandler>();
+        coreHandlers.add(new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+                return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
+            }
+
+            @Override
+            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+                return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
+            }
+        });
+        if (indexMode.isStrictColumnar()) {
+            String columnarUnwrapMarker = "_columnar_inner_";
+            coreHandlers.add(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+                    if (request.fieldName().startsWith(columnarUnwrapMarker)) {
+                        return null;
+                    }
+                    var dataSource = request.dataSource();
+                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                        var mapping = new HashMap<>(
+                            dataSource.get(
+                                new DataSourceRequest.LeafMappingParametersGenerator(
+                                    dataSource,
+                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
+                                    columnarUnwrapMarker + request.fieldName(),
+                                    request.fieldType(),
+                                    request.eligibleCopyToFields(),
+                                    request.dynamicMapping()
+                                )
+                            ).mappingGenerator().get()
+                        );
+                        // synthetic_source_keep and store are forbidden on strict-columnar indices
+                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                        mapping.remove("store");
+                        return mapping;
+                    });
+                }
+            });
+        }
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
-                    return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
-                }
-
-                @Override
-                public DataSourceResponse.ObjectMappingParametersGenerator handle(
-                    DataSourceRequest.ObjectMappingParametersGenerator request
-                ) {
-                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
-                }
-            }))
+            .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
             .build();
     }

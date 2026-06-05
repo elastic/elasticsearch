@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +41,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -60,6 +62,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -288,7 +291,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 r.getTotalShards(),
                 r.getSuccessfulShards(),
                 r.getFailedShards(),
-                r.getSkippedShards()
+                r.getSkippedShards(),
+                r.getClusters()
             );
         }), searchListener -> new OpenPointInTimePhase(request, searchListener));
     }
@@ -419,6 +423,12 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 false
             ) {
                 @Override
+                public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+                    finalizeClusterStatuses(clusters, shardsIts, skippedByClusterAlias, buildShardFailures(), timeProvider);
+                    super.sendSearchResponse(internalSearchResponse, queryResults);
+                }
+
+                @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,
                     Transport.Connection connection,
@@ -457,6 +467,77 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     return SearchContextId.encode(results.getAtomicArray().asList(), aliasFilter, minTransportVersion, failures);
                 }
             }.start();
+        }
+
+        /**
+         * Finalizes per-cluster statuses in {@code clusters} after all shard-level PIT open requests complete.
+         * <p>
+         * {@link CCSSingleCoordinatorSearchProgressListener} drives the same finalization for {@code _search}
+         * (minimize_roundtrips=false), but its callbacks ({@code onListShards}, {@code onQueryResult},
+         * {@code onFinalReduce}) are never invoked for PIT open because the anonymous
+         * {@link AbstractSearchAsyncAction} uses {@link ArraySearchPhaseResults} and has no reduce step.
+         * This method performs an equivalent one-shot update once all shards have responded.
+         */
+        private static void finalizeClusterStatuses(
+            SearchResponse.Clusters clusters,
+            List<SearchShardIterator> shardsIts,
+            Map<String, Integer> skippedByClusterAlias,
+            ShardSearchFailure[] shardFailures,
+            TransportSearchAction.SearchTimeProvider timeProvider
+        ) {
+            if (clusters.hasClusterObjects() == false) {
+                return;
+            }
+            Map<String, Integer> totalByCluster = new HashMap<>();
+            for (SearchShardIterator shardIt : shardsIts) {
+                String alias = shardIt.getClusterAlias() != null ? shardIt.getClusterAlias() : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+                totalByCluster.merge(alias, 1, Integer::sum);
+            }
+            skippedByClusterAlias.forEach((alias, count) -> totalByCluster.merge(alias, count, Integer::sum));
+
+            Map<String, Integer> failedByCluster = new HashMap<>();
+            Map<String, List<ShardSearchFailure>> failuresByCluster = new HashMap<>();
+            for (ShardSearchFailure failure : shardFailures) {
+                SearchShardTarget shard = failure.shard();
+                String alias = (shard == null || shard.getClusterAlias() == null)
+                    ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
+                    : shard.getClusterAlias();
+                failedByCluster.merge(alias, 1, Integer::sum);
+                failuresByCluster.computeIfAbsent(alias, k -> new ArrayList<>()).add(failure);
+            }
+
+            long tookInMillis = timeProvider.buildTookInMillis();
+            for (String alias : totalByCluster.keySet()) {
+                clusters.swapCluster(alias, (k, v) -> {
+                    if (v == null || v.getStatus() != SearchResponse.Cluster.Status.RUNNING) {
+                        return v;
+                    }
+                    int total = totalByCluster.get(alias);
+                    int failed = failedByCluster.getOrDefault(alias, 0);
+                    int skipped = skippedByClusterAlias.getOrDefault(alias, 0);
+                    int successful = total - failed;
+                    SearchResponse.Cluster.Status status;
+                    if (failed == 0) {
+                        status = SearchResponse.Cluster.Status.SUCCESSFUL;
+                    } else if (successful == skipped) {
+                        // all non-skipped shards failed
+                        status = v.isSkipUnavailable() ? SearchResponse.Cluster.Status.SKIPPED : SearchResponse.Cluster.Status.FAILED;
+                    } else {
+                        status = SearchResponse.Cluster.Status.PARTIAL;
+                    }
+                    SearchResponse.Cluster.Builder builder = new SearchResponse.Cluster.Builder(v).setStatus(status)
+                        .setTotalShards(total)
+                        .setSuccessfulShards(successful)
+                        .setSkippedShards(skipped)
+                        .setFailedShards(failed)
+                        .setTook(new TimeValue(tookInMillis));
+                    List<ShardSearchFailure> clusterFailures = failuresByCluster.get(alias);
+                    if (clusterFailures != null) {
+                        builder.setFailures(clusterFailures);
+                    }
+                    return builder.build();
+                });
+            }
         }
     }
 
@@ -545,6 +626,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,
+                task,
                 request.splitShardCountSummary,
                 new ChannelActionListener<>(channel).map(ShardOpenReaderResponse::new)
             );

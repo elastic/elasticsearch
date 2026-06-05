@@ -38,6 +38,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.constructorWithFunctionInfo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -218,6 +219,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public static class DummyFunction extends ScalarFunction {
+        @FunctionInfo(returnType = "null")
         public DummyFunction(Source source) {
             super(source, emptyList());
         }
@@ -259,7 +261,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             Some functions are missing when outside of snapshot and we really
             only care about the superset of all functions. Just skip this test
             on release builds.""", Build.current().isSnapshot());
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
+        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
             checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
@@ -324,9 +326,12 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDoubleErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
+                // TODO: Abs tests live in the x-pack:plugin:esql:function:math module
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsSerializationTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AbsTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")

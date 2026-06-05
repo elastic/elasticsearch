@@ -12,6 +12,8 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -35,7 +38,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -157,18 +159,20 @@ import java.util.function.Consumer;
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
  */
-public final class TranslateTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
-    TimeSeriesAggregate,
-    LogicalOptimizerContext> {
+public final class TranslateTimeSeriesAggregate extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
     static final int MAX_SUB_BUCKETS = 128;
 
-    public TranslateTimeSeriesAggregate() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        if (inputAggregate.resolved() == false) {
+            return inputAggregate;
+        }
         TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
@@ -341,7 +345,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             internalBucket != null ? internalBucket : userBucket,
             userBucket,
             aggregate.timestamp(),
-            aggregate.isCollapsed()
+            aggregate.origin()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {
@@ -385,7 +389,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 }
             }
             return aggFunc;
-        });
+        }).transformExpressionsUp(FilteredExpression.class, FilteredExpression::surrogate);
     }
 
     private void addBucket(
@@ -404,7 +408,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<NamedExpression> firstPassAggs,
         List<Expression> secondPassGroupings,
         TemporaryNameGenerator internalNames,
-        LogicalOptimizerContext context,
+        AnalyzerContext context,
         List<Alias> packDimensions,
         List<Alias> unpackDimensions,
         boolean[] packPositions,
@@ -444,7 +448,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         return merged;
     }
 
-    private AggregateFunction valuesAggregate(LogicalOptimizerContext context, Attribute group) {
+    private AggregateFunction valuesAggregate(AnalyzerContext context, Attribute group) {
         if (group.isDimension() && context.minimumVersion().supports(DimensionValues.DIMENSION_VALUES_VERSION)) {
             return new DimensionValues(group.source(), group);
         } else {

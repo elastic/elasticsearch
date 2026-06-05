@@ -1210,3 +1210,88 @@ emp_no:integer | foo:null | x:null
 10099          | null     | null
 10100          | null     | null
 ;
+
+// countDistinct
+statsCountDistinctNullifiedField
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS c = COUNT_DISTINCT(foo)
+;
+
+c:long
+0
+;
+
+groupedCountDistinct
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS c = COUNT_DISTINCT(does_not_exist) BY language_code
+| SORT language_code
+;
+
+c:long | language_code:integer
+0      | 1
+0      | 2
+0      | 3
+0      | 4
+;
+
+countDistinctMixed
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS cd = COUNT_DISTINCT(does_not_exist), c = COUNT(*) BY language_code
+| SORT language_code
+;
+
+cd:long | c:long | language_code:integer
+0       | 1      | 1
+0       | 1      | 2
+0       | 1      | 3
+0       | 1      | 4
+;
+
+sparklineOnCountDistinct
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fn_sparkline_null_alongside
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS s = SPARKLINE(COUNT_DISTINCT(foo), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+s:long
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+;
+
+sparklineOnCountDistinctOnValues
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fn_sparkline_null_alongside
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS v = VALUES(foo) BY hire_date
+| STATS s = SPARKLINE(COUNT_DISTINCT(v), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+s:long
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+;
+
+sparklineOnSum
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fn_sparkline_null_alongside
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| STATS s = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"), cd = COUNT_DISTINCT(foo)
+;
+
+s:long                                                           | cd:long
+[0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]  | 0
+;

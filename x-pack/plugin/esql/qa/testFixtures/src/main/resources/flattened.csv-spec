@@ -214,6 +214,93 @@ FROM flattened_otel_logs
 2020-01-01T00:02:48.461Z | true
 ;
 
+limitByFlattened
+required_capability: group_by_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T11:38:54.751Z"
+| SORT @timestamp ASC
+| LIMIT 1 BY resource.attributes
+| KEEP @timestamp, resource.attributes
+;
+
+@timestamp:date          | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+statsByFlattened
+required_capability: group_by_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z" OR @timestamp == "2020-01-01T11:38:54.751Z"
+| STATS count = COUNT(*) BY resource.attributes
+;
+
+count:long | resource.attributes:flattened
+2          | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+limitByFlattenedAllRows
+required_capability: group_by_flattened
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 1 BY resource.attributes
+| SORT @timestamp ASC
+| KEEP @timestamp, resource.attributes
+;
+
+@timestamp:date          | resource.attributes:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+2020-01-01T00:04:00.000Z | null
+2020-01-01T00:07:43.000Z | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
+2020-01-01T00:31:18.303Z | "{""agent.id"":""8a161b55-80d0-4ba3-afc8-31d5e15fc51c"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.109"",""172.17.0.1"",""fe80::4001:aff:fee0:6d""],""host.name"":""elasticsearch-ci-immutable-sles-15-1599243844262984968""}"
+2020-01-01T00:58:35.557Z | "{""agent.id"":""43baa60c-42b7-4f76-b9b3-397623f18f9c"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-mdvqm""}"
+2020-01-01T10:12:02.675Z | "{""agent.id"":""8866a40d-59ec-4eef-a5c3-eee2cd9fce28"",""agent.type"":""filebeat"",""host.ip"":""10.72.3.6"",""host.name"":""filebeat-8pmfj""}"
+2020-01-01T11:43:13.255Z | "{""agent.id"":""631455bf-99f1-4bca-845c-7004bf7de17d"",""agent.type"":""filebeat"",""host.ip"":""10.72.1.5"",""host.name"":""filebeat-6t7v6""}"
+2020-01-01T14:37:29.195Z | "{""agent.id"":""f767fc00-eaae-4717-a33e-19b2bd95df6d"",""agent.type"":""filebeat"",""host.ip"":[""10.224.2.157"",""172.17.0.1"",""fe80::4001:aff:fee0:29d"",""fe80::42:48ff:fe1a:ed7d"",""fe80::9c8e:44ff:fe9e:da94""],""host.name"":""elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683""}"
+2020-01-01T21:03:55.497Z | "{""agent.id"":""14903e5a-9c82-43f3-8b23-5932dd1407ac"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-z5mjq""}"
+2020-01-01T21:38:06.655Z | "{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
+;
+
+statsByFlattenedAllRows
+required_capability: group_by_flattened
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| STATS count = COUNT(*) BY resource.attributes
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| SORT count DESC, hn
+| DROP hn
+;
+
+count:long | resource.attributes:flattened
+2          | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+1          | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
+1          | "{""agent.id"":""f767fc00-eaae-4717-a33e-19b2bd95df6d"",""agent.type"":""filebeat"",""host.ip"":[""10.224.2.157"",""172.17.0.1"",""fe80::4001:aff:fee0:29d"",""fe80::42:48ff:fe1a:ed7d"",""fe80::9c8e:44ff:fe9e:da94""],""host.name"":""elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683""}"
+1          | "{""agent.id"":""8a161b55-80d0-4ba3-afc8-31d5e15fc51c"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.109"",""172.17.0.1"",""fe80::4001:aff:fee0:6d""],""host.name"":""elasticsearch-ci-immutable-sles-15-1599243844262984968""}"
+1          | "{""host.name"":""equal-host""}"
+1          | "{""agent.id"":""631455bf-99f1-4bca-845c-7004bf7de17d"",""agent.type"":""filebeat"",""host.ip"":""10.72.1.5"",""host.name"":""filebeat-6t7v6""}"
+1          | "{""agent.id"":""8866a40d-59ec-4eef-a5c3-eee2cd9fce28"",""agent.type"":""filebeat"",""host.ip"":""10.72.3.6"",""host.name"":""filebeat-8pmfj""}"
+1          | "{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
+1          | "{""agent.id"":""43baa60c-42b7-4f76-b9b3-397623f18f9c"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-mdvqm""}"
+1          | "{""agent.id"":""14903e5a-9c82-43f3-8b23-5932dd1407ac"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-z5mjq""}"
+1          | null
+;
+
+limitByFlattenedNoSort
+required_capability: group_by_flattened
+
+FROM flattened_otel_logs
+| LIMIT 1 BY resource.attributes
+| STATS count = COUNT(*)
+;
+
+count:long
+11
+;
+
 countDistinct
 required_capability: flattened_datatype
 required_capability: fn_count_distinct_flattened
@@ -224,6 +311,333 @@ FROM flattened_otel_logs
 
 c:long
 11
+;
+
+mvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL appended = MV_APPEND(attributes, resource.attributes)
+| KEEP @timestamp, appended
+;
+
+@timestamp:date          | appended:flattened
+2020-01-01T00:00:00.000Z | "[{""host.name"":""equal-host""}, {""host.name"":""equal-host""}]"
+;
+
+mvAppendNull
+required_capability: flattened_datatype
+required_capability: fn_mv_append_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL appended = MV_APPEND(attributes, resource.attributes)
+| KEEP @timestamp, appended
+;
+
+@timestamp:date          | appended:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvCount
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL c = MV_COUNT(attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:00:00.000Z | 1
+;
+
+mvCountMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL c = MV_COUNT(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:00:00.000Z | 2
+;
+
+mvCountNull
+required_capability: flattened_datatype
+required_capability: fn_mv_count_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL c = MV_COUNT(resource.attributes)
+| KEEP @timestamp, c
+;
+
+@timestamp:date          | c:integer
+2020-01-01T00:04:00.000Z | null
+;
+
+mvDedupe
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL d = MV_DEDUPE(attributes)
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvDedupeMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL d = MV_DEDUPE(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+// When the two values are distinct, MV_DEDUPE keeps both.
+// We check the count rather than the values themselves to avoid
+// depending on multi-value order in the result.
+mvDedupeMvAppendDistinct
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+required_capability: fn_mv_append_flattened
+required_capability: fn_mv_count_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL d = MV_COUNT(MV_DEDUPE(MV_APPEND(attributes, resource.attributes)))
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:integer
+2020-01-01T00:02:48.461Z | 2
+;
+
+mvDedupeNull
+required_capability: flattened_datatype
+required_capability: fn_mv_dedupe_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL d = MV_DEDUPE(resource.attributes)
+| KEEP @timestamp, d
+;
+
+@timestamp:date          | d:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvFirst
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_FIRST(attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvFirstMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_FIRST(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvFirstNull
+required_capability: flattened_datatype
+required_capability: fn_mv_first_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL f = MV_FIRST(resource.attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvLast
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_LAST(attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvLastMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL f = MV_LAST(MV_APPEND(attributes, resource.attributes))
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvLastNull
+required_capability: flattened_datatype
+required_capability: fn_mv_last_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL f = MV_LAST(resource.attributes)
+| KEEP @timestamp, f
+;
+
+@timestamp:date          | f:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvSlice
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL s = MV_SLICE(attributes, 0)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvSliceMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:00:00.000Z"
+| EVAL s = MV_SLICE(MV_APPEND(attributes, resource.attributes), 1, 1)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:00:00.000Z | "{""host.name"":""equal-host""}"
+;
+
+mvSliceNull
+required_capability: flattened_datatype
+required_capability: fn_mv_slice_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:04:00.000Z"
+| EVAL s = MV_SLICE(resource.attributes, 0)
+| KEEP @timestamp, s
+;
+
+@timestamp:date          | s:flattened
+2020-01-01T00:04:00.000Z | null
+;
+
+mvExpand
+required_capability: flattened_datatype
+required_capability: fn_values_flattened
+required_capability: fn_field_extract
+
+FROM flattened_many
+| STATS v = VALUES(flat_a)
+| MV_EXPAND v
+| EVAL key = FIELD_EXTRACT(v, "k")
+| SORT key
+| KEEP v
+;
+
+v:flattened
+"{""k"":""same""}"
+"{""k"":""v1""}"
+;
+
+mvExpandMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_append_flattened
+required_capability: fn_field_extract
+request_stored: skip
+
+FROM flattened_many
+| WHERE id == 1
+| EVAL mv = MV_APPEND(flat_a, flat_b)
+| MV_EXPAND mv
+| EVAL key = FIELD_EXTRACT(mv, "k")
+| SORT key
+| KEEP id, mv
+;
+
+id:integer | mv:flattened
+1          | "{""k"":""v1""}"
+1          | "{""k"":""v2""}"
+;
+
+values
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_values_flattened
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T11:38:54.751Z" OR @timestamp == "2020-01-01T21:38:06.655Z"
+| STATS v = VALUES(resource.attributes)
+| MV_EXPAND v
+| EVAL key = FIELD_EXTRACT(v, "agent.id")
+| SORT key
+| KEEP v
+;
+
+v:flattened
+"{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
+"{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
 
 values dupe
@@ -240,16 +654,352 @@ v:flattened
 "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
 
-values
+mvContains
 required_capability: flattened_datatype
-required_capability: flattened_datatype_sorted_keys
-required_capability: fn_values_flattened
+required_capability: fn_mv_contains_flattened
 
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T11:38:54.751Z" OR @timestamp == "2020-01-01T21:38:06.655Z"
-| STATS v = MV_SORT(VALUES(resource.attributes))
+FROM flattened_many
+| EVAL c = MV_CONTAINS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
 ;
 
-v:flattened
-"[{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-cpcmv""},{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25""\,""agent.type"":""filebeat""\,""host.name"":""infra-filebeat-6vjxr""}]"
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_CONTAINS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL superset_null = MV_CONTAINS(flat_a, flat_c), subset_null = MV_CONTAINS(flat_c, flat_a)
+| KEEP id, superset_null, subset_null
+;
+
+id:integer | superset_null:boolean | subset_null:boolean
+4          | false                 | true
+;
+
+mvIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL left_null = MV_INTERSECTS(flat_a, flat_c), right_null = MV_INTERSECTS(flat_c, flat_a)
+| KEEP id, left_null, right_null
+;
+
+id:integer | left_null:boolean | right_null:boolean
+4          | false             | false
+;
+
+mvIntersection
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+
+FROM flattened_many
+| EVAL intersection = MV_INTERSECTION(flat_a, flat_c)
+| KEEP id, intersection
+| SORT id
+;
+
+id:integer | intersection:flattened
+1          | "{""k"":""v1""}"
+2          | null
+3          | null
+4          | null
+5          | "{""k"":""same""}"
+;
+
+// MV_INTERSECTION returns the shared values; on row 3 (v1, v2, v3 all distinct),
+// [v1,v2] ∩ [v2,v3] = {v2}, showing it returns the actual overlap rather than a boolean.
+mvIntersectionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL intersection = MV_INTERSECTION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, intersection
+;
+
+id:integer | intersection:flattened
+3          | "{""k"":""v2""}"
+;
+
+// MV_CONTAINS requires *all* subset values to be present; MV_INTERSECTS only requires *any*.
+// Row 3 (v1, v2, v3 all distinct) is the distinguishing case: superset=[v1,v2],
+// second-arg=[v2,v3] shares v2 with the superset (intersects=true) but v3 is absent (contains=false).
+mvContainsVsIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL
+    contains = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
+    intersects = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, contains, intersects
+| SORT id
+;
+
+id:integer | contains:boolean | intersects:boolean
+1          | true               | true
+2          | true               | true
+3          | false              | true
+4          | false              | false
+5          | true               | true
+;
+
+// MV_UNION returns all unique values from both inputs; null is treated as an empty set.
+mvUnion
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+
+FROM flattened_many
+| EVAL union = MV_UNION(flat_a, flat_c)
+| KEEP id, union
+| SORT id
+;
+
+id:integer | union:flattened
+1          | "{""k"":""v1""}"
+2          | "[{""k"":""v1""}, {""k"":""v2""}]"
+3          | "[{""k"":""v1""}, {""k"":""v3""}]"
+4          | "{""k"":""v2""}"
+5          | "{""k"":""same""}"
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_UNION([v1,v2], [v2,v3]) = [v1,v2,v3], not [v1,v2] or [v2,v3].
+mvUnionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL union = MV_UNION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, union
+;
+
+id:integer | union:flattened
+3          | "[{""k"":""v1""}, {""k"":""v2""}, {""k"":""v3""}]"
+;
+
+// MV_DIFFERENCE returns values from the first field absent in the second; null first field returns null.
+mvDifference
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_difference_flattened
+
+FROM flattened_many
+| EVAL diff = MV_DIFFERENCE(flat_a, flat_c)
+| KEEP id, diff
+| SORT id
+;
+
+id:integer | diff:flattened
+1          | null
+2          | "{""k"":""v1""}"
+3          | "{""k"":""v1""}"
+4          | null
+5          | null
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_DIFFERENCE([v1,v2], [v2,v3]) = [v1], showing only v2 is removed.
+mvDifferenceMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_difference_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL diff = MV_DIFFERENCE(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, diff
+;
+
+id:integer | diff:flattened
+3          | "{""k"":""v1""}"
+;
+
+present
+required_capability: flattened_datatype
+required_capability: fn_present_flattened
+
+FROM flattened_many
+| STATS p = PRESENT(flat_a) BY id
+| SORT id
+;
+
+p:boolean | id:integer
+true      | 1
+true      | 2
+true      | 3
+false     | 4
+true      | 5
+;
+
+absent
+required_capability: flattened_datatype
+required_capability: fn_absent_flattened
+
+FROM flattened_many
+| STATS a = ABSENT(flat_a) BY id
+| SORT id
+;
+
+a:boolean | id:integer
+false     | 1
+false     | 2
+false     | 3
+true      | 4
+false     | 5
+;
+
+sample
+required_capability: flattened_datatype
+required_capability: fn_sample_flattened
+
+FROM flattened_many
+| STATS s = SAMPLE(flat_a, 1) BY id
+| SORT id
+;
+
+s:flattened          | id:integer
+"{""k"":""v1""}"     | 1
+"{""k"":""v1""}"     | 2
+"{""k"":""v1""}"     | 3
+null                 | 4
+"{""k"":""same""}"   | 5
+;
+
+countDistinctTimeSeries
+required_capability: flattened_datatype
+required_capability: fn_count_distinct_flattened
+
+FROM ts_flattened
+| STATS n = COUNT_DISTINCT(metadata) BY host
+| SORT host
+;
+
+n:long | host:keyword
+2      | host-a
+3      | host-b
+;
+
+firstOverTime
+required_capability: flattened_datatype
+required_capability: fn_first_over_time_flattened
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+
+TS ts_flattened
+| WHERE host == "host-a"
+| STATS v = FIRST_OVER_TIME(metadata)
+;
+
+v:flattened            | _timeseries:keyword
+"{""env"":""prod""}"   | "{""host"":""host-a""}"
+;
+
+lastOverTime
+required_capability: flattened_datatype
+required_capability: fn_last_over_time_flattened
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+
+TS ts_flattened
+| WHERE host == "host-b"
+| STATS v = LAST_OVER_TIME(metadata)
+;
+
+v:flattened            | _timeseries:keyword
+"{""env"":""gamma""}"  | "{""host"":""host-b""}"
+;
+
+countDistinctOverTime
+required_capability: flattened_datatype
+required_capability: fn_count_distinct_over_time_flattened
+required_capability: ts_command_v0
+required_capability: metrics_group_by_all
+
+TS ts_flattened
+| STATS n = COUNT_DISTINCT_OVER_TIME(metadata)
+| SORT n
+;
+
+n:long | _timeseries:keyword
+2      | "{""host"":""host-a""}"
+3      | "{""host"":""host-b""}"
 ;

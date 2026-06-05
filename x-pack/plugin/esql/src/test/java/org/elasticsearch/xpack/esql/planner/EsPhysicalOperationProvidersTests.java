@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -100,7 +100,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
                 new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
             ),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
@@ -220,7 +221,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
         assertThat(loaderAndConverter.loader(), equalTo(ConstantNull.INSTANCE));
@@ -252,10 +254,11 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
-        assertThat(loaderAndConverter.loader(), instanceOf(AbstractBytesRefsFromOrdsBlockLoader.class));
+        assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
         ensureNoWarnings();
     }
 
@@ -285,7 +288,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
         ensureNoWarnings();
@@ -317,7 +321,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
         assertWarnings(
@@ -352,7 +357,8 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromSingleton<>(shardContext),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
         assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
         assertWarnings(

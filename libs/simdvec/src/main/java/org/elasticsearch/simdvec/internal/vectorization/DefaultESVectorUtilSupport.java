@@ -244,6 +244,30 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            centered[i] = (float) (target[i] - centroid[i]);
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+    }
+
+    @Override
     public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
         float vecMean = 0;
         float vecVar = 0;
@@ -254,6 +278,35 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int i = 0; i < target.length; i++) {
             centroidDot = fma(target[i], centroid[i], centroidDot);
             centered[i] = target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+        stats[5] = centroidDot;
+    }
+
+    @Override
+    public void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float centroidDot = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            float t = (float) target[i];
+            float c = (float) centroid[i];
+            centroidDot = fma(t, c, centroidDot);
+            centered[i] = (float) (target[i] - centroid[i]);
             min = Math.min(min, centered[i]);
             max = Math.max(max, centered[i]);
             norm2 = fma(centered[i], centered[i], norm2);
@@ -442,6 +495,42 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
+    @Override
+    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        byte[] query,
+        int queryOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+    }
+
+    @Override
     public void soarDistanceBulk(
         float[] v1,
         float[] c0,
@@ -460,8 +549,49 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistanceByte(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistanceByte(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistanceByte(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistanceByte(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    static float soarDistanceByte(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        int sqDist = 0;
+        float proj = 0;
+        for (int i = 0; i < v1.length; i++) {
+            int diff = v1[i] - centroid[i];
+            sqDist += diff * diff;
+            proj = fma(diff, originalResidual[i], proj);
+        }
+        return sqDist + soarLambda * proj * proj / rnorm;
+    }
+
+    @Override
+    public float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        return soarDistanceByte(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    @Override
     public void packDibit(int[] vector, byte[] packed) {
         packDibitImpl(vector, packed);
+    }
+
+    @Override
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        packDibitQuadImpl(vector, packed);
     }
 
     @Override
@@ -509,6 +639,29 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         packed[index] = (byte) lowerByte;
         packed[index + packed.length / 2] = (byte) upperByte;
+    }
+
+    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 3;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 4, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            int packedByte = (vector[i] & 0x03) << 6 | (vector[i + 1] & 0x03) << 4 | (vector[i + 2] & 0x03) << 2 | (vector[i + 3] & 0x03);
+            packed[index] = (byte) packedByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int packedByte = 0;
+        for (int shift = 6; i < vector.length; shift -= 2, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            packedByte |= (vector[i] & 0x03) << shift;
+        }
+        packed[index] = (byte) packedByte;
     }
 
     public static void packAsBinaryImpl(int[] vector, byte[] packed) {
@@ -617,9 +770,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
-        if (other.length != dest.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
-        }
         for (int d = 0; d < dest.length; d++) {
             dest[d] = scaleOther * other[d] + scaleDest * dest[d];
         }
@@ -627,11 +777,15 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void linearCombination(float scaleOther, float[] other, float[] dest) {
-        if (other.length != dest.length) {
-            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
-        }
         for (int d = 0; d < dest.length; d++) {
             dest[d] += scaleOther * other[d];
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], scaleDest * dest[d]);
         }
     }
 

@@ -301,6 +301,44 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(statsLucene, statsPanama, delta);
     }
 
+    public void testCenterAndCalculateOSQStatsDpByteByteCentroid() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[6];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[6];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
+    }
+
+    public void testCenterAndCalculateOSQStatsEuclideanByteByteCentroid() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[5];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[5];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
+    }
+
     public void testOsqLoss() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-5f * size;
@@ -401,6 +439,23 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, deltaEps);
     }
 
+    public void testSoarDistanceByte() {
+        int size = random().nextInt(128, 512);
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        var preResidual = new float[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        for (int i = 0; i < size; ++i) {
+            preResidual[i] = random().nextFloat();
+        }
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat() + 0.01f; // avoid division by near-zero
+        var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        var result = panamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        assertEquals(expected, result, Math.abs(expected) * 1e-5f + 1e-3f);
+    }
+
     public void testQuantizeVectorWithIntervals() {
         int vectorSize = randomIntBetween(1, 2048);
         float[] vector = new float[vectorSize];
@@ -481,6 +536,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
         panamaProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, deltaEps);
+    }
+
+    public void testSoarDistanceBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] c0 = randomByteArrayOfLength(vectorSize);
+        byte[] c1 = randomByteArrayOfLength(vectorSize);
+        byte[] c2 = randomByteArrayOfLength(vectorSize);
+        byte[] c3 = randomByteArrayOfLength(vectorSize);
+        float[] diff = generateRandomVector(vectorSize);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat(10);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, c0, c1, c2, c3, diff, soarLambda, rnorm, expectedDistances);
+        panamaProvider.getVectorUtilSupport().soarDistanceBulk(query, c0, c1, c2, c3, diff, soarLambda, rnorm, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-5f + 1e-3f);
+        }
+    }
+
+    public void testLinearCombinationByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] src = randomByteArrayOfLength(vectorSize);
+        float[] destDefault = generateRandomVector(vectorSize);
+        float[] destPanama = new float[vectorSize];
+        System.arraycopy(destDefault, 0, destPanama, 0, vectorSize);
+        float scaleSrc = random().nextFloat() * 2 - 1;
+        float scaleDest = random().nextFloat() * 2 - 1;
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, scaleDest, destDefault);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, scaleDest, destPanama);
+        for (int i = 0; i < vectorSize; i++) {
+            assertEquals(destDefault[i], destPanama[i], Math.abs(destDefault[i]) * 1e-6f + 1e-6f);
+        }
     }
 
     public void testPackAsBinary() {
@@ -571,12 +660,25 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-        ;
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED.getDocPackedLength(dims);
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
         defaultedProvider.getVectorUtilSupport().packDibit(toPack, packedLegacy);
         panamaProvider.getVectorUtilSupport().packDibit(toPack, packed);
+        assertArrayEquals(packedLegacy, packed);
+    }
+
+    public void testPackAsDibitPacked() {
+        int dims = randomIntBetween(16, 2048);
+        int[] toPack = new int[dims];
+        for (int i = 0; i < dims; i++) {
+            toPack[i] = randomInt(3);
+        }
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED.getDocPackedLength(dims);
+        byte[] packed = new byte[length];
+        byte[] packedLegacy = new byte[length];
+        defaultedProvider.getVectorUtilSupport().packDibitQuad(toPack, packedLegacy);
+        panamaProvider.getVectorUtilSupport().packDibitQuad(toPack, packed);
         assertArrayEquals(packedLegacy, packed);
     }
 
@@ -598,6 +700,18 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         packed = new byte[2];
         ESVectorUtil.packDibit(toPack, packed);
         assertArrayEquals(new byte[] { (byte) 0b11001010, (byte) 0b01100101 }, packed);
+    }
+
+    public void testpackDibitQuadCorrectness() {
+        int[] toPack = new int[] { 1, 3, 2, 0, 1 };
+        byte[] packed = new byte[2];
+        ESVectorUtil.packDibitQuad(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01000000 }, packed);
+
+        toPack = new int[] { 1, 3, 2, 0, 1, 2, 1, 2 };
+        packed = new byte[2];
+        ESVectorUtil.packDibitQuad(toPack, packed);
+        assertArrayEquals(new byte[] { (byte) 0b01111000, (byte) 0b01100110 }, packed);
     }
 
     private float[] generateRandomVector(int size) {
@@ -1087,7 +1201,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.1e-2 * referenceResult);
+        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.5e-2 * referenceResult);
     }
 
     public void testLinearCombination() {

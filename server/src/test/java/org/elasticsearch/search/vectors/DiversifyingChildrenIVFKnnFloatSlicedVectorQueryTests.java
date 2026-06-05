@@ -86,6 +86,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             parentBitSet,
             0,
             random().nextBoolean(),
+            1f,
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
@@ -426,6 +427,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                             parents,
                             1.0f,
                             random().nextBoolean(),
+                            1f,
                             RoutingFieldMapper.NAME,
                             new BytesRef("" + slice)
                         );
@@ -448,6 +450,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                         parents,
                         1.0f,
                         random().nextBoolean(),
+                        1f,
                         RoutingFieldMapper.NAME,
                         new BytesRef("invalid")
                     );
@@ -477,6 +480,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             parent -> null,
             0.1f,
             false,
+            1f,
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );

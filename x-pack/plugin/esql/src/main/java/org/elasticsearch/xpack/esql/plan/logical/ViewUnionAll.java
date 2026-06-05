@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.LinkedHashMap;
@@ -89,8 +90,17 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(namedSubqueries.keySet()).append("]");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(nodeName()).append("[[");
+        boolean first = true;
+        for (String key : namedSubqueries.keySet()) {
+            if (first == false) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(mapper.index(key));
+        }
+        sb.append("]]");
     }
 
     @Override
@@ -100,7 +110,7 @@ public class ViewUnionAll extends UnionAll {
         // (non-separable) so that each key is bound to its value in the hash.
         int h = 0;
         for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
-            int k = entry.getKey().hashCode();
+            int k = Objects.hashCode(entry.getKey());
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }

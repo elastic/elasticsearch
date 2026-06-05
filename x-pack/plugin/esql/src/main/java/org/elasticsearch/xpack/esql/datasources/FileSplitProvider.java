@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -35,6 +36,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -45,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -73,7 +78,7 @@ import java.util.function.BiFunction;
  *
  * <ul>
  *   <li><b>Record-aligned macro splits</b> — for uncompressed line-oriented formats
- *       (NDJSON/JSONL/JSON, CSV/TSV). {@link SegmentableFormatReader#findNextRecordBoundary}
+ *       (NDJSON/JSONL/JSON, CSV/TSV). {@link RecordSplitter#findNextRecordBoundary}
  *       probes near {@code target_split_size} strides so each {@link FileSplit} starts on a
  *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
  *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
@@ -218,13 +223,14 @@ public class FileSplitProvider implements SplitProvider {
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
-            Map<String, Object> partitionValues = Map.of();
+            Map<String, Object> partitionValues = new HashMap<>();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
-                    partitionValues = filePartitions;
+                    partitionValues.putAll(filePartitions);
                 }
             }
+            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
 
             if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
                 if (matchesPartitionFilters(partitionValues, filterHints) == false) {
@@ -281,7 +287,9 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            tasks.add(new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));
+            tasks.add(
+                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
+            );
         }
 
         if (tasks.isEmpty()) {
@@ -332,7 +340,8 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
-        @Nullable List<Attribute> readSchema
+        @Nullable List<Attribute> readSchema,
+        int maxRecordBytes
     ) {}
 
     /**
@@ -392,6 +401,7 @@ public class FileSplitProvider implements SplitProvider {
             columnMapping,
             readSchema,
             effectiveTargetSplitBytes,
+            task.maxRecordBytes(),
             fileSplits,
             hoistedProvider
         )) {
@@ -631,6 +641,7 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
         long targetStrideBytes,
+        int maxRecordBytes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) throws IOException {
@@ -660,7 +671,7 @@ public class FileSplitProvider implements SplitProvider {
         SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
         StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
         StorageObject object = provider.newObject(filePath, fileLength);
-        List<Long> starts = computeRecordAlignedMacroSplitStarts(segmentableReader, object, fileLength, targetStrideBytes);
+        List<Long> starts = computeRecordAlignedMacroSplitStarts(segmentableReader, object, fileLength, targetStrideBytes, maxRecordBytes);
         if (starts.size() <= 1) {
             return false;
         }
@@ -704,19 +715,27 @@ public class FileSplitProvider implements SplitProvider {
         SegmentableFormatReader reader,
         StorageObject storageObject,
         long fileLength,
-        long targetStrideBytes
+        long targetStrideBytes,
+        int maxRecordBytes
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         long minSegment = reader.minimumSegmentSize();
+        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
         long pos = targetStrideBytes;
         while (pos < fileLength) {
             long remaining = fileLength - pos;
             if (remaining < minSegment) {
                 break;
             }
-            try (InputStream stream = storageObject.newStream(pos, remaining)) {
-                long skipped = reader.findNextRecordBoundary(stream);
+            InputStream stream = storageObject.newStream(pos, remaining);
+            // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+            // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+            try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
+                long skipped = splitter.findNextRecordBoundary(stream);
+                if (skipped == RecordSplitter.RECORD_TOO_LARGE) {
+                    break;
+                }
                 if (skipped < 0) {
                     break;
                 }
@@ -1009,6 +1028,9 @@ public class FileSplitProvider implements SplitProvider {
                     yield null;
                 }
                 Object partitionValue = partitionValues.get(columnName);
+                if (partitionValue == null) {
+                    yield null;
+                }
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
                     if (listItem instanceof Literal lit) {
@@ -1022,8 +1044,49 @@ public class FileSplitProvider implements SplitProvider {
                 }
                 yield found;
             }
+            case IsNull isNull -> {
+                String columnName = extractColumnName(isNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) == null;
+            }
+            case IsNotNull isNotNull -> {
+                String columnName = extractColumnName(isNotNull.field());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
+                }
+                yield partitionValues.get(columnName) != null;
+            }
+            case And and -> nullableAnd(evaluateFilter(and.left(), partitionValues), evaluateFilter(and.right(), partitionValues));
+            case Or or -> nullableOr(evaluateFilter(or.left(), partitionValues), evaluateFilter(or.right(), partitionValues));
+            case Not not -> nullableNot(evaluateFilter(not.field(), partitionValues));
             default -> null;
         };
+    }
+
+    private static Boolean nullableAnd(Boolean a, Boolean b) {
+        if (Boolean.FALSE.equals(a) || Boolean.FALSE.equals(b)) {
+            return false;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return a && b;
+    }
+
+    private static Boolean nullableOr(Boolean a, Boolean b) {
+        if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b)) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return null;
+        }
+        return false;
+    }
+
+    private static Boolean nullableNot(Boolean a) {
+        return a == null ? null : a == false;
     }
 
     private static Boolean evaluateComparison(

@@ -26,6 +26,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
         ctx.addOptionParser(new DocumentsFound(ctx));
+        ctx.addOptionParser(new SkipFlattenedRewrite(ctx));
         return ctx;
     }
 
@@ -43,10 +44,13 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         String requestTimeRangeGte;
         String requestTimeRangeLte;
+        String skipFlattenedRewrite;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -74,13 +78,19 @@ public final class CsvSpecReader {
                 testCase = new CsvTestCase();
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
+                testCase.skipFlattenedRewrite = skipFlattenedRewrite;
                 requiredCapabilities.clear();
+                requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesRemoteCluster.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
+                skipFlattenedRewrite = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -110,6 +120,14 @@ public final class CsvSpecReader {
             String lower = line.toLowerCase(Locale.ROOT);
             if (lower.startsWith("required_capability:")) {
                 state.requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("required_capability_coordinator:")) {
+                state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_data_node:")) {
+                state.missingCapabilitiesRemoteCluster.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
             }
             return null;
@@ -223,6 +241,28 @@ public final class CsvSpecReader {
         }
     }
 
+    /**
+     * Marks a test as expected to fail under the {@code keyword}-to-{@code flattened} variant
+     * ({@code CsvFlattenedKeywordIT}) because it exercises a known limitation of
+     * {@code field_extract()} or of an upstream grammar/engine constraint. The directive is a
+     * single line of the form {@code skip_flattened_rewrite: <free-text reason>}. The variant test
+     * skips the test (via {@link org.junit.AssumptionViolatedException}) and the reason surfaces
+     * in the JUnit XML {@code <skipped>} element so the silence is self-explanatory in CI tooling.
+     * The directive is ignored by every other test driver: it lives in the preamble of a test and
+     * is recognised only by the variant that opts into it.
+     */
+    record SkipFlattenedRewrite(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("skip_flattened_rewrite:")) {
+                state.skipFlattenedRewrite = line.substring("skip_flattened_rewrite:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
@@ -235,13 +275,34 @@ public final class CsvSpecReader {
          * How to change the test when requesting all values be loaded from stored fields.
          */
         public WhenLoadsRequestedToStored requestStored;
+        /**
+         * Capabilities that must be present on all clusters.
+         */
         public List<String> requiredCapabilities = List.of();
+        /**
+         * Capabilities that must be present on the local cluster.
+         * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
+         */
+        public List<String> requiredCapabilitiesLocalCluster = List.of();
+        /**
+         * Capabilities that must be missing on the remote cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesRemoteCluster = List.of();
         /**
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
          */
         public String requestTimeRangeGte;
         public String requestTimeRangeLte;
+        /**
+         * Free-text reason carried over from a {@code skip_flattened_rewrite:} preamble line, or
+         * {@code null} when the test has no such directive. Consumed by
+         * {@code CsvFlattenedKeywordIT} to skip the test as a known limitation of
+         * {@code field_extract()} or of an upstream grammar/engine constraint; every other test
+         * driver ignores this field.
+         */
+        public String skipFlattenedRewrite;
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format
@@ -305,5 +366,4 @@ public final class CsvSpecReader {
             return new AssertWarnings.NoWarnings();
         }
     }
-
 }

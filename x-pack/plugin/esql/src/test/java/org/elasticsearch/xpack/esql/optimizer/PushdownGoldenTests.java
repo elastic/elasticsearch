@@ -182,6 +182,6 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
     }
 
     private void runUnmappedTests(String query) {
-        runTestsNullifyAndLoad(query, STAGES);
+        runTestsNullifyAndLoad(query, STAGES, null);
     }
 }

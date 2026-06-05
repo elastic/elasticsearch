@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 149505
+summary: Adding dynamic template for `*.lifecycle.last_activity` fields
+type: feature

@@ -40,8 +40,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private final BytesReference source;
-    private final XContentType xContentType;
+    private final SourceToParse.Source source;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -149,7 +148,14 @@ public class ParsedDocument {
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
-        this(version, seqID, id, routing, documents, source.originalBytes(), source.xContentType(), dynamicMappingsUpdate, normalizedSize);
+        this.version = version;
+        this.seqID = seqID;
+        this.id = id;
+        this.routing = routing;
+        this.documents = documents;
+        this.source = source;
+        this.dynamicMappingsUpdate = dynamicMappingsUpdate;
+        this.normalizedSize = normalizedSize;
     }
 
     public ParsedDocument(
@@ -163,15 +169,16 @@ public class ParsedDocument {
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
-        this.version = version;
-        this.seqID = seqID;
-        this.id = id;
-        this.routing = routing;
-        this.documents = documents;
-        this.source = source;
-        this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.xContentType = xContentType;
-        this.normalizedSize = normalizedSize;
+        this(
+            version,
+            seqID,
+            id,
+            routing,
+            documents,
+            SourceToParse.Source.fromBytes(source, xContentType),
+            dynamicMappingsUpdate,
+            normalizedSize
+        );
     }
 
     public String id() {
@@ -202,12 +209,12 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
+    public SourceToParse.Source source() {
         return this.source;
     }
 
     public XContentType getXContentType() {
-        return this.xContentType;
+        return this.source.xContentType();
     }
 
     /**

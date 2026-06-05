@@ -84,13 +84,6 @@ import static org.hamcrest.Matchers.greaterThan;
  *         trigger for the local-breaker concurrency assertion.</li>
  * </ul>
  * <p>
- * The tests rely on cell-value correctness rather than directly asserting the rule fired in the
- * data-node plan profile: {@link EsqlQueryResponse#profile()} only carries the coordinator's plan
- * and drivers in this in-process test setup, and external-compute data-node profiles are not
- * routed back through the response payload. A regression that silently disables the rule would
- * still produce correct results, just slower; we accept this gap and rely on lower-level rule
- * tests for the rule-fired property.
- * <p>
  * Pinned to a single data node because EXTERNAL queries against {@code file://} URIs are read
  * from each data node's local filesystem; with multi-node clusters every node would re-read the
  * same file and the coordinator would get duplicate rows. Real deployments use shared storage

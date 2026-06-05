@@ -148,3 +148,6 @@ If you encounter any of the following methods, you must go and read their javado
 - Never hand-edit transport version resource files; always use the Gradle tasks. See `docs/internal/Versioning.md` for the full workflow.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.
+
+## Documentation
+When building or editing docs, read `docs/AGENTS.md` first.

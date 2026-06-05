@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `COUNT_DISTINCT` function [esql-count_distinct]
 
-:::{include} ../../_snippets/functions/layout/count_distinct.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/count_distinct.md
 :::

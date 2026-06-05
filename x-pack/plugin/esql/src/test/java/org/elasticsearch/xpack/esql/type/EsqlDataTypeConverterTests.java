@@ -11,7 +11,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -60,6 +59,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
@@ -249,7 +249,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
 
     public void testConfigurationConvertersAreConfigurationAware() {
         var configuration = randomConfiguration();
-        var field = FieldAttributeTests.createFieldAttribute(0, false);
+        var field = createFieldAttribute(0, false);
 
         for (var converterFactory : EsqlDataTypeConverter.TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.values()) {
             var converter = converterFactory.apply(TEST_SOURCE, field, configuration);

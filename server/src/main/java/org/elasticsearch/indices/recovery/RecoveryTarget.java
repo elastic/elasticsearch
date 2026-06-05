@@ -125,7 +125,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.store = indexShard.store();
         this.multiFileWriter = createMultiFileWriter();
         // make sure the store is not released until we are done.
-        store.incRef();
+        store.mustIncRef();
         indexShard.recoveryStats().incCurrentAsTarget();
     }
 
@@ -219,7 +219,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
-                decRef();
+                updateStatsAndDecRef();
             }
             try {
                 newTargetCancellableThreads.execute(closedLatch::await);
@@ -260,7 +260,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 cancellableThreads.cancel(reason);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
+                updateStatsAndDecRef();
             }
         }
     }
@@ -280,7 +280,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
                 } finally {
                     // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                    decRef();
+                    updateStatsAndDecRef();
                 }
             }
         }
@@ -294,6 +294,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
+            // decrement synchronously so stats are up to date when notifyRecoverySchedulingListeners() is called in markRecoveryAsDone.
+            indexShard.recoveryStats().decCurrentAsTarget();
             indexShard.postRecovery("peer recovery done", ActionListener.runBefore(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -309,6 +311,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
+    private void updateStatsAndDecRef() {
+        indexShard.recoveryStats().decCurrentAsTarget();
+        decRef();
+    }
+
     @Override
     protected void closeInternal() {
         try {
@@ -316,7 +323,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } finally {
             // free store. increment happens in constructor
             store.decRef();
-            indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
             releaseSnapshotFileDownloadsPermit();
         }

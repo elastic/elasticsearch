@@ -17,15 +17,19 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -47,6 +51,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -54,8 +59,12 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.hamcrest.Matchers;
 
@@ -247,6 +256,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -271,6 +282,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             true,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -302,6 +315,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             syntheticSourceDelegate,
             true,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -351,6 +366,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             syntheticSourceDelegate,
             false,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -403,6 +420,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             syntheticSourceDelegate,
             false,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -440,6 +459,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             keywordFieldType,
             false,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
@@ -490,12 +511,15 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             false,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field
@@ -515,12 +539,15 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             true,
             IndexVersion.current(),
+            true,
+            false,
             false,
             false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field using separate count format
@@ -540,21 +567,139 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             null,
             true,
             IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES),
+            true,
+            false,
             false,
             false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field using integrated count format
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
+    public void testPrefixQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV, case-sensitive: native PrefixQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.prefixQuery("foo", null, false, MOCK_CONTEXT),
+            Matchers.equalTo(new PrefixQuery(new Term("field", "foo"), MultiTermQuery.DOC_VALUES_REWRITE))
+        );
+
+        // SortedSet DV, case-insensitive: script-backed query
+        assertThat(sortedSet.prefixQuery("foo", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Binary DV: script-backed query
+        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testWildcardQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV, case-sensitive: WildcardQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
+            Matchers.equalTo(
+                new WildcardQuery(new Term("field", "foo*"), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE)
+            )
+        );
+
+        // SortedSet DV, case-insensitive: script-backed query
+        assertThat(sortedSet.wildcardQuery("foo*", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldWildcardQuery.class));
+
+        // Binary DV: SlowCustomBinaryDocValuesWildcardQuery
+        assertThat(
+            binary.wildcardQuery("foo*", null, false, MOCK_CONTEXT),
+            Matchers.instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class)
+        );
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testRegexpQueryDocValuesOnly() {
+        MatchOnlyTextFieldType sortedSet = sortedSetDocValuesOnly();
+        MatchOnlyTextFieldType binary = binaryDocValuesOnly();
+
+        // SortedSet DV: RegexpQuery with DOC_VALUES_REWRITE
+        assertThat(
+            sortedSet.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT),
+            Matchers.equalTo(
+                new RegexpQuery(new Term("field", "foo.*"), 0, 0, RegexpQuery.DEFAULT_PROVIDER, 10, MultiTermQuery.DOC_VALUES_REWRITE)
+            )
+        );
+
+        // Binary DV: script-backed query
+        assertThat(binary.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldRegexpQuery.class));
+
+        // Doc-values only, expensive queries disabled
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> sortedSetDocValuesOnly().regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    private static MatchOnlyTextFieldType sortedSetDocValuesOnly() {
+        return new MatchOnlyTextFieldType(
+            "field",
+            TextSearchInfo.NONE,
+            Lucene.STANDARD_ANALYZER,
+            false,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false,
+            IndexVersion.current(),
+            false,
+            true,
+            false,
+            false
+        );
+    }
+
+    private static MatchOnlyTextFieldType binaryDocValuesOnly() {
+        return new MatchOnlyTextFieldType(
+            "field",
+            TextSearchInfo.NONE,
+            Lucene.STANDARD_ANALYZER,
+            false,
+            Collections.emptyMap(),
+            false,
+            false,
+            null,
+            false,
+            IndexVersion.current(),
+            false,
+            true,
+            true,
+            false
+        );
+    }
+
     private static MappedFieldType.BlockLoaderContext mockContext() {
         MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         return context;
     }
 }

@@ -418,6 +418,28 @@ sv:double
 ;
 
 
+Approximate stats with dependent potentially multi-valued variables
+required_capability: approximation_v7
+required_capability: approximation_fix_mv_functions
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS median = MEDIAN(sv)::INTEGER
+    | EVAL append = MV_APPEND([42,42,42], median),
+           diff   = MV_DIFFERENCE([42,42,42], median),
+           isect  = MV_INTERSECTION([42,42,42], median),
+           slice  = MV_SLICE([42,42,42], median % 2, median % 2 + 1),
+           union  = MV_SORT(MV_UNION([42,42,42], median))
+;
+
+documents_found: 8000..12000
+
+median:integer | append:integer      | diff:integer    | isect:integer | slice:integer | union:integer | _approximation_confidence_interval(median):integer | _approximation_certified(median):boolean
+450..540       | [42,42,42,450..540] | [42,42,42]      | null          | [42,42]       | [42,450..540] | [450..540,450..540]                                | {any}
+;
+
+
 Approximate stats with dependent constant variable
 required_capability: approximation_v7
 request_stored: skip
@@ -795,7 +817,7 @@ c:long  | b:date                   | _approximation_confidence_interval(c):long 
 
 Lookup join before stats
 required_capability: approximation_v7
-required_capability: approximation_lookup_join
+required_capability: approximation_lookup_join_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -813,9 +835,31 @@ AVG(length):double | _approximation_confidence_interval(AVG(length)):double | _a
 ;
 
 
+Lookup join before stats - old data node
+required_capability: approximation_v7
+required_capability_coordinator: approximation_lookup_join_v2
+missing_capability_data_node: approximation_lookup_join_v2
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| EVAL language_code = sv % 4 + 1
+| LOOKUP JOIN languages_lookup ON language_code
+| EVAL length = LENGTH(language_name)
+| STATS AVG(length)
+;
+
+warning:line 4:3: approximation not supported: query with [LOOKUP JOIN languages_lookup ON language_code] cannot be approximated on all nodes
+documents_found: 245350
+
+AVG(length):double
+6.500713266761769
+;
+
+
 Lookup join after stats by
 required_capability: approximation_v7
-required_capability: approximation_lookup_join
+required_capability: approximation_lookup_join_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -839,7 +883,7 @@ count:long   | language_code:integer | language_name:keyword | _approximation_co
 
 Lookup join before and after stats by
 required_capability: approximation_v7
-required_capability: approximation_lookup_join
+required_capability: approximation_lookup_join_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -941,7 +985,7 @@ COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_in
 Inline stats by and lookup join
 required_capability: approximation_v7
 required_capability: approximation_inline_stats_v2
-required_capability: approximation_lookup_join
+required_capability: approximation_lookup_join_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1369,6 +1413,29 @@ value:double           | sv:integer | _approximation_confidence_interval(value):
 698.999999..699.000001 | 699        | [698.999999..700.000001,698.999999..699.000001]  | {any}
 10000..200000          | 699        | [10000..200000,10000..200000]                    | {any}
 697.999999..698.000001 | 698        | [697.999999..700.000001,697.999999..698.000001]  | {any}
+;
+
+
+Subqueries with non-approximable stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_fix_non_approximable_fork_branches
+required_capability: subquery_in_from_command
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM colors | LIMIT 1 BY color | STATS bad1 = COUNT(*)),
+     (FROM colors | STATS good = COUNT(*)),
+     (FROM colors | STATS bad2 = MAX(color))
+| SORT bad1 DESC, bad2 DESC
+;
+
+documents_found: 118..130
+
+bad1:long | good:long | bad2:string | _approximation_confidence_interval(good):long | _approximation_certified(good):boolean
+null      | 59        | null        | [59,59]                                       | true
+null      | null      | yellow      | null                                          | null
+59        | null      | null        | null                                          | null
 ;
 
 

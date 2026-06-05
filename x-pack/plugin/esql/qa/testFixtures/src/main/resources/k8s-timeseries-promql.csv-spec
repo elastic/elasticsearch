@@ -838,3 +838,15 @@ result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
 
+label_matching_on_non_string_label_9_4
+required_capability: promql_command_v0
+required_capability: promql_numeric_label_matching_9_4
+PROMQL index=k8s step=10m value=(sum(rate(network.total_bytes_in{network.bytes_in =~"1.."}[10m])) / sum(rate(network.total_bytes_in[10m])) * 100)
+| SORT step
+;
+
+value:double       | step:datetime
+16.279099821524305 | 2024-05-10T00:00:00.000Z
+37.69321892075542  | 2024-05-10T00:10:00.000Z
+13.896004927602956 | 2024-05-10T00:20:00.000Z
+;

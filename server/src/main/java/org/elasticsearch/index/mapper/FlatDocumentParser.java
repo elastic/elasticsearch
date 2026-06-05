@@ -326,17 +326,6 @@ final class FlatDocumentParser implements DocumentParser {
                 // No FALLBACK/source-keep capture — the flat parser intentionally drops that _source data.
                 fieldMapper.parse(context);
             }
-            if (context.isWithinCopyTo() == false) {
-                List<String> copyToFields = fieldMapper.copyTo().copyToFields();
-                if (copyToFields.isEmpty() == false) {
-                    XContentParser.Token currentToken = context.parser().currentToken();
-                    if (currentToken.isValue() == false && currentToken != XContentParser.Token.VALUE_NULL) {
-                        // sanity check, we currently support copy-to only for value-type field, not objects
-                        throwOnCopyToOnObject(mapper, copyToFields, context);
-                    }
-                    parseCopyFields(context, copyToFields);
-                }
-            }
         } else if (mapper instanceof FieldAliasMapper) {
             throwOnCopyToOnFieldAlias(context, mapper);
         } else {
@@ -345,9 +334,7 @@ final class FlatDocumentParser implements DocumentParser {
     }
 
     private static boolean shouldFlattenObject(DocumentParserContext context, FieldMapper fieldMapper) {
-        return context.parser().currentToken() == XContentParser.Token.START_OBJECT
-            && context.parent().subobjects() != ObjectMapper.Subobjects.ENABLED
-            && fieldMapper.supportsParsingObject() == false;
+        return context.parser().currentToken() == XContentParser.Token.START_OBJECT && fieldMapper.supportsParsingObject() == false;
     }
 
     private static void throwOnUnrecognizedMapperType(Mapper mapper) {
@@ -359,18 +346,7 @@ final class FlatDocumentParser implements DocumentParser {
     private static void throwOnCopyToOnFieldAlias(DocumentParserContext context, Mapper mapper) {
         throw new DocumentParsingException(
             context.parser().getTokenLocation(),
-            "Cannot " + (context.isWithinCopyTo() ? "copy" : "write") + " to a field alias [" + mapper.fullPath() + "]."
-        );
-    }
-
-    private static void throwOnCopyToOnObject(Mapper mapper, List<String> copyToFields, DocumentParserContext context) {
-        throw new DocumentParsingException(
-            context.parser().getTokenLocation(),
-            "Cannot copy field ["
-                + mapper.fullPath()
-                + "] to fields "
-                + copyToFields
-                + ". Copy-to currently only works for value-type fields, not objects."
+            "Cannot write to a field alias [" + mapper.fullPath() + "]."
         );
     }
 
@@ -390,7 +366,7 @@ final class FlatDocumentParser implements DocumentParser {
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
         context.path().add(currentFieldName);
         boolean withinLeafObject = context.path().isWithinLeafObject();
-        if (objectMapper instanceof ObjectMapper objMapper && objMapper.subobjects() != ObjectMapper.Subobjects.ENABLED) {
+        if (objectMapper instanceof ObjectMapper) {
             context.path().setWithinLeafObject(true);
         }
         parseObjectOrField(context, objectMapper);
@@ -412,28 +388,25 @@ final class FlatDocumentParser implements DocumentParser {
             skipChildren(context);
             return;
         }
-        Mapper.Builder dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
-        if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
-            // When subobjects are disabled, only check for a matching dynamic template for this object field.
-            // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
-            // If a template matches with an object type, or if no template matches (null), the object is
-            // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
-            dynamicObjectBuilder = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
-            if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
-                throw new DocumentParsingException(
-                    context.parser().getTokenLocation(),
-                    "Tried to add nested object ["
-                        + dynamicObjectBuilder.leafName()
-                        + "] to object ["
-                        + context.parent().fullPath()
-                        + "] which does not support subobjects"
-                );
-            }
-            if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
-                // subobjects disallowed → flatten children by prepending currentFieldName
-                parseObjectOrNested(context.createFlattenContext(currentFieldName));
-                return;
-            }
+        // Only check for a matching dynamic template for this object field.
+        // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+        // If a template matches with an object type, or if no template matches (null), the object is
+        // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+        Mapper.Builder dynamicObjectBuilder = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
+        if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
+            throw new DocumentParsingException(
+                context.parser().getTokenLocation(),
+                "Tried to add nested object ["
+                    + dynamicObjectBuilder.leafName()
+                    + "] to object ["
+                    + context.parent().fullPath()
+                    + "] which does not support subobjects"
+            );
+        }
+        if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
+            // subobjects disallowed → flatten children by prepending currentFieldName
+            parseObjectOrNested(context.createFlattenContext(currentFieldName));
+            return;
         }
         Mapper dynamicObjectMapper = context.getDynamicMapper(dynamicObjectBuilder);
         if (dynamicObjectMapper == null) {
@@ -564,7 +537,6 @@ final class FlatDocumentParser implements DocumentParser {
         // non-cheap/free early return checks
         if (builders == null
             || context.isFieldAppliedFromTemplate(fullFieldName)
-            || context.isCopyToDestinationField(fullFieldName)
             || builders.stream()
                 .anyMatch(
                     b -> b instanceof NumberFieldMapper.Builder == false
@@ -660,31 +632,6 @@ final class FlatDocumentParser implements DocumentParser {
                 context.parser().getTokenLocation(),
                 "All fields matching [routing_path] must be mapped but [" + path + "] was declared as [dynamic: false]"
             );
-        }
-    }
-
-    /**
-     * Creates instances of the fields that the current field should be copied to
-     */
-    private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
-        for (String field : copyToFields) {
-            if (context.mappingLookup().inferenceFields().get(field) != null) {
-                // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
-                continue;
-            }
-            // In case of a hierarchy of nested documents, we need to figure out
-            // which document the field should go to
-            LuceneDocument targetDoc = null;
-            for (LuceneDocument doc = context.doc(); doc != null; doc = doc.getParent()) {
-                if (field.startsWith(doc.getPrefix())) {
-                    targetDoc = doc;
-                    break;
-                }
-            }
-            assert targetDoc != null;
-            final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
-            innerParseObject(copyToContext);
-            context.markFieldAsCopyTo(field);
         }
     }
 

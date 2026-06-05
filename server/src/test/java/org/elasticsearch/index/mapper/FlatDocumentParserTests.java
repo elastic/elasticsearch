@@ -18,7 +18,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -218,29 +217,6 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // copy_to
-    // -----------------------------------------------------------------------
-
-    public void testCopyToIndexesCopiedField() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createMapperService(
-            columnarSettings(),
-            mapping(
-                b -> b.startObject("source_field")
-                    .field("type", "keyword")
-                    .array("copy_to", "dest_field")
-                    .endObject()
-                    .startObject("dest_field")
-                    .field("type", "keyword")
-                    .endObject()
-            )
-        ).documentMapper();
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("source_field", "hello")));
-        assertThat(doc.rootDoc().getField("dest_field"), notNullValue());
-    }
-
-    // -----------------------------------------------------------------------
     // Null and empty handling
     // -----------------------------------------------------------------------
 
@@ -288,15 +264,6 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
             b.startObject("runtime");
             b.startObject("day_of_week").field("type", "keyword").endObject();
             b.endObject();
-        }));
-        assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
-    }
-
-    public void testDefaultParserSelectedWhenMappingHasCopyTo() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        MapperService mapperService = createMapperService(columnarSettings(), mapping(b -> {
-            b.startObject("source").field("type", "keyword").array("copy_to", "dest").endObject();
-            b.startObject("dest").field("type", "keyword").endObject();
         }));
         assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
     }

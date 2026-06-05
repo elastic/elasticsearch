@@ -3293,6 +3293,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
+            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f
@@ -3348,6 +3349,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
+            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f
@@ -3484,6 +3486,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
+            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f

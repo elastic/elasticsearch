@@ -151,9 +151,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 vectorOps
             );
 
+            // Exclude every round-0 candidate so the retry can only surface genuinely new docs: the
+            // filtered-out set plus all filter-matching docs (not just the top-k kept after parent
+            // dedup, since a collapsed sibling would otherwise be re-collected and waste a slot).
             int[] matchingIds = sortedDocIdsFromPerLeaf(matching);
-            int[] topKIds = sortedDocIds(scoreDocs);
-            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), topKIds);
+            int[] excluded = KnnQueryUtils.sortedMerge(flattenPerLeafDocIds(filteredOut), matchingIds);
             int remaining = k - scoreDocs.length;
             Query retry = postFilterQuery.createRetryQuery(searcher.getIndexReader(), excluded, matchingIds, remaining);
             TopDocs retryDocs = searcher.search(retry, remaining);
@@ -362,15 +364,6 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             return new PostFilterRewriteMeta(innerQuery.createPostFilterDelegate(selectivity), selectivity);
         }
         return null;
-    }
-
-    private static int[] sortedDocIds(ScoreDoc[] scoreDocs) {
-        int[] ids = new int[scoreDocs.length];
-        for (int i = 0; i < scoreDocs.length; i++) {
-            ids[i] = scoreDocs[i].doc;
-        }
-        Arrays.sort(ids);
-        return ids;
     }
 
     Query innerQuery() {

@@ -108,6 +108,9 @@ public interface PostFilterableKnnQuery {
      * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
      * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
      * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
+     * <p>
+     * Never returns {@code null}: implementations that have not run yet return an empty per-leaf
+     * array (every entry {@code null}), so the orchestrator can iterate without a null check.
      */
     default ScoreDoc[][] getPostFilterCandidates() {
         return new ScoreDoc[0][];
@@ -118,13 +121,16 @@ public interface PostFilterableKnnQuery {
      * leaf ordinal. Lucene's {@code AbstractKnnVectorQuery} passes {@code mergeLeafResults} an
      * array sourced from {@code HashMap.values()} whose iteration order is unspecified, so this
      * method resolves each entry's leaf via {@link ReaderUtil#subIndex}.
+     * <p>
+     * Each leaf's {@link ScoreDoc} array is cloned so the orchestrator can sort it in place
+     * without mutating the delegate's {@link TopDocs}.
      */
     static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
         ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
         for (TopDocs td : perLeafResults) {
             if (td.scoreDocs.length == 0) continue;
             int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
-            perLeafCandidates[leafOrd] = td.scoreDocs;
+            perLeafCandidates[leafOrd] = td.scoreDocs.clone();
         }
         return perLeafCandidates;
     }

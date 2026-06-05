@@ -120,7 +120,9 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
 
     @Override
     public ScoreDoc[][] getPostFilterCandidates() {
-        return rawPerLeafResults != null ? PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves) : null;
+        return rawPerLeafResults == null
+            ? new ScoreDoc[leaves.size()][]
+            : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
     }
 
     @Override

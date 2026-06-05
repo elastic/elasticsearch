@@ -12,7 +12,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -421,7 +420,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs = ").append(remainingDocs);
     }
-
 
     private static class IntArrayPool implements Releasable {
         private int[] pool;

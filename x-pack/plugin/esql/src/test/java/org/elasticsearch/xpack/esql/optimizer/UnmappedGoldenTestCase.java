@@ -23,7 +23,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         throwIfFailed(nullifyException, loadException);
     }
 
-    /** Runs the query with both {@code NULLIFY} and {@code LOAD} using the given transport version; throws if either fails. */
+    /**
+     * Runs the query with both {@code NULLIFY} and {@code LOAD} using the given transport version; throws if either fails.
+     * Pass {@code null} to use a random compatible version.
+     */
     protected void runTestsNullifyAndLoad(String query, EnumSet<Stage> stages, TransportVersion transportVersion, String... nestedPaths) {
         Optional<Throwable> nullifyException = tryRunTestsNullifyOnly(query, stages, transportVersion, nestedPaths);
         Optional<Throwable> loadException = tryRunTestsLoadOnly(query, stages, transportVersion, nestedPaths);
@@ -44,7 +47,10 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
         tryRunTestsNullifyOnly(query, stages, null, nestedPaths).ifPresent(e -> { throw new RuntimeException("Nullify mode failed", e); });
     }
 
-    /** Runs the query in {@code NULLIFY} mode using the given transport version; throws if it fails. */
+    /**
+     * Runs the query in {@code NULLIFY} mode using the given transport version; throws if it fails.
+     * Pass {@code null} to use a random compatible version.
+     */
     protected void runTestsNullifyOnly(String query, EnumSet<Stage> stages, TransportVersion transportVersion, String... nestedPaths) {
         tryRunTestsNullifyOnly(query, stages, transportVersion, nestedPaths).ifPresent(e -> {
             throw new RuntimeException("Nullify mode failed", e);

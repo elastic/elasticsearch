@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
@@ -471,7 +472,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             TS k8s
             | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-            """, STAGES);
+            """, STAGES, randomVersionAfterDimensionValues());
     }
 
     public void testRow() throws Exception {
@@ -486,7 +487,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             TS k8s
             | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
-            """);
+            """, randomVersionAfterDimensionValues());
     }
 
     public void testSubqueryOnly() throws Exception {
@@ -651,7 +652,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """, randomVersionBeforeCompact());
+            """, randomVersionAfterDimensionValuesBeforeCompact());
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCastAfterCompact() throws Exception {
@@ -696,7 +697,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """, randomVersionBeforeCompact());
+            """, randomVersionAfterDimensionValuesBeforeCompact());
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCastAfterCompact() throws Exception {
@@ -1021,7 +1022,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     private void runTests(String query, String... nestedPaths) {
-        runTestsNullifyAndLoad(query, STAGES, nestedPaths);
+        runTestsNullifyAndLoad(query, STAGES, (TransportVersion) null, nestedPaths);
+    }
+
+    private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {
+        runTestsNullifyAndLoad(query, STAGES, minimumSupportedVersion, nestedPath);
     }
 
     private static TransportVersion randomVersionBeforeCompact() {
@@ -1030,5 +1035,18 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
 
     private static TransportVersion randomVersionAfterCompact() {
         return TransportVersionUtils.randomVersionSupporting(CompactMultiTypeEsField);
+    }
+
+    private static TransportVersion randomVersionAfterDimensionValuesBeforeCompact() {
+        return randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(DimensionValues.DIMENSION_VALUES_VERSION) && v.supports(CompactMultiTypeEsField) == false)
+                .toList()
+        );
+    }
+
+    private static TransportVersion randomVersionAfterDimensionValues() {
+        return TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 }

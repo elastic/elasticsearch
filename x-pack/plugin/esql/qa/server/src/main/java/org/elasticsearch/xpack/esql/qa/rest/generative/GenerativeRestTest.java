@@ -443,7 +443,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
@@ -452,7 +451,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isWildcardLongRangeTopNConnectionBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
 
@@ -896,23 +894,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
     }
 
-    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
-        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
-        Pattern.DOTALL
-    );
-
-    // https://github.com/elastic/elasticsearch/issues/134794
-    static boolean isTsOutputChangedError(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        String trimmed = query.trim().toUpperCase(Locale.ROOT);
-        return trimmed.startsWith("TS ");
-    }
-
     /**
      * Matches the FORK pipeline command (a {@code |} followed by the FORK keyword)
      */
@@ -1077,25 +1058,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern CONNECTION_FAILURE_PATTERN = Pattern.compile(
-        ".*(?:Connection is closed|Connection reset|Connection refused).*",
-        Pattern.DOTALL
-    );
-    private static final Pattern WILDCARD_SOURCE_PATTERN = Pattern.compile("(?i)\\bFROM\\b[^|;]*\\*");
-
-    /**
-     * Wildcard sources can crash while decoding long-range values out of {@code TopNOperator} /
-     * {@code GroupedTopNOperator}. The REST test observes the resulting connection failure, so this must match the
-     * transport symptom and query shape rather than the underlying assertion.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>.
-     */
-    static boolean isWildcardLongRangeTopNConnectionBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        return CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches() && WILDCARD_SOURCE_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");

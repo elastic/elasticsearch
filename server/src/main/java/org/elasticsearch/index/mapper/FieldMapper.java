@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -79,6 +80,19 @@ public abstract class FieldMapper extends Mapper {
         "index.mapping.coerce",
         false,
         Property.IndexScope,
+        Property.ServerlessPublic
+    );
+
+    /**
+     * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
+     * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
+     * {@code doc_values.multi_value}. Only honoured when {@link DocValuesParameter#EXTENDED_DOC_VALUES_PARAMS_FF} is enabled.
+     */
+    public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.multi_value",
+        true,
+        Property.IndexScope,
+        Property.Final,
         Property.ServerlessPublic
     );
 
@@ -1839,6 +1853,20 @@ public abstract class FieldMapper extends Mapper {
                         continue;
                     }
                     case "copy_to" -> {
+                        if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                            throw new IllegalArgumentException(
+                                "[copy_to] is not allowed on field ["
+                                    + name
+                                    + "] in ["
+                                    + parserContext.getIndexSettings().getMode()
+                                    + "] index mode"
+                            );
+                        }
+                        if (parserContext.getIndexSettings().getIndexMappingSourceMode() == Mode.COLUMNAR_STORED) {
+                            throw new IllegalArgumentException(
+                                "[copy_to] is not allowed on field [" + name + "] in [columnar_stored] source mode"
+                            );
+                        }
                         copyTo = copyTo.withAddedFields(TypeParsers.parseCopyFields(propNode));
                         iterator.remove();
                         continue;

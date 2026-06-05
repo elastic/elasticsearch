@@ -110,7 +110,8 @@ public class VectorScorerOSQBenchmark {
     public enum QuantConfig {
         D1Q1((byte) 1, (byte) 1, ES940OSQVectorsScorer.BitEncoding.STRIPED),
         D1Q4((byte) 1, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
-        D2Q4((byte) 2, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
+        D2Q4_STRIPED((byte) 2, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
+        D2Q4_PACKED((byte) 2, (byte) 4, ES940OSQVectorsScorer.BitEncoding.PACKED),
         D4Q4_STRIPED((byte) 4, (byte) 4, ES940OSQVectorsScorer.BitEncoding.STRIPED),
         D4Q4_PACKED((byte) 4, (byte) 4, ES940OSQVectorsScorer.BitEncoding.PACKED),
         D7Q7((byte) 7, (byte) 7, ES940OSQVectorsScorer.BitEncoding.STRIPED);
@@ -191,6 +192,12 @@ public class VectorScorerOSQBenchmark {
                 int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).discretizedDimensions(dims);
                 yield 4 * ((discretized + 7) / 8);
             }
+            case D2Q4_STRIPED -> {
+                int queryDiscretized = (dims * 4 + 7) / 8 * 8 / 4;
+                int docDiscretized = (dims + 7) / 8 * 8;
+                int discretized = Math.max(queryDiscretized, docDiscretized);
+                yield 2 * ((discretized + 7) / 8);
+            }
             default -> ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).getDocPackedLength(dims);
         };
     }
@@ -198,6 +205,7 @@ public class VectorScorerOSQBenchmark {
     private static int queryPackedLength(int dims, QuantConfig quantConfig) {
         return switch (quantConfig) {
             case D1Q1, D4Q4_STRIPED -> docPackedLength(dims, quantConfig);
+            case D2Q4_STRIPED -> docPackedLength(dims, quantConfig) * 2;
             default -> ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).getQueryPackedLength(dims);
         };
     }

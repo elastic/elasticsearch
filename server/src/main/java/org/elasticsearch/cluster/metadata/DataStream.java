@@ -84,6 +84,13 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
+    /**
+     * Cluster feature that gates {@code BulkOperation}'s use of this action. Guards against calling this action on an old master that
+     * does not have it registered, which would happen during a rolling upgrade.
+     */
+    public static final NodeFeature TIME_SERIES_PAST_INDEX_CREATION_FEATURE = new NodeFeature(
+        "data_stream.time_series.past_index_creation"
+    );
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
@@ -1093,6 +1100,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
+
+        return addNewBackingIndex(index);
+    }
+
+    /**
+     * Adds the specified index as a backing index and returns a new {@code DataStream} instance with the new combination
+     * of backing indices. This should be used only for just created indices because it does not check if the backing
+     * index belongs to another data stream. For any other case, use {@link #addBackingIndex(ProjectMetadata, Index)} instead.
+     *
+     * @param index index to add to the data stream
+     * @return new {@code DataStream} instance with the added backing index
+     * @throws IllegalArgumentException if {@code index} is ineligible to be a backing index for the data stream
+     */
+    public DataStream addNewBackingIndex(Index index) {
+        for (Index backingIndex : backingIndices.indices) {
+            // If we see that there is a backing index with the same name
+            if (backingIndex.getName().equals(index.getName())) {
+                // If the uuid also matches, we return this instant
+                if (backingIndex.equals(index)) {
+                    return this;
+                } else {
+                    // If not we return an error
+                    throw new IllegalArgumentException(
+                        "Index [" + index + "] overlaps with [" + backingIndex + "] in data stream [" + name + "]"
+                    );
+                }
+            }
+        }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
         backingIndices.add(index);

@@ -11,7 +11,6 @@ package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.painless.PainlessScript;
-import org.elasticsearch.painless.WriterConstants;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -514,16 +513,18 @@ public class Augmentation {
         return result.toString();
     }
 
-    /** Replaces each literal {@code target} with {@code replacement}, like {@link String#replace(CharSequence, CharSequence)}. */
-    public static String replace(String receiver, CharSequence target, CharSequence replacement) {
-        return receiver.replace(target, replacement);
-    }
+    /**
+     * Characters copied between cancellation polls inside the script-aware {@code replace}.  Kept large so each copy is an
+     * efficient bulk operation; since the script's persistent poll counter itself only fires every 1000 decrements, an
+     * actual cancellation check lands roughly every 64,000,000 characters.
+     */
+    private static final int REPLACE_POLL_INTERVAL = 64000;
 
     /**
-     * Cancellation-aware {@link #replace(String, CharSequence, CharSequence)}.  The JDK call is O(length) but invisible
-     * to the cancellation budget, so a growing-string loop (e.g. {@code s = s.replace('A', 'AB')}) can burn unbounded
-     * CPU.  Reimplements the literal replace as a scan that polls {@link PainlessScript#_pollCancellation()} as it works,
-     * so a deadline interrupts it mid-call.  Delegates to the JDK method when no cancel check is set.
+     * Cancellation-aware augmentation for {@link String#replace(CharSequence, CharSequence)}.  The JDK call is O(length)
+     * but invisible to the cancellation budget, so a growing-string loop (e.g. {@code s = s.replace('A', 'AB')}) can burn
+     * unbounded CPU.  Reimplements the literal replace as a scan that polls {@link PainlessScript#_pollCancellation()} as
+     * it works, so a deadline interrupts it mid-call.  Delegates to the JDK method when no cancel check is set.
      */
     public static String replace(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
         if (script._getCancellationCheck() == null) {
@@ -539,7 +540,7 @@ public class Augmentation {
             result.append(replacementString);
             for (int index = 0; index < receiver.length(); index++) {
                 result.append(receiver.charAt(index)).append(replacementString);
-                if (index % WriterConstants.CANCELLATION_POLL_INTERVAL == 0) {
+                if (index % REPLACE_POLL_INTERVAL == 0) {
                     script._pollCancellation();
                 }
             }
@@ -560,10 +561,10 @@ public class Augmentation {
     /** Appends {@code sequence[start, end)} in chunks, polling after each so a single large copy cannot outrun a deadline. */
     private static void appendChunked(PainlessScript script, StringBuilder result, CharSequence sequence, int start, int end) {
         int index = start;
-        while (end - index > WriterConstants.CANCELLATION_POLL_INTERVAL) {
-            result.append(sequence, index, index + WriterConstants.CANCELLATION_POLL_INTERVAL);
+        while (end - index > REPLACE_POLL_INTERVAL) {
+            result.append(sequence, index, index + REPLACE_POLL_INTERVAL);
             script._pollCancellation();
-            index += WriterConstants.CANCELLATION_POLL_INTERVAL;
+            index += REPLACE_POLL_INTERVAL;
         }
         result.append(sequence, index, end);
     }

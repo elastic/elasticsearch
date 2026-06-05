@@ -635,6 +635,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonMultiScanPushdownIT
   method: testMultiScanColdDoesNotDoubleCountWarmCountStar
   issue: https://github.com/elastic/elasticsearch/issues/150837
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testCountStarColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testCountColumnColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testMinMaxColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testMinMaxKeywordColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testMinMaxBooleanColdThenWarmShortCircuits
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalCsvAggregatePushdownIT
+  method: testCountStarPushdownSingleRowFile
+  issue: https://github.com/elastic/elasticsearch/issues/150613
+- class: org.elasticsearch.xpack.esql.action.ExternalNdJsonAggregatePushdownIT
+  method: testCountStarPushdownSingleRowFile
+  issue: https://github.com/elastic/elasticsearch/issues/150614
 - class: org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormatTests
   method: testMergedBloomFilterUsesMaxSize
   issue: https://github.com/elastic/elasticsearch/issues/150843

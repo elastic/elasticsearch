@@ -8,7 +8,6 @@
 package org.elasticsearch.blobcache.common;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 
@@ -324,24 +323,18 @@ public class SparseFileTracker {
     }
 
     /**
-     * Splits an unclaimed pending range at {@code splitPoint} into two new pending ranges, both added to {@link #ranges}.
-     * The original range is removed. The original completion listener is preserved and wired to fire when both halves
-     * complete, so listeners already registered on it (or added concurrently outside the mutex) remain valid:
-     * <ul>
-     *   <li>When A reaches {@code splitPoint}: {@code existing.completionListener.onProgress(splitPoint)} is called,
-     *       giving timely notification to listeners whose threshold falls in {@code [existing.start, splitPoint]}.</li>
-     *   <li>When both A and B complete: {@code existing.completionListener.onResponse(existing.end)} fires all
-     *       remaining listeners (thresholds in {@code (splitPoint, existing.end]}).</li>
-     *   <li>If either half fails: the failure is propagated to {@code existing.completionListener}.</li>
-     * </ul>
+     * Splits an unclaimed pending range at {@code splitPoint} into two new pending ranges, both added to
+     * {@link #ranges}. The original range is removed. Wiring is handled by
+     * {@link ProgressListenableActionFuture#split}: the original completion listener is preserved and driven
+     * to completion by the two new sub-range futures.
      *
      * @param existing   the unclaimed pending range to split; must satisfy {@code existing.start < splitPoint < existing.end}
-     * @param splitPoint the exclusive end of the lower half / inclusive start of the upper half
+     * @param splitPoint the exclusive end of the lower range / inclusive start of the upper range
      * @return {@code {lowerRange, upperRange}} — both already inserted into {@link #ranges}
      */
     private Range[] splitRange(final Range existing, final long splitPoint) {
         assert Thread.holdsLock(ranges);
-        assert existing.isPending();
+        assert existing.isPending() && existing.completionListener != null; // please IDE NPE detection below
         assert existing.claimed == false;
         assert existing.start < splitPoint : existing.start + " >= " + splitPoint;
         assert splitPoint < existing.end : splitPoint + " >= " + existing.end;
@@ -349,48 +342,11 @@ public class SparseFileTracker {
         boolean removed = ranges.remove(existing);
         assert removed;
 
-        // Both A and B forward byte-level progress to existing.completionListener so that listeners fire as
-        // bytes become available rather than waiting for an entire half to complete. existing.completionListener
-        // already carries its own progressConsumer (updateCompletePointer if set at creation), so calling its
-        // onProgress also handles the complete-pointer update — no need to duplicate that here.
-        //
-        // B must not forward progress until A has finished: forwarding B's values while A's bytes are still
-        // absent would incorrectly advance existing.completionListener.progress into B's range. B therefore
-        // gates on completionListenerA.isDone(), which becomes true as part of A's onResponse before any
-        // done() callbacks fire — so when B first forwards, existing.completionListener.progress is at most
-        // splitPoint-1 and any B value (> splitPoint) is valid.
-        //
-        // isDone() is set before the done() callbacks run, so the wiring listener below and B's consumer
-        // can race: B may forward p > splitPoint before the wiring listener fires onProgressAtLeast(splitPoint).
-        // onProgressAtLeast is used (not onProgress) precisely to handle that race: it is a no-op if B has
-        // already advanced past splitPoint, so neither ordering causes an assertion failure.
-        final var completionListenerA = new ProgressListenableActionFuture(
-            existing.start,
-            splitPoint,
-            existing.completionListener::onProgress
-        );
-        final var completionListenerB = new ProgressListenableActionFuture(splitPoint, existing.end, p -> {
-            if (completionListenerA.isDone()) existing.completionListener.onProgress(p);
-        });
-        final Range rangeA = new Range(existing.start, splitPoint, completionListenerA);
-        final Range rangeB = new Range(splitPoint, existing.end, completionListenerB);
+        final ProgressListenableActionFuture[] parts = existing.completionListener.split(splitPoint);
+        final Range rangeA = new Range(existing.start, splitPoint, parts[0]);
+        final Range rangeB = new Range(splitPoint, existing.end, parts[1]);
         ranges.add(rangeA);
         ranges.add(rangeB);
-
-        // When A completes, advance existing.completionListener to splitPoint (if B hasn't already done so).
-        completionListenerA.addListener(
-            ActionListener.wrap(ignored -> existing.completionListener.onProgressAtLeast(splitPoint), e -> {}),
-            splitPoint
-        );
-        // When both halves complete, complete existing.completionListener; on failure, propagate it.
-        try (
-            var bothFiredRef = new RefCountingListener(
-                ActionListener.wrap(v -> existing.completionListener.onResponse(existing.end), existing.completionListener::onFailure)
-            )
-        ) {
-            completionListenerA.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
-            completionListenerB.addListener(bothFiredRef.acquire(l -> {}), existing.end);
-        }
 
         assert invariant();
         return new Range[] { rangeA, rangeB };

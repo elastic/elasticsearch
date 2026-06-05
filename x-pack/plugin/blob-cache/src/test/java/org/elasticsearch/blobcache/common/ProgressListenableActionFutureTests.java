@@ -273,6 +273,93 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
         assertThat("LongConsumer is not called when progress is updated to the end", consumed.contains(end), equalTo(false));
     }
 
+    public void testSplit() {
+        final ProgressListenableActionFuture future = randomFuture();
+        assertTrue("randomFuture must produce a range of at least 3", future.end - future.start >= 3);
+
+        final long splitPoint = randomLongBetween(future.start + 1L, future.end - 1L);
+
+        // Threshold strictly inside lower's range (or at splitPoint if lower has length 1)
+        final long thresholdInLower = splitPoint > future.start + 1L ? randomLongBetween(future.start + 1L, splitPoint - 1L) : splitPoint;
+        final PlainActionFuture<Long> listenerInLower = new PlainActionFuture<>();
+
+        // Threshold at the split boundary
+        final PlainActionFuture<Long> listenerAtSplit = new PlainActionFuture<>();
+
+        // Threshold strictly inside upper's range (or at end if upper has length 1)
+        final long thresholdInUpper = future.end > splitPoint + 1L ? randomLongBetween(splitPoint + 1L, future.end - 1L) : future.end;
+        final PlainActionFuture<Long> listenerInUpper = new PlainActionFuture<>();
+
+        // Threshold at the very end
+        final PlainActionFuture<Long> listenerAtEnd = new PlainActionFuture<>();
+
+        boolean addListenersBeforeSplit = randomBoolean();
+        if (addListenersBeforeSplit) {
+            future.addListener(listenerInLower, thresholdInLower);
+            future.addListener(listenerAtSplit, splitPoint);
+            future.addListener(listenerInUpper, thresholdInUpper);
+            future.addListener(listenerAtEnd, future.end);
+        }
+
+        final ProgressListenableActionFuture[] parts = future.split(splitPoint);
+        final ProgressListenableActionFuture lower = parts[0];
+        final ProgressListenableActionFuture upper = parts[1];
+
+        if (!addListenersBeforeSplit) {
+            future.addListener(listenerInLower, thresholdInLower);
+            future.addListener(listenerAtSplit, splitPoint);
+            future.addListener(listenerInUpper, thresholdInUpper);
+            future.addListener(listenerAtEnd, future.end);
+        }
+
+        assertThat(lower.start, equalTo(future.start));
+        assertThat(lower.end, equalTo(splitPoint));
+        assertThat(upper.start, equalTo(splitPoint));
+        assertThat(upper.end, equalTo(future.end));
+        assertFalse(lower.isDone());
+        assertFalse(upper.isDone());
+        assertFalse(future.isDone());
+
+        if (randomBoolean()) {
+            // Case A: lower fills first, then upper — upper's per-byte forwarding fires listenerInUpper
+            fillHalf(lower);
+            assertThat("listener in lower fires at its exact threshold", listenerInLower.actionGet(), equalTo(thresholdInLower));
+            assertThat("listener at split fires when lower completes", listenerAtSplit.actionGet(), equalTo(splitPoint));
+            assertFalse("listener in upper must not fire before lower completes", listenerInUpper.isDone());
+            assertFalse(listenerAtEnd.isDone());
+            assertFalse(future.isDone());
+
+            fillHalf(upper);
+            assertThat("listener in upper fires at its threshold via forwarding", listenerInUpper.actionGet(), equalTo(thresholdInUpper));
+            assertThat("listener at end fires when both halves complete", listenerAtEnd.actionGet(), equalTo(future.end));
+            assertTrue(future.isDone());
+        } else {
+            // Case B: upper fills and completes first — upper's consumer is gated on lower.isDone() so
+            // nothing forwards to future until lower is done; listeners fire via onResponse(end) at the end
+            fillHalf(upper);
+            assertFalse("no future listener should fire while lower is still pending", listenerInLower.isDone());
+            assertFalse(listenerAtSplit.isDone());
+            assertFalse(listenerInUpper.isDone());
+            assertFalse(listenerAtEnd.isDone());
+            assertFalse(future.isDone());
+
+            fillHalf(lower);
+            assertThat("listener in lower fires at its exact threshold", listenerInLower.actionGet(), equalTo(thresholdInLower));
+            assertThat("listener at split fires when lower completes", listenerAtSplit.actionGet(), equalTo(splitPoint));
+            // Both halves now done: onResponse fires all remaining listeners with future.end
+            assertThat("listener in upper fires via completion", listenerInUpper.actionGet(), equalTo(future.end));
+            assertThat("listener at end fires via completion", listenerAtEnd.actionGet(), equalTo(future.end));
+            assertTrue(future.isDone());
+        }
+    }
+
+    private static void fillHalf(ProgressListenableActionFuture half) {
+        for (long p = half.start + 1L; p < half.end; p++) {
+            half.onProgress(p);
+        }
+        half.onResponse(half.end);
+    }
+
     public void testOnProgressAtLeastFiresListeners() {
         final ProgressListenableActionFuture future = randomFuture();
         assertTrue("randomFuture must produce a range of at least 2", future.end - future.start >= 2);

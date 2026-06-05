@@ -43,8 +43,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
-    public static final String BULK_SESSION_TASK_TYPE = "bulk_session";
-    public static final String BULK_SESSION_ACTION = "bulk_session_action";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk_session_timeout_tracking";
+    public static final String BULK_SESSION_ACTION = "bulk_session_timeout_tracking_action";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -158,14 +158,6 @@ public class IncrementalBulkService {
             TaskManager taskManager
         ) {
             this.taskManager = taskManager;
-            this.client = client;
-            this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
-            this.timeout = timeout;
-            this.refresh = refresh;
-            this.paramsUsed = paramsUsed;
-            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
-            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
-            createNewBulkRequest(EMPTY_STATE);
             bulkSessionTask = (CancellableTask) taskManager.register(BULK_SESSION_TASK_TYPE, BULK_SESSION_ACTION, new TaskAwareRequest() {
                 @Override
                 public void setParentTask(TaskId taskId) {}
@@ -184,6 +176,14 @@ public class IncrementalBulkService {
                 }
             });
 
+            this.client = client;
+            this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
+            this.timeout = timeout;
+            this.refresh = refresh;
+            this.paramsUsed = paramsUsed;
+            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
+            this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
+            createNewBulkRequest(EMPTY_STATE);
         }
 
         public void cancel(String reason, Runnable listener) {

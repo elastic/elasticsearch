@@ -38,9 +38,7 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * Adds a function to return a result set with multivalued items that are contained in the input sets.
- * Example:
- *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_INTERSECTION(A, B) returns {"b", "c"}
+ * Returns the values that appear in both input fields. Returns {@code null} if either field is null or if no values match.
  */
 public class MvIntersection extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -73,7 +71,6 @@ public class MvIntersection extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns the values that appear in both input fields. Returns `null` if either field is null or if no values match.",
         preview = true,
         examples = {
             @Example(file = "mv_intersection", tag = "testMvIntersectionWithIntValues"),

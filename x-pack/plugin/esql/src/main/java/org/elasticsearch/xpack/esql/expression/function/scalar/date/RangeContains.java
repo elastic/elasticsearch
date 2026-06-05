@@ -32,15 +32,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 /**
- * RANGE_CONTAINS(a, b) -> boolean
- * Returns true if the first argument contains the second.
- * Equivalent to {@code RANGE_WITHIN(b, a)} — this function lowers to {@link RangeWithin} via
- * {@link OnlySurrogateExpression#surrogate()} on the coordinator, so it has no evaluator of its own.
- * Supported signatures:
- * <ul>
- *   <li>(date_range, date): range contains point</li>
- *   <li>(date_range, date_range): first range contains second (second fully contained by first)</li>
- * </ul>
+ * Returns true if the first argument
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query">contains</a>
+ * the second argument. This is the inverse of
+ * <a href="#esql-range_within">RANGE_WITHIN</a>; equivalent to {@code RANGE_WITHIN(b, a)}.
+ * Supports (date_range, date) and (date_range, date_range). The first argument must be a date_range.
+ *
+ * <h2>Implementation</h2>
+ * This function lowers to {@link RangeWithin} via {@link OnlySurrogateExpression#surrogate()} on the
+ * coordinator, so it has no evaluator of its own.
  */
 public class RangeContains extends EsqlScalarFunction implements OnlySurrogateExpression {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeContains.class)
@@ -54,11 +54,6 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = """
-            Returns true if the first argument
-            [contains](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) the second argument.
-            This is the inverse of [RANGE_WITHIN](#esql-range_within); equivalent to `RANGE_WITHIN(b, a)`.
-            Supports (date_range, date) and (date_range, date_range). The first argument must be a date_range.""",
         examples = @Example(
             file = "date_range",
             tag = "rangeContains",

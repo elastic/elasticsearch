@@ -40,7 +40,10 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
- * Similar to {@link Count}, but it is used to calculate the count of values over a time series from the given field.
+ * Calculates the count over time value of a field.
+ *
+ * <h2>Implementation</h2>
+ * Similar to {@link Count}, but operates over a time series.
  */
 public class CountOverTime extends TimeSeriesAggregateFunction
     implements
@@ -65,7 +68,6 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
-        description = "Calculates the count over time value of a field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

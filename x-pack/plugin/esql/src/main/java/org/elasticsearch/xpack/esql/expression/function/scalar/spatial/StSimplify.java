@@ -46,6 +46,11 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
+/**
+ * Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified
+ * tolerance. Vertices that fall within the tolerance distance from the simplified shape are
+ * removed. Note that the resulting geometry may be invalid, even if the original input was valid.
+ */
 public class StSimplify extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -72,9 +77,6 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
-        description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
-            + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplify"),

@@ -27,17 +27,18 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+/**
+ * Use {@code RLIKE} to filter data based on string patterns using regular expressions.
+ * {@code RLIKE} usually acts on a field placed on the left-hand side of the operator, but it can
+ * also act on a constant (literal) expression. The right-hand side of the operator represents the
+ * pattern.
+ */
 public class RLike extends RegexMatch<RLikePattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RLike", RLike::new);
     public static final String NAME = "RLIKE";
 
     @FunctionInfo(
         returnType = "boolean",
-        description = """
-            Use `RLIKE` to filter data based on string patterns using
-            <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
-            the left-hand side of the operator, but it can also act on a constant (literal)
-            expression. The right-hand side of the operator represents the pattern.""",
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """

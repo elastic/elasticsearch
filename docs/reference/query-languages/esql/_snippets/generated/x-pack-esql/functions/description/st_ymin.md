@@ -2,5 +2,7 @@
 
 ## Description
 
-Extracts the minimum value of the `y` coordinates from the supplied geometry. If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum `latitude` value.
+Determines the minimum value of the y-coordinate from a geometry.
+The function `st_ymin` is defined in the [OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at [PostGIS:ST_YMIN](https://postgis.net/docs/ST_YMIN.html).
 

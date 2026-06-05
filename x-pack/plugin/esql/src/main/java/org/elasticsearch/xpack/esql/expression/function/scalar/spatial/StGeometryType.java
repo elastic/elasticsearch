@@ -60,9 +60,6 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        description = "Returns the geometry type of the supplied geometry, as a string.\n"
-            + "For example: `ST_Point`, `ST_LineString`, `ST_Polygon`, `ST_MultiPoint`, `ST_MultiLineString`, "
-            + "`ST_MultiPolygon`, or `ST_GeometryCollection`.",
         examples = @Example(file = "spatial_shapes", tag = "st_geometrytype"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )

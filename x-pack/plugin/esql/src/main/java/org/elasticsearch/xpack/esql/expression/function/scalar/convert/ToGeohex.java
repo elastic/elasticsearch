@@ -32,6 +32,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
+/**
+ * Converts an input value to a {@code geohex} value.
+ * A string will only be successfully converted if it respects the
+ * {@code geohex} format, as described for the
+ * <a href="/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md">geohex grid aggregation</a>.
+ */
 public class ToGeohex extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGeohex", ToGeohex::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohex.class).unary(ToGeohex::new).name("to_geohex");
@@ -47,11 +53,6 @@ public class ToGeohex extends AbstractConvertFunction {
         returnType = "geohex",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = """
-            Converts an input value to a `geohex` value.
-            A string will only be successfully converted if it respects the
-            `geohex` format, as described for the
-            [geohex grid aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "to_geohex")
     )
     public ToGeohex(

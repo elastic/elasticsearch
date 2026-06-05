@@ -2,5 +2,5 @@
 
 ## Description
 
-Calculates the population variance over time of a numeric field.
+Similar to Variance, but it is used to calculate the variance over a time series of values from the given field.
 

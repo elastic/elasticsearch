@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+/**
+ * Calculates the Hamming distance between two dense vectors.
+ */
 public class Hamming extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hamming", Hamming::new);
@@ -78,7 +81,6 @@ public class Hamming extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the Hamming distance between two dense vectors.",
         examples = { @Example(file = "vector-hamming", tag = "vector-hamming") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

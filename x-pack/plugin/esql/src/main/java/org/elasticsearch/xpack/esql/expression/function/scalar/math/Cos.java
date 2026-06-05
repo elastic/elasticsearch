@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Cosine trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Sine_and_cosine">cosine</a> of an angle.
  */
 public class Cos extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cos", Cos::new);
@@ -35,11 +35,7 @@ public class Cos extends AbstractTrigonometricFunction {
         .example("cos(some_metric)")
         .name("cos");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.",
-        examples = @Example(file = "floats", tag = "cos")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "cos"))
     public Cos(
         Source source,
         @Param(

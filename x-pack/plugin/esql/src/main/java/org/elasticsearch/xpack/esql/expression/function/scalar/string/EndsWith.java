@@ -42,6 +42,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Returns a boolean that indicates whether a keyword string ends with another string.
+ */
 public class EndsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "EndsWith", EndsWith::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(EndsWith.class).binary(EndsWith::new).name("ends_with");
@@ -49,11 +52,7 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
     private final Expression str;
     private final Expression suffix;
 
-    @FunctionInfo(
-        returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string ends with another string.",
-        examples = @Example(file = "string", tag = "endsWith")
-    )
+    @FunctionInfo(returnType = "boolean", examples = @Example(file = "string", tag = "endsWith"))
     public EndsWith(
         Source source,
         @Param(

@@ -37,6 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Returns a string constructed by concatenating {@code string} with itself the specified {@code number} of times.
+ */
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class).binary(Repeat::new).name("repeat");
@@ -44,11 +47,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     private final Expression str;
     private final Expression number;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Returns a string constructed by concatenating `string` with itself the specified `number` of times.",
-        examples = @Example(file = "string", tag = "repeat")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "repeat"))
     public Repeat(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "String expression.") Expression str,

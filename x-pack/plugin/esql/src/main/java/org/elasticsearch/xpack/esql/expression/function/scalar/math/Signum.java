@@ -27,6 +27,10 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Returns the sign of the given number.
+ * It returns {@code -1} for negative numbers, {@code 0} for {@code 0} and {@code 1} for positive numbers.
+ */
 public class Signum extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Signum", Signum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Signum.class).unary(Signum::new).name("signum");
@@ -36,12 +40,7 @@ public class Signum extends UnaryScalarFunction {
         .example("sgn(delta(queue_depth[5m]))")
         .name("sgn");
 
-    @FunctionInfo(
-        returnType = { "double" },
-        description = "Returns the sign of the given number.\n"
-            + "It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.",
-        examples = @Example(file = "math", tag = "signum")
-    )
+    @FunctionInfo(returnType = { "double" }, examples = @Example(file = "math", tag = "signum"))
     public Signum(
         Source source,
         @Param(

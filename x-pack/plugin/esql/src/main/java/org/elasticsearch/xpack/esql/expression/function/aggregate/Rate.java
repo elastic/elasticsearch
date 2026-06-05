@@ -41,6 +41,14 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Calculates the per-second average rate of increase of a
+ * <a href="docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric">counter</a>.
+ * Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate
+ * values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed
+ * in a <a href="/reference/query-languages/esql/commands/stats-by.md">STATS</a> command under a
+ * <a href="/reference/query-languages/esql/commands/ts.md">{@code TS}</a> source command, to be properly applied per time series.
+ */
 public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
@@ -60,12 +68,6 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "Calculates the per-second average rate of increase of a"
-            + " [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). "
-            + "Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate "
-            + "values within each bucketed time interval. Rate is the most appropriate aggregate function for counters. It is only allowed "
-            + "in a [STATS](/reference/query-languages/esql/commands/stats-by.md) command under a "
-            + "[`TS`](/reference/query-languages/esql/commands/ts.md) source command, to be properly applied per time series.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

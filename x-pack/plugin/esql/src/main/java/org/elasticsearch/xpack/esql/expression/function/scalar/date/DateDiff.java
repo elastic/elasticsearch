@@ -134,9 +134,6 @@ public class DateDiff extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "integer",
-        description = """
-            Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`.
-            If `startTimestamp` is later than the `endTimestamp`, negative values are returned.""",
         detailedDescription = """
             **Datetime difference units**
 
@@ -156,8 +153,8 @@ public class DateDiff extends EsqlConfigurationFunction {
             | microsecond | microseconds, mcs |
             | nanosecond | nanoseconds, ns |
 
-            Note that while there is an overlap between the function’s supported units and
-            {{esql}}’s supported time span literals, these sets are distinct and not
+            Note that while there is an overlap between the function's supported units and
+            {{esql}}'s supported time span literals, these sets are distinct and not
             interchangeable. Similarly, the supported abbreviations are conveniently shared
             with implementations of this function in other established products and not
             necessarily common with the date-time nomenclature used by {{es}}.""",

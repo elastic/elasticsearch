@@ -33,14 +33,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
+/**
+ * Returns the negation of the argument.
+ */
 public class Neg extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
 
-    @FunctionInfo(
-        operator = "-",
-        returnType = { "double", "integer", "long", "date_period", "time_duration" },
-        description = "Returns the negation of the argument."
-    )
+    @FunctionInfo(operator = "-", returnType = { "double", "integer", "long", "date_period", "time_duration" })
     public Neg(
         Source source,
         @Param(

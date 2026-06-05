@@ -39,9 +39,6 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
-        description = """
-            An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
-            the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_earliest_latest", tag = "latest")
     )

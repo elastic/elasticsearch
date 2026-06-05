@@ -2,5 +2,6 @@
 
 ## Description
 
-Converts a multivalued string expression into a single valued column containing the concatenation of all values separated by a delimiter.
+Converts a multivalued string expression into a single valued column containing the concatenation of all values
+separated by a delimiter.
 

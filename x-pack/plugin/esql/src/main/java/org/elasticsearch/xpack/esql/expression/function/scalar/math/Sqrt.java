@@ -30,6 +30,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
+/**
+ * Returns the square root of a number. The input can be any numeric value, the return value is always a double.
+ * Square roots of negative numbers and infinities are null.
+ */
 public class Sqrt extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sqrt", Sqrt::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sqrt.class).unary(Sqrt::new).name("sqrt");
@@ -39,9 +43,7 @@ public class Sqrt extends UnaryScalarFunction {
         .example("sqrt(http_requests_total)")
         .name("sqrt");
 
-    @FunctionInfo(returnType = "double", description = """
-        Returns the square root of a number. The input can be any numeric value, the return value is always a double.
-        Square roots of negative numbers and infinities are null.""", examples = @Example(file = "math", tag = "sqrt"))
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "sqrt"))
     public Sqrt(
         Source source,
         @Param(

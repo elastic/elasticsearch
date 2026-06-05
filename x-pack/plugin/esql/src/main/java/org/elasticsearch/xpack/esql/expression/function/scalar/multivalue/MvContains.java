@@ -46,22 +46,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Function that takes two multivalued expressions and checks if values of one expression(subset) are
- * all present(equals) in the other (superset). Duplicates are ignored in the sense that for each
- * duplicate in the subset, we will search/match against the first/any value in the superset.
- * <p>
- * Given Set A = {"a","b","c"} and Set B = {"b","c"}, the relationship between first (row) and second (column) arguments is:
- * <ul>
- *     <li>A, B &rArr; true  (A &sube; B)</li>
- *     <li>B, A &rArr; false (A &#8840; B)</li>
- *     <li>A, A &rArr; true (A &equiv; A)</li>
- *     <li>B, B &rArr; true (B &equiv; B)</li>
- *     <li>A, null &rArr; true (B &sube; &empty;)</li>
- *     <li>null, A &rArr; false (&empty; &#8840; B)</li>
- *     <li>B, null &rArr; true (B &sube; &empty;)</li>
- *     <li>null, B &rArr; false (&empty; &#8840; B)</li>
- *     <li>null, null &rArr; true (&empty; &equiv; &empty;)</li>
- * </ul>
+ * Checks if all values yielded by the second multivalue expression are present in the values yielded by the first multivalue
+ * expression. Returns a boolean. Null values are treated as an empty set.
  */
 public class MvContains extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -76,8 +62,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Checks if all values yielded by the second multivalue expression are present in the values yielded by "
-            + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
             @Example(file = "string", tag = "mv_contains"),
             @Example(file = "string", tag = "mv_contains_bothsides"),

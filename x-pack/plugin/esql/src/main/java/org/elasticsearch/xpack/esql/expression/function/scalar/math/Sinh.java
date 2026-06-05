@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Sine hyperbolic function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Hyperbolic_functions">hyperbolic sine</a> of a number.
  */
 public class Sinh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sinh", Sinh::new);
@@ -35,11 +35,7 @@ public class Sinh extends AbstractTrigonometricFunction {
         .example("sinh(some_metric)")
         .name("sinh");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of a number.",
-        examples = @Example(file = "floats", tag = "sinh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "sinh"))
     public Sinh(
         Source source,
         @Param(

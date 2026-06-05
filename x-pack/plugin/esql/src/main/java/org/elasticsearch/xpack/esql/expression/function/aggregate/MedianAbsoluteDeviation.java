@@ -31,6 +31,14 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
+/**
+ * Returns the median absolute deviation, a measure of variability. It is a robust statistic, meaning that it is useful for
+ * describing data that may have outliers, or may not be normally distributed. For such data it can be more descriptive than
+ * standard deviation.
+ *
+ * It is calculated as the median of each data point's deviation from the median of the entire sample. That is, for a random
+ * variable {@code X}, the median absolute deviation is {@code median(|median(X) - X|)}.
+ */
 public class MedianAbsoluteDeviation extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -44,14 +52,6 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
     // TODO: Add parameter
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the median absolute deviation, a measure of variability. It is a robust "
-            + "statistic, meaning that it is useful for describing data that may have outliers, "
-            + "or may not be normally distributed. For such data it can be more descriptive "
-            + "than standard deviation."
-            + "\n\n"
-            + "It is calculated as the median of each data point’s deviation from the median of "
-            + "the entire sample. That is, for a random variable `X`, the median absolute "
-            + "deviation is `median(|median(X) - X|)`.",
         note = "Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
             ::::{warning}

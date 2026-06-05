@@ -11,7 +11,7 @@ FROM employees
 | --- |
 | 281 |
 
-The expression can use inline functions. For example, to calculate the sum of each employee’s maximum salary changes, apply the `MV_MAX` function to each row and then sum the results
+The expression can use inline functions. For example, to calculate the sum of each employee's maximum salary changes, apply the `MV_MAX` function to each row and then sum the results
 
 ```esql
 FROM employees

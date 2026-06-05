@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.compute.data.HistogramBlock.Component;
 
 /**
- * Similar to {@link Min}, but it is used to calculate the minimum value over a time series of values from the given field.
+ * Calculates the minimum over time value of a field.
  */
 public class MinOverTime extends TimeSeriesAggregateFunction
     implements
@@ -61,7 +61,6 @@ public class MinOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
-        description = "Calculates the minimum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

@@ -48,6 +48,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
+/**
+ * Returns the approximate number of distinct values.
+ */
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -80,14 +83,13 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @FunctionInfo(
         returnType = "long",
-        description = "Returns the approximate number of distinct values.",
         note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
             + "aggregation-functions/count_distinct.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 
             Computing exact counts requires loading values into a set and returning its
-            size. This doesn’t scale when working on high-cardinality sets and/or large
+            size. This doesn't scale when working on high-cardinality sets and/or large
             values as the required memory usage and the need to communicate those
             per-shard sets between nodes would utilize too many resources of the cluster.
 

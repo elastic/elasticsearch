@@ -35,6 +35,9 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
+/**
+ * Check if two fields are unequal. If either field is multivalued then the result is {@code null}.
+ */
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -69,8 +72,6 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @FunctionInfo(
         operator = "!=",
         returnType = { "boolean" },
-        description = "Check if two fields are unequal. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
         note = "This is pushed to the underlying search index if one side of the comparison is constant "
             + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
     )

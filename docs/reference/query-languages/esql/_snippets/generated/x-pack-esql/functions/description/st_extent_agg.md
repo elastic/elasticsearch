@@ -2,5 +2,5 @@
 
 ## Description
 
-Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.
+Calculate spatial extent of all values of a field in matching documents.
 

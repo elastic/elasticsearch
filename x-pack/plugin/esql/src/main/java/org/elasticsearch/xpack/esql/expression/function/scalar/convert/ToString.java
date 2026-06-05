@@ -72,6 +72,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToS
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
+/**
+ * Converts an input value into a string.
+ */
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
@@ -114,7 +117,6 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Converts an input value into a string.",
         examples = {
             @Example(file = "string", tag = "to_string"),
             @Example(description = "It also works fine on multivalued fields:", file = "string", tag = "to_string_multivalue") }

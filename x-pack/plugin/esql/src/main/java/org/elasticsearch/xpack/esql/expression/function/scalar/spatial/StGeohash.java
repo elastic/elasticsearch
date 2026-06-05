@@ -118,18 +118,6 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        description = """
-            Calculates the `geohash` of the supplied geo_point at the specified precision.
-            The result is long encoded.
-            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
-            to convert the result to a string,
-            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
-            to convert it to a `long`, or
-            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
-            to calculate the `geo_shape` bounding geometry.
-
-            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
-            and the [`geohash_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "st_geohash-grid"),
         depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )

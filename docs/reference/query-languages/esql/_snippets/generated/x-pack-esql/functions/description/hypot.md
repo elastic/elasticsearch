@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double. Hypotenuses of infinities are null.
+Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
+Hypotenuses of infinities are null.
 

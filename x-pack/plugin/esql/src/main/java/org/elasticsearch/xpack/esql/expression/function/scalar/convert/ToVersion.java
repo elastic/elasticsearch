@@ -29,6 +29,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 
+/**
+ * Converts an input string to a version value.
+ */
 public class ToVersion extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -45,11 +48,7 @@ public class ToVersion extends AbstractConvertFunction {
         Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "version",
-        description = "Converts an input string to a version value.",
-        examples = @Example(file = "version", tag = "to_version")
-    )
+    @FunctionInfo(returnType = "version", examples = @Example(file = "version", tag = "to_version"))
     public ToVersion(
         Source source,
         @Param(

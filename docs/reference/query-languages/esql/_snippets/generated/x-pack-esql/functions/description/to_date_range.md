@@ -2,5 +2,7 @@
 
 ## Description
 
-Converts an input value to a `date_range` value. A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format. The range is half-open `[start, end)`.
+Converts an input value to a `date_range` value. A string will be parsed as a date range
+in the format `start..end`, where start and end are dates in ISO format. The range is
+half-open `[start, end)`.
 

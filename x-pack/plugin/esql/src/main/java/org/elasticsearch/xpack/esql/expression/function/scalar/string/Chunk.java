@@ -49,6 +49,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
+/**
+ * Use {@code CHUNK} to split a text field into smaller chunks.
+ */
 public class Chunk extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Chunk", Chunk::new);
@@ -72,8 +75,6 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         returnType = "keyword",
         preview = true,
-        description = """
-            Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
                 Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
                 Chunk will split a text field into smaller chunks. By default it uses a sentence-based chunking strategy;

@@ -59,9 +59,6 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "tdigest",
             "unsigned_long",
             "version" },
-        description = """
-            An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
-            the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_earliest_latest", tag = "earliest")
     )

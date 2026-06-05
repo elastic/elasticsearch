@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Computes the SHA256 hash of the input.
+ */
 public class Sha256 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SHA256", Sha256::new);
@@ -27,11 +30,7 @@ public class Sha256 extends AbstractHashFunction {
 
     private static final Hash.HashFunction SHA256 = Hash.HashFunction.create("SHA256");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Computes the SHA256 hash of the input.",
-        examples = { @Example(file = "hash", tag = "sha256") }
-    )
+    @FunctionInfo(returnType = "keyword", examples = { @Example(file = "hash", tag = "sha256") })
     public Sha256(Source source, @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input) {
         super(source, input);
     }

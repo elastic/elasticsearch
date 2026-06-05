@@ -50,11 +50,6 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the median absolute deviation."
-            + "\n\n"
-            + "It is calculated as the median of each data point’s deviation from the median of "
-            + "the entire sample. That is, for a random variable `X`, the median absolute "
-            + "deviation is `median(|median(X) - X|)`.",
         note = "If the field has an even number of values, "
             + "the medians will be calculated as the average of the middle two values. "
             + "If the value is not a floating point number, the averages are rounded towards 0.",
@@ -142,7 +137,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don’t need to sort them for the first median calculation.
+     * - As values are sorted, we don't need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static int ascending(Longs longs, IntBlock values, int firstValue, int count) {
@@ -191,7 +186,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don’t need to sort them for the first median calculation.
+     * - As values are sorted, we don't need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static long ascending(Longs longs, LongBlock values, int firstValue, int count) {
@@ -254,7 +249,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don’t need to sort them for the first median calculation.
+     * - As values are sorted, we don't need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static double ascending(Doubles doubles, DoubleBlock values, int firstValue, int count) {
@@ -314,7 +309,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
 
     /**
      * Similar to the code in `finish`, for when the values are in ascending order. The major differences are:
-     * - As values are sorted, we don’t need to sort them for the first median calculation.
+     * - As values are sorted, we don't need to sort them for the first median calculation.
      * - We take the values directly from the block instead of from the helper object.
      */
     static long ascendingUnsignedLong(Longs longs, LongBlock values, int firstValue, int count) {

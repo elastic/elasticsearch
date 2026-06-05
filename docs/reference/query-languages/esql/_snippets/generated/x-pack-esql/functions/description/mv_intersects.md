@@ -2,5 +2,6 @@
 
 ## Description
 
-Checks if any value yielded by the second multivalue expression is present in the values yielded by the first multivalue expression. Returns a boolean. Null values are treated as an empty set.
+Checks if any value yielded by the second multivalue expression is present in the values yielded by the first multivalue
+expression. Returns a boolean. Null values are treated as an empty set.
 

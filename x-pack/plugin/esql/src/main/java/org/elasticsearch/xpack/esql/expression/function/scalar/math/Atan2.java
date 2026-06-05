@@ -31,7 +31,8 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 /**
- * Inverse cosine trigonometric function.
+ * The <a href="https://en.wikipedia.org/wiki/Atan2">angle</a> between the positive x-axis and the ray from the origin to the point
+ * (x , y) in the Cartesian plane, expressed in radians.
  */
 public class Atan2 extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Atan2", Atan2::new);
@@ -40,12 +41,7 @@ public class Atan2 extends EsqlScalarFunction {
     private final Expression y;
     private final Expression x;
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "The {wikipedia}/Atan2[angle] between the positive x-axis and the ray from the\n"
-            + "origin to the point (x , y) in the Cartesian plane, expressed in radians.",
-        examples = @Example(file = "floats", tag = "atan2")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "atan2"))
     public Atan2(
         Source source,
         @Param(

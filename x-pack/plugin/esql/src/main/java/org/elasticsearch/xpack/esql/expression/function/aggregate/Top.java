@@ -71,6 +71,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
+/**
+ * Collects the top values for a field. Includes repeated values.
+ */
 public class Top extends AggregateFunction
     implements
         TwoOptionalArguments,
@@ -85,7 +88,6 @@ public class Top extends AggregateFunction
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
-        description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats_top", tag = "top")
     )

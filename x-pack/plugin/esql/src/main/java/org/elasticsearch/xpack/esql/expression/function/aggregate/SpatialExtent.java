@@ -58,7 +58,6 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         returnType = { "geo_shape", "cartesian_shape" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )

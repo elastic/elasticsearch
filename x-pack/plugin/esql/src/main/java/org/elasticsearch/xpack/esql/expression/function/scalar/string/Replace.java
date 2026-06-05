@@ -40,6 +40,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * The function substitutes in the string {@code str} any match of the regular expression {@code regex}
+ * with the replacement string {@code newStr}.
+ */
 public class Replace extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Replace.class).ternary(Replace::new).name("replace");
@@ -53,9 +57,6 @@ public class Replace extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = """
-            The function substitutes in the string `str` any match of the regular expression `regex`
-            with the replacement string `newStr`.""",
         examples = {
             @Example(
                 file = "string",

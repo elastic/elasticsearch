@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the square root of a number. The input can be any numeric value, the return value is always a double. Square roots of negative numbers and infinities are null.
+Returns the square root of a number. The input can be any numeric value, the return value is always a double.
+Square roots of negative numbers and infinities are null.
 

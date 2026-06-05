@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * Function that reverses a string.
+ * Returns a new string representing the input string in reverse order.
  */
 public class Reverse extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Reverse", Reverse::new);
@@ -46,7 +46,6 @@ public class Reverse extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "keyword" },
-        description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),
             @Example(

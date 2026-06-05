@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Function that emits pi.
+ * Returns <a href="https://en.wikipedia.org/wiki/Pi">Pi</a>, the ratio of a circle's circumference to its diameter.
  */
 public class Pi extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Pi", Pi::new);
@@ -35,11 +35,7 @@ public class Pi extends DoubleConstantFunction {
         .example("pi()")
         .name("pi");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns {wikipedia}/Pi[Pi], the ratio of a circle’s circumference to its diameter.",
-        examples = @Example(file = "math", tag = "pi")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "pi"))
     public Pi(Source source) {
         super(source);
     }

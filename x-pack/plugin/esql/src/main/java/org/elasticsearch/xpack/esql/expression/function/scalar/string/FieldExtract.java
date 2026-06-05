@@ -52,19 +52,18 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Extracts a single sub-field from a {@code flattened} field root as {@code keyword}.
- * <p>
- *     The second argument is the <em>literal</em> name of a flattened sub-field, that is,
- *     exactly the dotted key as it is stored in doc values for the flattened root (for example
- *     {@code "host.name"}).
- * </p>
- * <p>
- *     When the path is a foldable literal key on a real {@code flattened} {@link FieldAttribute},
- *     the call is fused into the field load via {@link BlockLoaderExpression}. The keyed sub-field's
- *     doc values are read directly instead of materializing the whole flattened JSON and re-parsing
- *     it per row. The path is the flat sub-field name as is (no parsing), so any path that passes
- *     verifier-time validation is eligible for pushdown.
- * </p>
+ * Extracts the value of a single sub-field from a
+ * <a href="/reference/elasticsearch/mapping-reference/flattened.md">{@code flattened} field</a>
+ * root as {@code keyword}.
+ *
+ * <h2>Implementation</h2>
+ * The second argument is the literal dotted key as stored in doc values for the flattened root.
+ *
+ * When the path is a foldable literal key on a real {@code flattened} {@link FieldAttribute},
+ * the call is fused into the field load via {@link BlockLoaderExpression}. The keyed sub-field's
+ * doc values are read directly instead of materializing the whole flattened JSON and re-parsing
+ * it per row. The path is the flat sub-field name as is (no parsing), so any path that passes
+ * verifier-time validation is eligible for pushdown.
  */
 public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
@@ -87,9 +86,6 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
-        description = """
-            Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) \
-            root as `keyword`.""",
         detailedDescription = """
             The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).
             The second argument is the *literal* name of the sub-field to extract, that is, exactly the dotted key as

@@ -44,9 +44,9 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
- * Determines the maximum value of the x-coordinate from a geometry.
- * The function `st_xmax` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_XMAX.html">PostGIS:ST_XMAX</a>.
+ * Extracts the maximum value of the {@code x} coordinates from the supplied geometry.
+ * If the geometry is of type {@code geo_point} or {@code geo_shape} this is equivalent to extracting the maximum
+ * {@code longitude} value.
  */
 public class StXMax extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StXMax", StXMax::new);
@@ -56,8 +56,6 @@ public class StXMax extends SpatialUnaryDocValuesFunction {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Extracts the maximum value of the `x` coordinates from the supplied geometry.\n"
-            + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `longitude` value.",
         examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),
         depthOffset = 1  // So this appears as a subsection of ST_ENVELOPE
     )

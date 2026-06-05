@@ -26,6 +26,9 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Returns the absolute value.
+ */
 public class Abs extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
@@ -43,7 +46,6 @@ public class Abs extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Returns the absolute value.",
         examples = { @Example(file = "math", tag = "abs"), @Example(file = "math", tag = "abs-employees") }
     )
     public Abs(

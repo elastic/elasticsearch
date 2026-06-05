@@ -29,7 +29,10 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Similar to {@link CountDistinct}, but it is used to calculate the distinct count of values over a time series from the given field.
+ * Calculates the count of distinct values over time for a field.
+ *
+ * <h2>Implementation</h2>
+ * Similar to {@link CountDistinct}, but operates over a time series.
  */
 public class CountDistinctOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -47,7 +50,6 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
-        description = "Calculates the count of distinct values over time for a field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

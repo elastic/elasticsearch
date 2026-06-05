@@ -34,6 +34,9 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
+/**
+ * Returns {@code false} if the value is {@code NULL}, {@code true} otherwise.
+ */
 public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, Negatable<UnaryScalarFunction>, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -42,7 +45,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
     );
 
     @FunctionInfo(
-        description = "Returns `false` if the value is `NULL`, `true` otherwise.",
+
         note = "If a field is only in some documents it will be `NULL` in the documents that did not contain it.",
         operator = "IS NOT NULL",
         returnType = {

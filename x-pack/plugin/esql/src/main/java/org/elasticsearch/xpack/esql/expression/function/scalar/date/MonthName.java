@@ -39,6 +39,9 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
+/**
+ * Returns the month name for the provided date based on the configured Locale.
+ */
 public class MonthName extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -53,7 +56,6 @@ public class MonthName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the month name for the provided date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsMonthName"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

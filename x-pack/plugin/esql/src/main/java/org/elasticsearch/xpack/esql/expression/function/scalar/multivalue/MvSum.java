@@ -38,11 +38,7 @@ public class MvSum extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSum", MvSum::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvSum.class).unary(MvSum::new).name("mv_sum");
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the sum of all of the values.",
-        examples = @Example(file = "math", tag = "mv_sum")
-    )
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, examples = @Example(file = "math", tag = "mv_sum"))
     public MvSum(
         Source source,
         @Param(

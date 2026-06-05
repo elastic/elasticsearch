@@ -2,5 +2,5 @@
 
 ## Description
 
-Performs a KQL query. Returns true if the provided KQL query string matches the row.
+Full text function that performs a KqlQuery .
 

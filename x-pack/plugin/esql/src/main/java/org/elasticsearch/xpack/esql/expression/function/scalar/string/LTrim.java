@@ -35,11 +35,7 @@ public class LTrim extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "LTrim", LTrim::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(LTrim.class).unary(LTrim::new).name("ltrim");
 
-    @FunctionInfo(
-        returnType = { "keyword" },
-        description = "Removes leading whitespaces from a string.",
-        examples = @Example(file = "string", tag = "ltrim")
-    )
+    @FunctionInfo(returnType = { "keyword" }, examples = @Example(file = "string", tag = "ltrim"))
     public LTrim(
         Source source,
         @Param(

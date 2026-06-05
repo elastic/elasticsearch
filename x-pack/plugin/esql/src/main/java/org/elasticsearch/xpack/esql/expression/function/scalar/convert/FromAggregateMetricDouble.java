@@ -49,6 +49,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
+/**
+ * Convert aggregate double metric to a block of a single subfield.
+ */
 public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction, BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -59,7 +62,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     private final Expression field;
     private final Expression subfieldIndex;
 
-    @FunctionInfo(returnType = { "long", "double" }, description = "Convert aggregate double metric to a block of a single subfield.")
+    @FunctionInfo(returnType = { "long", "double" })
     public FromAggregateMetricDouble(
         Source source,
         @Param(

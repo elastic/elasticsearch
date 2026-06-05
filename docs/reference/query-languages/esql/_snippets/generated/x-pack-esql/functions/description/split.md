@@ -2,5 +2,5 @@
 
 ## Description
 
-Split a single valued string into multiple strings.
+Splits a string on some delimiter into a multivalued string field.
 

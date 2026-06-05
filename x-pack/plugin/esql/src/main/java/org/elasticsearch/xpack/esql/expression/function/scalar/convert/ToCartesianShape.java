@@ -30,6 +30,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 
+/**
+ * Converts an input value to a {@code cartesian_shape} value.
+ * A string will only be successfully converted if it respects the
+ * <a href="https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry">WKT</a> format.
+ */
 public class ToCartesianShape extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -47,14 +52,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "cartesian_shape",
-        description = """
-            Converts an input value to a `cartesian_shape` value.
-            A string will only be successfully converted if it respects the
-            {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.""",
-        examples = @Example(file = "spatial_shapes", tag = "to_cartesianshape-str")
-    )
+    @FunctionInfo(returnType = "cartesian_shape", examples = @Example(file = "spatial_shapes", tag = "to_cartesianshape-str"))
     public ToCartesianShape(
         Source source,
         @Param(

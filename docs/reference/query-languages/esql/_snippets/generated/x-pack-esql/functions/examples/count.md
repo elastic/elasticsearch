@@ -42,7 +42,7 @@ ROW words="foo;bar;baz;qux;quux;foo"
 
 To count the number of times an expression returns `TRUE` use a
 [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
-shouldn’t be included.
+shouldn't be included.
 
 ```esql
 ROW n=1

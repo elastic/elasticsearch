@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "+",
   "name" : "add",
-  "description" : "Add two values. In case of numeric fields, if either field is multivalued then the result is `null`.\nFor dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.\n",
+  "description" : "Add two values. In case of numeric fields, if either field is multivalued then the result is\n`null`. For dense_vector operations, both arguments should be dense_vectors. Inequal vector\ndimensions generate null result.",
   "signatures" : [
     {
       "params" : [

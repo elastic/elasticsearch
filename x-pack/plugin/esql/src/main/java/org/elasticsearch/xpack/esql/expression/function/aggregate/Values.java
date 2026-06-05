@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -39,6 +40,10 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
+/**
+ * Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn't
+ * guaranteed. If you need the values returned in order use {@link MvSort}.
+ */
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
@@ -91,17 +96,13 @@ public class Values extends AggregateFunction implements ToAggregator {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "8.14.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0"), },
-        description = """
-            Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed.
-            If you need the values returned in order use
-            [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).""",
         appendix = """
             ::::{tip}
             Use [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions/top.md)
             if you need to keep repeated values.
             ::::
             ::::{warning}
-            This can use a significant amount of memory and ES|QL doesn’t yet
+            This can use a significant amount of memory and ES|QL doesn't yet
             grow aggregations beyond memory. So this aggregation will work until
             it is used to collect more values than can fit into memory. Once it
             collects too many values it will fail the query with

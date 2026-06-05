@@ -2,10 +2,10 @@
 
 ## Description
 
-Remove duplicate values from a multivalued field.
+Removes duplicate values from a multivalued field.
 
 ::::{note}
-`MV_DEDUPE` may, but won’t always, sort the values in the column.
+`MV_DEDUPE` may, but won't always, sort the values in the column.
 ::::
 
 

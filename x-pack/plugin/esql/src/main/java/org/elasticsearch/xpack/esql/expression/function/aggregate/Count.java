@@ -46,6 +46,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
+/**
+ * Returns the total number (count) of input values.
+ */
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Count.class)
@@ -60,7 +63,6 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @FunctionInfo(
         returnType = "long",
-        description = "Returns the total number (count) of input values.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "count"),
@@ -71,7 +73,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             @Example(description = """
                 To count the number of times an expression returns `TRUE` use a
                 [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
-                shouldn’t be included.""", file = "stats", tag = "count-where"),
+                shouldn't be included.""", file = "stats", tag = "count-where"),
             @Example(
                 description = "To count the number of times *multiple* expressions return `TRUE` use a WHERE inside the STATS.",
                 file = "stats",

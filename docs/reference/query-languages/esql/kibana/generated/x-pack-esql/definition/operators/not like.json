@@ -3,7 +3,7 @@
   "type" : "operator",
   "operator" : "not like",
   "name" : "not_like",
-  "description" : "Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`\nusually acts on a field placed on the left-hand side of the operator, but it can\nalso act on a constant (literal) expression. The right-hand side of the operator\nrepresents the pattern.\n\nThe following wildcard characters are supported:\n\n* `*` matches zero or more characters.\n* `?` matches one character.",
+  "description" : "Use `LIKE` to filter data based on string patterns using wildcards. `LIKE` usually\nacts on a field placed on the left-hand side of the operator, but it can also act on a constant\n(literal) expression. The right-hand side of the operator represents the pattern.\n\n\n\nThe following wildcard characters are supported:\n\n\n\n- `*` matches zero or more characters.\n\n- `?` matches one character.",
   "signatures" : [
     {
       "params" : [

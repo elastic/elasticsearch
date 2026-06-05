@@ -2,5 +2,7 @@
 
 ## Description
 
-Extracts the maximum value of the `x` coordinates from the supplied geometry. If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `longitude` value.
+Extracts the maximum value of the `x` coordinates from the supplied geometry.
+If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum
+`longitude` value.
 

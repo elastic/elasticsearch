@@ -29,6 +29,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
+/**
+ * Converts an input value to a {@code geo_point} value.
+ * A string will only be successfully converted if it respects the
+ * <a href="https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry">WKT Point</a> format.
+ */
 public class ToGeoPoint extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -43,14 +48,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "geo_point",
-        description = """
-            Converts an input value to a `geo_point` value.
-            A string will only be successfully converted if it respects the
-            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
-        examples = @Example(file = "spatial", tag = "to_geopoint-str")
-    )
+    @FunctionInfo(returnType = "geo_point", examples = @Example(file = "spatial", tag = "to_geopoint-str"))
     public ToGeoPoint(
         Source source,
         @Param(

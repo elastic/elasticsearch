@@ -46,6 +46,9 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
+/**
+ * The maximum value of a field.
+ */
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Max.class).unary(Max::new).name("max");
@@ -71,7 +74,6 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
-        description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "max"),

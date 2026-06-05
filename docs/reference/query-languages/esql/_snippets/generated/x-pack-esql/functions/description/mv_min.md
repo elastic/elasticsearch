@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts a multivalued expression into a single valued column containing the minimum value.
+Reduce a multivalued field to a single valued field containing the minimum value.
 

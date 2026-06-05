@@ -50,13 +50,19 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 
 /**
- * RANGE_INTERSECTS(a, b) -> boolean
- * Returns true if the two arguments overlap. The relation is symmetric: argument order does not matter.
+ * Returns true if the two arguments overlap. The relation is symmetric - argument order does not matter.
+ * Supports any combination of {@code date} and {@code date_range}.
+ * When both arguments are {@code date}, this is equivalent to {@code a == b}.
+ *
+ * <h2>Implementation</h2>
  * Supported signatures:
  * <ul>
- *   <li>(date_range, date_range): the two ranges overlap, i.e. {@code a.from < b.to && b.from < a.to} for half-open ranges</li>
- *   <li>(date, date_range) and (date_range, date): the point is inside the range — equivalent to RANGE_WITHIN's point case</li>
- *   <li>(date, date): degenerate; equivalent to {@code a == b}, lowered to {@link Equals} via {@link SurrogateExpression}</li>
+ *   <li>(date_range, date_range): the two ranges overlap, i.e. {@code a.from < b.to && b.from < a.to} for half-open
+ *   ranges</li>
+ *   <li>(date, date_range) and (date_range, date): the point is inside the range - equivalent to RANGE_WITHIN's
+ *   point case</li>
+ *   <li>(date, date): degenerate; equivalent to {@code a == b}, lowered to {@link Equals} via
+ *   {@link SurrogateExpression}</li>
  * </ul>
  */
 public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpression, TranslationAware {
@@ -76,9 +82,6 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the two arguments overlap. The relation is symmetric — argument order does not matter. "
-            + "Supports any combination of `date` and `date_range`. "
-            + "When both arguments are `date`, this is equivalent to `a == b`.",
         examples = @Example(file = "date_range", tag = "rangeIntersects", explanation = "Find ranges that overlap a target window")
     )
     public RangeIntersects(

@@ -2,5 +2,8 @@
 
 ## Description
 
-Determines the minimum bounding box of the supplied geometry.
+Determines the minimum bounding rectangle of a geometry.
+The function `st_envelope` is defined in the [OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at
+[PostGIS:ST_ENVELOPE](https://postgis.net/docs/ST_ENVELOPE.html).
 

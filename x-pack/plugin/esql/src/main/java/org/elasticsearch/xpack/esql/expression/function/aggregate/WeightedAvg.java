@@ -34,6 +34,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * The weighted average of a numeric expression.
+ */
 public class WeightedAvg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -48,12 +51,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     private static final String invalidWeightError = "{} argument of [{}] cannot be null or 0, received [{}]";
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "The weighted average of a numeric expression.",
-        type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats", tag = "weighted-avg")
-    )
+    @FunctionInfo(returnType = "double", type = FunctionType.AGGREGATE, examples = @Example(file = "stats", tag = "weighted-avg"))
     public WeightedAvg(
         Source source,
         @Param(name = "number", type = { "double", "integer", "long" }, description = "A numeric value.") Expression field,

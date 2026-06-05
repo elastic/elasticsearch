@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
- * Converts from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
+ * Converts a number in <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
  * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
  */
 public class ToDegrees extends AbstractConvertFunction implements EvaluatorMapper {
@@ -58,11 +58,7 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         )
     );
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].",
-        examples = @Example(file = "floats", tag = "to_degrees")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "to_degrees"))
     public ToDegrees(
         Source source,
         @Param(

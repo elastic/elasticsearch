@@ -63,6 +63,12 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
+/**
+ * Computes a buffer area around the input geometry at the specified distance. The distance is in
+ * the units of the input spatial reference system. Positive distances expand the geometry, negative
+ * distances shrink it. A distance of zero will return the input geometry unchanged. Points and
+ * lines become polygons when buffered, unless a zero distance is provided.
+ */
 public class StBuffer extends SpatialDocValuesFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StBuffer", StBuffer::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StBuffer.class).ternary(StBuffer::new).name("st_buffer");
@@ -120,11 +126,6 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
-        description = "Computes a buffer area around the input geometry at the specified distance. "
-            + "The distance is in the units of the input spatial reference system. "
-            + "Positive distances expand the geometry, negative distances shrink it. "
-            + "A distance of zero will return the input geometry unchanged. "
-            + "Points and lines become polygons when buffered, unless a zero distance is provided.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = {

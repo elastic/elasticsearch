@@ -38,7 +38,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction.supportedTypesNames;
 
 /**
- * Converts strings to IPs.
+ * Converts an input string to an IP value.
+ *
+ * <h2>Implementation</h2>
  * <p>
  * IPv4 addresses have traditionally parsed quads with leading zeros in three
  * mutually exclusive ways:
@@ -74,10 +76,9 @@ public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression,
 
     @FunctionInfo(
         returnType = "ip",
-        description = "Converts an input string to an IP value.",
         examples = {
             @Example(file = "ip", tag = "to_ip", explanation = """
-                Note that in this example, the last conversion of the string isn’t possible.
+                Note that in this example, the last conversion of the string isn't possible.
                 When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
                 The header will provide information on the source of the failure:
 

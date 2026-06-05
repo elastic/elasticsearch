@@ -48,14 +48,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 
 /**
- * RANGE_WITHIN(value, range) -> boolean
- * Returns true if the first argument is within the second (the range).
- * Supported signatures:
- * <ul>
- *   <li>(date, date_range): point within range</li>
- *   <li>(date_range, date_range): first range within second (first fully contained by second)</li>
- * </ul>
- * (date_range, date) and (date, date) are not supported; they do not match "value within range" semantics.
+ * Returns true if the first argument is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query">within</a>
+ * the second argument. Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.
  */
 public class RangeWithin extends EsqlScalarFunction implements TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -74,10 +69,6 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware 
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the first argument is "
-            + "[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) "
-            + "the second argument. "
-            + "Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.",
         examples = @Example(file = "date_range", tag = "rangeWithin", explanation = "Filter events within a specific date range")
     )
     public RangeWithin(

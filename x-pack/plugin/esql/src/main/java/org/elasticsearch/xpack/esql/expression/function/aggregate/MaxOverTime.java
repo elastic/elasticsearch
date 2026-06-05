@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.compute.data.HistogramBlock.Component;
 
 /**
- * Similar to {@link Max}, but it is used to calculate the maximum value over a time series of values from the given field.
+ * Calculates the maximum over time value of a field.
  */
 public class MaxOverTime extends TimeSeriesAggregateFunction
     implements
@@ -61,7 +61,6 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
-        description = "Calculates the maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

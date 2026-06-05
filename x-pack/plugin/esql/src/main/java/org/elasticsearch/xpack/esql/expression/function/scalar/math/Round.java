@@ -41,6 +41,10 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAs
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
+/**
+ * Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer.
+ * If the precision is a negative number, rounds to the number of digits left of the decimal point.
+ */
 public class Round extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Round", Round::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Round.class)
@@ -55,11 +59,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression field, decimals;
 
-    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = """
-        Rounds a number to the specified number of decimal places.
-        Defaults to 0, which returns the nearest integer. If the
-        precision is a negative number, rounds to the number of digits left
-        of the decimal point.""", examples = @Example(file = "docs", tag = "round"))
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, examples = @Example(file = "docs", tag = "round"))
     public Round(
         Source source,
         @Param(

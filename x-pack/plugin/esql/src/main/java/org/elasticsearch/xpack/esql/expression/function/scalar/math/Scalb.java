@@ -37,6 +37,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Returns the result of {@code d * 2 ^ scaleFactor}, similar to Java's {@code scalb} function.
+ * Result is rounded as if performed by a single correctly rounded floating-point multiply
+ * to a member of the double value set.
+ */
 public class Scalb extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalb", Scalb::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Scalb.class).binary(Scalb::new).name("scalb");
@@ -46,11 +51,6 @@ public class Scalb extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = """
-            Returns the result of `d * 2 ^ scaleFactor`,
-            Similar to Java's `scalb` function. Result is rounded as if
-            performed by a single correctly rounded floating-point multiply
-            to a member of the double value set.""",
         examples = @Example(file = "floats", tag = "scalb"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
     )

@@ -41,6 +41,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
+/**
+ * Returns the value at which a certain percentage of observed values occur. For example, the 95th
+ * percentile is the value which is greater than 95% of the observed values and the 50th percentile
+ * is the {@code MEDIAN}.
+ */
 public class Percentile extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -58,9 +63,6 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the value at which a certain percentage of observed values occur. "
-            + "For example, the 95th percentile is the value which is greater than 95% of the "
-            + "observed values and the 50th percentile is the `MEDIAN`.",
         appendix = """
             ### `PERCENTILE` is (usually) approximate [esql-percentile-approximate]
 

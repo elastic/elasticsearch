@@ -2,5 +2,6 @@
 
 ## Description
 
-Converts a multivalued field into a single valued field containing the value at which a certain percentage of observed values occur.
+Converts a multivalued field into a single valued field containing the value at which a certain
+percentage of observed values occur.
 

@@ -37,6 +37,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
+/**
+ * Returns a substring of a string, specified by a start position and an optional length.
+ */
 public class Substring extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -55,7 +58,6 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns a substring of a string, specified by a start position and an optional length.",
         examples = {
             @Example(file = "docs", tag = "substring", description = "This example returns the first three characters of every last name:"),
             @Example(file = "docs", tag = "substringEnd", description = """

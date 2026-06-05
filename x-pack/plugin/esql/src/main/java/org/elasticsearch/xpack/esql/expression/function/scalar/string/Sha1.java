@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Computes the SHA1 hash of the input.
+ */
 public class Sha1 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SHA1", Sha1::new);
@@ -27,11 +30,7 @@ public class Sha1 extends AbstractHashFunction {
 
     private static final Hash.HashFunction SHA1 = Hash.HashFunction.create("SHA1");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Computes the SHA1 hash of the input.",
-        examples = { @Example(file = "hash", tag = "sha1") }
-    )
+    @FunctionInfo(returnType = "keyword", examples = { @Example(file = "hash", tag = "sha1") })
     public Sha1(Source source, @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input) {
         super(source, input);
     }

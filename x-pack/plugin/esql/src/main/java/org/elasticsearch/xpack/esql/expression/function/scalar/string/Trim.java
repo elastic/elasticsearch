@@ -35,11 +35,7 @@ public final class Trim extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Trim", Trim::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Trim.class).unary(Trim::new).name("trim");
 
-    @FunctionInfo(
-        returnType = { "keyword" },
-        description = "Removes leading and trailing whitespaces from a string.",
-        examples = @Example(file = "string", tag = "trim")
-    )
+    @FunctionInfo(returnType = { "keyword" }, examples = @Example(file = "string", tag = "trim"))
     public Trim(
         Source source,
         @Param(

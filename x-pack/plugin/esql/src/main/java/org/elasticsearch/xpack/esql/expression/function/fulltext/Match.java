@@ -85,7 +85,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
- * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
+ * Use {@code MATCH} to perform a
+ * <a href="/reference/query-languages/query-dsl/query-dsl-match-query.md">match query</a>
+ * on the specified field.
+ * Using {@code MATCH} is equivalent to using the {@code match} query in the Elasticsearch Query DSL.
  */
 public class Match extends SingleFieldFullTextFunction implements OptionalArgument, ConfigurationFunction {
 
@@ -141,9 +144,6 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        description = """
-            Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
-            Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
             Match can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>,
             as well as other field types like keyword, boolean, dates, and numeric types.
@@ -181,7 +181,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
-                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                        + " mapped for the field. If no analyzer is mapped, the index's default analyzer is used."
                 ),
                 @MapParam.MapParamEntry(
                     name = "auto_generate_synonyms_phrase_query",

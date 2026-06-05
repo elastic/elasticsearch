@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
- * Round down to one of a list of values.
+ * Rounds down to one of a list of fixed points.
  */
 public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
@@ -65,8 +65,6 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "date", "date_nanos" },
-        description = """
-            Rounds down to one of a list of fixed points.""",
         examples = @Example(file = "math", tag = "round_to"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0") }
     )

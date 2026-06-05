@@ -6,5 +6,5 @@
 :   Expression that can be null, a single value, or multiple values.
 
 `p`
-:   It is a constant number that represents the *p* parameter in the P-Series. It impacts every element’s contribution to the weighted sum.
+:   It is a constant number that represents the *p* parameter in the P-Series. It impacts every element's contribution to the weighted sum.
 

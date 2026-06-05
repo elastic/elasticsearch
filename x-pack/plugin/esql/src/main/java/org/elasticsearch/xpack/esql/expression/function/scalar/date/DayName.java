@@ -39,6 +39,9 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 
+/**
+ * Returns the name of the weekday for date based on the configured Locale.
+ */
 public class DayName extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "DayName", DayName::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DayName.class).unaryConfig(DayName::new).name("day_name");
@@ -47,7 +50,6 @@ public class DayName extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the name of the weekday for date based on the configured Locale.",
         examples = @Example(file = "date", tag = "docsDayName"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

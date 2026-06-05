@@ -39,6 +39,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
+/**
+ * Converts an input value to a {@code date_range} value. A string will be parsed as a date range
+ * in the format {@code start..end}, where start and end are dates in ISO format. The range is
+ * half-open {@code [start, end)}.
+ */
 public class ToDateRange extends AbstractConvertFunction implements ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -57,10 +62,6 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
         returnType = "date_range",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = """
-            Converts an input value to a `date_range` value.
-            A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format. \
-            The range is half-open `[start, end)`.""",
         examples = { @Example(file = "date_range", tag = "to_date_range-str") }
     )
     public ToDateRange(

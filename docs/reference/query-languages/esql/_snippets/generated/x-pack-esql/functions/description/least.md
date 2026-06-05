@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the minimum value from multiple columns. This is similar to [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions/mv_min.md) except it is intended to run on multiple columns at once.
+Returns the minimum value from multiple columns. This is similar to [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions/mv_min.md) except it is intended to run on multiple columns
+at once.
 

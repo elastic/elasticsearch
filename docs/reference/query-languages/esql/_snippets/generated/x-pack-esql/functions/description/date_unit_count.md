@@ -2,5 +2,5 @@
 
 ## Description
 
-Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.
+Counts how many `toUnit` values fit into one `fromUnit` interval for the given date.
 

@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed. If you need the values returned in order use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).
+Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn't
+guaranteed. If you need the values returned in order use [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).
 

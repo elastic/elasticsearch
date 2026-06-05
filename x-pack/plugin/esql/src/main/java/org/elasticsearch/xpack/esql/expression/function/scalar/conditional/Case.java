@@ -48,6 +48,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
+/**
+ * Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that
+ * evaluates to `true`. Both the conditions and the returned values can be any expression, including column references.
+ *
+ * If the number of arguments is odd, the last argument is the default value which is returned when no condition
+ * matches. If the number of arguments is even, and no condition matches, the function returns `null`.
+ */
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Case.class)
@@ -91,14 +98,6 @@ public final class Case extends EsqlScalarFunction {
             "unsigned_long",
             "version",
             "exponential_histogram" },
-        description = """
-            Accepts pairs of conditions and values. The function returns the value that
-            belongs to the first condition that evaluates to `true`. Both the conditions
-            and the returned values can be any expression, including column references.
-
-            If the number of arguments is odd, the last argument is the default value which
-            is returned when no condition matches. If the number of arguments is even, and
-            no condition matches, the function returns `null`.""",
         examples = {
             @Example(description = "Determine whether employees are monolingual, bilingual, or polyglot:", file = "docs", tag = "case"),
             @Example(
@@ -148,7 +147,7 @@ public final class Case extends EsqlScalarFunction {
                 "unsigned_long",
                 "version",
                 "exponential_histogram" },
-            description = "The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. "
+            description = "The expression or value that's returned when the corresponding condition is the first to evaluate to `true`. "
                 + "Can be a column reference or any other expression. The default value is returned when no condition matches."
         ) List<Expression> rest
     ) {
@@ -322,7 +321,7 @@ public final class Case extends EsqlScalarFunction {
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
     public Expression partiallyFold(FoldContext ctx) {
-        // TODO don’t throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
+        // TODO don't throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;
         for (Condition condition : conditions) {
@@ -344,7 +343,7 @@ public final class Case extends EsqlScalarFunction {
                  * The multivalued field will make a warning, but eventually
                  * become null. And null will become false. So cases 2-4 are
                  * the same. In those cases we fold the entire condition
-                 * away, returning just what ever’s remaining in the CASE.
+                 * away, returning just what ever's remaining in the CASE.
                  */
                 newChildren.add(condition.value);
                 return finishPartialFold(newChildren);
@@ -416,7 +415,7 @@ public final class Case extends EsqlScalarFunction {
             return new ConditionEvaluator(
                 /*
                  * We treat failures as null just like any other failure.
-                 * It’s just that we then *immediately* convert it to
+                 * It's just that we then *immediately* convert it to
                  * true or false using the tri-valued boolean logic stuff.
                  * And that makes it into false. This is, *exactly* what
                  * happens in PostgreSQL and MySQL and SQLite:
@@ -506,8 +505,8 @@ public final class Case extends EsqlScalarFunction {
              * on the right hand side is slow we skip it.
              *
              * And it'd be good if that lazy evaluation were fast. But this
-             * implementation isn’t . It’s fairly simple - running position at
-             * a time - but it’s not at all fast.
+             * implementation isn't . It's fairly simple - running position at
+             * a time - but it's not at all fast.
              */
             int positionCount = page.getPositionCount();
             try (Block.Builder result = resultType.newBlockBuilder(positionCount, blockFactory)) {
@@ -624,7 +623,7 @@ public final class Case extends EsqlScalarFunction {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
                         if (lhsOrRhs.mask().getBoolean(p)) {
                             // TODO Copy the per-type specialization that COALESCE has.
-                            // There’s also a slowdown because copying from a block checks to see if there are any nulls and that’s slow.
+                            // There's also a slowdown because copying from a block checks to see if there are any nulls and that's slow.
                             // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
                             builder.copyFrom(lhs, p, p + 1);
                         } else {

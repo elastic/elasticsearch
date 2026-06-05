@@ -2,7 +2,9 @@
 
 ## Description
 
-Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) root as `keyword`.
+Extracts the value of a single sub-field from a
+[`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md)
+root as `keyword`.
 
 The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).
 The second argument is the *literal* name of the sub-field to extract, that is, exactly the dotted key as

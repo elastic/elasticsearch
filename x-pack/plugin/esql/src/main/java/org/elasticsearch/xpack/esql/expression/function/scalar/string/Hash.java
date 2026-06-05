@@ -40,6 +40,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512.
+ */
 public class Hash extends EsqlScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hash", Hash::new);
@@ -48,11 +51,7 @@ public class Hash extends EsqlScalarFunction {
     private final Expression algorithm;
     private final Expression input;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512.",
-        examples = { @Example(file = "hash", tag = "hash") }
-    )
+    @FunctionInfo(returnType = "keyword", examples = { @Example(file = "hash", tag = "hash") })
     public Hash(
         Source source,
         @Param(name = "algorithm", type = { "keyword", "text" }, description = "Hash algorithm to use.") Expression algorithm,

@@ -164,9 +164,6 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = """
-            Returns whether the first geometry contains the second geometry.
-            This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
         examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries"),
         depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )

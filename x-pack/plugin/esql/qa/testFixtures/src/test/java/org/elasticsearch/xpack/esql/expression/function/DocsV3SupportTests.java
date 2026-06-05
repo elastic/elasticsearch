@@ -525,10 +525,12 @@ public class DocsV3SupportTests extends ESTestCase {
         return callbacks;
     }
 
+    /**
+     * A test function with map parameters.
+     */
     public static class TestClassWithMapParam extends Function implements OptionalArgument {
         @FunctionInfo(
             returnType = "keyword",
-            description = "A test function with map parameters.",
             examples = { @Example(file = "stats", tag = "count") },
             appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
             preview = true
@@ -602,10 +604,12 @@ public class DocsV3SupportTests extends ESTestCase {
         }
     }
 
+    /**
+     * Returns the total number (count) of input values.
+     */
     public static class TestClass extends Function {
         @FunctionInfo(
             returnType = "long",
-            description = "Returns the total number (count) of input values.",
             type = FunctionType.AGGREGATE,
             examples = {
                 @Example(file = "stats", tag = "count"),
@@ -665,10 +669,12 @@ public class DocsV3SupportTests extends ESTestCase {
         }
     }
 
+    /**
+     * A preview test function.
+     */
     public static class TestPreviewClass extends Function {
         @FunctionInfo(
             returnType = "long",
-            description = "A preview test function.",
             examples = { @Example(file = "stats", tag = "count") },
             appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
             preview = true

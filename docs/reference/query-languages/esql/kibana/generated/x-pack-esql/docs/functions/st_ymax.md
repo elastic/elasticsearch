@@ -2,7 +2,8 @@
 
 ### ST YMAX
 Extracts the maximum value of the `y` coordinates from the supplied geometry.
-If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `latitude` value.
+If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum
+`latitude` value.
 
 ```esql
 FROM airport_city_boundaries

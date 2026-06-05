@@ -31,7 +31,8 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 /**
- * Returns the hypotenuse of the numbers given as parameters.
+ * Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
+ * Hypotenuses of infinities are null.
  */
 public class Hypot extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Hypot", Hypot::new);
@@ -40,9 +41,7 @@ public class Hypot extends EsqlScalarFunction {
     private final Expression n1;
     private final Expression n2;
 
-    @FunctionInfo(returnType = "double", description = """
-        Returns the hypotenuse of two numbers. The input can be any numeric values, the return value is always a double.
-        Hypotenuses of infinities are null.""", examples = @Example(file = "math", tag = "hypot"))
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "hypot"))
     public Hypot(
         Source source,
         @Param(

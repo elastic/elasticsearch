@@ -36,7 +36,8 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * Reduce a multivalued string field to a single valued field by concatenating all values.
+ * Converts a multivalued string expression into a single valued column containing the concatenation of all values
+ * separated by a delimiter.
  */
 public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvConcat", MvConcat::new);
@@ -44,8 +45,6 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Converts a multivalued string expression into a single valued column "
-            + "containing the concatenation of all values separated by a delimiter.",
         examples = {
             @Example(file = "string", tag = "mv_concat"),
             @Example(
@@ -129,8 +128,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     /**
-     * Evaluator for {@link MvConcat}. Not generated and doesn’t extend from
-     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it’s just
+     * Evaluator for {@link MvConcat}. Not generated and doesn't extend from
+     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it's just
      * too different from all the other mv operators:
      * <ul>
      *     <li>It takes an extra parameter - the delimiter</li>
@@ -155,7 +154,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
             try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
                 try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don’t blow past circuit breakers
+                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {

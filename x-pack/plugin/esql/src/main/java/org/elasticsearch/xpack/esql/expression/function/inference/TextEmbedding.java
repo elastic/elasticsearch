@@ -41,7 +41,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * TEXT_EMBEDDING function converts text to dense vector embeddings using an inference endpoint.
+ * Generates dense vector embeddings from text input using a specified
+ * <a href="docs-content://explore-analyze/elastic-inference/inference-api.md">inference endpoint</a>.
+ * Use this function to generate query vectors for KNN searches against your vectorized data
+ * or others dense vector based operations.
  */
 public class TextEmbedding extends InferenceFunction<TextEmbedding> implements OptionalArgument {
 
@@ -58,10 +61,6 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> implements O
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings from text input using a specified "
-            + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md). "
-            + "Use this function to generate query vectors for KNN searches against your vectorized data "
-            + "or others dense vector based operations.",
         appliesTo = {
             @FunctionAppliesTo(version = "9.4.0", lifeCycle = FunctionAppliesToLifecycle.GA),
             @FunctionAppliesTo(version = "9.3.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },

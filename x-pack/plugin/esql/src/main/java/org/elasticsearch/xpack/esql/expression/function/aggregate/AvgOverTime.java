@@ -37,7 +37,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
 /**
- * Similar to {@link Avg}, but it is used to calculate the average value over a time series of values from the given field.
+ * Calculates the average over time of a numeric field.
  */
 public class AvgOverTime extends TimeSeriesAggregateFunction
     implements
@@ -60,7 +60,6 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

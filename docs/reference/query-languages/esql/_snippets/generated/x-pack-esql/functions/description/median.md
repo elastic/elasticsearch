@@ -2,7 +2,8 @@
 
 ## Description
 
-The value that is greater than half of all values and less than half of all values, also known as the 50% [`PERCENTILE`](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md).
+The value that is greater than half of all values and less than half of all values, also known as the 50%
+[`PERCENTILE`](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md).
 
 ::::{note}
 Like [`PERCENTILE`](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md), `MEDIAN` is [usually approximate](/reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md#esql-percentile-approximate).

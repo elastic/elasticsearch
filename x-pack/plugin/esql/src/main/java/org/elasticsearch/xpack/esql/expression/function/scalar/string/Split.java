@@ -43,11 +43,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Split", Split::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Split.class).binary(Split::new).name("split");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Split a single valued string into multiple strings.",
-        examples = @Example(file = "string", tag = "split")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "split"))
     public Split(
         Source source,
         @Param(

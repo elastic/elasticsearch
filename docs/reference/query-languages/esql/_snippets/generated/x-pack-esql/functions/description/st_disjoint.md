@@ -2,5 +2,8 @@
 
 ## Description
 
-Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the [ST_INTERSECTS](/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects.md) function. In mathematical terms: ST_Disjoint(A, B) ⇔ A ⋂ B = ∅
+This is the primary class for supporting the function ST_DISJOINT.
+The bulk of the capabilities are within the parent class SpatialRelatesFunction,
+which supports all the relations in the ShapeField.QueryRelation enum.
+Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
 

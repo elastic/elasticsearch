@@ -34,6 +34,17 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
 
+/**
+ * Internal implementation of the single-argument form of {@code TO_INTEGER}.
+ * Converts an input value to an integer value.
+ * If the input parameter is of a date type, its value will be interpreted as milliseconds
+ * since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix epoch</a>, converted to integer.
+ * Boolean {@code true} will be converted to integer {@code 1}, {@code false} to {@code 0}.
+ *
+ * <h2>Implementation</h2>
+ * This class is used directly by the single-argument path, and is also used by
+ * {@code ToIntegerSurrogate} and {@code ToIntegerBase} for the two-argument base-conversion path.
+ */
 public class ToInteger extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,

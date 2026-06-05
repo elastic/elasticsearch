@@ -42,9 +42,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * The {@code increase()} function calculates the absolute increase of a counter field in a time window.
+ * Calculates the absolute increase of a counter field in a time window.
  *
- * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
+ * <h2>Implementation</h2>
+ * Similar to {@link Rate}, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
  */
 public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
@@ -69,7 +70,6 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "Calculates the absolute increase of a counter field in a time window.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

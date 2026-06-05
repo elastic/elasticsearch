@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Function that emits tau, also known as 2 * pi.
+ * Returns the [ratio](https://tauday.com/tau-manifesto) of a circle's circumference to its radius.
  */
 public class Tau extends DoubleConstantFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tau", Tau::new);
@@ -30,11 +30,7 @@ public class Tau extends DoubleConstantFunction {
 
     public static final double TAU = Math.PI * 2;
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the [ratio](https://tauday.com/tau-manifesto) of a circle’s circumference to its radius.",
-        examples = @Example(file = "math", tag = "tau")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "tau"))
     public Tau(Source source) {
         super(source);
     }

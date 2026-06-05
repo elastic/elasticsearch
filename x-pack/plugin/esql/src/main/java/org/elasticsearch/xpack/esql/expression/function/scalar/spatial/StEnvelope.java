@@ -71,7 +71,6 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
         returnType = { "geo_shape", "cartesian_shape" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Determines the minimum bounding box of the supplied geometry.",
         examples = @Example(file = "spatial_shapes", tag = "st_envelope")
     )
     public StEnvelope(

@@ -43,7 +43,6 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the population variance over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

@@ -35,6 +35,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToShape;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
+/**
+ * Converts an input value to a {@code geo_shape} value.
+ * A string will only be successfully converted if it respects the
+ * <a href="https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry">WKT</a> format.
+ */
 public class ToGeoShape extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -53,14 +58,7 @@ public class ToGeoShape extends AbstractConvertFunction {
         Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "geo_shape",
-        description = """
-            Converts an input value to a `geo_shape` value.
-            A string will only be successfully converted if it respects the
-            {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.""",
-        examples = @Example(file = "spatial_shapes", tag = "to_geoshape-str")
-    )
+    @FunctionInfo(returnType = "geo_shape", examples = @Example(file = "spatial_shapes", tag = "to_geoshape-str"))
     public ToGeoShape(
         Source source,
         @Param(

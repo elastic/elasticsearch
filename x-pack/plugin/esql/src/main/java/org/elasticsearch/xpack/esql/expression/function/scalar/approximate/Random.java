@@ -36,11 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Random extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Random", Random::new);
 
-    @FunctionInfo(
-        returnType = { "integer" },
-        description = "Returns a pseudorandom number, uniformly distributed between 0 (inclusive) and bound (exclusive).",
-        type = FunctionType.SCALAR
-    )
+    @FunctionInfo(returnType = { "integer" }, type = FunctionType.SCALAR)
     public Random(
         Source source,
         @Param(name = "bound", type = { "integer" }, description = "The upper bound (exclusive).") Expression bound

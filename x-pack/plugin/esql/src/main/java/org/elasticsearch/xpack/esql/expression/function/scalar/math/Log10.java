@@ -31,6 +31,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
+/**
+ * Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.
+ *
+ * Logs of 0 and negative numbers return {@code null} as well as a warning.
+ */
 public class Log10 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log10", Log10::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Log10.class).unary(Log10::new).name("log10");
@@ -40,14 +45,7 @@ public class Log10 extends UnaryScalarFunction {
         .example("log10(http_requests_total)")
         .name("log10");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the logarithm of a value to base 10. The input can "
-            + "be any numeric value, the return value is always a double.\n"
-            + "\n"
-            + "Logs of 0 and negative numbers return `null` as well as a warning.",
-        examples = @Example(file = "math", tag = "log10")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "log10"))
     public Log10(
         Source source,
         @Param(

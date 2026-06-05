@@ -29,10 +29,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 
 /**
  * Round a number up to the nearest integer.
- * <p>
- *     Note that doubles are rounded up to the nearest valid double that is
- *     an integer ala {@link Math#ceil}.
- * </p>
+ *
+ * <h2>Implementation</h2>
+ * Doubles are rounded up to the nearest valid double that is an integer ala {@link Math#ceil}.
  */
 public class Ceil extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Ceil", Ceil::new);
@@ -45,7 +44,6 @@ public class Ceil extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Round a number up to the nearest integer.",
         note = "This is a noop for `long` (including unsigned) and `integer`. For `double` this picks the closest `double` value to "
             + "the integer similar to {javadoc}/java.base/java/lang/Math.html#ceil(double)[Math.ceil].",
         examples = @Example(file = "math", tag = "ceil")

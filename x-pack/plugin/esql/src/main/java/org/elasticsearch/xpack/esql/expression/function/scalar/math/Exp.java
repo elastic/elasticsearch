@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Returns the value of e raised to the power of tbe number specified as parameter
+ * Returns the value of e raised to the power of the given number.
  */
 public class Exp extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Exp", Exp::new);
@@ -39,11 +39,7 @@ public class Exp extends UnaryScalarFunction {
         .example("exp(rate(http_requests_total[5m]))")
         .name("exp");
 
-    @FunctionInfo(
-        returnType = { "double" },
-        description = "Returns the value of e raised to the power of the given number.",
-        examples = @Example(file = "math", tag = "exp")
-    )
+    @FunctionInfo(returnType = { "double" }, examples = @Example(file = "math", tag = "exp"))
     public Exp(
         Source source,
         @Param(

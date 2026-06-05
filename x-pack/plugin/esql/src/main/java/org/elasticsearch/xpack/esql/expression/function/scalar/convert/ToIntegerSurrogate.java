@@ -30,18 +30,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 
 /**
- * In a single-parameter mode, the function converts the first parameter to an integer.
- * <ul>
- *     <li>TO_INTEGER(value) - value supports ...
- *     </li>
- * </ul>
- * <br/>
- * In two-parameter mode, the function parses the first string parameter into an integer
- * using the second parameter as a base.
- * <ul>
- *     <li>TO_INTEGER(string, base) - base supports integer, long and unsigned_long
- *     </li>
- * </ul>
+ * Converts an input value to an integer value.
+ * If the input parameter is of a date type, its value will be interpreted as milliseconds
+ * since the <a href="https://en.wikipedia.org/wiki/Unix_time">Unix epoch</a>, converted to integer.
+ * Boolean {@code true} will be converted to integer {@code 1}, {@code false} to {@code 0}.
  */
 
 public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
@@ -55,11 +47,6 @@ public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrog
 
     @FunctionInfo(
         returnType = "integer",
-        description = """
-            Converts an input value to an integer value.
-            If the input parameter is of a date type, its value will be interpreted as milliseconds
-            since the {wikipedia}/Unix_time[Unix epoch], converted to integer.
-            Boolean `true` will be converted to integer `1`, `false` to `0`.""",
 
         detailedDescription = """
             When given two arguments, a string value and a whole number base,

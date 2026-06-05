@@ -34,12 +34,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 
 /**
- * Converts a counter-typed value to its plain numeric (gauge) equivalent.
- * The output type depends on the input: {@code counter_long} becomes {@code long},
- * {@code counter_integer} becomes {@code integer}, and {@code counter_double} becomes {@code double}.
- * Plain numeric inputs are returned unchanged (idempotent).
- * {@code aggregate_metric_double} inputs are also returned unchanged (idempotent).
- * No values are modified; this is a pure type-annotation change.
+ * Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
+ * {@code counter_long} converts to {@code long}, {@code counter_integer} to {@code integer}, and
+ * {@code counter_double} to {@code double}.
+ * No values are modified; only the type annotation changes. If the input is already a plain numeric or
+ * {@code aggregate_metric_double}, the function is a no-op. This is useful when a metric field was misclassified
+ * as a counter type instead of a plain numeric (gauge) in the index mapping.
+ * This function is also available as the {@code ::gauge} cast operator.
  */
 public class ToGauge extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGauge", ToGauge::new);
@@ -65,13 +66,6 @@ public class ToGauge extends AbstractConvertFunction {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
         returnType = { "long", "integer", "double", "aggregate_metric_double" },
-        description = """
-            Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
-            `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.
-            No values are modified; only the type annotation changes. If the input is already a plain numeric or \
-            `aggregate_metric_double`, the function is a no-op. This is useful when a metric field was misclassified as a \
-            counter type instead of a plain numeric (gauge) in the index mapping.
-            This function is also available as the `::gauge` cast operator.""",
         appendix = """
             ::::{warning}
             Applying `TO_GAUGE` to a field that is a genuine monotonically increasing counter, rather than a \

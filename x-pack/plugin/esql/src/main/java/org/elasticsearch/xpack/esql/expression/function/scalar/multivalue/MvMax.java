@@ -42,7 +42,6 @@ public class MvMax extends AbstractMultivalueFunction implements BlockLoaderExpr
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "unsigned_long", "version" },
-        description = "Converts a multivalued expression into a single valued column containing the maximum value.",
         examples = {
             @Example(file = "math", tag = "mv_max"),
             @Example(

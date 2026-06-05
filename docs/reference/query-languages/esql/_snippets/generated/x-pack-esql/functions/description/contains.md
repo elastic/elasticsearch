@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns a boolean that indicates whether a keyword substring is within another string. Returns `null` if either parameter is null.
+Returns a boolean that indicates whether a keyword substring is within another string.
+Returns `null` if either parameter is null.
 

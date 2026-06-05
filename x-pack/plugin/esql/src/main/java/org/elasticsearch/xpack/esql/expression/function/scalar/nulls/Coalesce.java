@@ -35,8 +35,10 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Function returning the first non-null value. {@code COALESCE} runs as though
- * it were lazily evaluating each position in each incoming {@link Block}.
+ * Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.
+ *
+ * <h2>Implementation</h2>
+ * {@code COALESCE} runs as though it were lazily evaluating each position in each incoming {@link Block}.
  */
 public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
@@ -70,7 +72,6 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "tdigest",
             "version",
             "exponential_histogram" },
-        description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
     public Coalesce(
@@ -189,16 +190,16 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public Nullability nullable() {
-        // If any of the children aren’t nullable then this isn’t .
+        // If any of the children aren't nullable then this isn't .
         for (Expression c : children()) {
             if (c.nullable() == Nullability.FALSE) {
                 return Nullability.FALSE;
             }
         }
         /*
-         * Otherwise let’s call this one "unknown". If we returned TRUE here
+         * Otherwise let's call this one "unknown". If we returned TRUE here
          * an optimizer rule would replace this with null if any of our children
-         * fold to null. We don’t want that at all.
+         * fold to null. We don't want that at all.
          */
         return Nullability.UNKNOWN;
     }

@@ -2,5 +2,11 @@
 
 ## Description
 
-Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input: `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`. No values are modified; only the type annotation changes. If the input is already a plain numeric or `aggregate_metric_double`, the function is a no-op. This is useful when a metric field was misclassified as a counter type instead of a plain numeric (gauge) in the index mapping. This function is also available as the `::gauge` cast operator.
+Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
+`counter_long` converts to `long`, `counter_integer` to `integer`, and
+`counter_double` to `double`.
+No values are modified; only the type annotation changes. If the input is already a plain numeric or
+`aggregate_metric_double`, the function is a no-op. This is useful when a metric field was misclassified
+as a counter type instead of a plain numeric (gauge) in the index mapping.
+This function is also available as the `::gauge` cast operator.
 

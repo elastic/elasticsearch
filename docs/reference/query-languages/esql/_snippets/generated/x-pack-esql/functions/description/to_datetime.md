@@ -2,7 +2,9 @@
 
 ## Description
 
-Converts an input value to a date value. A string will only be successfully converted if it’s respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use [`DATE_PARSE`](/reference/query-languages/esql/functions-operators/date-time-functions/date_parse.md).
+Converts an input value to a date value. A string will only be successfully converted if it's
+respecting the format `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats,
+use `DATE_PARSE`.
 
 ::::{note}
 Note that when converting from nanosecond resolution to millisecond resolution with this function, the nanosecond date is truncated, not rounded.

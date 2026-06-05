@@ -2,5 +2,16 @@
 
 ## Description
 
-Creates groups of values - buckets - out of a `@timestamp` attribute. The size of the buckets can be provided directly as a duration or period. Alternatively, the bucket size can be chosen based on a recommended count and a range {applies_to}`stack: ga 9.4`.  When using ES|QL in Kibana, the range can be derived automatically from the [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter) that Kibana adds to the query.
+Splits dates into buckets based on the `@timestamp` field.
+
+
+
+The `buckets` parameter works like [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md): if it's a number, it's the target number of buckets;
+if it's a duration or period, it's the explicit bucket size.
+
+
+
+When using a target number of buckets, start/end bounds are needed and can be provided explicitly
+as `from`/`to` parameters or derived automatically from the query DSL `@timestamp` range filter
+via TimestampBoundsAware.
 

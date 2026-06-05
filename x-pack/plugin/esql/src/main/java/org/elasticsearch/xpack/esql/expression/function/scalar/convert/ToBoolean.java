@@ -34,6 +34,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToBoolean;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBoolean;
 
+/**
+ * Converts an input value to a boolean value.
+ * A string value of {@code true} will be case-insensitive converted to the Boolean {@code true}.
+ * For anything else, including the empty string, the function will return {@code false}.
+ * The numerical value of {@code 0} will be converted to {@code false}, anything else will be converted to {@code true}.
+ */
 public class ToBoolean extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -54,15 +60,7 @@ public class ToBoolean extends AbstractConvertFunction {
         Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "boolean",
-        description = """
-            Converts an input value to a boolean value.
-            A string value of `true` will be case-insensitive converted to the Boolean `true`.
-            For anything else, including the empty string, the function will return `false`.
-            The numerical value of `0` will be converted to `false`, anything else will be converted to `true`.""",
-        examples = @Example(file = "boolean", tag = "to_boolean")
-    )
+    @FunctionInfo(returnType = "boolean", examples = @Example(file = "boolean", tag = "to_boolean"))
     public ToBoolean(
         Source source,
         @Param(

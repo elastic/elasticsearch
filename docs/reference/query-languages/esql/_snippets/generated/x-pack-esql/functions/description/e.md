@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns [Euler’s number](https://en.wikipedia.org/wiki/E_(mathematical_constant)).
+Returns [Euler's number](https://en.wikipedia.org/wiki/E_(mathematical_constant)).
 

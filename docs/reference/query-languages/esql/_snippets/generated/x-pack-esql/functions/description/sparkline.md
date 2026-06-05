@@ -2,5 +2,5 @@
 
 ## Description
 
-The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.
+Collects an aggregation as a [sparkline](https://en.wikipedia.org/wiki/Sparkline).
 

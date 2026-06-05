@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Tangent hyperbolic function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Hyperbolic_functions">hyperbolic tangent</a> of a number.
  */
 public class Tanh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tanh", Tanh::new);
@@ -35,11 +35,7 @@ public class Tanh extends AbstractTrigonometricFunction {
         .example("tanh(some_metric)")
         .name("tanh");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic tangent] of a number.",
-        examples = @Example(file = "floats", tag = "tanh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "tanh"))
     public Tanh(
         Source source,
         @Param(

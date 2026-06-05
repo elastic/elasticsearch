@@ -25,15 +25,17 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
+/**
+ * Divide one value by another. For numeric operands, if either field is multivalued then the
+ * result is {@code null}.
+ */
 public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
     public static final String OP_NAME = "Div";
 
     private DataType type;
 
-    @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
-        Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
-        then the result is `null`.""", note = """
+    @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, note = """
         Division of two integer types will yield an integer result, rounding towards 0. "
         If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
         For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.

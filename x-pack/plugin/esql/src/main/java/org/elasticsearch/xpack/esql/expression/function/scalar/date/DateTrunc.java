@@ -44,6 +44,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
+/**
+ * Rounds down a date to the closest interval since epoch, which starts at
+ * {@code 0001-01-01T00:00:00Z}.
+ */
 public class DateTrunc extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -68,7 +72,6 @@ public class DateTrunc extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
-        description = "Rounds down a date to the closest interval since epoch, which starts at `0001-01-01T00:00:00Z`.",
         examples = {
             @Example(file = "date_trunc", tag = "docsDateTrunc"),
             @Example(
@@ -82,7 +85,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
     )
     public DateTrunc(
         Source source,
-        // Need to replace the commas in the description here with semi-colon as there’s a bug in the CSV parser
+        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
@@ -154,7 +157,7 @@ public class DateTrunc extends EsqlConfigurationFunction {
 
     @Evaluator(extraName = "DateNanos")
     static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
-        // Currently, ES|QL doesn’t support rounding to sub-millisecond values, so it’s safe to cast before rounding.
+        // Currently, ES|QL doesn't support rounding to sub-millisecond values, so it's safe to cast before rounding.
         return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }
 

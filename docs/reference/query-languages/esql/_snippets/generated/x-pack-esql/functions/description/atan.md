@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the [arctangent](https://en.wikipedia.org/wiki/Inverse_trigonometric_functions) of the input numeric expression as an angle, expressed in radians.
+Returns the [arctangent](https://en.wikipedia.org/wiki/Inverse_trigonometric_functions) of the input numeric
+expression as an angle, expressed in radians.
 

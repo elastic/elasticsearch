@@ -37,6 +37,11 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
+/**
+ * Subtract one value from another. In case of numeric fields, if either field is multivalued then
+ * the result is {@code null}. For dense_vector fields, both arguments should be dense_vectors.
+ * Inequal vector dimensions generate null result.
+ */
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
     public static final String OP_NAME = "Sub";
@@ -45,12 +50,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
 
     @FunctionInfo(
         operator = "-",
-        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" },
-        description = """
-            Subtract one value from another. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
-            then the result is `null`. For dense_vector fields, both arguments should be dense_vectors. Inequal vector dimensions generate
-            null result.
-            """
+        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long", "dense_vector" }
     )
     public Sub(
         Source source,

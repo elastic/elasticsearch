@@ -51,11 +51,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     private final Expression mvLeft, mvRight, delim;
     private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), DataType.TEXT);
 
-    @FunctionInfo(
-        returnType = { "keyword" },
-        description = "Combines the values from two multivalued fields with a delimiter that joins them together.",
-        examples = @Example(file = "string", tag = "mv_zip")
-    )
+    @FunctionInfo(returnType = { "keyword" }, examples = @Example(file = "string", tag = "mv_zip"))
     public MvZip(
         Source source,
         @Param(

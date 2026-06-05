@@ -44,8 +44,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * EMBEDDING function converts input to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
- * It can manage multiple data types and formats (e.g. text, images) based on the options provided
+ * Generates dense vector embeddings from multimodal input using a specified
+ * <a href="docs-content://explore-analyze/elastic-inference/inference-api.md">inference endpoint</a>
+ * with the {@code embedding} task type. Use this function to generate query vectors for KNN searches
+ * from multimodal inputs against your vectorized data or other dense vector based operations.
  */
 public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument, PostOptimizationVerificationAware {
 
@@ -61,11 +63,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings from multimodal input using a specified "
-            + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) "
-            + "with the `embedding` task type. "
-            + "Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data "
-            + "or other dense vector based operations.",
         appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(

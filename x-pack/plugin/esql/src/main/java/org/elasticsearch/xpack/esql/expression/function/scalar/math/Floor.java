@@ -29,10 +29,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
 
 /**
  * Round a number down to the nearest integer.
- * <p>
- *     Note that doubles are rounded down to the nearest valid double that is
- *     an integer ala {@link Math#floor}.
- * </p>
+ *
+ * <h2>Implementation</h2>
+ * Doubles are rounded down to the nearest valid double that is an integer ala {@link Math#floor}.
  */
 public class Floor extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Floor", Floor::new);
@@ -43,15 +42,10 @@ public class Floor extends UnaryScalarFunction {
         .example("floor(rate(http_requests_total[5m]))")
         .name("floor");
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Round a number down to the nearest integer.",
-        note = """
-            This is a noop for `long` (including unsigned) and `integer`.
-            For `double` this picks the closest `double` value to the integer
-            similar to {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].""",
-        examples = @Example(file = "math", tag = "floor")
-    )
+    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, note = """
+        This is a noop for `long` (including unsigned) and `integer`.
+        For `double` this picks the closest `double` value to the integer
+        similar to {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].""", examples = @Example(file = "math", tag = "floor"))
     public Floor(
         Source source,
         @Param(

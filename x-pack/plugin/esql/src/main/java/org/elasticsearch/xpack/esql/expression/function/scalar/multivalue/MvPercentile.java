@@ -44,6 +44,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
+/**
+ * Converts a multivalued field into a single valued field containing the value at which a certain
+ * percentage of observed values occur.
+ */
 public class MvPercentile extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -62,12 +66,7 @@ public class MvPercentile extends EsqlScalarFunction {
     private final Expression field;
     private final Expression percentile;
 
-    @FunctionInfo(
-        returnType = { "double", "integer", "long" },
-        description = "Converts a multivalued field into a single valued field containing "
-            + "the value at which a certain percentage of observed values occur.",
-        examples = @Example(file = "mv_percentile", tag = "example")
-    )
+    @FunctionInfo(returnType = { "double", "integer", "long" }, examples = @Example(file = "mv_percentile", tag = "example"))
     public MvPercentile(
         Source source,
         @Param(
@@ -452,7 +451,7 @@ public class MvPercentile extends EsqlScalarFunction {
      * Calculates a percentile for a double avoiding overflows.
      * <p>
      *     If the values are too separated (negative + positive), it uses a slightly different approach.
-     *     This approach would fail if the values are big but not separated, so it’s only used in this case.
+     *     This approach would fail if the values are big but not separated, so it's only used in this case.
      * </p>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {

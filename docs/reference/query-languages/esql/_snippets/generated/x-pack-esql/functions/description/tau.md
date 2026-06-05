@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns the [ratio](https://tauday.com/tau-manifesto) of a circle’s circumference to its radius.
+Returns the [ratio](https://tauday.com/tau-manifesto) of a circle's circumference to its radius.
 

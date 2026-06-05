@@ -50,16 +50,11 @@ public class CastOperatorTests extends ESTestCase {
     }
 
     /**
-     * This class only exists to provide FunctionInfo for the documentation
+     * The {@code ::} operator provides a convenient alternative syntax to the {@code TO_<type>}
+     * [conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).
      */
     public class TestCastOperator {
-        @FunctionInfo(
-            operator = "::",
-            returnType = {},
-            description = "The `::` operator provides a convenient alternative syntax to the TO_<type> "
-                + "[conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).",
-            examples = { @Example(file = "convert", tag = "docsCastOperator") }
-        )
+        @FunctionInfo(operator = "::", returnType = {}, examples = { @Example(file = "convert", tag = "docsCastOperator") })
         public TestCastOperator(
             @Param(
                 name = "field",

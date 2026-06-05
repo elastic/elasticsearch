@@ -32,6 +32,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
+/**
+ * Converts an input value to a {@code geohash} value.
+ * A string will only be successfully converted if it respects the
+ * {@code geohash} format, as described for the
+ * <a href="/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md">geohash grid aggregation</a>.
+ */
 public class ToGeohash extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -51,11 +57,6 @@ public class ToGeohash extends AbstractConvertFunction {
         returnType = "geohash",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = """
-            Converts an input value to a `geohash` value.
-            A string will only be successfully converted if it respects the
-            `geohash` format, as described for the
-            [geohash grid aggregation](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "to_geohash")
     )
     public ToGeohash(

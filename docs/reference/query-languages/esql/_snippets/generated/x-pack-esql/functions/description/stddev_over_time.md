@@ -2,5 +2,5 @@
 
 ## Description
 
-Calculates the population standard deviation over time of a numeric field.
+Similar to StdDev, but it is used to calculate the standard deviation over a time series of values from the given field.
 

@@ -2,7 +2,8 @@
 
 ### ST XMIN
 Extracts the minimum value of the `x` coordinates from the supplied geometry.
-If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum `longitude` value.
+If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum
+`longitude` value.
 
 ```esql
 FROM airport_city_boundaries

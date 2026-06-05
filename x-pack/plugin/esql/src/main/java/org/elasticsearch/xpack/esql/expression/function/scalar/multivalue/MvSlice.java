@@ -49,7 +49,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
- * Returns a subset of the multivalued field using the start and end index values.
+ * Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
+ * This is most useful when reading from a function that emits multivalued columns in a known order like
+ * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.Split} or {@link MvSort}.
  */
 public class MvSlice extends EsqlScalarFunction implements OptionalArgument, EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSlice", MvSlice::new);
@@ -80,13 +82,9 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "long",
             "unsigned_long",
             "version" },
-        description = """
-            Returns a subset of the multivalued field using the start and end index values. Indexes are 0-based.
-            This is most useful when reading from a function that emits multivalued columns
-            in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
+            underlying storage is not guaranteed. It is **frequently** ascending, but don't
             rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )

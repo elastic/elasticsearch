@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse hyperbolic cosine function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">inverse hyperbolic cosine</a> of a number.
  */
 public class Acosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Acosh", Acosh::new);
@@ -39,11 +39,7 @@ public class Acosh extends AbstractTrigonometricFunction {
     private static final double LN2 = Math.log(2);
     private static final double LARGE = (double) (1L << 28);
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic cosine] of a number.",
-        examples = @Example(file = "floats", tag = "acosh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "acosh"))
     public Acosh(
         Source source,
         @Param(

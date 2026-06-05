@@ -23,15 +23,16 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
+/**
+ * Multiply two values together. For numeric fields, if either field is
+ * <a href="/reference/query-languages/esql/esql-multivalued-fields.md">multivalued</a> then the result is {@code null}.
+ * For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
+ */
 public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
     public static final String OP_NAME = "Mul";
 
-    @FunctionInfo(operator = "*", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
-        Multiply two values together. For numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
-        then the result is `null`. For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate
-        null result.
-        """)
+    @FunctionInfo(operator = "*", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" })
     public Mul(
         Source source,
         @Param(

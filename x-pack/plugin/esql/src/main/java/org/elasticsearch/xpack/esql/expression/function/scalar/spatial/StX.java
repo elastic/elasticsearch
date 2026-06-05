@@ -33,11 +33,8 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 
 /**
- * Extracts the x-coordinate from a point geometry.
- * For cartesian geometries, the x-coordinate is the first coordinate.
- * For geographic geometries, the x-coordinate is the longitude.
- * The function `st_x` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_X.html">PostGIS:ST_X</a>.
+ * Extracts the {@code x} coordinate from the supplied point.
+ * If the point is of type {@code geo_point} this is equivalent to extracting the {@code longitude} value.
  */
 public class StX extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StX", StX::new);
@@ -45,8 +42,6 @@ public class StX extends SpatialUnaryDocValuesFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Extracts the `x` coordinate from the supplied point.\n"
-            + "If the point is of type `geo_point` this is equivalent to extracting the `longitude` value.",
         examples = @Example(file = "spatial", tag = "st_x_y"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )

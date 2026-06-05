@@ -45,7 +45,6 @@ public class MvMedian extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the {wikipedia}/Median[median] value.",
         examples = {
             @Example(file = "math", tag = "mv_median"),
             @Example(

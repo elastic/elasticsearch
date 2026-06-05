@@ -52,6 +52,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
+/**
+ * Encode a numeric to an aggregate_metric_double.
+ */
 public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
@@ -74,7 +77,6 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     @FunctionInfo(
         preview = true,
         returnType = "aggregate_metric_double",
-        description = "Encode a numeric to an aggregate_metric_double.",
         examples = {
             @Example(file = "convert", tag = "toAggregateMetricDouble"),
             @Example(description = "The expression also accepts multi-values", file = "convert", tag = "toAggregateMetricDoubleMv") },

@@ -181,9 +181,6 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "double", "date", "date_nanos" },
-        description = """
-            Creates groups of values - buckets - out of a datetime or numeric input.
-            The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
         examples = {
             @Example(
                 description = """
@@ -197,8 +194,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 file = "bucket",
                 tag = "docsBucketMonth",
                 explanation = """
-                    The goal isn’t to provide **exactly** the target number of buckets,
-                    it’s to pick a range that people are comfortable with that provides at most the target number of buckets."""
+                    The goal isn't to provide **exactly** the target number of buckets,
+                    it's to pick a range that people are comfortable with that provides at most the target number of buckets."""
             ),
             @Example(
                 description = "Combine `BUCKET` with an <<esql-aggregation-functions,aggregation>> to create a histogram:",
@@ -206,8 +203,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 tag = "docsBucketMonthlyHistogram",
                 explanation = """
                     ::::{note}
-                    `BUCKET` does not create buckets that don’t match any documents.
-                    That’s why this example is missing `1985-03-01` and other dates.
+                    `BUCKET` does not create buckets that don't match any documents.
+                    That's why this example is missing `1985-03-01` and other dates.
                     ::::"""
             ),
             @Example(
@@ -236,7 +233,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
                 tag = "docsBucketNumeric",
                 explanation = """
                     Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
-                    You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically."""
+                    You have to find the `min` and `max` separately. {{esql}} doesn't yet have an easy way to do that automatically."""
             ),
             @Example(description = """
                 The range can be omitted if the desired bucket size is known in advance. Simply
@@ -263,7 +260,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             @Example(
                 description = """
                     Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
-                    aggregation’s <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
+                    aggregation's <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
                     take into account how the language handles expressions within the `STATS` command: if these contain functions or
                     arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
                     compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,

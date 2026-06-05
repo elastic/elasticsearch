@@ -53,8 +53,6 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        description = "Returns true if the supplied geometry is empty.\n"
-            + "An empty geometry is one that has no points, such as an empty geometry collection or an empty linestring.",
         examples = @Example(file = "spatial_shapes", tag = "st_isempty"),
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )

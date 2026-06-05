@@ -2,5 +2,7 @@
 
 ## Description
 
-Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
+Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.
+
+Logs of 0 and negative numbers return `null` as well as a warning.
 

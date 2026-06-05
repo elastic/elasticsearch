@@ -39,9 +39,7 @@ public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initLogExporter() throws Exception {
         OtlpHttpLogRecordExporter exporter = OtlpHttpLogRecordExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/logs")
             .addHeader("Authorization", "ApiKey " + createApiKey("logs-*"))
@@ -54,9 +52,7 @@ public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void closeLoggerProvider() throws Exception {
         if (loggerProvider != null) {
             loggerProvider.close();
         }

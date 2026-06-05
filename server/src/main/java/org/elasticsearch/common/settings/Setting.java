@@ -244,6 +244,11 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV9AndRemovedInV10);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.ServerlessPublic);
             checkPropertyRequiresNodeScope(propertiesAsSet);
+            if (propertiesAsSet.contains(Property.IndexScope) && propertiesAsSet.contains(Property.Deprecated)) {
+                throw new IllegalArgumentException(
+                    "index-scoped setting [" + this.key + "] can not have property [" + Property.Deprecated + "]"
+                );
+            }
             this.properties = propertiesAsSet;
         }
     }

@@ -213,6 +213,10 @@ class RetryableStorageObject implements StorageObject {
                 );
                 // Reschedule the retry as a continuation rather than sleeping: the backoff is honored by the
                 // scheduler's timer, not by parking this (general-pool) thread on Thread.sleep for the delay.
+                // Tripwire: if the scheduler is torn down mid-backoff the queued continuation is silently dropped
+                // and the listener never completes. Benign only because that happens solely at node shutdown,
+                // which abandons (not awaits) query futures and reclaims all state on JVM exit. Revisit if
+                // graceful query drain is ever added — a stranded listener would then stall shutdown.
                 try {
                     retryScheduler.schedule(
                         () -> readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos),

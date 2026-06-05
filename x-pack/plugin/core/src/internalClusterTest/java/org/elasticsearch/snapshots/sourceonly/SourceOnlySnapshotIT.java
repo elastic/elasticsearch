@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -76,10 +77,9 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         return false;
     }
 
-    @Override
-    public void setUp() throws Exception {
+    @Before
+    public void skipSourceOnlyRepoConsistencyCheck() throws Exception {
         disableRepoConsistencyCheck("source only snapshot repository does not support consistency check");
-        super.setUp();
     }
 
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {

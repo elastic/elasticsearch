@@ -74,10 +74,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
      * @param innerQuery               the original Lucene query to rescore
      */
     public static RescoreKnnVectorQuery fromInnerQuery(String fieldName, float[] floatTarget, int k, int rescoreK, Query innerQuery) {
-        if (innerQuery instanceof AbstractIVFKnnVectorQuery) {
-            // IVF applies per-segment oversample during rewrite; rescore uses the merged approximate candidate set.
-            return new IvfRescoreQuery(fieldName, floatTarget, k, innerQuery);
-        }
         if ((innerQuery instanceof KnnFloatVectorQuery fQuery && fQuery.getK() == rescoreK)
             || (innerQuery instanceof KnnByteVectorQuery bQuery && bQuery.getK() == rescoreK)) {
             // Queries that return only the top `k` results and do not require reduction before re-scoring.
@@ -139,45 +135,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             + ", vectorQuery="
             + innerQuery
             + '}';
-    }
-
-    /**
-     * Rescores after {@link AbstractIVFKnnVectorQuery} rewrite, which already expands candidates using
-     * per-segment persisted oversample. {@code rescoreK} from {@link #fromInnerQuery} is not used.
-     */
-    private static class IvfRescoreQuery extends RescoreKnnVectorQuery {
-
-        private IvfRescoreQuery(String fieldName, float[] floatTarget, int k, Query innerQuery) {
-            super(fieldName, floatTarget, k, innerQuery);
-        }
-
-        @Override
-        public Query rewrite(IndexSearcher searcher) throws IOException {
-            Query approxRewritten = innerQuery.rewrite(searcher);
-            if (approxRewritten.getClass() == MatchNoDocsQuery.class) {
-                return approxRewritten;
-            }
-            var rescoreQuery = new DirectRescoreKnnVectorQuery(fieldName, floatTarget, approxRewritten);
-            var topDocs = searcher.search(rescoreQuery.rewrite(searcher), k);
-            vectorOperations = topDocs.totalHits.value();
-            return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            return super.equals(o);
-        }
-
-        @Override
-        public int hashCode() {
-            return super.hashCode();
-        }
     }
 
     private static class InlineRescoreQuery extends RescoreKnnVectorQuery {

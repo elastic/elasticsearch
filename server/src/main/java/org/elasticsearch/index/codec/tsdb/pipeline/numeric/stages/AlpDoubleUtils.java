@@ -146,12 +146,12 @@ final class AlpDoubleUtils {
     }
 
     /**
-     * Returns the smallest exponent {@code p in [0, maxExponent]} for which the
+     * Returns the smallest exponent {@code p in [0, MAX_EXPONENT]} for which the
      * fractional part of {@code value} scaled by {@code 10^p} rounds to an integer
      * within {@link #PRECISION_TOLERANCE}. Returns {@code 0} for non-finite values and
-     * exact integers; returns {@code maxExponent} when no smaller exponent fits.
+     * exact integers; returns {@link #MAX_EXPONENT} when no smaller exponent fits.
      */
-    static int estimatePrecision(double value, int maxExponent) {
+    static int estimatePrecision(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value == 0.0) {
             return 0;
         }
@@ -159,13 +159,13 @@ final class AlpDoubleUtils {
         if (fractional == 0.0) {
             return 0;
         }
-        for (int p = 1; p <= maxExponent; p++) {
+        for (int p = 1; p <= MAX_EXPONENT; p++) {
             final double scaled = fractional * POWERS_OF_TEN[p];
             if (Math.abs(scaled - alpRound(scaled)) < PRECISION_TOLERANCE) {
                 return p;
             }
         }
-        return maxExponent;
+        return MAX_EXPONENT;
     }
 
     /**
@@ -268,21 +268,21 @@ final class AlpDoubleUtils {
      * ALP, packed as {@code (e << 16) | f}. Returns {@code 0} (identity) for non-finite
      * values, zero, or values that find no match within {@link #MAX_EXPONENT}.
      */
-    static int bestEFForSingleDouble(double value, int maxExponent) {
+    static int bestEFForSingleDouble(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value == 0.0) {
             return 0;
         }
-        final int p = estimatePrecision(value, maxExponent);
+        final int p = estimatePrecision(value);
         final long valueBits = Double.doubleToRawLongBits(value);
         // f=0 is the common winner; specialize so the hot loop drops the multiplications by 1.0.
-        for (int e = p; e <= maxExponent; e++) {
+        for (int e = p; e <= MAX_EXPONENT; e++) {
             final long encoded = alpRound(value * POWERS_OF_TEN[e]);
             final double decoded = encoded * NEG_POWERS_OF_TEN[e];
             if (valueBits == Double.doubleToRawLongBits(decoded)) {
                 return e << 16;
             }
         }
-        for (int e = Math.max(p, 1); e <= maxExponent; e++) {
+        for (int e = Math.max(p, 1); e <= MAX_EXPONENT; e++) {
             for (int f = 1; f <= e; f++) {
                 final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
                 final long encoded = alpRound(value * mulFactor);
@@ -304,7 +304,7 @@ final class AlpDoubleUtils {
      * @return the exception count for the chosen {@code (e, f)}, written to
      *         {@code efOut[0]} and {@code efOut[1]}
      */
-    static int findBestEFDoubleTopK(final long[] values, int valueCount, int maxExponent, final int[] efOut, final int[] candCounts) {
+    static int findBestEFDoubleTopK(final long[] values, int valueCount, final int[] efOut, final int[] candCounts) {
         java.util.Arrays.fill(candCounts, 0);
 
         boolean anyCandidate = false;
@@ -312,7 +312,7 @@ final class AlpDoubleUtils {
         for (int i = 0; i < valueCount; i += step) {
             final long sortable = values[i];
             final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
-            final int packed = bestEFForSingleDouble(value, maxExponent);
+            final int packed = bestEFForSingleDouble(value);
             final int e = packed >>> 16;
             final int f = packed & 0xFFFF;
             candCounts[candidateKey(e, f)]++;
@@ -331,11 +331,11 @@ final class AlpDoubleUtils {
             for (int i = 0; i < valueCount; i += precStep) {
                 final long sortable = values[i];
                 final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
-                final int p = estimatePrecision(value, maxExponent);
+                final int p = estimatePrecision(value);
                 minP = Math.min(minP, p);
                 maxP = Math.max(maxP, p);
             }
-            for (int e = minP; e <= maxExponent; e++) {
+            for (int e = minP; e <= MAX_EXPONENT; e++) {
                 for (int f = 0; f <= e; f++) {
                     candCounts[candidateKey(e, f)] = 1;
                 }

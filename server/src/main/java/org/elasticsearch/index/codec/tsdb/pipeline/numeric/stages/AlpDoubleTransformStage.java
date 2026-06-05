@@ -49,7 +49,6 @@ import java.io.IOException;
  */
 public final class AlpDoubleTransformStage implements NumericCodecStage {
 
-    private final int maxExponent;
     private final int[] efOut = new int[2];
     private final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] excPositions;
@@ -69,7 +68,6 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         if (blockSize < 1) {
             throw new IllegalArgumentException("blockSize must be at least 1, got: " + blockSize);
         }
-        this.maxExponent = AlpDoubleUtils.MAX_EXPONENT;
         this.excPositions = new int[blockSize];
         this.excValues = new long[blockSize];
     }
@@ -100,7 +98,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         }
 
         // Cache miss: full top-K search, validate, refresh cache.
-        final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candCounts);
+        final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, efOut, candCounts);
         final int bestE = efOut[0];
         final int bestF = efOut[1];
 

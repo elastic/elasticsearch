@@ -674,3 +674,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testFewVectorManyTimes
   issue: https://github.com/elastic/elasticsearch/issues/150915
+- class: org.elasticsearch.xpack.stateless.StatelessMergeIT
+  method: testOnlyForceMergesAreAllowedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/150925

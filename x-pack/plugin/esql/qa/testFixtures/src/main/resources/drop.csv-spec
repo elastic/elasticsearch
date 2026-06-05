@@ -33,6 +33,7 @@ avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword 
 ;
 
 whereWithEvalGeneratedValue_DropHeight
+request_stored: skip
 from employees | sort emp_no | eval x = salary / 2 | where x > 37000 | drop height*;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.keyword:keyword |salary_change.long:long | still_hired:boolean | x:integer

@@ -1349,10 +1349,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // grammar extension can override it without changing serialization.
         String prefix = Highlight.DEFAULT_PREFIX;
         Expression query = ctx.queryText == null ? null : visitString(ctx.queryText);
-        List<Expression> fields = ctx.highlightFields.qualifiedName()
-            .stream()
-            .map(qn -> (Expression) visitQualifiedName(qn))
-            .toList();
+        List<Expression> fields = ctx.highlightFields.qualifiedName().stream().map(qn -> (Expression) visitQualifiedName(qn)).toList();
         return p -> applyHighlightOptions(new Highlight(source, p, prefix, query, fields, null), ctx.commandNamedParameters());
     }
 

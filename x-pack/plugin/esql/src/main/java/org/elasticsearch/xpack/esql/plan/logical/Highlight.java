@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,8 +28,6 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
         "Highlight",
         Highlight::new
     );
-
-    public static final TransportVersion HIGHLIGHT_COMMAND = TransportVersion.fromName("highlight_command");
 
     public static final String DEFAULT_PREFIX = "highlight_";
 
@@ -159,9 +156,9 @@ public class Highlight extends UnaryPlan implements TelemetryAware {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
+        if (super.equals(o) == false) {
+            return false;
+        }
         Highlight other = (Highlight) o;
         return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)

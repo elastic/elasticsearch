@@ -102,20 +102,16 @@ public class HighlightExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), prefix, query, fields, options);
+        return Objects.hash(super.hashCode(), prefix, query, fields, options);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (super.equals(obj) == false) {
             return false;
         }
         HighlightExec other = (HighlightExec) obj;
-        return Objects.equals(child(), other.child())
-            && Objects.equals(prefix, other.prefix)
+        return Objects.equals(prefix, other.prefix)
             && Objects.equals(query, other.query)
             && Objects.equals(fields, other.fields)
             && Objects.equals(options, other.options);

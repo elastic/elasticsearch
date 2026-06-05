@@ -48,7 +48,8 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
     public static final String FAILED_TEST_HISTORY_FILENAME = ".failed-test-history.json";
 
-    private static final long MAX_JSON_FILE_SIZE = 10 * 1024 * 1024;
+    // Guard against OOM: the entire file is read into memory and held for the whole build in the long-lived Gradle daemon.
+    private static final long MAX_JSON_FILE_SIZE = 100 * 1024 * 1024;
 
     @Override
     public void apply(Project project) {

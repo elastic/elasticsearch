@@ -119,8 +119,7 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         // histogram_quantile over rate and sum(...) by (job) each add an outer Aggregate.
         assertThat(outerAggs, hasSize(2));
         assertThat(
-            outerAggs.stream()
-                .anyMatch(aggregate -> aggregate.aggregates().stream().anyMatch(agg -> agg.anyMatch(Sum.class::isInstance))),
+            outerAggs.stream().anyMatch(aggregate -> aggregate.aggregates().stream().anyMatch(agg -> agg.anyMatch(Sum.class::isInstance))),
             equalTo(true)
         );
 

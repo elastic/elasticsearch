@@ -116,12 +116,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues)
+    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
         throws IOException;
 
     public abstract CentroidAssignments calculateCentroids(
         FieldInfo fieldInfo,
-        ClusteringFloatVectorValues floatVectorValues,
+        KMeansFloatVectorValues floatVectorValues,
         MergeState mergeState
     ) throws IOException;
 

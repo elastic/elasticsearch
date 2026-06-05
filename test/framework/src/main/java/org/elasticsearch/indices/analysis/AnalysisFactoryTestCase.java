@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilterFactory;
 import org.apache.lucene.analysis.TokenizerFactory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,7 +22,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
@@ -526,8 +526,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     // mechanism is covered once in FactorySharingKeyTests; here it is just classified.
                     continue;
                 }
-                NamedAnalyzer reference = build(registry, chainSettings(kind, type, decl.base), tracked).get("a");
-                NamedAnalyzer referenceAgain = build(registry, chainSettings(kind, type, decl.base), tracked).get("a");
+                // Sharing deduplicates the underlying analyzer instance; the per-index NamedAnalyzer
+                // wrapper is allocated per build and carries that index's local name, so compare the
+                // wrapped (shared) analyzer rather than wrapper identity.
+                Analyzer reference = build(registry, chainSettings(kind, type, decl.base), tracked).get("a").analyzer();
+                Analyzer referenceAgain = build(registry, chainSettings(kind, type, decl.base), tracked).get("a").analyzer();
                 assertSame(
                     kind + " [" + type + "] two identical configurations must produce the same shared instance",
                     reference,
@@ -537,7 +540,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
                     for (Object value : setting.values()) {
                         Map<String, Object> varied = new LinkedHashMap<>(decl.base);
                         varied.put(setting.name(), value);
-                        NamedAnalyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a");
+                        Analyzer other = build(registry, chainSettings(kind, type, varied), tracked).get("a").analyzer();
                         if (setting.affectsInstance()) {
                             assertNotSame(
                                 kind

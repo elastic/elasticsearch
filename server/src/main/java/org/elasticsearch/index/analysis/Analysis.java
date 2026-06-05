@@ -268,7 +268,12 @@ public class Analysis {
                 return true;
             }
             if (o instanceof StableCharArraySet other) {
-                return caseInsensitive == other.caseInsensitive && (set == other.set || set.equals(other.set));
+                // computeHash maps null and empty to the same hash (0), so a null-set instance and a
+                // non-null one can collide and reach equals(). Guard set != null before calling
+                // set.equals(other.set): a null receiver would otherwise NPE. null and empty are then
+                // reported unequal, which is safe (it only forgoes a sharing opportunity, never shares
+                // wrongly).
+                return caseInsensitive == other.caseInsensitive && (set == other.set || (set != null && set.equals(other.set)));
             }
             return false;
         }

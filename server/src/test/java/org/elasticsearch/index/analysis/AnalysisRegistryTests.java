@@ -138,7 +138,11 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
         IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
-        assertSame(a.get("my_name_a"), b.get("my_name_b"));
+        // Sharing keys on the recipe, so the underlying analyzer is shared. Each index's wrapper keeps
+        // its own local name, so field-mapper serialization emits the name configured in that index.
+        assertSame(a.get("my_name_a").analyzer(), b.get("my_name_b").analyzer());
+        assertEquals("my_name_a", a.get("my_name_a").name());
+        assertEquals("my_name_b", b.get("my_name_b").name());
     }
 
     /**
@@ -161,7 +165,10 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexAnalyzers a = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sA));
         IndexAnalyzers b = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, IndexSettingsModule.newIndexSettings("index", sB));
-        assertSame(a.get("a1"), b.get("a2"));
+        // Underlying analyzer shared by recipe; each index's wrapper keeps its own local name.
+        assertSame(a.get("a1").analyzer(), b.get("a2").analyzer());
+        assertEquals("a1", a.get("a1").name());
+        assertEquals("a2", b.get("a2").name());
     }
 
     /**

@@ -44,6 +44,35 @@ public class StableCharArraySetTests extends ESTestCase {
         assertEquals(0, wrap.hashCode());
     }
 
+    /**
+     * Regression: a null-set instance and an empty/non-null-set instance hash to the same value (0),
+     * so they collide in a HashMap and {@code equals} is invoked. Calling {@code equals} with the
+     * null-set instance as the receiver must NOT throw a NullPointerException — it must simply report
+     * the two unequal (forgoing the sharing opportunity is safe; sharing them wrongly is not).
+     */
+    public void testEqualsNullVsEmptyDoesNotNpe() {
+        Analysis.StableCharArraySet nullSet = new Analysis.StableCharArraySet(null);
+        Analysis.StableCharArraySet emptySet = new Analysis.StableCharArraySet(CharArraySet.EMPTY_SET);
+        Analysis.StableCharArraySet nonEmpty = new Analysis.StableCharArraySet(new CharArraySet(List.of("the"), false));
+
+        // Same hash → they would collide in a HashMap and reach equals().
+        assertEquals(nullSet.hashCode(), emptySet.hashCode());
+
+        // The null-set instance as the receiver must not NPE, in either direction.
+        assertNotEquals(nullSet, emptySet);
+        assertNotEquals(emptySet, nullSet);
+        assertNotEquals(nullSet, nonEmpty);
+        assertNotEquals(nonEmpty, nullSet);
+
+        // Two null-set instances are equal (the == short-circuit), still no NPE.
+        assertEquals(nullSet, new Analysis.StableCharArraySet(null));
+
+        // And it survives being used as a HashMap key alongside a colliding empty-set key.
+        Map<Analysis.StableCharArraySet, String> map = new HashMap<>();
+        map.put(emptySet, "empty");
+        assertNull("null-set lookup must not match the empty-set key, and must not NPE", map.get(nullSet));
+    }
+
     public void testSameContentDifferentInstancesAreEqual() {
         CharArraySet a = new CharArraySet(List.of("the", "and", "of"), false);
         CharArraySet b = new CharArraySet(List.of("of", "and", "the"), false);  // different insertion order

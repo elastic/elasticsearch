@@ -6,10 +6,15 @@ setup:
         - method: PUT
           path: /_synonyms/{rule_id}
           capabilities: [ synonyms_refresh_param ]
+        - method: POST
+          path: /{index}/_reload_search_analyzers
+          capabilities: [ shared_analyzers ]
       reason: >
         Synonyms API with updateable synonym filters requires 8.10.0;
         synonyms_refresh_param lets us update synonyms without an immediate auto-reload
-        so that the explicit reload order can be controlled.
+        so that the explicit reload order can be controlled. The shared_analyzers capability
+        gates this test on nodes that share analyzer instances across indices with identical
+        analysis recipes, which is the behaviour under test.
 
   - do:
       synonyms.put_synonym:

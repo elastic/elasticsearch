@@ -30,8 +30,11 @@ public class FailedTestsReportTests {
         String json = """
             {
               "successfulTasks": [":a:test", ":b:test"],
+              "successfulSuites": {
+                ":c:test": ["org.es.FooTest"]
+              },
               "successfulTests": {
-                ":c:test": ["org.es.FooTest#testBar", "org.es.BazTest#testQux"]
+                ":c:test": ["org.es.BazTest#testQux"]
               },
               "testseed": "DEADBEEF"
             }
@@ -40,7 +43,8 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of(":a:test", ":b:test")));
-        assertThat(report.successfulTests(), equalTo(Map.of(":c:test", List.of("org.es.FooTest#testBar", "org.es.BazTest#testQux"))));
+        assertThat(report.successfulSuites(), equalTo(Map.of(":c:test", List.of("org.es.FooTest"))));
+        assertThat(report.successfulTests(), equalTo(Map.of(":c:test", List.of("org.es.BazTest#testQux"))));
         assertThat(report.testseed(), equalTo("DEADBEEF"));
     }
 
@@ -49,6 +53,7 @@ public class FailedTestsReportTests {
         String json = """
             {
               "successfulTasks": [],
+              "successfulSuites": {},
               "successfulTests": {},
               "testseed": "CAFE"
             }
@@ -57,6 +62,7 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
         assertThat(report.successfulTests(), equalTo(Map.of()));
         assertThat(report.testseed(), equalTo("CAFE"));
     }
@@ -72,15 +78,17 @@ public class FailedTestsReportTests {
         FailedTestsReport report = objectMapper.readValue(json, FailedTestsReport.class);
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
         assertThat(report.successfulTests(), equalTo(Map.of()));
         assertThat(report.testseed(), equalTo("ABC"));
     }
 
     @Test
     public void testNullFieldsDefaultToEmptyCollections() {
-        FailedTestsReport report = new FailedTestsReport(null, null, "seed");
+        FailedTestsReport report = new FailedTestsReport(null, null, null, "seed");
 
         assertThat(report.successfulTasks(), equalTo(List.of()));
+        assertThat(report.successfulSuites(), equalTo(Map.of()));
         assertThat(report.successfulTests(), equalTo(Map.of()));
     }
 

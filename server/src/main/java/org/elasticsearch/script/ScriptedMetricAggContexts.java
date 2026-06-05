@@ -208,6 +208,16 @@ public class ScriptedMetricAggContexts {
         private final Map<String, Object> params;
         private final List<Object> states;
 
+        private Runnable cancellationCheck = null;
+
+        public void _setCancellationCheck(Runnable cancellationCheck) {
+            this.cancellationCheck = cancellationCheck;
+        }
+
+        public Runnable _getCancellationCheck() {
+            return cancellationCheck;
+        }
+
         public ReduceScript(Map<String, Object> params, List<Object> states) {
             this.params = params;
             this.states = states;

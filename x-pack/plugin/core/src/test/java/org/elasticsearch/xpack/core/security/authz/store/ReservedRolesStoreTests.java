@@ -621,6 +621,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".apm-agent-configuration",
             ".apm-custom-link",
             ".apm-source-map",
+            ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_INDEXES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_ALIASES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1230,12 +1231,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Significant events: kibana_system manages the index plumbing only; the data plane
-        // (read/write) is owned by the end user, so search/get/index/bulk/delete must be denied.
+        // Significant events: kibana_system manages index plumbing and document access.
         Arrays.asList(".significant_events-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
 
-            // Plumbing: rollover, mappings (manual + auto), settings, and data stream lifecycle PUT.
+            // Plumbing: auto-configuration, index creation, rollover, mappings (manual + auto), settings,
+            // and data stream lifecycle PUT.
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(
@@ -1254,22 +1257,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Metadata reads come from the global view_index_metadata + monitor grant on "*".
             assertViewIndexMetadata(kibanaRole, index);
 
-            // No data plane access: end-user credentials own reading and writing the documents.
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportBulkAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
 
-            // No index lifecycle management beyond what was granted above.
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
+            // No destructive index lifecycle management.
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
                 is(false)
@@ -2109,12 +2106,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-axonius.alert_and_incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.alert_finding-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.compute-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.exposure-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.gateway-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.identity-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.network-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
@@ -3989,6 +3987,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
 
+        assertOnlyReadAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
@@ -4072,6 +4073,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
         assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));
+
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.OS
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
@@ -72,12 +70,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
-  enabled = buildParams.snapshotBuild
-
-  if (OS.current() == OS.WINDOWS) {
-    // Not supported
-    enabled = false
-  }
+  enabled = buildParams.snapshotBuild && parent.testsEnabled
 
   dependsOn parquetQaProject.tasks.named('generateParquetFixtures')
   usesDefaultDistribution("to be triaged")

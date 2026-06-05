@@ -21,8 +21,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
-public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
+public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByPaginatedSearchResponse> {
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -85,7 +85,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     }
 
     @Override
-    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
+    protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
@@ -137,7 +137,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ActionListener<BulkByScrollResponse> listener,
+            ActionListener<BulkByPaginatedSearchResponse> listener,
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
             ReindexSettings reindexSettings,
@@ -216,7 +216,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                update.newInstance(params, ctxMap).execute();
+                UpdateByQueryScript instance = update.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 

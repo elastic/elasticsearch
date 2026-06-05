@@ -1229,6 +1229,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("planning", matchesMap().extraOk())
                     .entry("parsing", matchesMap().extraOk())
                     .entry("view_resolution", matchesMap().extraOk())
+                    .entry("dataset_resolution", matchesMap().extraOk())
                     .entry("preanalysis", matchesMap().extraOk())
                     .entry("indices_resolution", matchesMap().extraOk())
                     .entry("enrich_resolution", matchesMap().extraOk())

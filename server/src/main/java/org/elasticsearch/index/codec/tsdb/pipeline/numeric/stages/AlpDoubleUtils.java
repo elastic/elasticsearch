@@ -48,14 +48,6 @@ final class AlpDoubleUtils {
      */
     static final int DOUBLE_EXCEPTION_COST = EXCEPTION_POSITION_VINT_BYTES + Long.BYTES;
 
-    /**
-     * Per-exception cost expressed in bits when the position fits in a 2-byte VInt
-     * (any block of size up to 16K). Used by the maxExceptions guard as a conservative
-     * bound; the per-block bit-cost objective uses the position-aware estimate via
-     * {@link #vintBitCount}.
-     */
-    static final int DOUBLE_EXCEPTION_COST_BITS = DOUBLE_EXCEPTION_COST * Byte.SIZE;
-
     /** Number of consecutive non-improving candidates after which the top-K loop bails. */
     private static final int CONSECUTIVE_WORSE_EXIT = 2;
 

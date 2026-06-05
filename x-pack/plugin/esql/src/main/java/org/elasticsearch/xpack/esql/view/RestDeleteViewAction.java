@@ -12,12 +12,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.Scope.PUBLIC;
 
+@ServerlessScope(PUBLIC)
 public class RestDeleteViewAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

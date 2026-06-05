@@ -573,8 +573,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
-                    .withContext(ctx)
-                    .withThreadContext(threadContext);
+                    .withContext(ctx);
                 if (token instanceof ServiceAccountToken) {
                     logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
                 }
@@ -989,7 +988,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(inetAddress))
                 .with(TRANSPORT_PROFILE_FIELD_NAME, profile)
                 .with(RULE_FIELD_NAME, rule.toString())
-                .withThreadContext(threadContext)
                 .build();
         }
     }
@@ -1139,6 +1137,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
         private final StringMapMessage logEntry;
         private AuditEventContext eventContext = AuditEventContext.EMPTY;
+        private boolean includeThreadContext = true;
 
         LogEntryBuilder() {
             this(true);
@@ -1149,6 +1148,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             if (false == showOrigin) {
                 logEntry.remove(ORIGIN_ADDRESS_FIELD_NAME);
                 logEntry.remove(ORIGIN_TYPE_FIELD_NAME);
+                includeThreadContext = false;
             }
         }
 
@@ -1839,6 +1839,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         void build() {
+            if (includeThreadContext) {
+                withThreadContext(threadContext);
+            }
             customizer.enrich(eventContext, new StringMapAuditEntry(logEntry));
             logger.info(AUDIT_MARKER, logEntry);
         }

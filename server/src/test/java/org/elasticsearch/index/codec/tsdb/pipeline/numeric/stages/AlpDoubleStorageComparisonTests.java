@@ -21,169 +21,113 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.IntFunction;
 
 public class AlpDoubleStorageComparisonTests extends ESTestCase {
 
     private static final int[] BLOCK_SIZES = { 128, 512, 1024, 2048 };
 
     public void testIntegerLikeDoublesBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = integerLikeDoublesBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertTrue(
-                "ALP must beat baseline for integer doubles at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize < baselineSize
-            );
-        }
+        assertSizes(
+            AlpDoubleStorageComparisonTests::integerLikeDoublesBlock,
+            new long[] { 131, 467, 915, 1811 },
+            new long[] { 102, 390, 774, 1542 }
+        );
     }
 
     public void testCurrencyLikeBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = currencyLikeBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertTrue(
-                "ALP must beat baseline for currency-like data at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize < baselineSize
-            );
-        }
+        assertSizes(
+            AlpDoubleStorageComparisonTests::currencyLikeBlock,
+            new long[] { 780, 3084, 6156, 12300 },
+            new long[] { 275, 1133, 2258, 4526 }
+        );
     }
 
     public void testSensorLikeBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = sensorLikeBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertTrue(
-                "ALP must beat baseline for sensor-like data at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize < baselineSize
-            );
-        }
+        assertSizes(
+            AlpDoubleStorageComparisonTests::sensorLikeBlock,
+            new long[] { 780, 3084, 6156, 12300 },
+            new long[] { 368, 1484, 2983, 5989 }
+        );
     }
 
     public void testConstantDoubleBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = new long[blockSize];
-            Arrays.fill(values, NumericUtils.doubleToSortableLong(42.5));
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertTrue(
-                "ALP must not regress on a constant block at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize <= baselineSize
-            );
-        }
+        assertSizes(bs -> constantBlock(bs, 42.5), new long[] { 12, 12, 12, 12 }, new long[] { 7, 7, 7, 7 });
     }
 
-    public void testIrrationalBlockDoesNotRegress() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = irrationalBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            // ALP skips on irrational data; storage must match the baseline within a handful of
-            // bytes for the bitmap and stage descriptor overhead.
-            assertTrue(
-                "ALP must not regress more than 64 bytes vs baseline on irrational data at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize <= baselineSize + 64
-            );
-        }
+    public void testIrrationalBlock() throws IOException {
+        assertDeclines(AlpDoubleStorageComparisonTests::irrationalBlock);
     }
 
-    public void testMonotonicAscendingIntegerDoublesNoCatastrophicRegression() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = monotonicAscendingIntegerDoublesBlock(blockSize);
-            assertBoundedRegression("monotonic ascending integer doubles", blockSize, values);
-        }
+    public void testMonotonicAscendingIntegerDoublesBlock() throws IOException {
+        assertSizes(
+            AlpDoubleStorageComparisonTests::monotonicAscendingIntegerDoublesBlock,
+            new long[] { 41, 89, 153, 537 },
+            new long[] { 8, 8, 8, 8 }
+        );
     }
 
-    public void testMonotonicAscendingCurrencyMatchesBaseline() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = monotonicAscendingCurrencyBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertEquals(
-                "ALP must skip on near-constant-stride blocks and match the baseline at blockSize=" + blockSize,
-                baselineSize,
-                alpSize
-            );
-        }
+    public void testMonotonicAscendingCurrencyBlock() throws IOException {
+        assertDeclines(AlpDoubleStorageComparisonTests::monotonicAscendingCurrencyBlock);
     }
 
-    public void testMonotonicDescendingIntegerDoublesNoCatastrophicRegression() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = monotonicDescendingIntegerDoublesBlock(blockSize);
-            assertBoundedRegression("monotonic descending integer doubles", blockSize, values);
-        }
+    public void testMonotonicDescendingIntegerDoublesBlock() throws IOException {
+        assertSizes(
+            AlpDoubleStorageComparisonTests::monotonicDescendingIntegerDoublesBlock,
+            new long[] { 41, 89, 153, 537 },
+            new long[] { 8, 8, 8, 8 }
+        );
     }
 
     public void testSignCrossingOscillatingBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = signCrossingOscillatingBlock(blockSize);
-            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-            assertTrue(
-                "ALP must beat baseline for sign-crossing 2dp data at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpSize
-                    + ", baseline="
-                    + baselineSize
-                    + ")",
-                alpSize < baselineSize
-            );
-        }
+        assertSizes(
+            AlpDoubleStorageComparisonTests::signCrossingOscillatingBlock,
+            new long[] { 1035, 4107, 8203, 16395 },
+            new long[] { 102, 390, 774, 1542 }
+        );
     }
 
     public void testAggregateAcrossPatterns() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
+        // Five-block aggregate sums per blockSize. ALP totals reflect the cross-block
+        // (e, f) cache carrying state between consecutive blocks; the baseline pipeline
+        // has no cross-block state so its totals are exactly the sum of per-pattern rows.
+        final long[] expectedBaseline = { 2611, 10243, 20419, 40771 };
+        final long[] expectedAlp = { 1660, 6610, 13202, 26412 };
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int bs = BLOCK_SIZES[i];
             final long[][] blocks = {
-                integerLikeDoublesBlock(blockSize),
-                currencyLikeBlock(blockSize),
-                sensorLikeBlock(blockSize),
-                constantBlock(blockSize, 42.5),
-                irrationalBlock(blockSize) };
-            final long alpTotal = encodeBlocksTotalSize(alpPipeline(blockSize), blocks);
-            final long baselineTotal = encodeBlocksTotalSize(baselinePipeline(blockSize), blocks);
-            assertTrue(
-                "ALP must beat baseline aggregated across patterns at blockSize="
-                    + blockSize
-                    + " (alp="
-                    + alpTotal
-                    + ", baseline="
-                    + baselineTotal
-                    + ")",
-                alpTotal < baselineTotal
-            );
+                integerLikeDoublesBlock(bs),
+                currencyLikeBlock(bs),
+                sensorLikeBlock(bs),
+                constantBlock(bs, 42.5),
+                irrationalBlock(bs) };
+            final long baselineSize = encodeBlocksTotalSize(baselinePipeline(bs), blocks);
+            final long alpSize = encodeBlocksTotalSize(alpPipeline(bs), blocks);
+            logger.info("aggregate bs={} baseline={} alp={}", bs, baselineSize, alpSize);
+            assertEquals("baseline bs=" + bs, expectedBaseline[i], baselineSize);
+            assertEquals("alp bs=" + bs, expectedAlp[i], alpSize);
+        }
+    }
+
+    private void assertSizes(IntFunction<long[]> factory, long[] expectedBaseline, long[] expectedAlp) throws IOException {
+        for (int i = 0; i < BLOCK_SIZES.length; i++) {
+            final int bs = BLOCK_SIZES[i];
+            final long[] values = factory.apply(bs);
+            final long baselineSize = encodeBlockSize(baselinePipeline(bs), values);
+            final long alpSize = encodeBlockSize(alpPipeline(bs), values);
+            logger.info("bs={} baseline={} alp={}", bs, baselineSize, alpSize);
+            assertEquals("baseline bs=" + bs, expectedBaseline[i], baselineSize);
+            assertEquals("alp bs=" + bs, expectedAlp[i], alpSize);
+        }
+    }
+
+    private void assertDeclines(IntFunction<long[]> factory) throws IOException {
+        for (int bs : BLOCK_SIZES) {
+            final long[] values = factory.apply(bs);
+            final long baselineSize = encodeBlockSize(baselinePipeline(bs), values);
+            final long alpSize = encodeBlockSize(alpPipeline(bs), values);
+            logger.info("bs={} baseline={} alp={}", bs, baselineSize, alpSize);
+            assertEquals("ALP must decline on this shape (bs=" + bs + ")", baselineSize, alpSize);
         }
     }
 
@@ -215,27 +159,6 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
             }
         }
         return bufferOut.size();
-    }
-
-    private static final int MAX_MONOTONIC_REGRESSION_FACTOR = 20;
-
-    private void assertBoundedRegression(String label, int blockSize, long[] values) throws IOException {
-        final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
-        final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
-        assertTrue(
-            "ALP must stay within "
-                + MAX_MONOTONIC_REGRESSION_FACTOR
-                + "x of baseline on "
-                + label
-                + " at blockSize="
-                + blockSize
-                + " (alp="
-                + alpSize
-                + ", baseline="
-                + baselineSize
-                + ")",
-            alpSize <= baselineSize * MAX_MONOTONIC_REGRESSION_FACTOR
-        );
     }
 
     private static long[] monotonicAscendingIntegerDoublesBlock(int size) {

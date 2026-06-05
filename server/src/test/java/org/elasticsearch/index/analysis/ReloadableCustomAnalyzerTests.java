@@ -12,6 +12,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -23,12 +24,14 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 
@@ -122,6 +125,157 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode",
             ex.getMessage()
         );
+    }
+
+    /**
+     * Once the last sharer releases a shared {@link ReloadableCustomAnalyzer} the registry closes it.
+     * A reload that was already in flight for that instance must quietly discard its result rather
+     * than swap new components into — and keep alive — a torn-down analyzer. {@code close()} wins and
+     * does not wait for the rebuild.
+     */
+    public void testReloadAfterCloseIsDiscarded() throws IOException {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0);
+        AnalyzerComponents before = analyzer.getComponents();
+        analyzer.close();
+
+        // A reload arriving after close() must be a no-op (the components stay as they were) and must
+        // not throw, and a closed instance must refuse to claim a reload token.
+        analyzer.reload(
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
+        );
+        assertSame("a reload after close must not swap in new components", before, analyzer.getComponents());
+        assertFalse("a closed instance must refuse to claim a reload token", analyzer.tryClaimReload(new Object()));
+    }
+
+    /**
+     * Two concurrent {@link ReloadableCustomAnalyzer#reload} calls on the same instance must not build
+     * the (potentially expensive) analyzer in parallel; the rebuilds serialize so only one runs at a
+     * time. The probe filter holds the first builder inside the build (no timing — a latch), then the
+     * test asserts a second reload {@code BLOCKED}s on the reload lock rather than entering the build.
+     * Without serialization the second builder would enter ({@code inBuild == 2}) and the test fails.
+     */
+    public void testConcurrentReloadsDoNotBuildInParallel() throws Exception {
+        AtomicInteger inBuild = new AtomicInteger();
+        AtomicInteger peakConcurrentBuilds = new AtomicInteger();
+        CountDownLatch firstBuilderEntered = new CountDownLatch(1);
+        CountDownLatch releaseBuilders = new CountDownLatch(1);
+        TokenFilterFactory serializationProbe = new AbstractTokenFilterFactory("my_filter") {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return AnalysisMode.SEARCH_TIME;
+            }
+
+            @Override
+            public TokenFilterFactory getChainAwareTokenFilterFactory(
+                IndexCreationContext context,
+                TokenizerFactory tokenizer,
+                List<CharFilterFactory> charFilters,
+                List<TokenFilterFactory> previousTokenFilters,
+                Function<String, TokenFilterFactory> allFilters
+            ) {
+                peakConcurrentBuilds.accumulateAndGet(inBuild.incrementAndGet(), Math::max);
+                try {
+                    firstBuilderEntered.countDown();
+                    releaseBuilders.await(); // hold the builder here until the test releases it
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    inBuild.decrementAndGet();
+                }
+                return this;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        // Build the initial components with the no-op filter so this setup call does not block on the
+        // probe; the probe (which holds its builder) is only used by the reload() calls below.
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
+            Runnable reload = () -> {
+                try {
+                    analyzer.reload(
+                        "my_analyzer",
+                        analyzerSettings,
+                        testAnalysis.tokenizer,
+                        testAnalysis.charFilter,
+                        Collections.singletonMap("my_filter", serializationProbe)
+                    );
+                } catch (Exception e) {
+                    failure.compareAndSet(null, e);
+                }
+            };
+            Thread first = new Thread(reload);
+            Thread second = new Thread(reload);
+            first.start();
+            // Wait until the first reload is inside the build, holding the reload lock.
+            assertTrue("first builder did not enter", firstBuilderEntered.await(10, TimeUnit.SECONDS));
+            second.start();
+            // The second reload must block trying to acquire the reload lock — it cannot enter the build
+            // while the first holds it. (Without serialization it would enter and inBuild would reach 2.)
+            assertBusy(() -> assertEquals(Thread.State.BLOCKED, second.getState()));
+            assertEquals("only one builder may be inside the build at a time", 1, inBuild.get());
+            releaseBuilders.countDown();
+            first.join(30_000);
+            second.join(30_000);
+        }
+
+        assertNull("concurrent reload threw: " + failure.get(), failure.get());
+        assertEquals("reload builds must never run in parallel for one instance", 1, peakConcurrentBuilds.get());
+    }
+
+    /**
+     * A {@code tokenStream()} that races the close of a shared {@link ReloadableCustomAnalyzer} (the
+     * last sharer was deleted) must fail like any other closed Lucene analyzer — an
+     * {@link AlreadyClosedException} — rather than a raw NPE from the torn-down
+     * {@link org.apache.lucene.util.CloseableThreadLocal}.
+     */
+    public void testTokenStreamAfterCloseThrowsAlreadyClosed() throws IOException {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents components = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0);
+        analyzer.close();
+        expectThrows(AlreadyClosedException.class, () -> analyzer.tokenStream("f", "foo"));
     }
 
     /**

@@ -12,6 +12,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -132,15 +133,25 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     // The reload token (the reload request) this analyzer was last claimed for; guarded by {@code this}.
     private Object lastReloadToken;
 
+    // Set by close() once the last sharer has released this instance. reload() (synchronized) observes
+    // it and discards its result rather than mutate an analyzer nobody references; getStoredComponents()
+    // observes it and fails fast with AlreadyClosedException rather than dereference a closed
+    // CloseableThreadLocal. Volatile so close() can set it WITHOUT taking the reload monitor — close()
+    // runs while the registry holds its cache lock and must never wait behind a (slow) reload build.
+    private volatile boolean closed;
+
     /**
      * Claims this analyzer for the reload identified by {@code token}: returns {@code true} for the
      * first caller (recording the token) and {@code false} for any later caller carrying the same
      * token. A single reload request broadcasts to every index on the node, but many share one
      * analyzer instance — this lets the registry rebuild that shared instance once per request rather
      * than once per index. A {@code null} token never dedups (always reloads), the behavior for
-     * internal / direct callers.
+     * internal / direct callers. A closed instance never claims: there is no sharer left to reload for.
      */
     public synchronized boolean tryClaimReload(Object token) {
+        if (closed) {
+            return false;
+        }
         if (token != null && token == lastReloadToken) {
             return false;
         }
@@ -155,6 +166,9 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
+        // synchronized: reloads of this instance serialize, so two requests never rebuild the same
+        // (potentially expensive) analyzer in parallel. close() does NOT take this monitor (it only
+        // flips the volatile closed flag), so it never blocks behind this rebuild.
         AnalyzerComponents components = AnalyzerComponents.createComponents(
             IndexCreationContext.RELOAD_ANALYZERS,
             name,
@@ -163,11 +177,22 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             charFilters,
             tokenFilters
         );
+        if (closed) {
+            // The last sharer released this instance while we were rebuilding. close() wins: there is no
+            // one left to query it, so drop the freshly built components rather than publish them onto a
+            // torn-down analyzer (whose only reader, getStoredComponents(), now throws).
+            return;
+        }
         this.components = components;
     }
 
     @Override
     public void close() {
+        // Not synchronized on purpose: close() runs while the registry holds its cache lock, so it must
+        // never wait behind a reload build. Flagging closed (volatile) is enough — a concurrent reload()
+        // drops its result, and any tokenStream() that raced this close fails fast with
+        // AlreadyClosedException instead of NPE-ing on the now-closed CloseableThreadLocal.
+        closed = true;
         super.close();
         storedComponents.close();
     }
@@ -177,6 +202,11 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     }
 
     private AnalyzerComponents getStoredComponents() {
+        if (closed) {
+            // The instance was released and closed (its CloseableThreadLocal is torn down). Behave like
+            // any other closed Lucene analyzer rather than NPE on the nulled thread-local.
+            throw new AlreadyClosedException("analyzer is closed");
+        }
         return storedComponents.get();
     }
 

@@ -185,15 +185,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
-    private static Boolean vectordbDocumentIndexModeSupported;
-
-    private boolean vectordbDocumentIndexModeSupported() throws IOException {
-        if (vectordbDocumentIndexModeSupported == null) {
-            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
-        }
-        return vectordbDocumentIndexModeSupported;
-    }
-
     protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
@@ -280,7 +271,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
-            assumeTrue("vectordb_document index mode requires a snapshot build", Build.current().isSnapshot());
             assumeTrue(
                 "Cluster has nodes that do not support index.mode=vectordb_document",
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)

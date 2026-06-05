@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -58,16 +60,44 @@ import java.util.function.Predicate;
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
  */
 public final class ShardSplittingQuery extends Query {
-    private final IndexMetadata indexMetadata;
-    private final BiPredicate<String, String> shardMatcher;
+    private final Index index;
     private final int shardId;
+    private final int numberOfShards;
+    private final boolean routingPartitionedIndex;
+    private final boolean routingRequired;
+    private final BiPredicate<String, String> shardMatcher;
     private final BitSetProducer nestedParentBitSetProducer;
 
-    public ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
-        this.indexMetadata = indexMetadata;
-        this.shardMatcher = IndexRouting.fromIndexMetadata(indexMetadata).shardMatcherForSplit(shardId);
+    public ShardSplittingQuery(
+        Index index,
+        int shardId,
+        int numberOfShards,
+        IndexRouting indexRouting,
+        IndexVersion creationVersion,
+        boolean routingPartitionedIndex,
+        boolean routingRequired,
+        boolean hasNested
+    ) {
+        this.index = index;
         this.shardId = shardId;
-        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(indexMetadata.getCreationVersion()) : null;
+        this.numberOfShards = numberOfShards;
+        this.routingPartitionedIndex = routingPartitionedIndex;
+        this.routingRequired = routingRequired;
+        this.shardMatcher = indexRouting.shardMatcherForSplit(shardId);
+        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer(creationVersion) : null;
+    }
+
+    public ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
+        this(
+            indexMetadata.getIndex(),
+            shardId,
+            indexMetadata.getNumberOfShards(),
+            IndexRouting.fromIndexMetadata(indexMetadata),
+            indexMetadata.getCreationVersion(),
+            indexMetadata.isRoutingPartitionedIndex(),
+            indexMetadata.mapping() == null ? false : indexMetadata.mapping().routingRequired(),
+            hasNested
+        );
     }
 
     @Override
@@ -108,7 +138,7 @@ public final class ShardSplittingQuery extends Query {
                             // this is the common case - no partitioning and no _routing values
                             // in this case we also don't do anything special with regards to nested docs since we basically delete
                             // by ID and parent and nested all have the same id.
-                            assert indexMetadata.isRoutingPartitionedIndex() == false;
+                            assert routingPartitionedIndex == false;
                             findSplitDocsBasedOnId((idOnlyPredicate), leafReader, bitSet::set);
                         } else {
                             final BitSet parentBitSet;
@@ -120,7 +150,7 @@ public final class ShardSplittingQuery extends Query {
                                     return null; // no matches
                                 }
                             }
-                            if (indexMetadata.isRoutingPartitionedIndex()) {
+                            if (routingPartitionedIndex) {
                                 // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                                 // this index is routing partitioned.
                                 Visitor visitor = new Visitor(leafReader);
@@ -152,10 +182,6 @@ public final class ShardSplittingQuery extends Query {
                                     maybeWrapConsumer.apply(bitSet::set)
                                 );
 
-                                // TODO have the IndexRouting build the query and pass routingRequired in
-                                boolean routingRequired = indexMetadata.mapping() == null
-                                    ? false
-                                    : indexMetadata.mapping().routingRequired();
                                 // now if we have a mixed index where some docs have a _routing value and some don't we have to exclude the
                                 // ones
                                 // with a routing value from the next iteration and delete / select based on the ID.
@@ -229,24 +255,6 @@ public final class ShardSplittingQuery extends Query {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (sameClassAs(o) == false) return false;
-
-        ShardSplittingQuery that = (ShardSplittingQuery) o;
-
-        if (shardId != that.shardId) return false;
-        return indexMetadata.equals(that.indexMetadata);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = indexMetadata.hashCode();
-        result = 31 * result + shardId;
-        return classHash() ^ result;
-    }
-
-    @Override
     public void visit(QueryVisitor visitor) {
         visitor.visitLeaf(this);
     }
@@ -291,6 +299,25 @@ public final class ShardSplittingQuery extends Query {
                 }
             }
         }
+    }
+
+    // Note that equality implementation is only used by resharding since the query itself is not cacheable,
+    // see `ConstantScoreWeight#isCacheable` above.
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardSplittingQuery that = (ShardSplittingQuery) o;
+        // Boolean fields like `routingPartitionedIndex` can not change during the index lifetime
+        // so if the `index` matches, they should always match too.
+        // `numberOfShards` is important since it _can_ change during resharding.
+        // `shardMatcher` is derived from `shardId`, `numberOfShards` and fields than can not change as described above.
+        // `nestedParentBitSetProducer` is based on mapping which similarly can not change (you can't remove fields from mapping).
+        return shardId == that.shardId && numberOfShards == that.numberOfShards && Objects.equals(index, that.index);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, shardId, numberOfShards);
     }
 
     /* this class is a stored fields visitor that reads _id and/or _routing from the stored fields which is necessary in the case

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
@@ -677,10 +678,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // sourcePath (external location) and pushedFilter (opaque local-only filter) are free-form
+        // user content — redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
-            sb.append("[filter=").append(pushedFilter).append("]");
+            sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }
         if (pushedLimit != FormatReader.NO_LIMIT) {
             sb.append("[limit=").append(pushedLimit).append("]");
@@ -699,6 +702,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        NodeUtils.toString(sb, attributes, format);
+        NodeUtils.toString(sb, attributes, format, mapper);
     }
 }

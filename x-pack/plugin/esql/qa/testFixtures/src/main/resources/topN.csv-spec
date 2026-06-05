@@ -191,6 +191,7 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 
 topNLongRangeWildcardSort
 required_capability: date_range_field_type_v6
+required_capability: fix_topn_long_range_encoding
 
 // Exact query for https://github.com/elastic/elasticsearch/issues/150383.
 // The STATS makes the wildcard query result stable while still materializing

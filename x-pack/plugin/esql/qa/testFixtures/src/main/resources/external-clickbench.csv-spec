@@ -542,49 +542,119 @@ c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 
 q37_statsCounter62JulyUrls
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
 
 PageViews:long | URL:keyword
+9094           | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+4638           | http://komme%2F27.0.1453.116
+1406           | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+1299           | http://irr.ru/index.php?showalbum/login-kapustic/product_name
+1011           | http://irr.ru/index.php
+897            | http://irr.ru/index.php?showalbum/login
+651            | http://komme%2F27.0.1453.116 Safari%2F5.0 (compatible; MSIE 9.0;
+376            | http://irr.ru/index.php?showalbum/login-kupalnik
+375            | http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params
+292            | http://komme%2F27.0.1453.116 Safari
 ;
 
 q38_statsCounter62JulyTitles
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | Title:keyword
+10709          | Тест (Россия) - Яндекс
+7303           | Шарарай), Выбрать! - обсуждаются на голд: Шоубиз - Свободная историс
+6670           | Приморск - IRR.ru
+3382           | Брюки New Era H (Асус) 258 общая выплаток, горшечными
+1911           | Теплоску на
+1271           | Dave and Hotpoint sport – самые вещие
+1111           | Приморск (Россия) - Яндекс.Видео
+1094           | AUTO.ria.ua ™ - Аппер
+1033           | OWAProfessign), продать
+1021           | Труси - Шоубиз
 ;
 
 q39_statsCounter62JulyLinks
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 1010;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | URL:keyword
+607            | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+411            | http://aliningrad
+297            | http://ekburg.irr.ru%2Fpuloveplanet
+270            | http://video.yandex.php
+258            | http://smeshariki.ru/obucheyelants
+90             | http://kinopoisk.ru/news/2146555419/page=show_photo/70946/detail/55212.15&he
+84             | http://kinopoisk.ru/news/2146555f3530316995264from]=&int[27][]=&selection/01a54d83ce&lost.1406.07.2013
+73             | http://afisha.yandex.ru/index
+45             | http://sslow_13507.html?aspx?naId=6HS
+40             | http://wildberrior/uphold
 ;
 
 q40_statsCounter62JulyTrafficSources
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 1010;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 10;
 
-PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword | Dst:keyword
+PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword                                                      | Dst:keyword
+3062           | -1                     | 0                      | 0                   | http://kinopoisk.ru/?state                                       | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+2216           | 0                      | 0                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+1295           | 0                      | 0                      | 0                   |                                                                  | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+1233           | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+576            | 1                      | 0                      | 0                   | https://google.com/fee=меньше                                    | http://komme%2F27.0.1453.116
+503            | 3                      | 2                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+367            | -1                     | 0                      | 0                   | http://state=199450984062                                        | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+319            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login
+299            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params
+295            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kupalnik
 ;
 
 q41_statsCounter62JulyRefererHash
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 9118190589742611694 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC | LIMIT 110;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 3594120000172545465 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC, URLHash, EventDate | LIMIT 10;
 
-PageViews:long | URLHash:long | EventDate:integer
+PageViews:long | URLHash:long         | EventDate:integer
+299            | -7370781399609543775 | 15901
+296            | 786877583695637547   | 15901
+197            | 5575639553984629836  | 15901
+87             | 7949176783462555086  | 15901
+59             | -2799183658664184391 | 15901
+54             | -9090998343276352723 | 15901
+50             | -5080405358288893038 | 15901
+50             | 4757978013311555265  | 15901
+40             | 3943190325181210656  | 15901
+28             | 4934910450188490778  | 15901
 ;
 
 q42_statsCounter62JulyWindowClient
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 9074312750323043892 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10010;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 2868770270353813622 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
+347            | 1750                      | 653
+238            | 1261                      | 805
+195            | 1750                      | 580
+117            | 1509                      | 746
+93             | 1750                      | 609
+87             | 1261                      | 1017
+83             | 1750                      | 555
+82             | 1095                      | 590
+76             | 1115                      | 872
+74             | 1509                      | 770
 ;
 
 q43_statsCounter62July1415Minutes
 required_capability: external_command
-EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 1010;
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 10;
 
 PageViews:long | M:long
+47             | 1373832000
+46             | 1373832060
+43             | 1373832120
+29             | 1373832180
+24             | 1373832240
+43             | 1373832300
+39             | 1373832360
+50             | 1373832420
+45             | 1373832480
+42             | 1373832540
 ;

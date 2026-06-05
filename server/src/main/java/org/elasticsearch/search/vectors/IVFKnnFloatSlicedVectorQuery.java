@@ -12,8 +12,6 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.internal.hppc.IntDoubleHashMap;
 import org.apache.lucene.internal.hppc.IntHashSet;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -88,7 +86,12 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, originalK, knnCollectorManager.longAccumulator);
+        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
+            visitRatio,
+            numCands,
+            originalK,
+            knnCollectorManager.longAccumulator
+        );
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return NO_RESULTS;

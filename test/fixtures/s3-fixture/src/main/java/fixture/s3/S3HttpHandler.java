@@ -828,21 +828,6 @@ public class S3HttpHandler implements HttpHandler {
         }
     }
 
-    /**
-     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
-     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
-     */
-    public void assertContentSha256Header(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
-        final var request = parseRequest(exchange);
-        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
-            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
-            assertThat(
-                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
-            );
-        }
-    }
-
     public S3Request parseRequest(HttpExchange exchange) {
         final String queryString = exchange.getRequestURI().getQuery();
         final Map<String, List<String>> queryParameters;

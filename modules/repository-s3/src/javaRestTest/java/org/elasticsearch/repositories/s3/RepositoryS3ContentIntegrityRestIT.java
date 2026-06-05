@@ -28,18 +28,19 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
@@ -73,7 +74,19 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                delegate.assertContentSha256Header(exchange, new ContentSha256HeaderMatcher(exchange.getRequestURI().getPath()));
+                final var request = delegate.parseRequest(exchange);
+                if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+                    && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
+                        .orElse(List.of())
+                        .isEmpty()) {
+                    assertThat(
+                        exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
+                        anyOf(
+                            matchesPattern(S3HttpHandler.SHA256_PATTERN),
+                            equalTo(TestConfig.fromPath(request.path()).getExpectedContentSha256Header())
+                        )
+                    );
+                }
                 delegate.handle(exchange);
             };
         }
@@ -162,7 +175,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             return Strings.format("{scheme=%s,chunkedEncoding=%s}", https ? "https" : "http", chunkedEncoding);
         }
 
-        public Settings getRepositorySettings() {
+        Settings getRepositorySettings() {
             final var builder = Settings.builder();
             if (chunkedEncoding) {
                 if (randomBoolean()) {
@@ -176,13 +189,13 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             return builder.build();
         }
 
-        public String getExpectedContentSha256Header() {
+        String getExpectedContentSha256Header() {
             return https
                 ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
-        public void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
+        void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
             final String client = getClientName();
             builder.keystore("s3.client." + client + ".access_key", ACCESS_KEY);
             builder.keystore("s3.client." + client + ".secret_key", SECRET_KEY);
@@ -190,46 +203,22 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             builder.setting("s3.client." + client + ".path_style_access", () -> "true", n -> https || randomBoolean());
         }
 
-        public S3HttpFixture getS3Fixture() {
+        S3HttpFixture getS3Fixture() {
             return https ? httpsS3Fixture : httpS3Fixture;
         }
 
-        public String getClientName() {
+        String getClientName() {
             return "content_integrity_client_" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
         }
 
-        public String getRepositoryBasePath() {
+        String getRepositoryBasePath() {
             return BASE_PATH + "/" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
         }
-    }
 
-    /// Works out the test case from the URI path, but lazily since some out-of-scope requests don't include the base path in their URI
-    private static class ContentSha256HeaderMatcher extends BaseMatcher<String> {
-        private final String path;
-
-        ContentSha256HeaderMatcher(String path) {
-            this.path = path;
-        }
-
-        @Override
-        public boolean matches(Object actual) {
-            return Objects.equals(getExpectedContentSha256Header(), actual);
-        }
-
-        @Override
-        public void describeTo(Description description) {
-            description.appendText(getExpectedContentSha256Header());
-        }
-
-        @Override
-        public void describeMismatch(Object actual, Description mismatchDescription) {
-            mismatchDescription.appendText("was ").appendValue(actual);
-        }
-
-        private String getExpectedContentSha256Header() {
+        static TestConfig fromPath(String path) {
             for (final var testConfig : TEST_CONFIGS) {
                 if (path.contains(testConfig.getRepositoryBasePath())) {
-                    return testConfig.getExpectedContentSha256Header();
+                    return testConfig;
                 }
             }
             throw new AssertionError("no case matches request URI [" + path + "]");

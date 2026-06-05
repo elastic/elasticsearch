@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
-import org.apache.lucene.util.NumericUtils;
+// NOTE: NumericUtils.sortableLongToDouble is inlined as the two-op
+// (bits ^ ((bits >> 63) & 0x7FFF...)) + longBitsToDouble idiom inside the
+// per-value hot loops below. It avoids the cross-module method call so the JIT
+// can keep the entire per-value sequence in registers and auto-vectorise.
 
 /**
  * Algorithmic primitives for the ALP (Adaptive Lossless floating-Point) double encoding.
@@ -180,10 +183,12 @@ final class AlpDoubleUtils {
         final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
         int exceptions = 0;
         for (int i = 0; i < valueCount; i++) {
-            final double original = NumericUtils.sortableLongToDouble(values[i]);
+            final long sortable = values[i];
+            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+            final double original = Double.longBitsToDouble(originalBits);
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
-            if (Double.doubleToRawLongBits(original) != Double.doubleToRawLongBits(decoded)) {
+            if (originalBits != Double.doubleToRawLongBits(decoded)) {
                 exceptions++;
             }
         }
@@ -201,9 +206,11 @@ final class AlpDoubleUtils {
         int maxOriginalBits = 0;
         int maxMantissaBits = 0;
         for (int i = 0; i < valueCount; i++) {
-            final double original = NumericUtils.sortableLongToDouble(values[i]);
+            final long sortable = values[i];
+            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+            final double original = Double.longBitsToDouble(originalBits);
             final long mantissa = alpRound(original * mulFactor);
-            final long origMag = values[i] ^ (values[i] >> 63);
+            final long origMag = sortable ^ (sortable >> 63);
             final long mantMag = mantissa ^ (mantissa >> 63);
             maxOriginalBits = Math.max(maxOriginalBits, Long.SIZE - Long.numberOfLeadingZeros(origMag));
             maxMantissaBits = Math.max(maxMantissaBits, Long.SIZE - Long.numberOfLeadingZeros(mantMag));
@@ -232,20 +239,23 @@ final class AlpDoubleUtils {
      * @return the number of exceptions collected
      */
     static int alpTransformBlock(final long[] values, int valueCount, int e, int f, final int[] excPositions, final long[] excValues) {
+        assert valueCount <= excPositions.length : "valueCount must not exceed exception scratch length";
         final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
         final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
 
         int excCount = 0;
         for (int i = 0; i < valueCount; i++) {
-            final double original = NumericUtils.sortableLongToDouble(values[i]);
+            final long sortable = values[i];
+            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+            final double original = Double.longBitsToDouble(originalBits);
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
 
-            if (Double.doubleToRawLongBits(original) == Double.doubleToRawLongBits(decoded)) {
+            if (originalBits == Double.doubleToRawLongBits(decoded)) {
                 values[i] = encoded;
             } else {
                 excPositions[excCount] = i;
-                excValues[excCount] = values[i];
+                excValues[excCount] = sortable;
                 excCount++;
                 values[i] = (i > 0) ? values[i - 1] : 0;
             }
@@ -311,7 +321,8 @@ final class AlpDoubleUtils {
 
         final int step = Math.max(1, valueCount / PRE_SELECT_SAMPLE);
         for (int i = 0; i < valueCount; i += step) {
-            final double value = NumericUtils.sortableLongToDouble(values[i]);
+            final long sortable = values[i];
+            final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
             final int packed = bestEFForSingleDouble(value, maxExponent);
             final int e = packed >>> 16;
             final int f = packed & 0xFFFF;
@@ -328,7 +339,9 @@ final class AlpDoubleUtils {
             int maxP = 0;
             final int precStep = Math.max(1, valueCount / SAMPLE_SIZE);
             for (int i = 0; i < valueCount; i += precStep) {
-                final int p = estimatePrecision(NumericUtils.sortableLongToDouble(values[i]), maxExponent);
+                final long sortable = values[i];
+                final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
+                final int p = estimatePrecision(value, maxExponent);
                 minP = Math.min(minP, p);
                 maxP = Math.max(maxP, p);
             }

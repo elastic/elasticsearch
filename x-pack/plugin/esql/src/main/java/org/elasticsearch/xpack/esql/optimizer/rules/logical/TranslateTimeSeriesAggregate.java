@@ -572,12 +572,11 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
     }
 
     /**
-     * Finds the {@code _tsid} attribute of the time-series source feeding this aggregate, walking only the main
-     * input path. The right-hand side of a {@link BinaryPlan} (a lookup index, or an {@code IN}-subquery rewritten
-     * to a {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin SemiJoin}) is skipped: those subtrees are
-     * separate time-series sources with their own {@code _tsid} that this aggregate must not adopt. Crossing that
-     * boundary previously caused the outer aggregate to inject its {@code _tsid} into a nested subquery relation that
-     * already had one, producing a relation with two {@code _tsid} attributes.
+     * Finds the {@code _tsid} attribute of the time-series source feeding this aggregate, walking only the main input path. The right-hand
+     * side of a {@code BinaryPlan} (a lookup index, or an {@code IN}-subquery rewritten to a {@code SemiJoin}) is skipped: those subtrees
+     * are separate time-series sources with their own {@code _tsid} that this aggregate must not adopt. Crossing that boundary previously
+     * caused the outer aggregate to inject its {@code _tsid} into a nested subquery relation that already had one, producing a relation
+     * with two {@code _tsid} attributes.
      */
     private static void findTimeSeriesSourceTsid(LogicalPlan plan, Holder<Attribute> tsid) {
         if (plan instanceof EsRelation relation) {
@@ -598,29 +597,18 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
     }
 
     /**
-     * Injects {@code tsid} into the time-series source relation(s) of this aggregate and adjusts their index mode,
-     * mirroring the traversal scope of {@link #findTimeSeriesSourceTsid}: it never descends into the right-hand side
-     * of a {@link BinaryPlan}, so nested subqueries keep their own {@code _tsid} untouched.
+     * Injects {@code tsid} into the time-series source relation(s) of this aggregate and adjusts their index mode, mirroring the traversal
+     * scope of {@code findTimeSeriesSourceTsid}: it never descends into the right-hand side of a {@code BinaryPlan}, so nested subqueries
+     * keep their own {@code _tsid} untouched.
      */
     private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
-        if (plan instanceof EsRelation relation) {
+        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> {
             IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
             if (relation.output().contains(tsid) == false) {
                 return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
             }
             return relation.withIndexMode(indexMode);
-        }
-        if (plan instanceof BinaryPlan binary) {
-            return binary.replaceLeft(addTsidToTimeSeriesSource(binary.left(), tsid, requiredTimeSeriesSource));
-        }
-        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
-        boolean changed = false;
-        for (LogicalPlan child : plan.children()) {
-            LogicalPlan newChild = addTsidToTimeSeriesSource(child, tsid, requiredTimeSeriesSource);
-            changed |= newChild != child;
-            newChildren.add(newChild);
-        }
-        return changed ? plan.replaceChildren(newChildren) : plan;
+        });
     }
 
 }

@@ -129,7 +129,6 @@ mainFromInSubqueryTsWithRate
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -152,7 +151,6 @@ mainFromNotInSubqueryTsWithRate
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "prod"
@@ -176,7 +174,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL total_cost = 26.5
@@ -202,7 +199,6 @@ mainFromInSubqueryTsWithMaxOverTimeInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -225,7 +221,6 @@ mainFromNotInSubqueryTsWithMaxOverTimeInInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -244,7 +239,6 @@ mainFromInSubqueryTsWithMinOverTimeInInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "prod"
@@ -264,7 +258,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: tbucket
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -289,7 +282,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL m = 0.0
@@ -307,7 +299,6 @@ mainFromInSubqueryTsWithDeltaInInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "prod"
@@ -327,7 +318,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -350,7 +340,6 @@ mainFromNotInSubqueryTsWithIncreaseInInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "fake_cluster"
@@ -370,7 +359,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: tbucket
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "staging"
@@ -391,7 +379,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -416,7 +403,6 @@ mainFromInSubqueryTsWithMultipleTsSubqueryInInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 FROM employees
 | EVAL cluster = "qa"
@@ -431,7 +417,9 @@ cnt:long
 100
 ;
 
-mainFromInSubqueryTsWithConstantInInSubquery
+// main query from command, subquery from command with ts index
+
+mainFromInSubqueryFromWithConstantInInSubquery
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -446,7 +434,7 @@ cnt:long
 100
 ;
 
-mainFromNotInSubqueryTsWithConstantInNotInSubquery
+mainFromNotInSubqueryFromWithConstantInNotInSubquery
 required_capability: where_in_subquery_without_view
 
 FROM employees
@@ -462,6 +450,7 @@ cnt:long
 ;
 
 // main query from command, subquery mixed of from/ts/row command
+
 mainFromInSubqueryWithMixedRowFromTs
 required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
@@ -790,7 +779,7 @@ TS k8s
                     | STATS r = max(rate(network.total_bytes_in)) BY cluster
                     | WHERE r > 10
                     | KEEP cluster)
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 1) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 
@@ -810,7 +799,7 @@ TS k8s
                         | STATS r = max(rate(network.total_bytes_in)) BY cluster
                         | WHERE r > 10
                         | KEEP cluster)
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 3) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 
@@ -830,14 +819,14 @@ TS k8s
 | WHERE network.cost IN (TS k8s
                          | STATS m = max(network.cost) BY WITHOUT(pod, region)
                          | KEEP m)
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 1) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 
 total_cost:double | _timeseries:keyword
 9.5               | "{""cluster"":""staging""}"
-10.75             | "{""cluster"":""prod""}"
-31.25             | "{""cluster"":""qa""}"
+10.8              | "{""cluster"":""prod""}"
+31.3              | "{""cluster"":""qa""}"
 ;
 
 mainTsNotInSubqueryTsWithWithoutInMainAndNotInSubquery
@@ -851,14 +840,14 @@ TS k8s
 | WHERE network.cost NOT IN (TS k8s
                              | STATS m = max(network.cost) BY WITHOUT(pod, region)
                              | KEEP m)
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 1) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 
 total_cost:double | _timeseries:keyword
-11.625            | "{""cluster"":""staging""}"
+11.6              | "{""cluster"":""staging""}"
 15.5              | "{""cluster"":""prod""}"
-23.125            | "{""cluster"":""qa""}"
+23.1              | "{""cluster"":""qa""}"
 ;
 
 mainTsInSubqueryTsWithTBucketedRateFilterInInSubquery
@@ -1245,14 +1234,14 @@ TS k8s
 | WHERE network.cost NOT IN (TS k8s
                              | STATS m = max(max_over_time(network.cost)) BY WITHOUT(pod, region)
                              | KEEP m)
-| STATS avg_cost = avg(network.cost) BY WITHOUT(pod, region)
+| STATS avg_cost = ROUND(avg(network.cost), 6) BY WITHOUT(pod, region)
 | SORT avg_cost
 ;
 
-avg_cost:double        | _timeseries:keyword
-5.291666666666667      | "{""cluster"":""staging""}"
-6.208333333333333      | "{""cluster"":""prod""}"
-8.833333333333334      | "{""cluster"":""qa""}"
+avg_cost:double | _timeseries:keyword
+5.291667        | "{""cluster"":""staging""}"
+6.208333        | "{""cluster"":""prod""}"
+8.833333        | "{""cluster"":""qa""}"
 ;
 
 mainTsWithInSubqueryTsWithMultipleTsSubqueries
@@ -1276,6 +1265,7 @@ max_bytes:long | cluster:keyword
 ;
 
 // main query ts command, subquery from/row command
+
 mainTsInSubqueryRow
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
@@ -1372,6 +1362,7 @@ max_bytes:long | cluster:keyword
 mainTsInSubqueryFrom
 required_capability: where_in_subquery_without_view
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (FROM employees
@@ -1389,6 +1380,7 @@ max_bytes:long | cluster:keyword
 mainTsNotInSubqueryFrom
 required_capability: where_in_subquery_without_view
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster NOT IN (FROM employees
@@ -1407,6 +1399,7 @@ max_bytes:long | cluster:keyword
 mainTsInSubqueryFromConjunctive
 required_capability: where_in_subquery_without_view
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (FROM employees
@@ -1425,6 +1418,7 @@ max_bytes:long | cluster:keyword
 mainTsNotInSubqueryFromWithMissingCluster
 required_capability: where_in_subquery_without_view
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster NOT IN (FROM employees
@@ -1484,6 +1478,7 @@ mainTsInSubqueryFromMultipleFromBranches
 required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (FROM
@@ -1504,6 +1499,7 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (FROM
@@ -1524,6 +1520,7 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row
 required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster NOT IN (FROM
@@ -1543,7 +1540,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
-required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (ROW cluster = "qa")
@@ -1560,7 +1556,6 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation_v2
-required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster NOT IN (ROW cluster = "qa")
@@ -1596,11 +1591,10 @@ mainTsWithMaxOverTimeInSubqueryRow
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 required_capability: ts_command_v0
-required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (ROW cluster = "prod")
-| STATS top = max(max_over_time(network.cost)) BY cluster
+| STATS top = ROUND(max(max_over_time(network.cost)), 3) BY cluster
 | SORT cluster
 ;
 
@@ -1613,11 +1607,10 @@ required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
-required_capability: where_in_subquery_with_ts
 
 TS k8s
 | WHERE cluster IN (ROW cluster = "qa")
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 1) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 
@@ -1636,7 +1629,7 @@ TS k8s
                     | WHERE emp_no == 10001
                     | EVAL cluster = "qa"
                     | KEEP cluster)
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| STATS total_cost = ROUND(sum(network.cost), 1) BY WITHOUT(pod, region)
 | SORT total_cost
 ;
 

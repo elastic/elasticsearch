@@ -461,9 +461,6 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionTests
   method: testOverflowFails
   issue: https://github.com/elastic/elasticsearch/issues/150455
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testDeleteIndexAfterRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150474
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesStatsWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150476
@@ -644,6 +641,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150844
+- class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
+  method: testNullClusterUuidDoesNotNpe
+  issue: https://github.com/elastic/elasticsearch/issues/150887
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/150867
@@ -656,3 +656,21 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  method: testDeleteMountedFrozenIndexBeforeSwap
+  issue: https://github.com/elastic/elasticsearch/issues/150892
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
+  issue: https://github.com/elastic/elasticsearch/issues/150897
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
+  issue: https://github.com/elastic/elasticsearch/issues/150898
+- class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
+  method: testSeek
+  issue: https://github.com/elastic/elasticsearch/issues/150912
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.BufferingMetricExporterTests
+  method: testFailBufferRecoverAndDrain
+  issue: https://github.com/elastic/elasticsearch/issues/150913
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testFewVectorManyTimes
+  issue: https://github.com/elastic/elasticsearch/issues/150915

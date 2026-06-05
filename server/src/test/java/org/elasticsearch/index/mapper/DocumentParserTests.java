@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -971,6 +972,41 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("bar")));
         assertEquals(0, doc.rootDoc().getFields("bar").size());
+    }
+
+    // In columnar mode, unmapped fields with dynamic:false must be dropped entirely rather than
+    // stored in _ignored_source (documented data loss, not a bug).
+    public void testColumnarDynamicFalseValueDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("unmapped_field", "some_value")));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_field").size());
+        assertNull(
+            "unmapped dynamic:false leaf must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseObjectDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("unmapped_obj").field("key", "value").endObject()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_obj.key").size());
+        assertNull(
+            "unmapped dynamic:false object must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
+    }
+
+    public void testColumnarDynamicFalseArrayDropped() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        ParsedDocument doc = mapper.parse(source(b -> b.startArray("unmapped_arr").value(1).value(2).endArray()));
+        assertEquals(0, doc.rootDoc().getFields("unmapped_arr").size());
+        assertNull(
+            "unmapped dynamic:false array must not be stored in _ignored_source in columnar mode",
+            doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME)
+        );
     }
 
     public void testDynamicStrictNull() throws Exception {

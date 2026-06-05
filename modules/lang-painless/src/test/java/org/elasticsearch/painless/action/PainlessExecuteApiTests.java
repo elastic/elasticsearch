@@ -509,8 +509,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
             new ValidTestCase(null, new Tuple<>(null, null)) };
 
         for (ValidTestCase testCase : cases) {
-            Tuple<String, String> output = Request.ContextSetup.parseClusterAliasAndIndex(testCase.input);
-            assertEquals(testCase.output(), output);
+            assertEquals(testCase.output(), Request.ContextSetup.parseClusterAliasAndIndex(testCase.input));
         }
 
         expectThrows(IllegalArgumentException.class, () -> Request.ContextSetup.parseClusterAliasAndIndex("remote1::foo"));

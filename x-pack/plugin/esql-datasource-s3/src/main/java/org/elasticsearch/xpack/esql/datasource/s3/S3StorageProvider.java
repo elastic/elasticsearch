@@ -11,8 +11,9 @@ import io.netty.channel.ChannelOption;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
@@ -28,6 +29,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -109,6 +111,11 @@ public final class S3StorageProvider implements StorageProvider {
         builder.overrideConfiguration(c -> {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
+            // Pin the SDK retry strategy to Standard (deterministic: 3 attempts, jittered exponential backoff,
+            // a retry-quota token bucket) instead of leaving it to resolve from the environment (which defaults
+            // to Legacy / 4 attempts, or whatever AWS_RETRY_MODE/AWS_MAX_ATTEMPTS happen to be). This is the
+            // per-backend, connection-aware retry layer beneath our provider-agnostic RetryPolicy.
+            c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
         });
 
         // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
@@ -116,15 +123,7 @@ public final class S3StorageProvider implements StorageProvider {
         // TLS already provides in-transit integrity; this matches what other engines do.
         builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
-        AwsCredentialsProvider credentialsProvider;
-        if (config != null && config.isAnonymous()) {
-            credentialsProvider = AnonymousCredentialsProvider.create();
-        } else if (config != null && config.hasCredentials()) {
-            credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
-        } else {
-            credentialsProvider = DefaultCredentialsProvider.create();
-        }
-        builder.credentialsProvider(credentialsProvider);
+        builder.credentialsProvider(credentialsProvider(config));
 
         if (config != null && config.region() != null) {
             builder.region(Region.of(config.region()));
@@ -138,6 +137,40 @@ public final class S3StorageProvider implements StorageProvider {
         }
 
         return builder;
+    }
+
+    /**
+     * Builds the AWS credentials provider for the given configuration:
+     * <ul>
+     *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
+     *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
+     *   <li>access_key + secret_key — static credentials</li>
+     * </ul>
+     * The node's ambient credential chain is deliberately never consulted: the node may run in a
+     * different cloud than the bucket it targets, so a data source must carry its own credentials.
+     */
+    static AwsCredentialsProvider credentialsProvider(S3Configuration config) {
+        if (config != null && config.isAnonymous()) {
+            return AnonymousCredentialsProvider.create();
+        }
+        if (config != null && config.hasCredentials()) {
+            if (Strings.hasText(config.sessionToken())) {
+                return StaticCredentialsProvider.create(
+                    AwsSessionCredentials.create(config.accessKey(), config.secretKey(), config.sessionToken())
+                );
+            }
+            return StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
+        }
+        if (config != null && Strings.hasText(config.sessionToken())) {
+            // A session token alone cannot authenticate without its access key and secret key.
+            throw new IllegalArgumentException("S3 session_token requires access_key and secret_key");
+        }
+        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+        throw new IllegalArgumentException(
+            "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
+                + "optionally WITH (session_token = '...') for STS temporary credentials, "
+                + "or WITH (auth = 'none') for public buckets"
+        );
     }
 
     @Override
@@ -229,7 +262,7 @@ public final class S3StorageProvider implements StorageProvider {
     private String credentialHint() {
         if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
             return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') or set AWS environment variables";
+                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...')";
         }
         return "";
     }

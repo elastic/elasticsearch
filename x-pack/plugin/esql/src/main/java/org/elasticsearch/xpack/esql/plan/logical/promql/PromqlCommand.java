@@ -9,20 +9,19 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -53,12 +52,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan
-    implements
-        TelemetryAware,
-        PostAnalysisVerificationAware,
-        TimestampAware,
-        TimestampBoundsAware.OfLogicalPlan {
+public class PromqlCommand extends UnaryPlan implements TelemetryAware, TimestampAware, TimestampBoundsAware.OfLogicalPlan {
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
@@ -351,17 +345,23 @@ public class PromqlCommand extends UnaryPlan
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append(" start=[").append(start);
-        sb.append("] end=[").append(end);
-        sb.append("] step=[").append(step);
-        sb.append("] buckets=[").append(buckets);
-        sb.append("] scrape_interval=[").append(scrapeInterval);
-        sb.append("] valueColumnName=[").append(valueColumnName);
+        sb.append(" start=[").append(renderLiteral(start, mapper));
+        sb.append("] end=[").append(renderLiteral(end, mapper));
+        sb.append("] step=[").append(renderLiteral(step, mapper));
+        sb.append("] buckets=[").append(renderLiteral(buckets, mapper));
+        sb.append("] scrape_interval=[").append(renderLiteral(scrapeInterval, mapper));
+        sb.append("] valueColumnName=[").append(valueColumnName == null ? "null" : mapper.column(valueColumnName));
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString(format));
+        sb.append(promqlPlan.toString(format, mapper));
         sb.append("\n<>]]");
+    }
+
+    // Route the literal value through the mapper rather than appending it raw: identity is the raw
+    // value (matching the prior rendering), anonymization an interned token. No identity branch.
+    private static String renderLiteral(Literal lit, NodeStringMapper mapper) {
+        return lit == null ? "null" : mapper.literal(lit.value(), lit.dataType());
     }
 
     @Override
@@ -374,6 +374,12 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        throw new IllegalStateException(
+            "PromqlCommand verification and translation should already have been completed: [" + sourceText() + "]"
+        );
+    }
+
+    public void verify(Failures failures) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -408,18 +414,6 @@ public class PromqlCommand extends UnaryPlan
                     }
                     if (s.series() == null) {
                         failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
-                    } else if (s.series() instanceof FieldAttribute seriesField) {
-                        if (seriesField.isDimension()) {
-                            failures.add(
-                                fail(
-                                    s,
-                                    "field [{}] of type [{}] cannot be used as a metric; it is a dimension field [{}]",
-                                    seriesField.name(),
-                                    seriesField.dataType().typeName(),
-                                    s.sourceText()
-                                )
-                            );
-                        }
                     }
                     if (s.evaluation() != null) {
                         if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {

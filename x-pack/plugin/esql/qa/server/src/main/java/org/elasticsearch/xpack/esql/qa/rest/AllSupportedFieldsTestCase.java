@@ -185,15 +185,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
-    private static Boolean vectordbDocumentIndexModeSupported;
-
-    private boolean vectordbDocumentIndexModeSupported() throws IOException {
-        if (vectordbDocumentIndexModeSupported == null) {
-            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
-        }
-        return vectordbDocumentIndexModeSupported;
-    }
-
     protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
@@ -280,7 +271,6 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
-            assumeTrue("vectordb_document index mode requires a snapshot build", Build.current().isSnapshot());
             assumeTrue(
                 "Cluster has nodes that do not support index.mode=vectordb_document",
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
@@ -291,6 +281,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             assumeTrue(
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+            );
+            assumeTrue(
+                "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
+                clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
             );
         }
         if (supportsNodeAssignment()) {
@@ -1531,11 +1525,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
                 : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
-            case IP -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+            case IP -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
-            case KEYWORD -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+            case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")

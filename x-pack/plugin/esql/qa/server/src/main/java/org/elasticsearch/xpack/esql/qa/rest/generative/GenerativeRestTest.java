@@ -443,7 +443,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isFullTextAfterSubqueryInFromBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
@@ -859,14 +858,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after (?:LIMIT|INLINE|MV_EXPAND|STATS|CHANGE_POINT|\\(from).*",
-        Pattern.DOTALL
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b).*",
+        Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.); the generator only walks the
-     * outer command list. Gated on a parenthesised inner {@code FROM}.
+     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.) or when full-text functions/operators
+     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a
+     * parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
@@ -891,23 +892,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MATCH_LENIENT_FALSE_PATTERN.matcher(query).find() || QSTR_LENIENT_FALSE_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern TS_OUTPUT_CHANGED_PATTERN = Pattern.compile(
-        ".*Output has changed from \\[.*\\] to \\[.*\\].*",
-        Pattern.DOTALL
-    );
-
-    // https://github.com/elastic/elasticsearch/issues/134794
-    static boolean isTsOutputChangedError(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (TS_OUTPUT_CHANGED_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        String trimmed = query.trim().toUpperCase(Locale.ROOT);
-        return trimmed.startsWith("TS ");
     }
 
     /**
@@ -1023,12 +1007,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
+    private static final Pattern DEDUP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*DEDUP\\b");
 
     /**
      * See https://github.com/elastic/elasticsearch/issues/148513
      * <p>
      * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
-     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy).
+     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy). DEDUP uses the same LimitBy
+     * plan internally, so it has the same missing-reference failure after MV_EXPAND.
      */
     static boolean isLimitByMvExpandBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
@@ -1037,7 +1023,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
             return false;
         }
-        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
+        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && (LIMIT_BY_COMMAND_PATTERN.matcher(query).find() || DEDUP_COMMAND_PATTERN.matcher(query).find());
     }
 
     private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");

@@ -108,7 +108,7 @@ ROW key=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25]
 Finally include this file in the `CHANGE_POINT` command file [`_snippets/commands/layout/change_point.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/layout/change_point.md):
 
 ```
-**Examples**
+## Examples
 
 The following example shows the detection of a step change:
 

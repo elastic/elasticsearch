@@ -465,6 +465,23 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
+    /**
+     * Returns {@code true} when this update changes index routing inputs that can alter whether a datafeed
+     * participates in cross-project search and therefore whether an internal cloud credential is required.
+     */
+    public boolean affectsCrossProjectSearchSurface(DatafeedConfig current) {
+        if (projectRouting != null && Objects.equals(projectRouting, current.getProjectRouting()) == false) {
+            return true;
+        }
+        if (indices != null && Objects.equals(indices, current.getIndices()) == false) {
+            return true;
+        }
+        if (indicesOptions != null && Objects.equals(indicesOptions, current.getIndicesOptions()) == false) {
+            return true;
+        }
+        return false;
+    }
+
     boolean isNoop(DatafeedConfig datafeed) {
         return (frequency == null || Objects.equals(frequency, datafeed.getFrequency()))
             && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))

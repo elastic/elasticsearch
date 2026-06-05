@@ -605,7 +605,8 @@ public class SharingKeyTests extends ESTestCase {
         // showing the stale token list (e.g. [i-pod, ipod]) rather than the new one.
         List<String> tokensAfter = tokens(naA, "i-pod");
         assertTrue(
-            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: " + tokensAfter
+            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: "
+                + tokensAfter
                 + " (bug: B claimed the reload token but found null settings for 'search_a',"
                 + " so reload was silently skipped for the whole broadcast)",
             tokensAfter.contains("mp3-player")

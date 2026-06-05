@@ -36,6 +36,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.Uid;
@@ -113,6 +114,7 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.elasticsearch.test.MockLog.awaitLogger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT;
@@ -414,7 +416,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
 
-        int segments = randomIntBetween(4, 8);
+        int segments = randomIntBetween(2, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
         for (int i = 0; i < segments; ++i) {
             indexDocs(indexName, randomIntBetween(100, 1000));
             flush(indexName);
@@ -449,7 +451,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
         });
 
-        assertThatLogger(
+        awaitLogger(
             () -> client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get(),
             SharedBlobCacheWarmingService.class,
             expectCacheWarmingCompleteEvent(Type.INDEXING_MERGE)
@@ -1093,7 +1095,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
         try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
             for (var id : idsToLookup) {
-                assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
+                assertNotNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
             }
         }
     }
@@ -1225,6 +1227,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             @Override
             public void assertMatched() {
                 assertThat("expected to see " + expectationName + " but did not", seenLatch.getCount(), equalTo(0L));
+            }
+
+            @Override
+            public void awaitMatched(long millis) throws InterruptedException {
+                assertThat(
+                    "expected to see " + expectationName + " but did not",
+                    seenLatch.await(millis, TimeUnit.MILLISECONDS),
+                    equalTo(true)
+                );
             }
         };
     }

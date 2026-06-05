@@ -64,7 +64,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 

@@ -487,7 +487,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     IndexVersion.current(),
                     true,
                     true,
-                    true
+                    true,
+                    false
                 );
 
                 // NOTE: "fox brown" has both terms in the index but in the wrong order. A boolean MUST

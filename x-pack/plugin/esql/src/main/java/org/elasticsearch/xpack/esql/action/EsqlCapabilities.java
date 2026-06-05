@@ -438,9 +438,14 @@ public class EsqlCapabilities {
         /**
          * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
          * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
-         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
-         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
-         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         * {@code ==}, {@code !=}, {@code IN}, the four range comparators ({@code >}, {@code >=},
+         * {@code <}, {@code <=}), and closed ranges (combined {@code >=}/{@code <=}, equivalent to
+         * {@code BETWEEN}) against the same shape. The one-sided range forms rely on the keyed
+         * flattened mapper substituting a key-prefix sentinel for the open bound so the resulting
+         * Lucene query stays inside the open key's portion of the term namespace. Tests that
+         * depend on the fused multi-value output or on the {@code SingleValueQuery} warning text
+         * must require this capability so they skip on mixed clusters where any data node still
+         * runs the per-row evaluator.
          */
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
@@ -1323,6 +1328,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME,
+
+        /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
          * (from a subquery in FROM) or a {@code Fork}.
          */
@@ -2139,6 +2149,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
+         * and floating point junk from dividing by small {@code to_nearest} values.
+         */
+        FIX_PROMQL_ROUND_TO_NEAREST,
+
+        /**
          * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
          * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
          * https://github.com/elastic/elasticsearch-serverless/issues/6817
@@ -2254,7 +2270,7 @@ public class EsqlCapabilities {
         TS_COLLAPSE,
 
         /**
-         * Support for`WITHOUT` grouping function
+         * Support for `WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
         ESQL_WITHOUT_GROUPING,
@@ -2725,7 +2741,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V8(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2761,6 +2777,11 @@ public class EsqlCapabilities {
          * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
          */
         TIME_SERIES_WINDOW_NON_MULTIPLE,
+
+        /**
+         * Move rules for TS translation into the Analyzer
+         */
+        TIME_SERIES_TRANSLATION_IN_ANALYZER,
 
         /**
          * Fix for {@code SUM(null)} producing a type mismatch after surrogate expansion.
@@ -2938,6 +2959,13 @@ public class EsqlCapabilities {
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
 
         /**
+         * Support for {@code unmapped_fields="load"} mode with {@code LOOKUP JOIN}.
+         * Previously the combination was rejected at query validation time.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142026">Issue #142026</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
@@ -2988,7 +3016,23 @@ public class EsqlCapabilities {
         /**
          * Support for COALESCE with date_range type.
          */
-        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+        COALESCE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for CASE with date_range type.
+         */
+        CASE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Support for equality (==, !=) and IN with date_range type.
+         */
+        EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
+         * Fix TopN encoding/decoding of {@code long_range} values.
+         * <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>
+         */
+        FIX_TOPN_LONG_RANGE_ENCODING(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:
@@ -3009,6 +3053,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */
         APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
+
+        /**
+         * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
+         */
+        APPROXIMATION_FIX_MV_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

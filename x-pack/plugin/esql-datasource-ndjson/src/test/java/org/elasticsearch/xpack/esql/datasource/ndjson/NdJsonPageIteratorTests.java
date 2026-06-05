@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -861,6 +865,95 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             }
         }
         assertEquals(2, totalRows);
+    }
+
+    /**
+     * Early-close leak regression. {@link NdJsonPageIterator} buffers one look-ahead page in
+     * {@code hasNext()}; before it extended {@link org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator}
+     * a consumer that closed after {@code hasNext()} but before {@code next()} (a pushed-down {@code LIMIT},
+     * a cancellation, a downstream error) left that page's blocks unreleased against the breaker. Each test
+     * below drives a real read on a tracking breaker and asserts usage returns to zero. {@code multiRowFile}
+     * gives several rows so a small batch produces more than one page and the look-ahead is genuinely held.
+     */
+    private static String multiRowNdjson(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 12);
+        for (int i = 1; i <= rows; i++) {
+            sb.append("{\"id\":").append(i).append("}\n");
+        }
+        return sb.toString();
+    }
+
+    public void testCloseAfterHasNextWithoutNextDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // materializes (and allocates) the first look-ahead page
+            assertThat("hasNext must have buffered a page", breaker.getUsed(), Matchers.greaterThan(0L));
+            // Abandon without next(): try-with-resources close() must release the buffered page.
+        }
+        assertEquals("the buffered look-ahead page must be released on early close", 0L, breaker.getUsed());
+    }
+
+    public void testCloseMidStreamDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://leak-mid.ndjson", multiRowNdjson(50).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        try (var iterator = reader.read(object, ctx)) {
+            // Consume two pages fully (caller releases those), then materialize a third and abandon it.
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext());
+            iterator.next().releaseBlocks();
+            assertTrue(iterator.hasNext()); // buffers a third page that we never consume
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("no page may leak when the consumer aborts mid-stream", 0L, breaker.getUsed());
+    }
+
+    public void testCloseAfterFullConsumptionDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        var object = new BytesStorageObject("memory://full.ndjson", multiRowNdjson(20).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).build();
+        int totalRows = 0;
+        try (var iterator = reader.read(object, ctx)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        assertEquals(20, totalRows);
+        assertEquals("draining to exhaustion then closing must leave the breaker at zero", 0L, breaker.getUsed());
+    }
+
+    public void testRowLimitEarlyCloseDoesNotLeak() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+
+        // rowLimit below the file size mimics a pushed-down LIMIT: the iterator stops early and a
+        // partially-built / buffered page can be left in hand at close.
+        var object = new BytesStorageObject("memory://limit.ndjson", multiRowNdjson(100).getBytes(StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(null, trackingFactory);
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(8).rowLimit(5).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext()); // buffers the (row-limited) page but we never consume it
+            assertThat(breaker.getUsed(), Matchers.greaterThan(0L));
+        }
+        assertEquals("a row-limited buffered page must be released on early close", 0L, breaker.getUsed());
     }
 
     /**

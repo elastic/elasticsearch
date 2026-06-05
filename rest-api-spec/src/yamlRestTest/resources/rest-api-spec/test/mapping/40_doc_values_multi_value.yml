@@ -141,3 +141,99 @@
         body:
           "@timestamp": "2024-01-01T00:00:00Z"
           parent: ["a", "b"]
+
+---
+"index.mapping.doc_values.multi_value=false defaults all fields to single-valued":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value_index_setting"]
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+
+  - do:
+      indices.create:
+        index: test_index_setting_default
+        body:
+          settings:
+            index.mapping.doc_values.multi_value: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  # A second value for a field that did not override the index setting is rejected.
+  - do:
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
+      index:
+        index: test_index_setting_default
+        id: "1"
+        body:
+          kw: ["a", "b"]
+
+  # A single value is accepted.
+  - do:
+      index:
+        index: test_index_setting_default
+        id: "2"
+        body:
+          kw: "a"
+
+---
+"field-level multi_value overrides index.mapping.doc_values.multi_value":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value_index_setting"]
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+
+  - do:
+      indices.create:
+        index: test_index_setting_override
+        body:
+          settings:
+            index.mapping.doc_values.multi_value: false
+          mappings:
+            properties:
+              kw_default:
+                type: keyword
+              kw_override:
+                type: keyword
+                doc_values:
+                  multi_value: true
+
+  # The field with the index-level default (single-valued) rejects two values.
+  - do:
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
+      index:
+        index: test_index_setting_override
+        id: "1"
+        body:
+          kw_default: ["a", "b"]
+
+  # The field that explicitly overrides to multi_value=true accepts two values.
+  - do:
+      index:
+        index: test_index_setting_override
+        id: "2"
+        body:
+          kw_override: ["a", "b"]
+
+---
+"index.mapping.doc_values.multi_value=false mapping round-trip":
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value_index_setting"]
+      reason: "index.mapping.doc_values.multi_value index-level setting requires this feature"
+
+  - do:
+      indices.create:
+        index: test_index_setting_roundtrip
+        body:
+          settings:
+            index.mapping.doc_values.multi_value: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  # The mapping for kw should not emit an explicit doc_values.multi_value because it was not set at the field level.
+  - do:
+      indices.get_mapping:
+        index: test_index_setting_roundtrip
+
+  - is_false: test_index_setting_roundtrip.mappings.properties.kw.doc_values

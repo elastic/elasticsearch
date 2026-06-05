@@ -88,10 +88,6 @@ public final class AzureStorageProvider implements StorageProvider {
      */
     private final ExecutorService executor;
 
-    public AzureStorageProvider(AzureConfiguration config) {
-        this(config, null);
-    }
-
     public AzureStorageProvider(AzureConfiguration config, ExecutorService executor) {
         this.config = config;
         this.executor = executor;

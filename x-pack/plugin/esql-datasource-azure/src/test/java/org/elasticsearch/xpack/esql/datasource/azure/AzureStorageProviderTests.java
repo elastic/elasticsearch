@@ -41,12 +41,12 @@ import static org.hamcrest.Matchers.containsString;
 public class AzureStorageProviderTests extends ESTestCase {
 
     public void testSupportedSchemes() {
-        AzureStorageProvider provider = new AzureStorageProvider(null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null);
         assertEquals(List.of("wasbs", "wasb"), provider.supportedSchemes());
     }
 
     public void testInvalidSchemeThrows() {
-        AzureStorageProvider provider = new AzureStorageProvider(null);
+        AzureStorageProvider provider = new AzureStorageProvider(null, null);
         StoragePath s3Path = StoragePath.of("s3://my-bucket/path/to/file.parquet");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(s3Path));
         assertTrue(e.getMessage().contains("AzureStorageProvider only supports wasbs:// and wasb:// schemes"));

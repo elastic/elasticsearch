@@ -143,6 +143,24 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             closeTo(0, 0.0000001)
                         )
                     ),
+                    new TestCaseSupplier("double precision issue (#145886)", List.of(DOUBLE, percentileType), () -> {
+                        // 51 values + percentile 58 makes 58/100*50 = 28.999…96 in double
+                        // (fraction ~= 1) so interpolation between sorted[28] and sorted[29]
+                        // must stay precise even when their magnitudes differ vastly.
+                        var field = new ArrayList<Number>(51);
+                        for (int i = 1; i <= 29; i++) {
+                            field.add((double) -i); // sorted[0..28], sorted[28] = -1.0
+                        }
+                        for (int i = 1; i <= 22; i++) {
+                            field.add(-i * 1e-15); // sorted[29..50], sorted[29] = -2.2e-14
+                        }
+                        return new TestCaseSupplier.TestCase(
+                            List.of(new TestCaseSupplier.TypedData(field, DOUBLE, "field"), percentileWithType(58, percentileType)),
+                            evaluatorString(DOUBLE, percentileType),
+                            DOUBLE,
+                            makePercentileMatcher(field, 58)
+                        );
+                    }),
 
                     // Int
                     new TestCaseSupplier(
@@ -349,7 +367,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                     ),
                     evaluatorString(DOUBLE, INTEGER),
                     DOUBLE,
-                    equalTo(1.325)
+                    closeTo(1.325, 1e-7)
                 )
             )
         );
@@ -455,7 +473,7 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                     .doubleValue();
             }
 
-            return closeTo(expected, Math.abs(expected * 0.0000001));
+            return closeTo(expected, Math.abs(expected * 1e-7));
         }
 
         throw new IllegalArgumentException("Unsupported type: " + rawValues.get(0).getClass());

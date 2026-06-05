@@ -331,7 +331,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     enum MvOrdering {
         UNORDERED(false, false),
-        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_UNORDERED(true, false),
         DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
         SORTED_ASCENDING(false, true);
 

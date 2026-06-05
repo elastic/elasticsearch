@@ -449,19 +449,38 @@ public class MvPercentile extends EsqlScalarFunction {
     }
 
     /**
-     * Calculates a percentile for a double avoiding overflows.
+     * Interpolates between two doubles for a multivalue percentile.
      * <p>
-     *     If the values are too separated (negative + positive), it uses a slightly different approach.
-     *     This approach would fail if the values are big but not separated, so it’s only used in this case.
+     *     Uses {@code (1 - fraction) * lower + fraction * upper}, which is numerically stable.
      * </p>
+     * <p>
+     *     The formula comes from the simple interpolation formula, which is
+     *     {@code lower + fraction * (upper - lower)}.
+     *     Expanding the multiplication:
+     *     {@code lower + fraction * upper - fraction * lower}.
+     *     Factoring out {@code lower}:
+     *     {@code (1 - fraction) * lower + fraction * upper}.
+     * </p>
+     * <p>
+     *     The straightforward formula has two problems for doubles:
+     * </p>
+     * <ul>
+     *     <li>
+     *         {@code upper - lower} can overflow to {@code +/-infinity} when the values have
+     *         opposite signs and large magnitudes (e.g. {@code MAX_VALUE - (-MAX_VALUE)}).
+     *     </li>
+     *     <li>
+     *         The addition in {@code lower + fraction * (upper - lower)} causes catastrophic
+     *         cancellation when {@code fraction} is close to 1 and {@code |upper| << |lower|}.
+     *         For example, with {@code lower = -100}, {@code upper = -1},
+     *         {@code fraction = 0.99} and a hypothetical 3-significant-digit float:
+     *         {@code -100 + 0.99 * 99 = -100 + 98.0(1!) = -2.00} (wrong, answer should be -1.99).
+     *         With the equivalent form:
+     *         {@code 0.01 * (-100) + 0.99 * (-1) = -1.00 + (-0.99) = -1.99} (correct).
+     *     </li>
+     * </ul>
      */
     private static double calculateDoublePercentile(double fraction, double lowerValue, double upperValue) {
-        if (lowerValue < 0 && upperValue > 0) {
-            // Order is required to avoid `upper - lower` overflows
-            return (lowerValue + fraction * upperValue) - fraction * lowerValue;
-        }
-
-        var difference = upperValue - lowerValue;
-        return lowerValue + fraction * difference;
+        return (1 - fraction) * lowerValue + fraction * upperValue;
     }
 }

@@ -190,9 +190,10 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         final double decodeMul = AlpDoubleUtils.POWERS_OF_TEN[f] * AlpDoubleUtils.NEG_POWERS_OF_TEN[e];
         for (int i = 0; i < valueCount; i++) {
             final long bits = Double.doubleToRawLongBits(values[i] * decodeMul);
-            // Inlines NumericUtils.doubleToSortableLong: flips the lower 63 bits when the
-            // sign bit is set so that the resulting long has the same order as the double.
-            values[i] = bits ^ ((bits >> 63) & 0x7fffffffffffffffL);
+            // Inlines NumericUtils.doubleToSortableLong: the (bits >> 63) >>> 1 idiom
+            // produces 0x7FFF...F when bits is negative and 0 otherwise, so the XOR
+            // flips the lower 63 bits exactly when the sign bit is set.
+            values[i] = bits ^ ((bits >> 63) >>> 1);
         }
 
         for (int i = 0; i < excCount; i++) {
@@ -201,29 +202,17 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     }
 
     /**
-     * Threshold on the spread of sortable-long deltas above which the integer baseline
-     * loses its near-optimal compression. Below the threshold the downstream
-     * {@code delta > offset > bitPack} fits residuals into at most {@code ceil(log2(17))=5}
-     * bits per value and ALP cannot improve on that floor.
-     */
-    static final long DELTA_SPREAD_THRESHOLD = 16L;
-
-    /**
      * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
-     * a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. In sortable-long space
-     * this characterises monotonic doubles that stay inside a single IEEE 754 exponent
-     * (e.g., a slow drift gauge in a narrow value range); IEEE 754 division can perturb
-     * the stride by a few ULPs, hence the bounded tolerance rather than exact equality.
-     * For these blocks the downstream baseline already compresses to roughly one bit per
-     * value, so ALP can only add exception overhead and the stage opts out.
+     * a spread no larger than {@link AlpDoubleUtils#DELTA_SPREAD_THRESHOLD}. In
+     * sortable-long space this characterises monotonic doubles that stay inside a single
+     * IEEE 754 exponent (e.g., a slow drift gauge in a narrow value range); IEEE 754
+     * division can perturb the stride by a few ULPs, hence the bounded tolerance rather
+     * than exact equality. For these blocks the downstream baseline already compresses
+     * to roughly one bit per value, so ALP can only add exception overhead and the stage
+     * opts out.
      *
      * <p>Constant blocks (stride zero) are deliberately excluded; ALP handles them in
      * seven bytes versus the baseline's twelve.
-     *
-     * <p>The hot loop uses {@link Math#min(long, long)} and {@link Math#max(long, long)}
-     * which HotSpot lowers to branchless conditional-move instructions, letting the JIT
-     * auto-vectorise the min/max reduction on platforms where SIMD over longs is
-     * available.
      */
     private static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
         if (valueCount < 3) {
@@ -244,7 +233,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         if (spread < 0) {
             return false;
         }
-        return spread <= DELTA_SPREAD_THRESHOLD;
+        return spread <= AlpDoubleUtils.DELTA_SPREAD_THRESHOLD;
     }
 
     public static void encodeStatic(final AlpDoubleTransformStage stage, final long[] values, int valueCount, final EncodingContext context)

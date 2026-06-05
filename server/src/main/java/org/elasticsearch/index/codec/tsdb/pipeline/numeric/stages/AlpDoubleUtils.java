@@ -85,6 +85,14 @@ final class AlpDoubleUtils {
     static final int DOUBLE_EXCEPTION_COST = 10;
 
     /**
+     * Spread threshold (in sortable-long deltas) above which the integer baseline loses
+     * its near-optimal compression. Below the threshold {@code delta > offset > bitPack}
+     * fits residuals into at most {@code ceil(log2(17))=5} bits per value and ALP cannot
+     * improve on that floor.
+     */
+    static final long DELTA_SPREAD_THRESHOLD = 16L;
+
+    /**
      * Size of the direct-indexed candidate pool. {@code (e, f)} is encoded as
      * {@code e * CAND_STRIDE + f} so the lookup is one array indexing, no
      * hashing, no linear scan. Covers every legal pair with {@code e in [0, MAX_EXPONENT]}

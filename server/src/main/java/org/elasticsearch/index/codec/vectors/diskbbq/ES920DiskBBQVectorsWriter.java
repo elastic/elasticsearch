@@ -678,7 +678,7 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
 
     private CentroidAssignments calculateCentroids(
         HierarchicalKMeans<float[]> hierarchicalKMeans,
-        ClusteringFloatVectorValues floatVectorValues,
+        KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo
     ) throws IOException {
         KMeansResult<float[]> kMeansResult = hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);

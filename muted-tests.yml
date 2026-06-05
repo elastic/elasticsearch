@@ -659,18 +659,18 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
   method: testDeleteMountedFrozenIndexBeforeSwap
   issue: https://github.com/elastic/elasticsearch/issues/150892
-- class: org.elasticsearch.index.reindex.UpdateByQueryRequestTests
-  method: testForSlice
-  issue: https://github.com/elastic/elasticsearch/issues/150895
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
   issue: https://github.com/elastic/elasticsearch/issues/150897
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
   issue: https://github.com/elastic/elasticsearch/issues/150898
-- class: org.elasticsearch.index.reindex.ReindexRequestTests
-  method: testForSlice
-  issue: https://github.com/elastic/elasticsearch/issues/150899
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSeek
   issue: https://github.com/elastic/elasticsearch/issues/150912
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.BufferingMetricExporterTests
+  method: testFailBufferRecoverAndDrain
+  issue: https://github.com/elastic/elasticsearch/issues/150913
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testFewVectorManyTimes
+  issue: https://github.com/elastic/elasticsearch/issues/150915

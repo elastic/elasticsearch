@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -70,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -591,7 +594,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Adds label filter conditions to the context.
      */
     private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
-        Expression matcherCondition = translateLabelMatchers(selector.source(), selector.labels(), selector.labelMatchers());
+        Expression matcherCondition = translateLabelMatchers(
+            selector.source(),
+            selector.labels(),
+            selector.labelMatchers(),
+            ctx.optimizerContext.configuration()
+        );
         Expression expr;
         if (selector instanceof LiteralSelector literalSelector) {
             expr = literalSelector.literal();
@@ -909,7 +917,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * @param labelMatchers the PromQL label matchers to translate
      * @return an ESQL Expression combining all label matcher conditions with AND
      */
-    private static Expression translateLabelMatchers(Source source, List<Expression> fields, LabelMatchers labelMatchers) {
+    private static Expression translateLabelMatchers(
+        Source source,
+        List<Expression> fields,
+        LabelMatchers labelMatchers,
+        Configuration config
+    ) {
         var matchers = labelMatchers.matchers();
         // optimization for literal selectors that don't have label matchers
         if (matchers.isEmpty()) {
@@ -924,6 +937,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 hasNameMatcher = true;
             } else {
                 Expression field = fields.get(hasNameMatcher ? i - 1 : i); // adjust index if name matcher was seen
+                if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                    field = new ToString(field.source(), field, config);
+                }
                 Expression condition = translateLabelMatcher(source, field, matcher);
                 if (condition != null) {
                     conditions.add(condition);

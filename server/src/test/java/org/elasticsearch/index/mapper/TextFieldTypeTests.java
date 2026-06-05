@@ -485,7 +485,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = new TextFieldType("field", true, false);
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -565,6 +565,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.indexSettings()).thenReturn(indexSettings);
         when(context.fieldNames()).thenReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false));
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
 
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -607,6 +608,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -648,6 +650,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -717,6 +720,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     private static MappedFieldType.BlockLoaderContext mockContext() {
         MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         return context;
     }
 

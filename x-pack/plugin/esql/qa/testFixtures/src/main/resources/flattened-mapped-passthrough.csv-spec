@@ -107,9 +107,14 @@ c:long
 5
 ;
 
-// `field_extract` returns null with the mapped subfield
+// `field_extract` on a mapped sub-key returns the value, not null. The block-loader fuse and Lucene
+// query pushdown are both disabled for mapped sub-keys (see field_extract_mapped_subfield_returns_value),
+// so the call always runs the per-row evaluator over the merged flattened root, which contains `host.ip`.
+// `extracted` is keyword (field_extract's return type); `labels.host.ip`/`host.ip` are the typed ip columns.
+fieldExtractReturnsMappedSubfieldValue
 required_capability: flattened_datatype
 required_capability: fn_field_extract
+required_capability: field_extract_mapped_subfield_returns_value
 
 FROM flattened_typed
 | EVAL extracted = field_extract(labels, "host.ip")
@@ -118,20 +123,20 @@ FROM flattened_typed
 ;
 
 id:integer | labels.host.ip:ip | host.ip:ip  | extracted:keyword
-1          | 10.0.0.1          | 10.0.0.1    | null
-2          | 10.0.0.2          | 10.0.0.2    | null
-3          | 10.0.0.3          | 10.0.0.3    | null
-4          | 192.168.0.1       | 192.168.0.1 | null
-5          | 10.0.0.1          | 10.0.0.1    | null
+1          | 10.0.0.1          | 10.0.0.1    | 10.0.0.1
+2          | 10.0.0.2          | 10.0.0.2    | 10.0.0.2
+3          | 10.0.0.3          | 10.0.0.3    | 10.0.0.3
+4          | 192.168.0.1       | 192.168.0.1 | 192.168.0.1
+5          | 10.0.0.1          | 10.0.0.1    | 10.0.0.1
 ;
 
-// Side-by-side proof that the null above is specific to mapped sub-fields and
-// not a general `field_extract` failure: in one query, extracting the mapped
-// key `host.ip` yields null while extracting the unmapped key `env` (which
-// stays in the keyed root) yields its value.
-fieldExtractMappedVsUnmappedKey
+// `field_extract` extracts mapped and unmapped sub-keys uniformly as keyword: the mapped key `host.ip`
+// (kept in its own typed mapper) and the unmapped key `env` (kept in the keyed root) both come back
+// through the per-row evaluator over the merged flattened root, in a single query.
+fieldExtractMappedAndUnmappedKey
 required_capability: flattened_datatype
 required_capability: fn_field_extract
+required_capability: field_extract_mapped_subfield_returns_value
 
 FROM flattened_typed
 | EVAL mapped = field_extract(labels, "host.ip"), unmapped = field_extract(labels, "env")
@@ -140,11 +145,38 @@ FROM flattened_typed
 ;
 
 id:integer | mapped:keyword | unmapped:keyword
-1          | null           | prod
-2          | null           | prod
-3          | null           | staging
-4          | null           | dev
-5          | null           | prod
+1          | 10.0.0.1       | prod
+2          | 10.0.0.2       | prod
+3          | 10.0.0.3       | staging
+4          | 192.168.0.1    | dev
+5          | 10.0.0.1       | prod
+;
+
+// Materializing the flattened root through `VALUES()` forces the per-row evaluator (the root becomes a
+// computed column, so neither the fuse nor query pushdown can apply). It returns the same mapped `host.ip`
+// values as the direct call in `fieldExtractReturnsMappedSubfieldValue` -- which is the point of the fix:
+// the result no longer depends on whether the optimizer pushed the call. The extracted output is identical
+// under doc-values and stored loading because `host.ip` renders as a string on both paths, hence no
+// `request_stored: skip`.
+fieldExtractMappedSubfieldFromMaterializedRoot
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+required_capability: fn_values_flattened
+
+FROM flattened_typed
+| STATS blob = VALUES(labels)
+| MV_EXPAND blob
+| EVAL extracted = field_extract(blob, "host.ip")
+| KEEP extracted
+| SORT extracted
+;
+
+extracted:keyword
+10.0.0.1
+10.0.0.1
+10.0.0.2
+10.0.0.3
+192.168.0.1
 ;
 
 // A mapped `keyword` sub-field is resolved as a real `keyword` column.

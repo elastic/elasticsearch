@@ -461,6 +461,19 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_RETURNS_MULTI_VALUE,
 
         /**
+         * {@code field_extract(<flattened root>, "<key>")} returns the sub-field's value for an explicitly
+         * mapped sub-key (one declared under {@code properties}) instead of {@code null}. Mapped sub-keys are
+         * no longer fused into the keyed block loader nor pushed to a Lucene query - the keyed channel never
+         * stores them, and a typed-field query would apply different comparison semantics than the keyword
+         * evaluator - so they always go through the per-row evaluator over the merged flattened root. This
+         * makes the result independent of whether the optimizer pushed the call. Tests that assert the value
+         * (rather than {@code null}) for a mapped sub-key, or that a mapped-key comparison is not pushed to
+         * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
+         * mapped sub-keys and returns {@code null}.
+         */
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

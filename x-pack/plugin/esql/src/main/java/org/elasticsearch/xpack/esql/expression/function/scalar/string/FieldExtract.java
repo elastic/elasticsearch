@@ -392,12 +392,22 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
      * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
      * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     * <p>
+     *     Explicitly mapped sub-fields are <strong>not</strong> pushed: for them the synthetic name
+     *     resolves to the real typed field (e.g. an {@code ip} or {@code long}), so a pushed query
+     *     would apply that field's typed comparison semantics while the per-row evaluator compares the
+     *     extracted value as a {@code keyword}. Keeping mapped sub-fields on the evaluator path makes
+     *     {@code field_extract}'s result independent of whether the optimizer pushed the call. The
+     *     mapped/unmapped decision needs the data-node mapping, so the stats-less {@code can_match}
+     *     predicates conservatively report every key as mapped and push nothing.
+     * </p>
      */
     public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
         if (EsqlCapabilities.Cap.FIELD_EXTRACT_FLATTENED_PUSHDOWN.isEnabled() == false) {
             return Optional.empty();
         }
         return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .filter(k -> pushdownPredicates.isFlattenedMappedSubfield(k.root(), k.key()) == false)
             .map(k -> k.root().name() + "." + k.key());
     }
 

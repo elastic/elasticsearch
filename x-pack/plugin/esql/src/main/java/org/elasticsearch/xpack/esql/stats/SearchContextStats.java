@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -193,6 +194,16 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean hasExactSubfield(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
+    }
+
+    @Override
+    public boolean isFlattenedMappedSubfield(FieldName root, String key) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.getFieldType(root.string()) instanceof RootFlattenedFieldType rootType && rootType.isMappedSubField(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -75,6 +75,13 @@ public interface LucenePushdownPredicates {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
     /**
+     * Whether {@code <root>.<key>} addresses an explicitly mapped flattened sub-field (a typed column)
+     * rather than a dynamic keyed sub-field. {@code field_extract} query pushdown is skipped for mapped
+     * sub-fields so the function's result matches the per-row evaluator regardless of plan shape.
+     */
+    boolean isFlattenedMappedSubfield(FieldAttribute root, String key);
+
+    /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
      * This covers non-indexed cases like <code>AbstractScriptFieldType</code> which hard-coded <code>isAggregatable</code> to true,
      * as well as normal <code>FieldAttribute</code>'s which can only be pushed down if they are indexed.
@@ -166,6 +173,14 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
+            public boolean isFlattenedMappedSubfield(FieldAttribute root, String key) {
+                // No mapping access during can_match: be conservative and treat every flattened sub-key as
+                // mapped so field_extract query pushdown never fires without SearchStats to confirm the key
+                // is an unmapped keyed sub-field.
+                return true;
+            }
+
+            @Override
             public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value) {
                 return false;
             }
@@ -208,6 +223,11 @@ public interface LucenePushdownPredicates {
             @Override
             public boolean isIndexed(FieldAttribute attr) {
                 return stats.isIndexed(new FieldAttribute.FieldName(attr.name()));
+            }
+
+            @Override
+            public boolean isFlattenedMappedSubfield(FieldAttribute root, String key) {
+                return stats.isFlattenedMappedSubfield(new FieldAttribute.FieldName(root.name()), key);
             }
 
             @Override

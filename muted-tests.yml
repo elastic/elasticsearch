@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonMultiScanPushdownIT
   method: testMultiScanColdDoesNotDoubleCountWarmCountStar
   issue: https://github.com/elastic/elasticsearch/issues/150837
+- class: org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormatTests
+  method: testMergedBloomFilterUsesMaxSize
+  issue: https://github.com/elastic/elasticsearch/issues/150843

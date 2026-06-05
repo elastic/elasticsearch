@@ -92,7 +92,7 @@ The OAuth2 token cache stores bearer tokens on each node for reuse across reques
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of OAuth2 tokens to store in the cache. Defaults to `25`.
 
 `xpack.inference.oauth2.token_cache.expiry_time`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an OAuth2 token is kept in the cache after it was last written. Must be between one minute (`1m`) and 24 hours (`24h`). Defaults to one hour (`1h`). A token may expire separately based on the exiry time set by the upstream server. In that situation, the token is automatically refereshed and will overwrite the entry in the cache if it already existed.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an OAuth2 token is kept in the cache after it was last written. Must be between one minute (`1m`) and 24 hours (`24h`). Defaults to one hour (`1h`). A token can expire separately based on the exiry time set by the upstream server. In that situation, the token is automatically refereshed and will overwrite the entry in the cache if it already existed.
 
 ### CCM cache settings [xpack-inference-ccm-cache-settings]
 

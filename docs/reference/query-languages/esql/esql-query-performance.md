@@ -233,11 +233,6 @@ Some {{esql}} operations are intrinsically more expensive than their alternative
 
 ### Use full-text search instead of LIKE or RLIKE
 
-```{applies_to}
-stack: ga 8.17
-serverless: ga
-```
-
 For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are the right fit for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators; pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
 
 ❌ **Don't:** Use pattern matching on free text with [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like)

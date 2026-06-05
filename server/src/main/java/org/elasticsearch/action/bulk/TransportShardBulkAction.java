@@ -158,11 +158,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        primary.ensureMutable(
-            listener.delegateFailure((l, ignored) -> doExecuteShardOperationOnPrimary(request, primary, l)),
-            true,
-            executor(primary)
-        );
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> {
+            try {
+                doExecuteShardOperationOnPrimary(request, primary, l);
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }), true, executor(primary));
     }
 
     @Override

@@ -158,9 +158,6 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         final int excCount = metadata.readVInt();
 
         final double decodeMul = AlpDoubleUtils.POWERS_OF_TEN[f] * AlpDoubleUtils.NEG_POWERS_OF_TEN[e];
-        // Inlines NumericUtils.doubleToSortableLong: (bits >> 63) >>> 1 is 0x7FFF...F when
-        // bits is negative and 0 otherwise, so the XOR flips the lower 63 bits when the
-        // sign bit is set, preserving order.
         for (int i = 0; i < valueCount; i++) {
             final long bits = Double.doubleToRawLongBits(values[i] * decodeMul);
             values[i] = bits ^ ((bits >> 63) >>> 1);

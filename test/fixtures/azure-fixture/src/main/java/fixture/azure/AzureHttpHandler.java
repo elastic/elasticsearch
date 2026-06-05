@@ -279,7 +279,10 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
                 responseHeaders.add("ETag", "\"blockblob\"");
-                responseHeaders.add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC)));
+                responseHeaders.add(
+                    "Last-Modified",
+                    DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                );
 
                 final String accessTier = blob.accessTier();
                 if (accessTier != null) {

@@ -82,11 +82,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertEquals("GET " + requestUri + " status", RestStatus.OK, actual.status());
         // Normalize <LastModified> values before comparing: BlobEntry.lastModified() is Instant.now() so the exact
         // timestamp varies per run. Replacing both sides with a placeholder still verifies the element is present.
-        assertEquals(
-            "GET " + requestUri,
-            normalizeLastModified(expectedResponse),
-            normalizeLastModified(actual.body().utf8ToString())
-        );
+        assertEquals("GET " + requestUri, normalizeLastModified(expectedResponse), normalizeLastModified(actual.body().utf8ToString()));
     }
 
     private static String normalizeLastModified(String xml) {

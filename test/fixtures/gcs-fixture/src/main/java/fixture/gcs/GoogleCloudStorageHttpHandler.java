@@ -334,7 +334,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
                         exchange.getResponseHeaders()
-                            .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC)));
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     } else {
@@ -369,7 +372,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         }
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
                         exchange.getResponseHeaders()
-                            .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC)));
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.sendResponseHeaders(statusCode, response.length());

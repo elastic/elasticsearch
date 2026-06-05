@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -147,7 +146,10 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.getResponseHeaders()
-                        .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC)));
+                        .add(
+                            "Last-Modified",
+                            DateTimeFormatter.RFC_1123_DATE_TIME.format(blobEntry.lastModified().atOffset(ZoneOffset.UTC))
+                        );
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }

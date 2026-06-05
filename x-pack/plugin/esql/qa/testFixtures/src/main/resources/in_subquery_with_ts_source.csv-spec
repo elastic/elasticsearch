@@ -452,6 +452,7 @@ cnt:long
 // main query from command, subquery mixed of from/ts/row command
 
 mainFromInSubqueryWithMixedRowFromTs
+skip_flattened_rewrite: row_branch_in_from_union_inflates_recovery_scope
 required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
@@ -1495,6 +1496,7 @@ max_bytes:long | cluster:keyword
 ;
 
 mainTsInSubqueryWithMixedFromAndRow
+skip_flattened_rewrite: row_branch_in_from_union_inflates_recovery_scope
 required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row
@@ -1516,6 +1518,7 @@ max_bytes:long | cluster:keyword
 ;
 
 mainTsNotInSubqueryWithMixedFromAndRow
+skip_flattened_rewrite: row_branch_in_from_union_inflates_recovery_scope
 required_capability: where_in_subquery_without_view
 required_capability: subquery_in_from_command
 required_capability: subquery_with_row

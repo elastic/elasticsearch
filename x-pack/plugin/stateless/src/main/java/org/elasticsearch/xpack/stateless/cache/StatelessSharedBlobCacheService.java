@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -222,5 +223,22 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public boolean isCacheBoostPreferenceEnabled() {
         return statelessCacheBoostPreferenceEnabled;
+    }
+
+    /**
+     * Backfills the timestamp of the cache regions covering the blob byte range {@code [offset, offset + length)} with
+     * {@code timestampMillis}, using a full override. Only regions that are already cached are updated; absent regions are
+     * left untouched.
+     */
+    public void backfillTimestamp(ShardId shardId, long primaryTerm, String blobName, long offset, long length, long timestampMillis) {
+        if (timestampMillis == UNKNOWN_TIMESTAMP) {
+            return;
+        }
+        var cacheKey = new FileCacheKey(shardId, primaryTerm, blobName);
+        int startRegion = getRegion(offset);
+        int endRegion = getEndingRegion(offset + length);
+        for (int region = startRegion; region <= endRegion; region++) {
+            updateRegionTimestamp(cacheKey, region, timestampMillis, true);
+        }
     }
 }

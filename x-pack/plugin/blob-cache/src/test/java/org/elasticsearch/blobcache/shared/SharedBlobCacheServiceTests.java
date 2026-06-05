@@ -406,6 +406,63 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateRegionTimestampBackfill() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(new RecordingMeterRegistry())
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long ts1 = randomLongBetween(1, Long.MAX_VALUE - 2);
+            final long ts2 = ts1 + 1;
+
+            // a region created without a timestamp starts UNKNOWN
+            final var region0 = cacheService.get(cacheKey, size(250), 0);
+            assertEquals(SharedBlobCacheService.UNKNOWN_TIMESTAMP, cacheService.getTimestamp(region0));
+            final int freqBefore = cacheService.getFreq(region0);
+            final int freeRegionsBefore = cacheService.freeRegionCount();
+
+            // force=false fills an UNKNOWN region
+            assertTrue(cacheService.updateRegionTimestamp(cacheKey, 0, ts1, false));
+            assertEquals(ts1, cacheService.getTimestamp(region0));
+
+            // force=false does not clobber an already-known timestamp (still returns true: region is present)
+            assertTrue(cacheService.updateRegionTimestamp(cacheKey, 0, ts2, false));
+            assertEquals(ts1, cacheService.getTimestamp(region0));
+
+            // force=true fully overrides
+            assertTrue(cacheService.updateRegionTimestamp(cacheKey, 0, ts2, true));
+            assertEquals(ts2, cacheService.getTimestamp(region0));
+
+            // an incoming UNKNOWN is always a no-op, even with force
+            assertTrue(cacheService.updateRegionTimestamp(cacheKey, 0, SharedBlobCacheService.UNKNOWN_TIMESTAMP, true));
+            assertEquals(ts2, cacheService.getTimestamp(region0));
+
+            // stamping does not promote the region (LFU frequency unchanged) nor allocate
+            assertEquals(freqBefore, cacheService.getFreq(region0));
+            assertEquals(freeRegionsBefore, cacheService.freeRegionCount());
+
+            // stamping an absent region returns false and allocates nothing
+            final var absentKey = generateCacheKey();
+            assertFalse(cacheService.updateRegionTimestamp(absentKey, 0, ts1, true));
+            assertFalse(cacheService.updateRegionTimestamp(cacheKey, 1, ts1, true));
+            assertEquals(freeRegionsBefore, cacheService.freeRegionCount());
+        }
+    }
+
     public void testCacheMissOnPopulate() throws Exception {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")

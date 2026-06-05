@@ -338,6 +338,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Nullable
         CacheEntry<T> getIfPresent(K cacheKey, int region);
 
+        /// Updates the timestamp of an already-present region without promoting, allocating, or evicting.
+        /// Returns `true` if the region was present and updated, `false` otherwise.
+        boolean updateRegionTimestamp(K cacheKey, int region, long timestampMillis, boolean force);
+
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -569,6 +573,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
         return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
+    }
+
+    /**
+     * Updates the timestamp of an already-cached region without promoting, allocating, or evicting it.
+     *
+     * @return {@code true} if the region was present and updated, {@code false} otherwise.
+     */
+    public boolean updateRegionTimestamp(KeyType cacheKey, int region, long timestampMillis, boolean force) {
+        return cache.updateRegionTimestamp(cacheKey, region, timestampMillis, force);
     }
 
     /**
@@ -956,6 +969,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return cacheFileRegion.timestampMillis();
     }
 
+    // used by tests
+    protected long getRegionTimestampOrUnknown(KeyType cacheKey, int region) {
+        final var entry = cache.getIfPresent(cacheKey, region);
+        return entry == null ? UNKNOWN_TIMESTAMP : entry.chunk.timestampMillis();
+    }
+
     @Override
     public void close() {
         sharedBytes.decRef();
@@ -1050,7 +1069,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
         // Representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
-        final long timestampMillis;
+        // Mutable so that it can be backfilled after the region is created.
+        private volatile long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -1183,6 +1203,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         long timestampMillis() {
             return timestampMillis;
+        }
+
+        /**
+         * Updates the region timestamp in place, without promoting, evicting, or allocating. An incoming {@link #UNKNOWN_TIMESTAMP} is
+         * always ignored. When {@code force} is {@code true} the timestamp is fully overridden; otherwise we only override unknown.
+         */
+        void updateTimestamp(long newTimestampMillis, boolean force) {
+            assert newTimestampMillis > 0L || newTimestampMillis == UNKNOWN_TIMESTAMP;
+            if (newTimestampMillis == UNKNOWN_TIMESTAMP) {
+                return;
+            }
+            // Note: Non-CAS for UNKNOWN_TIMESTAMP
+            if (force || timestampMillis == UNKNOWN_TIMESTAMP) {
+                timestampMillis = newTimestampMillis;
+            }
         }
 
         /**
@@ -2210,6 +2245,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             return entry;
+        }
+
+        @Override
+        public boolean updateRegionTimestamp(KeyType cacheKey, int region, long timestampMillis, boolean force) {
+            final var entry = keyMapping.get(cacheKey.shardId(), new RegionKey<>(cacheKey, region));
+            if (entry == null) {
+                return false;
+            }
+            entry.chunk.updateTimestamp(timestampMillis, force);
+            return true;
         }
 
         @Override

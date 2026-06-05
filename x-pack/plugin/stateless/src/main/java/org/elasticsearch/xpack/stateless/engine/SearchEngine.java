@@ -427,14 +427,26 @@ public class SearchEngine extends Engine {
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
                         referencedCompoundCommit -> {
+                            var ref = referencedCompoundCommit.statelessCompoundCommitReference();
                             newBlobFileRanges.putAll(
                                 computeBlobFileRanges(
                                     true,
-                                    referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
-                                    referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                    ref.compoundCommit(),
+                                    ref.headerOffsetInTheBccBlobFile(),
                                     referencedCompoundCommit.referencedInternalFiles()
                                 )
                             );
+                            if (cacheService.isCacheBoostPreferenceEnabled()) {
+                                // Backfill the timestamp of the CC header regions just faulted into cache by this read.
+                                cacheService.backfillTimestamp(
+                                    shardId,
+                                    ref.bccBlobFile().primaryTerm(),
+                                    ref.bccBlobFile().blobName(),
+                                    ref.headerOffsetInTheBccBlobFile(),
+                                    ref.compoundCommit().headerSizeInBytes(),
+                                    BlobFileRanges.midpointMillisOrUnknown(ref.compoundCommit().getTimestampFieldValueRange())
+                                );
+                            }
                         },
                         listenableFuture.map(aVoid -> newBlobFileRanges)
                     );

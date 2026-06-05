@@ -13,6 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -451,6 +452,9 @@ class StatelessIndexEventListener implements IndexEventListener {
 
                 SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards || cacheService.isCacheBoostPreferenceEnabled()) {
+                        if (batchedCompoundCommit != null && cacheService.isCacheBoostPreferenceEnabled()) {
+                            backfillBccHeaderTimestamps(indexShard.shardId(), batchedCompoundCommit);
+                        }
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> timestampsPerBlob = ConcurrentCollections.newConcurrentMap();
@@ -474,12 +478,22 @@ class StatelessIndexEventListener implements IndexEventListener {
                                     var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
                                     return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
                                 });
-                                long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
-                                    referencedCompoundCommit.statelessCompoundCommitReference()
-                                        .compoundCommit()
-                                        .getTimestampFieldValueRange()
-                                );
-                                timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                                if (cacheService.isCacheBoostPreferenceEnabled()) {
+                                    long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
+                                        referencedCompoundCommit.statelessCompoundCommitReference()
+                                            .compoundCommit()
+                                            .getTimestampFieldValueRange()
+                                    );
+                                    timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                                    cacheService.backfillTimestamp(
+                                        searchDirectory.getShardId(),
+                                        bccBlobFile.primaryTerm(),
+                                        bccBlobFile.blobName(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().headerSizeInBytes(),
+                                        ccTimestamp
+                                    );
+                                }
                             },
                             l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, offsetsToWarm, timestampsPerBlob))
                         );
@@ -518,6 +532,26 @@ class StatelessIndexEventListener implements IndexEventListener {
                 }));
             })
         );
+    }
+
+    // Stamps the header regions of every CC packed in the recovery BCC blob with that CC's midpoint timestamp. Whether the
+    // BCC is read through the cache is controlled by CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING; we ignore that here and let
+    // the caching-infra boost flag (checked in backfillTimestamp) decide.
+    private void backfillBccHeaderTimestamps(ShardId shardId, BatchedCompoundCommit bcc) {
+        final long primaryTerm = bcc.primaryTermAndGeneration().primaryTerm();
+        final String blobName = StatelessCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+        long offsetInBlob = 0L;
+        for (var cc : bcc.compoundCommits()) {
+            cacheService.backfillTimestamp(
+                shardId,
+                primaryTerm,
+                blobName,
+                offsetInBlob,
+                cc.headerSizeInBytes(),
+                BlobFileRanges.midpointMillisOrUnknown(cc.getTimestampFieldValueRange())
+            );
+            offsetInBlob += BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes());
+        }
     }
 
     private record SearchRecoveryWarmingInputs(

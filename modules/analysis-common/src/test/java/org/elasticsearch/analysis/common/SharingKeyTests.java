@@ -223,7 +223,14 @@ public class SharingKeyTests extends ESTestCase {
     public void testFrenchAnalyzerSharesAcrossDifferentLocalNames() throws IOException {
         Settings sA = Settings.builder().put("index.analysis.analyzer.fr1.type", "french").build();
         Settings sB = Settings.builder().put("index.analysis.analyzer.fr2.type", "french").build();
-        assertSame(build(sA).get("fr1"), build(sB).get("fr2"));
+        NamedAnalyzer fr1 = build(sA).get("fr1");
+        NamedAnalyzer fr2 = build(sB).get("fr2");
+        // Sharing keys on the recipe, so the underlying analyzer is the one shared instance. The
+        // per-index wrappers stay distinct and each keeps its own local name, so mapping
+        // serialization emits the analyzer name configured in that index.
+        assertSame(fr1.analyzer(), fr2.analyzer());
+        assertEquals("fr1", fr1.name());
+        assertEquals("fr2", fr2.name());
     }
 
     // ---- Pattern factory sharing — Pattern's identity equality is masked by sharingKey ----
@@ -563,6 +570,15 @@ public class SharingKeyTests extends ESTestCase {
         assertNotNull("search_a must be found in index A", naA);
         assertNotNull("search_b must be found in index B", naB);
         assertSame("identical recipes must share the analyzer despite different local names", naA.analyzer(), naB.analyzer());
+
+        // The wrapper handed to each index must carry that index's OWN local name, not the name of
+        // whichever index built the shared instance first. Field-mapper serialization emits
+        // NamedAnalyzer.name(); if index B's wrapper leaked "search_a" its mapping would serialize a
+        // search_analyzer that is not configured in index B, and re-parsing (MapperService
+        // assertSerialization, on under -ea) would fail with "analyzer [search_a] has not been
+        // configured in mappings".
+        assertEquals("index A's wrapper must keep its own local name", "search_a", naA.name());
+        assertEquals("index B's wrapper must keep its own local name, not the shared builder's name", "search_b", naB.name());
 
         // Baseline: neither index expands "i-pod" to the not-yet-defined synonyms. (Single tokens
         // deliberately — the standard tokenizer would split a hyphenated "mp3-player" into

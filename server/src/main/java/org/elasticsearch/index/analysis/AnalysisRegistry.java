@@ -997,7 +997,7 @@ public final class AnalysisRegistry implements Closeable {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, analyzerCache);
                 if (acquired != null) {
                     cacheHits.increment();
-                    return handOff(acquired, releasableSink);
+                    return handOff(name, acquired, releasableSink);
                 }
                 // Entry was concurrently retired; fall through to single-flight build.
             }
@@ -1010,18 +1010,25 @@ public final class AnalysisRegistry implements Closeable {
                 () -> buildNamedAnalyzer(context, name, analyzerFactory, tokenFilters, charFilters, tokenizers),
                 analyzerCache
             );
-            return handOff(interned, releasableSink);
+            return handOff(name, interned, releasableSink);
         }
         return buildNamedAnalyzer(context, name, analyzerFactory, tokenFilters, charFilters, tokenizers);
     }
 
     /**
-     * Hand the release handle off to the caller's sink and return the shared analyzer. If the
-     * sink throws (e.g. an unexpected map exception while we already hold an additional
-     * reference), release the freshly-acquired reference before re-throwing so the cache entry
-     * never gets pinned.
+     * Hand the release handle off to the caller's sink and return the shared analyzer under the
+     * requesting index's local {@code name}. If the sink throws (e.g. an unexpected map exception
+     * while we already hold an additional reference), release the freshly-acquired reference before
+     * re-throwing so the cache entry never gets pinned.
+     *
+     * <p>The cached instance carries the local name of whichever index built it first. Sharing keys
+     * on the analysis recipe, not the name, so a different index may reuse it under a different local
+     * name. In that case re-wrap the shared underlying analyzer in a NamedAnalyzer bearing THIS
+     * index's name: the underlying analyzer and its refcount stay shared, but the name is correct so
+     * field-mapper serialization emits this index's analyzer name and round-trips through mapping
+     * (de)serialization rather than leaking the original builder's name.
      */
-    private static NamedAnalyzer handOff(InternedAnalyzer interned, Consumer<Releasable> sink) {
+    private static NamedAnalyzer handOff(String name, InternedAnalyzer interned, Consumer<Releasable> sink) {
         Releasable release = interned.release();
         boolean accepted = false;
         try {
@@ -1032,7 +1039,8 @@ public final class AnalysisRegistry implements Closeable {
                 IOUtils.closeWhileHandlingException(release);
             }
         }
-        return interned.analyzer();
+        NamedAnalyzer shared = interned.analyzer();
+        return shared.name().equals(name) ? shared : new NamedAnalyzer(name, shared);
     }
 
     private NamedAnalyzer buildNamedAnalyzer(
@@ -1158,6 +1166,11 @@ public final class AnalysisRegistry implements Closeable {
             // failing builder already removed the slot from the cache.
             entry.refCount.decrementAndGet();
             Throwable cause = ce.getCause();
+            // Preserve Error semantics: an OutOfMemoryError (or other Error) from the builder must
+            // not be downgraded to a RuntimeException, or JVM-level error handling is suppressed.
+            if (cause instanceof Error err) {
+                throw err;
+            }
             if (cause instanceof RuntimeException r) {
                 throw r;
             }
@@ -1336,7 +1349,7 @@ public final class AnalysisRegistry implements Closeable {
                 InternedAnalyzer acquired = acquireIfLive(key, cached, cache);
                 if (acquired != null) {
                     cacheHits.increment();
-                    normalizers.put(name, handOff(acquired, releasableSink));
+                    normalizers.put(name, handOff(name, acquired, releasableSink));
                     return;
                 }
             }
@@ -1345,7 +1358,7 @@ public final class AnalysisRegistry implements Closeable {
                 () -> buildNamedNormalizer(name, normalizerFactory, tokenizerFactory, tokenFilters, charFilters),
                 cache
             );
-            normalizers.put(name, handOff(interned, releasableSink));
+            normalizers.put(name, handOff(name, interned, releasableSink));
             return;
         }
         normalizers.put(name, buildNamedNormalizer(name, normalizerFactory, tokenizerFactory, tokenFilters, charFilters));

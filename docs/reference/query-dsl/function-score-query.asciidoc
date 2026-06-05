@@ -308,7 +308,7 @@ There are a number of options for the `field_value_factor` function:
 |=======================================================================
 | Modifier | Meaning
 
-| `none` | Do not apply any multiplier to the field value
+| `none` | Do not apply any modifier to the field value
 | `log` | Take the {wikipedia}/Common_logarithm[common logarithm] of the field value.
           Because this function will return a negative value and cause an error if used on values
           between 0 and 1, it is recommended to use `log1p` instead.

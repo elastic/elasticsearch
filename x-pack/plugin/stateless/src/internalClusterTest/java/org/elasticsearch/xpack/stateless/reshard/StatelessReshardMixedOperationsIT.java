@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -680,7 +681,15 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             for (int i = 0; i < threadsCount; i++) {
                 try {
                     Thread thread = threads.get(i);
-                    thread.join();
+                    // The amount of work threads do is finite and limited by `threadOperations`.
+                    // This timeout is to detect rogue threads without waiting for suite timeout.
+                    boolean terminated = thread.join(Duration.ofMinutes(5));
+                    if (terminated == false) {
+                        for (int j = i; j < threadsCount; j++) {
+                            threads.get(j).interrupt();
+                        }
+                        fail("Operations thread did not terminate in time");
+                    }
                 } catch (Exception e) {
                     threadExceptions.add(e);
                 }

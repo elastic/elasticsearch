@@ -148,8 +148,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         super.testFailIfAlreadyExists();
     }
 
-    public void testMPUCompareAndExchangeCleanup() throws IOException {
-        assumeFalse("S3 repository is configured condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
+    public void testMultiPartUploadCompareAndExchangeCleanup() throws IOException {
+        assumeFalse(
+            "S3 repository is configured for conditional-writes and does not use multi-part upload for CAS",
+            supportsConditionalWrites()
+        );
 
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {

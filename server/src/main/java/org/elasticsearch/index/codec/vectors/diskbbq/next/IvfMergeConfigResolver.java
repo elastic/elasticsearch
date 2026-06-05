@@ -26,5 +26,4 @@ public interface IvfMergeConfigResolver {
     static IvfMergeConfigResolver useCodecDefault() {
         return (fieldInfo, mergeState, codecDefault) -> codecDefault;
     }
-
 }

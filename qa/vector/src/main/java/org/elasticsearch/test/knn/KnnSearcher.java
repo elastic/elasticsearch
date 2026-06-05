@@ -781,9 +781,9 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     doPrecondition,
+                    searchParameters.overSamplingFactor(),
                     PARTITION_ID_FIELD,
-                    partition,
-                    searchParameters.overSamplingFactor()
+                    partition
                 );
             } else {
                 knnQuery = new IVFKnnFloatVectorQuery(

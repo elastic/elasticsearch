@@ -87,6 +87,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.CachingEnableFilterQuery;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
@@ -3414,23 +3415,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 float overSampleFactor = rescore ? oversample : 1.0f;
-                if (sliceEnabled && parentFilter != null) {
-                    throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
-                }
-                final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
+                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
                 if (singleSliceRouting != null) {
-                    knnQuery = new IVFKnnFloatSlicedVectorQuery(
-                        name(),
-                        queryVector,
-                        adjustedK,
-                        numCands,
-                        cachedFilter,
-                        visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        RoutingFieldMapper.NAME,
-                        new BytesRef(singleSliceRouting),
-                        overSampleFactor
-                    );
+                    knnQuery = parentFilter != null
+                        ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            adjustedK,
+                            numCands,
+                            cachedFilter,
+                            parentFilter,
+                            visitRatio,
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor,
+                            RoutingFieldMapper.NAME,
+                            new BytesRef(singleSliceRouting)
+                        )
+                        : new IVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            adjustedK,
+                            numCands,
+                            cachedFilter,
+                            visitRatio,
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor,
+                            RoutingFieldMapper.NAME,
+                            new BytesRef(singleSliceRouting)
+                        );
                 } else {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(

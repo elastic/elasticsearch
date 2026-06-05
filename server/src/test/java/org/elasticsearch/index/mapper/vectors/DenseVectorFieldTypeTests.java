@@ -26,11 +26,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVector
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
-import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
@@ -989,6 +989,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testBBQIVFUsesSlicedQueryForSingleSliceRouting() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
         Query query = fieldType.createKnnQuery(
             VectorData.fromFloats(testQueryVector(64)),
@@ -998,61 +999,22 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            null,
+            parentFilter,
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
             "s1"
         );
-        assertThat(query, instanceOf(IVFKnnFloatSlicedVectorQuery.class));
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
+        }
         assertThat(query.toString("ignored"), containsString("_routing=s1"));
     }
 
     public void testBBQIVFRejectsMissingSliceForKnnWhenSliceEnabled() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> fieldType.createKnnQuery(
-                VectorData.fromFloats(testQueryVector(64)),
-                5,
-                10,
-                10f,
-                null,
-                null,
-                null,
-                null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                true,
-                null,
-                false
-            )
-        );
-        assertThat(exception.getMessage(), containsString("[_slice] is required for KNN queries when [index.slice.enabled] is true"));
-    }
-
-    public void testBBQIVFFallsBackWhenSliceRoutingMissingAndSliceDisabled() {
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(testQueryVector(64)),
-            5,
-            10,
-            10f,
-            null,
-            null,
-            null,
-            null,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
-            false,
-            null,
-            false
-        );
-        assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
-    }
-
-    public void testBBQIVFRejectsNestedSliceForKnn() {
-        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
-        BitSetProducer parentFilter = context -> null;
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> fieldType.createKnnQuery(
@@ -1067,14 +1029,40 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 true,
-                "s1",
+                null,
                 false
             )
         );
-        assertThat(exception.getMessage(), containsString("[_slice] is not supported for nested KNN queries"));
+        assertThat(exception.getMessage(), containsString("[_slice] is required for KNN queries when [index.slice.enabled] is true"));
+    }
+
+    public void testBBQIVFFallsBackWhenSliceRoutingMissingAndSliceDisabled() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
+        DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
+        Query query = fieldType.createKnnQuery(
+            VectorData.fromFloats(testQueryVector(64)),
+            5,
+            10,
+            10f,
+            null,
+            null,
+            null,
+            parentFilter,
+            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
+            randomBoolean(),
+            false,
+            null,
+            false
+        );
+        if (parentFilter == null) {
+            assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
+        } else {
+            assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatVectorQuery.class));
+        }
     }
 
     public void testBBQIVFRejectsBlankSliceForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1086,7 +1074,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 null,
                 null,
-                null,
+                parentFilter,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 "   "
@@ -1096,6 +1084,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testBBQIVFRejectsSliceAllForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1107,7 +1096,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 null,
                 null,
-                null,
+                parentFilter,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 "_all"
@@ -1117,6 +1106,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testBBQIVFRejectsMultiValueSliceForKnn() {
+        BitSetProducer parentFilter = random().nextBoolean() ? null : context -> null;
         DenseVectorFieldType fieldType = createBBQIVFFloatFieldType();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -1128,7 +1118,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 null,
                 null,
                 null,
-                null,
+                parentFilter,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 "s1,s2"

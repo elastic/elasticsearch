@@ -104,7 +104,8 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(0, -1); });
+        // -1 is now the READ_TO_END open-ended sentinel; a different negative length is still invalid.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(0, -2); });
         assertTrue(e.getMessage().contains("length"));
     }
 

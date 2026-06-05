@@ -9,11 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
-// NOTE: NumericUtils.sortableLongToDouble is inlined as the two-op
-// (bits ^ ((bits >> 63) & 0x7FFF...)) + longBitsToDouble idiom inside the
-// per-value hot loops below. It avoids the cross-module method call so the JIT
-// can keep the entire per-value sequence in registers and auto-vectorise.
-
 /**
  * Algorithmic primitives for the ALP (Adaptive Lossless floating-Point) double encoding.
  *
@@ -22,54 +17,15 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
  * that {@code (mantissa * 10^f * 10^-e)} round-trips back to {@code v} bit-for-bit. Values
  * for which the round-trip fails are recorded as exceptions and reinjected on decode.
  *
- * <p>The stage-level policy that orchestrates these primitives (per-block cache, skip
- * heuristics, metadata layout) lives in {@link AlpDoubleTransformStage}. This class
- * exposes only the building blocks: branchless rounding, exception counting,
- * single-pass transform, and the top-K {@code (e, f)} search.
+ * <p>The stage-level policy (per-block cache, skip heuristics, metadata layout) lives in
+ * {@link AlpDoubleTransformStage}; this class exposes only the building blocks. The
+ * paper reference for the search strategy is Afroozeh et al., SIGMOD 2023, section 3.2:
+ * a fixed-stride sample feeds a per-pair candidate pool, then the top-K candidates are
+ * evaluated against the full block. Replaces the naive {@code O(N * E * F)} sweep with
+ * {@code O(K * N)} steady-state work.
  *
- * <h2>Selection cost</h2>
- * <p>The ALP paper (Afroozeh et al., SIGMOD 2023, section 3.2) identifies the per-block
- * {@code (e, f)} search as the dominant cost of ALP encoding. The naive lower bound is
- * {@code O(N * E * F)} per block, where {@code N} is the block size, {@code E} is the
- * exponent range (up to {@link #MAX_EXPONENT}, so 19), and {@code F} is the factor range
- * (up to {@code E}). For {@code N = 1024} and a full sweep this is roughly
- * {@code 1024 * 19 * 10 ~= 195k round-trip checks per block}, each one a multiply, a
- * fast round, a multiply back, and a bit-pattern compare. Because a segment can contain
- * thousands of blocks, this search is run thousands of times per field at flush time,
- * which is why the paper invests heavily in cutting it.
- *
- * <h2>Selection strategy</h2>
- * <ol>
- *   <li><b>Top-K pre-selection from a fixed-stride sample.</b> {@link
- *     #findBestEFDoubleTopK} samples at most {@link #PRE_SELECT_SAMPLE} values at a fixed
- *     stride (paper section 3.2), runs the full per-value search
- *     ({@link #bestEFForSingleDouble}) on each sample, and accumulates the resulting
- *     pairs in a {@link #CAND_POOL_SIZE}-slot pool keyed by {@code (e, f)} frequency.
- *     The {@link #TOP_K} most frequent candidates are evaluated against the full block.
- *     This replaces the {@code O(N * E * F)} sweep with one bounded per-sample search
- *     plus {@code K} block-wide evaluations ({@code O(K * N) <= O(5 * N)}).
- *   <li><b>Identity fast path.</b> The pool eviction policy is LFU rather than LRU so
- *     candidates that never recur drop out, but identity {@code (0, 0)} is always
- *     evaluated even when no sample produces it. Integer-valued doubles and any block
- *     where ALP does not help short-circuit through identity.
- *   <li><b>Precision-bounded fallback.</b> If no sample yields a candidate (e.g. the
- *     block is all zeros or all special values), a second sample of size
- *     {@link #SAMPLE_SIZE} estimates the precision range {@code [minP, maxExponent]}
- *     and only that subset of {@code (e, f)} pairs is evaluated, instead of the full
- *     {@code [0, MAX_EXPONENT]} square.
- * </ol>
- *
- * <h2>Block-size effect</h2>
- * <p>The stride is set to {@code max(1, valueCount / PRE_SELECT_SAMPLE)}, so the sample
- * size is constant in {@code N} and the per-candidate evaluation grows linearly.
- * Larger blocks therefore amortize the search over more values. Smaller blocks pay the
- * search more often per field, which is the main reason TSDB favours larger block sizes
- * for double metrics.
- *
- * <h2>Allocation</h2>
- * <p>All scratch state (candidate pool, exception arrays, output slots for the best
- * {@code (e, f)}) is owned by the caller so this class never allocates on the encode
- * hot path.
+ * <p>All scratch state (candidate pool, exception arrays, output slots) is owned by the
+ * caller, so this class never allocates on the hot path.
  */
 final class AlpDoubleUtils {
 
@@ -81,8 +37,15 @@ final class AlpDoubleUtils {
     /** Maximum exception count, in percent of the block, tolerated for a cached pair. */
     static final int CACHE_VALIDATION_THRESHOLD = 5;
 
-    /** Approximate per-exception cost in bytes: VInt position plus raw long value. */
-    static final int DOUBLE_EXCEPTION_COST = 10;
+    /** Typical per-exception position VInt width (1-5 bytes possible; 2 is typical for blockSize up to 16K). */
+    static final int EXCEPTION_POSITION_VINT_BYTES = 2;
+
+    /**
+     * Approximate per-exception metadata cost in bytes: the position VInt
+     * ({@link #EXCEPTION_POSITION_VINT_BYTES}) plus the original sortable-long stored
+     * verbatim ({@link Long#BYTES}).
+     */
+    static final int DOUBLE_EXCEPTION_COST = EXCEPTION_POSITION_VINT_BYTES + Long.BYTES;
 
     /**
      * Spread threshold (in sortable-long deltas) above which the integer baseline loses
@@ -92,12 +55,7 @@ final class AlpDoubleUtils {
      */
     static final long DELTA_SPREAD_THRESHOLD = 16L;
 
-    /**
-     * Size of the direct-indexed candidate pool. {@code (e, f)} is encoded as
-     * {@code e * CAND_STRIDE + f} so the lookup is one array indexing, no
-     * hashing, no linear scan. Covers every legal pair with {@code e in [0, MAX_EXPONENT]}
-     * and {@code f in [0, e]} (and an unused upper triangle, which the search never visits).
-     */
+    /** Direct-indexed candidate pool: {@code candCounts[e * CAND_STRIDE + f]}, no hashing or scan. */
     static final int CAND_STRIDE = MAX_EXPONENT + 1;
     static final int CAND_POOL_SIZE = CAND_STRIDE * CAND_STRIDE;
 
@@ -135,19 +93,11 @@ final class AlpDoubleUtils {
 
     /**
      * Branchless rounding using the {@code (x + bias) - bias} trick (paper section 3.1).
-     *
-     * <p>Adding {@code bias = 2^52 + 2^51} pushes {@code x} into the magnitude where
-     * every representable double is an integer; IEEE 754 round-to-nearest-even then
-     * rounds {@code x} as part of fitting the sum into the 52-bit mantissa. Subtracting
-     * the bias recovers the rounded integer as an exact double, which casts cheaply to
-     * {@code long}. This replaces the sign branch and NaN/Infinity special cases of
-     * {@link Math#round} with two adds and a narrowing, the form modern compilers
-     * vectorize.
-     *
-     * <p>Caveats: rounding is ties-to-even rather than ties-up, which ALP tolerates
-     * because encode and decode use the same rounding; the caller must guarantee
-     * {@code |x| < FAST_ROUND_MAX_DOUBLE}, and NaN/Infinity are gated out upstream.
-     * {@link #alpRound} layers the magnitude guard on top of this primitive.
+     * Adding {@code bias = 2^52 + 2^51} pushes {@code x} into the magnitude range where
+     * every representable double is an integer; IEEE 754 ties-to-even then rounds as part
+     * of fitting the sum into the 52-bit mantissa, and subtracting the bias recovers the
+     * rounded integer. Caller must guarantee {@code |x| < FAST_ROUND_MAX_DOUBLE} and that
+     * {@code x} is finite; {@link #alpRound} layers the magnitude guard.
      */
     static long fastRound(double x) {
         if (x >= 0) {
@@ -156,11 +106,7 @@ final class AlpDoubleUtils {
         return -((long) (-x + ROUNDING_BIAS_DOUBLE) - (long) ROUNDING_BIAS_DOUBLE);
     }
 
-    /**
-     * Guarded round used by every ALP hot loop. Uses {@link #fastRound} when the
-     * magnitude is safe and falls back to {@link Math#round} otherwise. NaN and infinity
-     * are not handled here; callers gate them out before reaching this method.
-     */
+    /** Guarded round: {@link #fastRound} inside {@link #FAST_ROUND_MAX_DOUBLE}, {@link Math#round} otherwise. */
     static long alpRound(double x) {
         if (x > -FAST_ROUND_MAX_DOUBLE && x < FAST_ROUND_MAX_DOUBLE) {
             return fastRound(x);
@@ -297,8 +243,7 @@ final class AlpDoubleUtils {
         }
         final int p = estimatePrecision(value, maxExponent);
         final long valueBits = Double.doubleToRawLongBits(value);
-        // NOTE: f=0 is the common winner for decimal-friendly values; specialize so the
-        // hot path skips the redundant multiplications by POWERS_OF_TEN[0]=1.0.
+        // f=0 is the common winner; specialize so the hot loop drops the multiplications by 1.0.
         for (int e = p; e <= maxExponent; e++) {
             final long encoded = alpRound(value * POWERS_OF_TEN[e]);
             final double decoded = encoded * NEG_POWERS_OF_TEN[e];
@@ -321,22 +266,9 @@ final class AlpDoubleUtils {
 
     /**
      * Top-K {@code (e, f)} selection (paper section 3.2). Samples the block at a fixed
-     * stride, builds a candidate pool keyed by per-sample {@link #bestEFForSingleDouble},
-     * and evaluates the most frequent {@link #TOP_K} pairs against the full block. Falls
-     * back to a precision-bounded enumeration when no sample yields a candidate.
-     *
-     * <p>See the class-level javadoc for the rationale: this method replaces a full
-     * {@code O(N * E * F)} block sweep with one bounded per-sample search plus
-     * {@link #TOP_K} {@code O(N)} candidate evaluations. Together with the cached
-     * {@code (e, f)} on the caller side it keeps the steady-state cost at one linear
-     * pass per block.
-     *
-     * <p>{@code candCounts} is a direct-indexed pool sized to {@link #CAND_POOL_SIZE}
-     * where {@code candCounts[candidateKey(e, f)]} holds the sample frequency of the
-     * pair {@code (e, f)}. The lookup is one array index per sample; there is no
-     * linear scan or eviction logic. The mark-as-evaluated trick uses sign negation
-     * during top-K selection and is cleared by the {@code Arrays.fill} at the start
-     * of the next call, so no un-negate pass is needed.
+     * stride, tallies per-pair frequencies in {@code candCounts}, and evaluates the
+     * {@link #TOP_K} most frequent pairs against the full block. Falls back to a
+     * precision-bounded enumeration when no sample yields a candidate.
      *
      * @return the exception count for the chosen {@code (e, f)}, written to
      *         {@code efOut[0]} and {@code efOut[1]}

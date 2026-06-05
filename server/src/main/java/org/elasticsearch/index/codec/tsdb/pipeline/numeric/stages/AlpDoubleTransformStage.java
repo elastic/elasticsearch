@@ -21,70 +21,31 @@ import java.io.IOException;
 /**
  * ALP (Adaptive Lossless floating-Point) transform stage for doubles.
  *
- * <h2>Effectiveness</h2>
  * <p>Applied when the block can be losslessly encoded as integer mantissas using a
  * shared exponent pair {@code (e, f)} such that {@code encoded = round(v * 10^e * 10^-f)}
- * and {@code v == encoded * 10^f * 10^-e} bit-for-bit. Blocks where ALP yields no
- * bit-width reduction, or where the surviving exception fraction exceeds the dynamic
- * threshold {@link AlpDoubleUtils#maxExceptionPercent}, are skipped so the downstream
- * pipeline sees the original sortable-longs unchanged.
+ * and {@code v == encoded * 10^f * 10^-e} bit-for-bit. Mantissa positions whose round
+ * trip fails become exceptions stored verbatim in metadata; the mantissa slot is filled
+ * with the previous value (or zero at position 0) so the downstream bit-pack does not
+ * absorb an outlier. Blocks with no bit-width reduction or too many exceptions are
+ * skipped so the downstream pipeline sees the original sortable-longs unchanged.
  *
- * <h2>Cross-block (e, f) cache</h2>
- * <p>The per-block {@code (e, f)} search is the dominant cost of ALP (see
- * {@link AlpDoubleUtils} for the algorithmic detail and the paper reference). This
- * stage owns the cross-block policy that keeps the search out of the steady-state path:
- * <ul>
- *   <li>The {@code (e, f)} that won the previous block is remembered in
- *     {@link #cachedE}/{@link #cachedF} and validated against the new block with a
- *     single {@link AlpDoubleUtils#countExceptions} pass. When the exception count
- *     stays below {@link AlpDoubleUtils#CACHE_VALIDATION_THRESHOLD} percent the search
- *     is skipped entirely; this is the common path for TSDB metrics where adjacent
- *     blocks share precision.
- *   <li>On cache miss the stage falls through to
- *     {@link AlpDoubleUtils#findBestEFDoubleTopK}, accepts its result, and updates the
- *     cache with the winner.
- * </ul>
+ * <p>The dominant per-block cost is the {@code (e, f)} search. This stage holds the
+ * cross-block cache that keeps it off the steady-state path: the previous winner is
+ * validated against the new block with a single {@link AlpDoubleUtils#countExceptions}
+ * pass against both the 5% freshness threshold and the cached dynamic threshold. On
+ * cache miss the search runs via {@link AlpDoubleUtils#findBestEFDoubleTopK}.
  *
- * <p>The encoder block size therefore directly affects how often the search runs per
- * field. Larger blocks amortize the per-block work over more values and shift the
- * steady-state cost toward the single {@code O(N)} cache-validation pass; smaller
- * blocks pay the search more frequently.
+ * <p>Example: a sensor block {@code [22.5, 22.7, 22.6, ...]} encodes with {@code e=1,
+ * f=0} into integer mantissas {@code [225, 227, 226, ...]} that downstream
+ * {@code offset > gcd > bitPack} compress aggressively.
  *
- * <h2>Skip policy</h2>
- * <p>The stage applies only when both conditions hold: {@link
- * AlpDoubleUtils#computeBitSavings} reports a strictly positive bit-width reduction,
- * and the exception fraction stays below the bit-saving-dependent budget returned by
- * {@link AlpDoubleUtils#maxExceptionPercent}. When either fails the encode returns
- * without touching {@link EncodingContext#metadata()}, so the per-block bitmap leaves
- * the stage marked inactive and downstream stages see the unmodified sortable-longs.
- *
- * <h2>Example</h2>
- * <p>Block {@code [22.5, 22.7, 22.6, ...]} (sensor-like decimals) is encoded with
- * {@code e=1, f=0}, yielding integer mantissas {@code [225, 227, 226, ...]} that
- * downstream stages ({@code offset}, {@code gcd}, {@code bitPack}) can compress aggressively.
- *
- * <h2>Metadata layout</h2>
- * <p>Written to the stage metadata section:
+ * <p>Metadata layout (stage metadata section):
  * <pre>
- *   +----------+----------+--------------------+
- *   | byte(e)  | byte(f)  | VInt(excCount)     |
- *   +----------+----------+--------------------+
- *   for each exception:
- *     +-----------------+-----------------------------+
- *     | VInt(position)  | Long(originalSortableLong)  |
- *     +-----------------+-----------------------------+
+ *   byte(e), byte(f), VInt(excCount), excCount * (VInt(position), Long(originalSortableLong))
  * </pre>
  *
- * <h2>Exception trick</h2>
- * <p>Values for which the round-trip check fails are stored verbatim in metadata. The
- * mantissa slot at the failing position is overwritten with the previous slot (or zero at
- * position zero) so that the integer mantissa stream stays low-width and the downstream
- * bit-pack does not have to absorb an outlier.
- *
- * <h2>Thread safety</h2>
- * <p>Not thread-safe: scratch buffers (candidate pool, exception arrays, cached
- * {@code (e, f)}) are allocated once in the constructor and reused across blocks. Each
- * pipeline must own its own instance.
+ * <p>Not thread-safe: scratch state is allocated once in the constructor and reused
+ * across blocks. Each pipeline must own its own instance.
  */
 public final class AlpDoubleTransformStage implements NumericCodecStage {
 
@@ -95,8 +56,6 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     private final long[] excValues;
     private int cachedE = -1;
     private int cachedF = -1;
-    // Dynamic threshold (absolute exception count) from the last successful encode,
-    // reused on cache hit so we skip recomputing computeBitSavings every block.
     private int cachedMaxAllowed = -1;
 
     /**
@@ -130,10 +89,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
             return;
         }
 
-        // Cache-hit fast path: count exceptions against the cached (e, f) and accept when
-        // the count fits the dynamic threshold cached from the last successful encode.
-        // Skips computeBitSavings on cache hit so the encode runs as count + transform
-        // (two passes) instead of count + bits-savings + transform (three).
+        // Cache hit: validate via countExceptions only, skip computeBitSavings.
         if (cachedE >= 0) {
             final int bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, cachedE, cachedF);
             final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
@@ -143,8 +99,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
             }
         }
 
-        // Cache miss: search for a new (e, f), validate against the dynamic threshold,
-        // and refresh the cache before writing.
+        // Cache miss: full top-K search, validate, refresh cache.
         final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candCounts);
         final int bestE = efOut[0];
         final int bestF = efOut[1];
@@ -186,11 +141,11 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         final int excCount = metadata.readVInt();
 
         final double decodeMul = AlpDoubleUtils.POWERS_OF_TEN[f] * AlpDoubleUtils.NEG_POWERS_OF_TEN[e];
+        // Inlines NumericUtils.doubleToSortableLong: (bits >> 63) >>> 1 is 0x7FFF...F when
+        // bits is negative and 0 otherwise, so the XOR flips the lower 63 bits when the
+        // sign bit is set, preserving order.
         for (int i = 0; i < valueCount; i++) {
             final long bits = Double.doubleToRawLongBits(values[i] * decodeMul);
-            // Inlines NumericUtils.doubleToSortableLong: the (bits >> 63) >>> 1 idiom
-            // produces 0x7FFF...F when bits is negative and 0 otherwise, so the XOR
-            // flips the lower 63 bits exactly when the sign bit is set.
             values[i] = bits ^ ((bits >> 63) >>> 1);
         }
 
@@ -201,16 +156,11 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
 
     /**
      * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
-     * a spread no larger than {@link AlpDoubleUtils#DELTA_SPREAD_THRESHOLD}. In
-     * sortable-long space this characterises monotonic doubles that stay inside a single
-     * IEEE 754 exponent (e.g., a slow drift gauge in a narrow value range); IEEE 754
-     * division can perturb the stride by a few ULPs, hence the bounded tolerance rather
-     * than exact equality. For these blocks the downstream baseline already compresses
-     * to roughly one bit per value, so ALP can only add exception overhead and the stage
-     * opts out.
-     *
-     * <p>Constant blocks (stride zero) are deliberately excluded; ALP handles them in
-     * seven bytes versus the baseline's twelve.
+     * a spread no larger than {@link AlpDoubleUtils#DELTA_SPREAD_THRESHOLD}. Characterises
+     * monotonic doubles that stay inside a single IEEE 754 exponent (a slow drift gauge
+     * in a narrow range) where the integer baseline already reaches ~1 bit per value.
+     * Constant blocks (stride 0) are deliberately excluded; ALP handles those in 7 bytes
+     * versus the baseline's 12.
      */
     private static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
         if (valueCount < 3) {

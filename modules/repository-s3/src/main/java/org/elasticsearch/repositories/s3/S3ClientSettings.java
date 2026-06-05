@@ -224,6 +224,16 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
+    /**
+     * Whether to sign {@code PutObject} and {@code UploadPart} request payloads over HTTPS. When {@code false}, the AWS SDK may send
+     * unsigned payloads over HTTPS for better performance.
+     */
+    static final Setting.AffixSetting<Boolean> ALWAYS_SIGN_UPLOADS = Setting.affixKeySetting(
+        PREFIX,
+        "always_sign_uploads",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -287,6 +297,9 @@ final class S3ClientSettings {
     /** Tenacious retries for transient blob store errors. */
     final boolean tenaciousRetriesEnabled;
 
+    /** Whether to sign {@code PutObject} and {@code UploadPart} payloads over HTTPS. */
+    final boolean alwaysSignUploads;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -306,7 +319,8 @@ final class S3ClientSettings {
         boolean addPurposeCustomQueryParameter,
         String region,
         ByteSizeValue maxCopySizeBeforeMultipart,
-        boolean tenaciousRetriesEnabled
+        boolean tenaciousRetriesEnabled,
+        boolean alwaysSignUploads
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -327,6 +341,7 @@ final class S3ClientSettings {
         this.region = region;
         this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
+        this.alwaysSignUploads = alwaysSignUploads;
     }
 
     /**
@@ -386,6 +401,7 @@ final class S3ClientSettings {
             normalizedSettings,
             tenaciousRetriesEnabled
         );
+        final boolean newAlwaysSignUploads = getRepoSettingOrDefault(ALWAYS_SIGN_UPLOADS, normalizedSettings, alwaysSignUploads);
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -402,7 +418,8 @@ final class S3ClientSettings {
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
             && Objects.equals(region, newRegion)
             && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)
-            && tenaciousRetriesEnabled == newTenaciousRetriesEnabled) {
+            && tenaciousRetriesEnabled == newTenaciousRetriesEnabled
+            && newAlwaysSignUploads == alwaysSignUploads) {
             return this;
         }
         return new S3ClientSettings(
@@ -424,7 +441,8 @@ final class S3ClientSettings {
             newAddPurposeCustomQueryParameter,
             newRegion,
             newMaxCopySizeBeforeMultipart,
-            newTenaciousRetriesEnabled
+            newTenaciousRetriesEnabled,
+            newAlwaysSignUploads
         );
     }
 
@@ -536,7 +554,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
                 getConfigValue(settings, clientName, REGION),
                 getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART),
-                getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING)
+                getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
+                getConfigValue(settings, clientName, ALWAYS_SIGN_UPLOADS)
             );
         }
     }
@@ -567,7 +586,8 @@ final class S3ClientSettings {
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
             && Objects.equals(region, that.region)
             && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart)
-            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled;
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
+            && alwaysSignUploads == that.alwaysSignUploads;
     }
 
     @Override
@@ -590,7 +610,8 @@ final class S3ClientSettings {
             addPurposeCustomQueryParameter,
             region,
             maxCopySizeBeforeMultipart,
-            tenaciousRetriesEnabled
+            tenaciousRetriesEnabled,
+            alwaysSignUploads
         );
     }
 

@@ -102,7 +102,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         final var testConfigs = new ArrayList<TestConfig>();
         for (final boolean https : new boolean[] { false, true }) {
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
-                testConfigs.add(new TestConfig(https, chunkedEncoding));
+                for (final boolean alwaysSignUploads : new boolean[] { false, true }) {
+                    testConfigs.add(new TestConfig(https, chunkedEncoding, alwaysSignUploads));
+                }
             }
         }
         TEST_CONFIGS = List.copyOf(testConfigs);

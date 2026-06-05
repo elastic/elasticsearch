@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 
 public abstract class Publication {
 
-    private static final Logger logger = LogManager.getLogger(Publication.class);
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;
@@ -387,15 +388,14 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                // When e is an expected or transient error (network disconnect or near to a contended election) log at debug level,
-                // otherwise log at warn level
-                Level logLevel = e instanceof ConnectTransportException
+                // https://github.com/elastic/elasticsearch/issues/125291
+                if (e instanceof ConnectTransportException
                     || (e instanceof final RemoteTransportException remoteTransportException
-                        && remoteTransportException.getRootCause() instanceof CoordinationStateRejectedException)
-                            ? Level.DEBUG
-                            : Level.WARN;
-
-                logger.log(logLevel, () -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                        && ExceptionsHelper.unwrap(remoteTransportException, CoordinationStateRejectedException.class) != null)) {
+                    logger.debug(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                } else {
+                    logger.warn(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                }
                 setFailed(getRootCause(e));
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();

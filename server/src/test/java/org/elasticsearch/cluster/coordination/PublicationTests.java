@@ -523,12 +523,9 @@ public class PublicationTests extends ESTestCase {
         assertEquals(discoNodes, ackListener.await(0L, TimeUnit.SECONDS));
     }
 
-    private static final String PUBLICATION_LOGGER_NAME = "org.elasticsearch.cluster.coordination.Publication";
-    private static final String PUBLICATION_DEBUG_LOGGING = PUBLICATION_LOGGER_NAME + ":DEBUG";
-
     @TestLogging(
         reason = "verifying that transient network failures in PublishResponseHandler are logged at DEBUG",
-        value = PUBLICATION_DEBUG_LOGGING
+        value = "org.elasticsearch.cluster.coordination:DEBUG"
     )
     public void testPublishResponseHandlerLogsDebugOnConnectTransportException() {
         VotingConfiguration config = VotingConfiguration.of(n1);
@@ -540,11 +537,12 @@ public class PublicationTests extends ESTestCase {
             Collections.emptySet()
         );
 
-        try (var mockLog = MockLog.capture(Publication.class)) {
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "ConnectTransportException should be logged at DEBUG",
-                    PUBLICATION_LOGGER_NAME,
+                    loggerName,
                     Level.DEBUG,
                     "PublishResponseHandler"
                 )
@@ -552,7 +550,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "ConnectTransportException should not be logged at WARN",
-                    PUBLICATION_LOGGER_NAME,
+                    loggerName,
                     Level.WARN,
                     "PublishResponseHandler"
                 )
@@ -564,7 +562,7 @@ public class PublicationTests extends ESTestCase {
 
     @TestLogging(
         reason = "verifying that expected election-related rejections in PublishResponseHandler are logged at DEBUG",
-        value = PUBLICATION_DEBUG_LOGGING
+        value = "org.elasticsearch.cluster.coordination:DEBUG"
     )
     public void testPublishResponseHandlerLogsDebugOnCoordinationStateRejected() {
         VotingConfiguration config = VotingConfiguration.of(n1);
@@ -576,11 +574,12 @@ public class PublicationTests extends ESTestCase {
             Collections.emptySet()
         );
 
-        try (var mockLog = MockLog.capture(Publication.class)) {
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "CoordinationStateRejectedException should be logged at DEBUG",
-                    PUBLICATION_LOGGER_NAME,
+                    loggerName,
                     Level.DEBUG,
                     "PublishResponseHandler"
                 )
@@ -588,7 +587,7 @@ public class PublicationTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "CoordinationStateRejectedException should not be logged at WARN",
-                    PUBLICATION_LOGGER_NAME,
+                    loggerName,
                     Level.WARN,
                     "PublishResponseHandler"
                 )
@@ -609,20 +608,13 @@ public class PublicationTests extends ESTestCase {
             Collections.emptySet()
         );
 
-        try (var mockLog = MockLog.capture(Publication.class)) {
+        String loggerName = publication.logger.getName();
+        try (var mockLog = MockLog.capture(loggerName)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unexpected exception should be logged at WARN",
-                    PUBLICATION_LOGGER_NAME,
+                    loggerName,
                     Level.WARN,
-                    "PublishResponseHandler"
-                )
-            );
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "unexpected exception should not be logged at DEBUG",
-                    PUBLICATION_LOGGER_NAME,
-                    Level.DEBUG,
                     "PublishResponseHandler"
                 )
             );

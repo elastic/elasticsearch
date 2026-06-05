@@ -1375,7 +1375,12 @@ public class SharedBlobCacheWarmingService {
         protected abstract void onWarmingSuccess(long duration);
 
         protected void onWarmingFailed(Exception e) {
-            Supplier<String> logMessage = () -> Strings.format("%s %s warming failed", warmingRun.shardId(), warmingRun.type());
+            Supplier<String> logMessage = () -> Strings.format(
+                "%s %s warming failed with message %s",
+                warmingRun.shardId(),
+                warmingRun.type(),
+                e.getMessage()
+            );
             if (logger.isDebugEnabled()) {
                 logger.debug(logMessage, e);
             } else {

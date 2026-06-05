@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Source operator that incrementally counts the results in Lucene searches
@@ -53,7 +54,8 @@ public class LuceneCountOperator extends LuceneOperator {
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             List<ElementType> tagTypes,
-            int limit
+            int limit,
+            LongSupplier directoryBytesRead
         ) {
             super(
                 contexts,
@@ -68,6 +70,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 limit,
                 false,
                 shardContext -> ScoreMode.COMPLETE_NO_SCORES,
+                directoryBytesRead,
                 LuceneCountOperator::leafHasCountShortcut
             );
             this.shardRefCounters = contexts;
@@ -76,7 +79,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(shardRefCounters, driverContext, sliceQueue, tagTypes, limit);
+            return new LuceneCountOperator(shardRefCounters, driverContext, sliceQueue, tagTypes, limit, directoryBytesRead);
         }
 
         @Override
@@ -104,9 +107,10 @@ public class LuceneCountOperator extends LuceneOperator {
         DriverContext driverContext,
         LuceneSliceQueue sliceQueue,
         List<ElementType> tagTypes,
-        int limit
+        int limit,
+        LongSupplier directoryBytesRead
     ) {
-        super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue);
+        super(shardRefCounters, driverContext.blockFactory(), Integer.MAX_VALUE, sliceQueue, directoryBytesRead);
         this.tagTypes = tagTypes;
         this.remainingDocs = limit;
         this.driverContext = driverContext;

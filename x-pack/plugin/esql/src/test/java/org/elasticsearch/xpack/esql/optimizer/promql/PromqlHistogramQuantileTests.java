@@ -116,18 +116,15 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
             .stream()
             .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
             .toList();
-        assertThat(outerAggs, hasSize(1));
+        // histogram_quantile over rate and sum(...) by (job) each add an outer Aggregate.
+        assertThat(outerAggs, hasSize(2));
         assertThat(
-            outerAggs.getFirst().aggregates().stream().anyMatch(aggregate -> aggregate.anyMatch(Sum.class::isInstance)),
+            outerAggs.stream()
+                .anyMatch(aggregate -> aggregate.aggregates().stream().anyMatch(agg -> agg.anyMatch(Sum.class::isInstance))),
             equalTo(true)
         );
 
-        List<PrometheusHistogramQuantile> quantiles = translated.collect(TimeSeriesAggregate.class)
-            .stream()
-            .flatMap(timeSeriesAggregate -> timeSeriesAggregate.aggregates().stream())
-            .flatMap(namedExpression -> namedExpression.collect(PrometheusHistogramQuantile.class).stream())
-            .toList();
-        assertThat(quantiles, hasSize(1));
+        assertThat(collectQuantiles(translated), hasSize(1));
     }
 
     public void testHistogramQuantileRateWithoutLePreservesTimeseriesOutput() {
@@ -175,12 +172,8 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
             false
         );
         assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
-        PrometheusHistogramQuantile quantile = translated.collect(TimeSeriesAggregate.class)
-            .stream()
-            .flatMap(timeSeriesAggregate -> timeSeriesAggregate.aggregates().stream())
-            .flatMap(namedExpression -> namedExpression.collect(PrometheusHistogramQuantile.class).stream())
-            .findFirst()
-            .orElseThrow();
+        // rate(...) is already aggregated, so histogram_quantile lowers into a regular Aggregate.
+        PrometheusHistogramQuantile quantile = collectQuantiles(translated).getFirst();
 
         assertThat(quantile.upperBound().collect(Attribute.class), not(empty()));
         assertThat(quantile.upperBound().collect(Literal.class), empty());

@@ -44,8 +44,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -194,16 +192,10 @@ public class ExternalSourceResolver {
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
-                        // Async plumbing wraps a loader failure in an ExecutionException (schema cache
-                        // computeIfAbsent) or CompletionException (parallel gather); peel those so a
-                        // client-class error (e.g. the IllegalArgumentException raised for a malformed or
-                        // undecodable source) keeps its 400 instead of being relabeled a 500 by the generic
-                        // branch below. Same defect class as the parallel-read path — a meaningful error
-                        // type lost in an intermediate wrap (see ExternalFailures).
-                        Throwable cause = e;
-                        while ((cause instanceof ExecutionException || cause instanceof CompletionException) && cause.getCause() != null) {
-                            cause = cause.getCause();
-                        }
+                        // Peel the async wrappers (the schema cache surfaces a loader failure as an
+                        // ExecutionException) so a client-class error — e.g. the IllegalArgumentException for a
+                        // malformed or undecodable source — keeps its 400 instead of the generic 500 below.
+                        Throwable cause = ExternalFailures.unwrapAsync(e);
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, cause.getMessage(), cause);
                         if (cause instanceof IllegalArgumentException iae) {
                             listener.onFailure(iae);

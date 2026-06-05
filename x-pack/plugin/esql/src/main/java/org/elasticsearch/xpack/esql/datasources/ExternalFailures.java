@@ -17,13 +17,25 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 /**
- * Classifies a failure raised while reading an external data source into the exception the
- * {@code AsyncExternalSourceOperator} should surface, so that it maps to the right HTTP status.
+ * The single authority on exception <em>shape</em> for external-source reads. One rule underpins all of it:
+ * a failure to read or decode the resource is the caller's bad input (HTTP 400), and no intermediate wrapper
+ * may hide that and let it surface as a server fault (500). Three operations enforce it, each used at a
+ * different layer:
+ * <ul>
+ *     <li>{@link #classify} — at the read boundary, map a failure to the {@link ExternalException} carrying
+ *     the right HTTP status.</li>
+ *     <li>{@link #asUnchecked} — at a worker throw site, rethrow a stored failure as an unchecked exception
+ *     while preserving an {@link IOException} so {@link #classify} still sees a 400.</li>
+ *     <li>{@link #unwrapAsync} — strip {@code java.util.concurrent} wrappers to the real cause before a
+ *     caller dispatches on (or classifies) it.</li>
+ * </ul>
  * <p>
- * This is the single boundary where external-source reads turn into a user-visible error, and it is
- * reached only for external-source queries (the operator exists only for them), so index queries are
+ * {@link #classify} is the single boundary where external-source reads turn into a user-visible error, and it
+ * is reached only for external-source queries (the operator exists only for them), so index queries are
  * unaffected. It runs co-located with the throw, on the node that reads the external source, before
  * the failure is serialized back to the coordinator — so classification relies on the concrete
  * exception type while it is still available, and only the resulting {@code status()} needs to cross
@@ -41,12 +53,10 @@ import java.util.Set;
  *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
  *     never reach here as plain I/O errors: the storage layer raises them as {@link ExternalException}
  *     (503) first.</li>
- *     <li>Failing the above, the cause chain is unwrapped as a backstop: if a data-class failure (an
- *     {@link IOException}/{@link UncheckedIOException} or a known third-party decoding exception) is buried
- *     under a non-IO wrapper (e.g. a parsing coordinator that rewraps a worker read failure), the deepest
- *     such cause still means "could not read or decode" and the failure is classified 400. The throw sites
- *     preserve the {@link IOException} directly; this catches any remaining path that does not, so a data
- *     error is never mislabeled a 500.</li>
+ *     <li>Failing the above, the cause chain is walked as a backstop: a data-class cause (an
+ *     {@link IOException}/{@link UncheckedIOException} or a known decoding exception) buried under a non-IO
+ *     wrapper still means "could not read or decode", so it classifies 400. The throw sites preserve the
+ *     {@link IOException} directly; this covers any path that does not.</li>
  *     <li>Anything else ({@link IllegalStateException}, {@link NullPointerException}, an unrecognized
  *     {@link RuntimeException}) indicates a broken invariant in our own code rather than bad input,
  *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible.</li>
@@ -92,17 +102,46 @@ public final class ExternalFailures {
         if (isDataException(t)) {
             return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
         }
-        // Backstop: a data-class failure can be buried under a non-IO wrapper before it reaches here — e.g.
-        // the parallel parsing coordinators historically rewrapped a worker IOException in a bare
-        // RuntimeException, losing the 400. "Could not read or decode" is bad input, not a bug in our own
-        // code, so the deepest data-class cause drives the status (400) while the full chain is preserved as
-        // the cause and its message stays actionable. The throw sites preserve the IOException directly; this
-        // catches any remaining path that does not.
+        // Backstop for a data-class failure buried under a non-IO wrapper: classify on it, not the wrapper.
         Throwable dataCause = findDataCause(t);
         if (dataCause != null) {
             return new ExternalClientException(t, "Failed to read external source: {}", dataCause.getMessage());
         }
         return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
+    }
+
+    /**
+     * Rethrows a stored worker failure as an unchecked exception, preserving an {@link IOException} as an
+     * {@link UncheckedIOException} so {@link #classify} still keys it to 400 rather than a bare
+     * {@link RuntimeException} that would be a 500. A {@link RuntimeException} is returned unchanged; anything
+     * else is wrapped in a {@link RuntimeException} with {@code fallbackMessage}. The parallel parsing
+     * coordinators call this from their {@code checkError} throw site.
+     */
+    static RuntimeException asUnchecked(Throwable failure, String fallbackMessage) {
+        if (failure instanceof RuntimeException re) {
+            return re;
+        }
+        if (failure instanceof IOException ioe) {
+            return new UncheckedIOException(ioe);
+        }
+        return new RuntimeException(fallbackMessage, failure);
+    }
+
+    /**
+     * Strips the {@code java.util.concurrent} wrappers that carry a failed computation's real cause —
+     * {@link ExecutionException} and {@link CompletionException} — and returns the first non-wrapper
+     * throwable. Cycle-safe. Lets a caller dispatch on (or {@link #classify}) the underlying exception type
+     * rather than the async plumbing that buried it.
+     */
+    static Throwable unwrapAsync(Throwable t) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = t;
+        while ((current instanceof ExecutionException || current instanceof CompletionException)
+            && current.getCause() != null
+            && seen.add(current)) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     /**

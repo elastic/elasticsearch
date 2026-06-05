@@ -143,14 +143,11 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A middle field past the schema-sample window <em>begins</em> with a {@code "} and never closes it;
-     * every other row is quote-free. Unlike a mid-field quote (treated as a literal), a field-leading quote
-     * opens a quoted field, so the record-boundary scanner finds no unquoted newline and grows until it
-     * trips {@code max_record_size}. Schema inference samples only the earlier clean rows and succeeds, so
-     * the failure lands on the read/cap path: it raises an {@code IOException} ("record exceeded
-     * max_record_size … possible unclosed quote"). That is a data error (the input cannot be decoded), so
-     * the query must fail with HTTP 400 — not a 500 caused by the error class being lost in a
-     * RuntimeException wrap on the parallel path.
+     * A field past the schema-sample window opens a quote that never closes. Schema inference samples only
+     * the earlier clean rows and succeeds, so the failure lands on the read/cap path: the unclosed quote
+     * makes the record scanner grow until it trips {@code max_record_size}, raising an {@code IOException}.
+     * That is undecodable input, so the query must fail HTTP 400 — not a 500 from the error class being lost
+     * in a RuntimeException wrap on the parallel path.
      */
     public void testGzipStreamOnlyUnclosedLeadingQuoteTripsCapAs400() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());

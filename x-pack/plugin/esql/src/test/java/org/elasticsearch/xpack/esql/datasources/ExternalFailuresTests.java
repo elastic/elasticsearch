@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 public class ExternalFailuresTests extends ESTestCase {
 
@@ -104,8 +106,8 @@ public class ExternalFailuresTests extends ESTestCase {
     }
 
     public void testDeeplyNestedIoExceptionIsFound() {
-        // The data-class cause can sit several wrappers down, including under a bug-class type. The deepest
-        // data-class cause still drives the 400 — wrapping never escalates a data error to a server fault.
+        // The data-class cause can sit several wrappers down, including under a bug-class type. The first
+        // data-class cause in the chain still drives the 400 — wrapping never escalates a data error to 500.
         for (Throwable buried : new Throwable[] {
             new RuntimeException("a", new IllegalStateException("b", new IOException("truncated"))),
             new RuntimeException("outer", new EOFException("eof")),                       // IOException subclass
@@ -147,6 +149,40 @@ public class ExternalFailuresTests extends ESTestCase {
         var classified = ExternalFailures.classify(a);
         assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+    }
+
+    public void testAsUncheckedPreservesIoExceptionAs400() {
+        // The throw-site rule: an IOException becomes an UncheckedIOException so classify still sees a 400.
+        var ioe = new IOException("record exceeded max_record_size");
+        RuntimeException out = ExternalFailures.asUnchecked(ioe, "parsing failed");
+        assertThat(out, org.hamcrest.Matchers.instanceOf(UncheckedIOException.class));
+        assertSame(ioe, out.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(out)));
+    }
+
+    public void testAsUncheckedReturnsRuntimeExceptionUnchanged() {
+        var re = new IllegalStateException("boom");
+        assertSame(re, ExternalFailures.asUnchecked(re, "parsing failed"));
+    }
+
+    public void testAsUncheckedWrapsOtherCheckedWithFallbackMessage() {
+        var checked = new Exception("checked, non-IO");
+        RuntimeException out = ExternalFailures.asUnchecked(checked, "parsing failed");
+        assertEquals("parsing failed", out.getMessage());
+        assertSame(checked, out.getCause());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(ExternalFailures.classify(out)));
+    }
+
+    public void testUnwrapAsyncPeelsExecutionAndCompletionWrappers() {
+        var ioe = new IOException("io");
+        assertSame(ioe, ExternalFailures.unwrapAsync(new ExecutionException(ioe)));
+        assertSame(ioe, ExternalFailures.unwrapAsync(new CompletionException(ioe)));
+        assertSame(ioe, ExternalFailures.unwrapAsync(new CompletionException(new ExecutionException(ioe))));
+        // A non-wrapper is returned as-is; a wrapper without a cause is too (nothing to peel).
+        var iae = new IllegalArgumentException("x");
+        assertSame(iae, ExternalFailures.unwrapAsync(iae));
+        var causeless = new ExecutionException("no cause", null);
+        assertSame(causeless, ExternalFailures.unwrapAsync(causeless));
     }
 
     public void testBugLikeExceptionsBecomeServerException() {

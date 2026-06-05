@@ -51,6 +51,14 @@ For clusters on a version before 8.17, upgrading provides the largest single per
 
 :::
 
+### Index only what you need
+
+Query performance starts at index time. Your field mappings control what {{esql}} can do efficiently. 
+
+If you only aggregate or sort on a field, and never filter, set [`index: false`](/reference/elasticsearch/mapping-reference/mapping-index.md) to save disk space. {{esql}} can still read the field through doc values.
+
+If you never sort or aggregate on a field, disable [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) instead. Every structure you remove is one less thing {{esql}} has to read.
+
 ## Common anti-patterns
 
 These anti-patterns are the most common causes of {{esql}} query latency in production.

@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
@@ -250,9 +251,11 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType()).append("]");
-        NodeUtils.toString(sb, output, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
+        // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType()).append("]");
+        NodeUtils.toString(sb, output, format, mapper);
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {

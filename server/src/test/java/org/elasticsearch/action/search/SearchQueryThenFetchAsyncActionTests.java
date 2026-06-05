@@ -128,10 +128,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         new TopDocsAndMaxScore(
                             new TopFieldGroups(
                                 "collapse_field",
-                                new TotalHits(
-                                    1,
-                                    withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-                                ),
+                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
                                 new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
                                 new SortField[] { sortField },
                                 new Object[] { 0L }
@@ -144,10 +141,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.topDocs(
                         new TopDocsAndMaxScore(
                             new TopFieldDocs(
-                                new TotalHits(
-                                    1,
-                                    withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO
-                                ),
+                                new TotalHits(1, withScroll ? TotalHits.Relation.EQUAL_TO : TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
                                 new FieldDoc[] { new FieldDoc(randomInt(1000), Float.NaN, new Object[] { request.shardId().id() }) },
                                 new SortField[] { sortField }
                             ),

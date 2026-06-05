@@ -137,6 +137,16 @@ final class AlpDoubleUtils {
         return -((long) (-x + ROUNDING_BIAS_DOUBLE) - (long) ROUNDING_BIAS_DOUBLE);
     }
 
+    /**
+     * Inlined NumericUtils.sortableLongToDoubleBits: flips the lower 63 bits when the
+     * sign bit is set so the resulting long preserves the natural order of the source
+     * double. Kept on this class so every ALP hot loop calls a single short static
+     * method that the JIT inlines unconditionally.
+     */
+    static long sortableToDoubleBits(long sortable) {
+        return sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+    }
+
     /** Guarded round: {@link #fastRound} inside {@link #FAST_ROUND_MAX_DOUBLE}, {@link Math#round} otherwise. */
     static long alpRound(double x) {
         if (x > -FAST_ROUND_MAX_DOUBLE && x < FAST_ROUND_MAX_DOUBLE) {
@@ -178,8 +188,7 @@ final class AlpDoubleUtils {
         final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
         int exceptions = 0;
         for (int i = 0; i < valueCount; i++) {
-            final long sortable = values[i];
-            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+            final long originalBits = sortableToDoubleBits(values[i]);
             final double original = Double.longBitsToDouble(originalBits);
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
@@ -202,8 +211,7 @@ final class AlpDoubleUtils {
         int maxMantissaBits = 0;
         for (int i = 0; i < valueCount; i++) {
             final long sortable = values[i];
-            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
-            final double original = Double.longBitsToDouble(originalBits);
+            final double original = Double.longBitsToDouble(sortableToDoubleBits(sortable));
             final long mantissa = alpRound(original * mulFactor);
             final long origMag = sortable ^ (sortable >> 63);
             final long mantMag = mantissa ^ (mantissa >> 63);
@@ -246,7 +254,7 @@ final class AlpDoubleUtils {
         int excCount = 0;
         for (int i = 0; i < valueCount; i++) {
             final long sortable = values[i];
-            final long originalBits = sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL);
+            final long originalBits = sortableToDoubleBits(sortable);
             final double original = Double.longBitsToDouble(originalBits);
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
@@ -310,8 +318,7 @@ final class AlpDoubleUtils {
         boolean anyCandidate = false;
         final int step = Math.max(1, valueCount / PRE_SELECT_SAMPLE);
         for (int i = 0; i < valueCount; i += step) {
-            final long sortable = values[i];
-            final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
+            final double value = Double.longBitsToDouble(sortableToDoubleBits(values[i]));
             final int packed = bestEFForSingleDouble(value);
             final int e = packed >>> 16;
             final int f = packed & 0xFFFF;
@@ -329,8 +336,7 @@ final class AlpDoubleUtils {
             int maxP = 0;
             final int precStep = Math.max(1, valueCount / SAMPLE_SIZE);
             for (int i = 0; i < valueCount; i += precStep) {
-                final long sortable = values[i];
-                final double value = Double.longBitsToDouble(sortable ^ ((sortable >> 63) & 0x7FFFFFFFFFFFFFFFL));
+                final double value = Double.longBitsToDouble(sortableToDoubleBits(values[i]));
                 final int p = estimatePrecision(value);
                 minP = Math.min(minP, p);
                 maxP = Math.max(maxP, p);

@@ -88,14 +88,14 @@ A tight time range is the single biggest performance lever in most workloads. {{
 
 Avoid running queries that span more time than the result actually needs:
 
-❌ **Don't**: Query without a time bound
+❌ **Don't:** Query without a time bound
 ```esql
 FROM logs-*
 | WHERE host.name == "web-01"
 | STATS count = COUNT(*) BY log.level
 ```
 
-✅ **Do**: Add an explicit `@timestamp` filter to bound the scan
+✅ **Do:** Add an explicit `@timestamp` filter to bound the scan
 
 ```esql
 FROM logs-*
@@ -112,14 +112,14 @@ A [`WHERE`](/reference/query-languages/esql/commands/where.md) clause earlier in
 
 Without a [`WHERE`](/reference/query-languages/esql/commands/where.md), {{esql}} scans every document in the matched indices:
 
-❌ **Don't**: Filter after the aggregation
+❌ **Don't:** Filter after the aggregation
 ```esql
 FROM logs-*
 | STATS count = COUNT(*) BY host.name, log.level
 | WHERE log.level == "error"
 ```
 
-✅ **Do**: Push the filter up so it runs before the aggregation
+✅ **Do:** Push the filter up so it runs before the aggregation
 
 ```esql
 FROM logs-*
@@ -132,7 +132,7 @@ FROM logs-*
 
 A broad [`FROM *`](/reference/query-languages/esql/commands/from.md) forces {{esql}} to discover field mappings across every index and then query each one. On clusters with thousands of indices, that discovery overhead alone can dominate query time.
 
-❌ **Don't**: Use wildcards that match more indices than the query needs
+❌ **Don't:** Use wildcards that match more indices than the query needs
 ```esql
 FROM *
 | WHERE @timestamp > NOW() - 1 hour
@@ -140,7 +140,7 @@ FROM *
 | STATS failures = COUNT(*) BY user.name
 ```
 
-✅ **Do**: Target a specific index pattern instead
+✅ **Do:** Target a specific index pattern instead
 
 ```esql
 FROM logs-system-*
@@ -160,14 +160,14 @@ serverless: ga
 
 For time series data streams (TSDS), use [`TS`](/reference/query-languages/esql/commands/ts.md) rather than [`FROM`](/reference/query-languages/esql/commands/from.md). `TS` understands time series structure, including dimensions, metrics, and time ordering, and skips data more efficiently than `FROM` paired with [`WHERE`](/reference/query-languages/esql/commands/where.md). It also unlocks time series functions such as [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md) and bucketing through [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md).
 
-❌ **Don't**: Query TSDS indices through [`FROM`](/reference/query-languages/esql/commands/from.md) when you intend to aggregate metrics
+❌ **Don't:** Query TSDS indices through [`FROM`](/reference/query-languages/esql/commands/from.md) when you intend to aggregate metrics
 ```esql
 FROM metrics-system.cpu-*
 | WHERE @timestamp > NOW() - 1 hour
 | STATS avg_cpu = AVG(system.cpu.user.pct) BY host.name, bucket = DATE_TRUNC(5 minutes, @timestamp)
 ```
 
-✅ **Do**: Use [`TS`](/reference/query-languages/esql/commands/ts.md) with [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md) for time series metrics
+✅ **Do:** Use [`TS`](/reference/query-languages/esql/commands/ts.md) with [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md) for time series metrics
 
 ```esql
 TS metrics-system.cpu-*
@@ -187,7 +187,7 @@ Every column returned has to be read from storage, serialized, and transferred. 
 
 [`KEEP`](/reference/query-languages/esql/commands/keep.md) selects which columns to return. [`DROP`](/reference/query-languages/esql/commands/drop.md) does the inverse. Without either, {{esql}} returns every field in every matching document. On wide indices with hundreds or thousands of fields, that is the single biggest source of avoidable overhead.
 
-❌ **Don't**: Return every field by default
+❌ **Don't:** Return every field by default
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 hour AND log.level == "error"
@@ -195,7 +195,7 @@ FROM logs-*
 | LIMIT 100
 ```
 
-✅ **Do**: Project only the fields the consumer actually needs
+✅ **Do:** Project only the fields the consumer actually needs
 
 ```esql
 FROM logs-*
@@ -211,14 +211,14 @@ Use wildcards in [`KEEP`](/reference/query-languages/esql/commands/keep.md) spar
 
 Always include a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) on queries that return raw rows. Large result sets cause slow serialization and can trigger deserialization errors in {{kib}}.
 
-❌ **Don't**: Leave the result set unbounded
+❌ **Don't:** Leave the result set unbounded
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 day AND log.level == "error"
 | SORT @timestamp DESC
 ```
 
-✅ **Do**: Cap the result to the rows the consumer actually needs
+✅ **Do:** Cap the result to the rows the consumer actually needs
 
 ```esql
 FROM logs-*
@@ -238,28 +238,26 @@ stack: ga 8.17
 serverless: ga
 ```
 
-For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are the right fit for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators; pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
+For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are the right fit for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators; pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
 
-❌ **Don't**: Use pattern matching on free text with [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like)
+❌ **Don't:** Use pattern matching on free text with [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like)
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 hour
   AND message LIKE "*connection refused*"
 ```
 
-✅ **Do**: Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) against the inverted index
+✅ **Do:** Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) against the inverted index
 
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 hour
-  AND MATCH(message, "connection refused") // Inverted index lookup, not a row scan
+  AND MATCH_PHRASE(message, "connection refused") // Inverted index lookup, not a row scan
 ```
 
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) when the words must appear together in order. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
-:::{tip}
-To learn more about full-text search patterns in {{esql}}, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
-:::
+To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 
 ### Watch out for high-cardinality STATS BY
 
@@ -269,14 +267,14 @@ Each unique combination of `BY` values creates a bucket in memory. Grouping by h
 High-cardinality groupings can exhaust memory and trip circuit breakers. Always bucket timestamps and choose the lowest-cardinality representation of a field that still answers the question.
 :::
 
-❌ **Don't**: Group by raw, high-cardinality fields
+❌ **Don't:** Group by raw, high-cardinality fields
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 day
 | STATS count = COUNT(*) BY url.full, user.name, @timestamp
 ```
 
-✅ **Do**: Reduce cardinality before grouping
+✅ **Do:** Reduce cardinality before grouping
 
 ```esql
 FROM logs-*
@@ -292,14 +290,14 @@ Fields mapped as `keyword` are backed by doc values, which are fast columnar rea
 
 When a `.keyword` subfield exists, prefer it for filtering, grouping, and projection. When one does not, filter aggressively to limit the number of documents that require `_source` reads.
 
-❌ **Don't**: Group by an analyzed field
+❌ **Don't:** Group by an analyzed field
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 hour
 | STATS count = COUNT(*) BY message
 ```
 
-✅ **Do**: Use the `.keyword` subfield
+✅ **Do:** Use the `.keyword` subfield
 
 ```esql
 FROM logs-*
@@ -326,7 +324,7 @@ FROM logs-*
 
 For conditional aggregations, attach a [`WHERE`](/reference/query-languages/esql/commands/where.md) clause directly to each [`STATS`](/reference/query-languages/esql/commands/stats-by.md) expression rather than wrapping values in [`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md). `CASE` is lazy-evaluated and slow for this pattern.
 
-❌ **Don't**: Emulate conditional aggregations through [`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md) and [`SUM`](/reference/query-languages/esql/functions-operators/aggregation-functions/sum.md)
+❌ **Don't:** Emulate conditional aggregations through [`CASE`](/reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md) and [`SUM`](/reference/query-languages/esql/functions-operators/aggregation-functions/sum.md)
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 day
@@ -339,7 +337,7 @@ FROM logs-*
   BY service.name
 ```
 
-✅ **Do**: Compute each conditional metric directly with a per-aggregation [`WHERE`](/reference/query-languages/esql/commands/where.md)
+✅ **Do:** Compute each conditional metric directly with a per-aggregation [`WHERE`](/reference/query-languages/esql/commands/where.md)
 
 ```esql
 FROM logs-*
@@ -355,14 +353,14 @@ FROM logs-*
 
 [`GROK`](/reference/query-languages/esql/commands/grok.md) uses regular expressions, which are CPU-intensive per row. [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) uses delimiter-based tokenization and is much cheaper. When the log format uses consistent delimiters, prefer `DISSECT`. When you must use `GROK`, filter aggressively first to shrink the dataset.
 
-❌ **Don't**: Use regex parsing when a delimiter is available
+❌ **Don't:** Use regex parsing when a delimiter is available
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 hour
 | GROK message "%{TIMESTAMP_ISO8601:ts} %{LOGLEVEL:level} %{GREEDYDATA:msg}"
 ```
 
-✅ **Do**: Use [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) for delimiter-based formats
+✅ **Do:** Use [`DISSECT`](/reference/query-languages/esql/commands/dissect.md) for delimiter-based formats
 
 ```esql
 FROM logs-*

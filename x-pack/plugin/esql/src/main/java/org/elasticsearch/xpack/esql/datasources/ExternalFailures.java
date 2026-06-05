@@ -43,29 +43,25 @@ import java.util.concurrent.ExecutionException;
  * <ul>
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
- *     <li>An {@link ElasticsearchException} already carries its own status and is returned unchanged:
- *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
- *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
- *     (400).</li>
- *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>
- *     <li>An {@link IOException}/{@link UncheckedIOException}, or one of the specific third-party
- *     decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}, means we could not read or interpret
- *     the resource — a client-class {@link ExternalClientException} (400). Retryable transport failures
- *     never reach here as plain I/O errors: the storage layer raises them as {@link ExternalException}
- *     (503) first.</li>
- *     <li>Failing the above, the cause chain is walked as a backstop: a data-class cause (an
- *     {@link IOException}/{@link UncheckedIOException} or a known decoding exception) buried under a non-IO
- *     wrapper still means "could not read or decode", so it classifies 400. The throw sites preserve the
- *     {@link IOException} directly; this covers any path that does not.</li>
- *     <li>Anything else ({@link IllegalStateException}, {@link NullPointerException}, an unrecognized
- *     {@link RuntimeException}) indicates a broken invariant in our own code rather than bad input,
- *     so it surfaces as an {@link ExternalServerException} (500) to keep the bug visible.</li>
+ *     <li>Otherwise the cause chain is walked and the first throwable carrying a definitive status wins,
+ *     so a status-neutral wrapper (a bare {@link RuntimeException} from a coordinator/mapper, an
+ *     {@code ExecutionException} from a cache) cannot bury it. Per node, in priority order: an
+ *     {@link ElasticsearchException} already pins its own status and is returned unchanged — the
+ *     {@link ExternalException} family (400/500/503), {@code CircuitBreakingException} (429),
+ *     {@code TaskCancelledException} (400); an {@link IllegalArgumentException} is 400; an
+ *     {@link IOException}/{@link UncheckedIOException} or a known third-party decoding exception in
+ *     {@link #MALFORMED_DATA_EXCEPTIONS} means we could not read or decode the resource — a client-class
+ *     {@link ExternalClientException} (400). Retryable transport failures never reach here as plain I/O
+ *     errors: the storage layer raises them as {@link ExternalException} (503) first.</li>
+ *     <li>Only if nothing in the chain is classifiable ({@link IllegalStateException},
+ *     {@link NullPointerException}, an unrecognized {@link RuntimeException}, a bare
+ *     {@link InterruptedException}) is it a broken invariant in our own code — an
+ *     {@link ExternalServerException} (500) that keeps the bug visible.</li>
  * </ul>
- * Cancellation is not special-cased here: it arrives as a {@code TaskCancelledException} (handled by the
+ * Cancellation is not special-cased: it arrives as a {@code TaskCancelledException} (the
  * {@link ElasticsearchException} branch, 400), and a read interrupted while blocking surfaces as an
- * {@link IOException} subclass (so, 400). A bare {@link InterruptedException} would fall through to 500;
- * the interrupt flag is intentionally left untouched, since this runs on the thread surfacing the stored
- * failure, not the worker thread that was interrupted.
+ * {@link IOException} subclass (so, 400). The interrupt flag is intentionally left untouched, since this
+ * runs on the thread surfacing the stored failure, not the worker thread that was interrupted.
  */
 public final class ExternalFailures {
 
@@ -93,19 +89,23 @@ public final class ExternalFailures {
         if (t instanceof Error error) {
             throw error;
         }
-        if (t instanceof ElasticsearchException ese) {
-            return ese;
-        }
-        if (t instanceof IllegalArgumentException iae) {
-            return iae;
-        }
-        if (isDataException(t)) {
-            return new ExternalClientException(t, "Failed to read external source: {}", t.getMessage());
-        }
-        // Backstop for a data-class failure buried under a non-IO wrapper: classify on it, not the wrapper.
-        Throwable dataCause = findDataCause(t);
-        if (dataCause != null) {
-            return new ExternalClientException(t, "Failed to read external source: {}", dataCause.getMessage());
+        // Walk the cause chain (cycle-safe) and classify on the first throwable that carries a definitive
+        // status, so a status-neutral wrapper — a bare RuntimeException from a coordinator/mapper, an
+        // ExecutionException from a cache — cannot bury it and force a 500. The per-node order mirrors the
+        // priority: an ElasticsearchException already pins its own status (400/429/503/…); an
+        // IllegalArgumentException is 400; a read/decode failure is a client-class 400. Only if nothing in
+        // the chain is classifiable is it a 500 — a genuine broken invariant in our own code.
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable c = t; c != null && seen.add(c); c = c.getCause()) {
+            if (c instanceof ElasticsearchException ese) {
+                return ese;
+            }
+            if (c instanceof IllegalArgumentException iae) {
+                return iae;
+            }
+            if (isDataException(c)) {
+                return new ExternalClientException(t, "Failed to read external source: {}", c.getMessage());
+            }
         }
         return new ExternalServerException(t, "Unexpected failure reading external source: {}", t.getMessage());
     }
@@ -145,27 +145,29 @@ public final class ExternalFailures {
     }
 
     /**
+     * Walks the cause chain (cycle-safe) and returns the first {@link ElasticsearchException} — which carries
+     * its own HTTP status (400/429/503/…) — or {@code null} if none is present. Lets a caller on a path with
+     * its own error-wrapping contract (e.g. split discovery, which annotates failures with the source path)
+     * preserve a buried 429/503 that a status-neutral wrapper would otherwise flatten to a 500, <em>without</em>
+     * reclassifying other exception types the way {@link #classify} does for the read boundary.
+     */
+    static ElasticsearchException statusCarryingCause(Throwable t) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable c = t; c != null && seen.add(c); c = c.getCause()) {
+            if (c instanceof ElasticsearchException ese) {
+                return ese;
+            }
+        }
+        return null;
+    }
+
+    /**
      * A failure that, by contract, means we could not read or decode the resource (bad input, 400) rather
      * than a bug in our own code: an {@link IOException}/{@link UncheckedIOException} or one of the known
      * third-party decoding exceptions in {@link #MALFORMED_DATA_EXCEPTIONS}.
      */
     private static boolean isDataException(Throwable t) {
         return t instanceof IOException || t instanceof UncheckedIOException || isMalformedDataException(t);
-    }
-
-    /**
-     * Walks the cause chain (cycle-safe) and returns the first {@link #isDataException data-class} cause, or
-     * {@code null} if none is found. The top-level throwable is excluded — callers test it directly first.
-     */
-    private static Throwable findDataCause(Throwable t) {
-        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
-        seen.add(t);
-        for (Throwable c = t.getCause(); c != null && seen.add(c); c = c.getCause()) {
-            if (isDataException(c)) {
-                return c;
-            }
-        }
-        return null;
     }
 
     private static boolean isMalformedDataException(Throwable t) {

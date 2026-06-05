@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -52,6 +56,23 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
         for (ExternalSplit split : resolved.splits()) {
             assertTrue(split instanceof FileSplit);
         }
+    }
+
+    public void testBuriedStatusCarryingFailureKeepsItsStatusNotWrappedTo500() {
+        // A circuit-breaker trip during split discovery, buried in a bare RuntimeException by some inner
+        // layer, must surface as 429 — not relabeled a 500 by the phase's blanket wrap.
+        var breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        SplitProvider failing = new SplitProvider() {
+            @Override
+            public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
+                throw new RuntimeException("inner wrap", breaking);
+            }
+        };
+        ExternalSourceExec exec = createExternalSourceExec(createFileList(1), "parquet");
+        Map<String, ExternalSourceFactory> factories = Map.of("parquet", testFactory(failing));
+
+        Exception e = expectThrows(Exception.class, () -> SplitDiscoveryPhase.resolveExternalSplits(exec, factories));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
     }
 
     public void testNoExternalSourceUnchanged() {

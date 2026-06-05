@@ -119,6 +119,27 @@ public class ExternalFailuresTests extends ESTestCase {
         }
     }
 
+    public void testBuriedStatusCarryingExceptionKeepsItsStatus() {
+        // The backstop is symmetric, not IO-only: a status-carrying ElasticsearchException buried under a
+        // status-neutral RuntimeException (e.g. ColumnMapping wrapping a circuit-breaker trip in
+        // "Failed to map page") must keep its status — 429/503/400 — and not be relabeled a 500.
+        var breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        var classifiedBreaking = ExternalFailures.classify(new RuntimeException("Failed to map page", breaking));
+        assertSame(breaking, classifiedBreaking);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(classifiedBreaking));
+
+        var unavailable = new ExternalUnavailableException("store 503", new IOException("io"));
+        var classifiedUnavailable = ExternalFailures.classify(new RuntimeException("Failed to read batch", unavailable));
+        assertSame(unavailable, classifiedUnavailable); // the 503 wins over its own buried IOException
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(classifiedUnavailable));
+
+        var cancelled = new TaskCancelledException("cancelled");
+        assertEquals(
+            RestStatus.BAD_REQUEST,
+            ExceptionsHelper.status(ExternalFailures.classify(new RuntimeException("wrapper", cancelled)))
+        );
+    }
+
     public void testNonIoCausesStayServerException() {
         // The backstop must not over-trigger: a bug-class throwable whose chain holds no data-class cause is
         // still our fault (500). Guards against the cause-chain unwrap silently downgrading real bugs.

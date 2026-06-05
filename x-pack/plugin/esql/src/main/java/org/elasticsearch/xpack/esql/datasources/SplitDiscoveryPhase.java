@@ -134,9 +134,16 @@ public final class SplitDiscoveryPhase {
         List<ExternalSplit> splits;
         try {
             splits = splitProvider.discoverSplits(context);
-        } catch (ElasticsearchException e) {
-            throw e;
         } catch (Exception e) {
+            // A status-carrying ElasticsearchException — its own (top level) or one buried under a
+            // status-neutral wrapper (a bare RuntimeException from an inner layer, an ExecutionException from
+            // a cache) — keeps its status (e.g. a 429 circuit-breaker trip stays a 429, not a 500). Every
+            // other failure is wrapped with the source-path context: unlike the read path, an IOException
+            // here is an infra/transport problem reaching the store, not undecodable data, so it is not a 400.
+            ElasticsearchException carrier = ExternalFailures.statusCarryingCause(e);
+            if (carrier != null) {
+                throw carrier;
+            }
             throw new ElasticsearchException(
                 "failed to discover splits for external source [{}] of type [{}]",
                 e,

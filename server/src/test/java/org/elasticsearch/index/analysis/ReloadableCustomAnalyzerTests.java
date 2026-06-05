@@ -27,6 +27,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 
@@ -120,6 +122,192 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode",
             ex.getMessage()
         );
+    }
+
+    /**
+     * An open {@link TokenStream} carries a concrete pipeline (Tokenizer + filter chain) built
+     * from the {@link AnalyzerComponents} current at the time the stream was opened. A subsequent
+     * {@link ReloadableCustomAnalyzer#reload} writes a new {@code AnalyzerComponents} to the
+     * {@code volatile} field, but cannot reach the already-materialised pipeline objects.
+     *
+     * <p>The in-flight stream must therefore complete entirely with the OLD components; only a
+     * freshly opened stream picks up the new ones. This guarantee comes from two properties:
+     * <ol>
+     *   <li>The {@code volatile} write is a single atomic pointer swap to a fully-built,
+     *       immutable {@code AnalyzerComponents} — no partial state is ever visible.
+     *   <li>The TokenStream pipeline ({@code Tokenizer} + each {@code TokenFilter}) is
+     *       instantiated once at {@code createComponents()} time and holds no back-reference to
+     *       the {@code volatile} field; its {@code incrementToken()} calls run entirely on those
+     *       concrete objects.
+     * </ol>
+     *
+     * <p>This test is deliberately single-threaded: the isolation guarantee is structural, not
+     * contingent on scheduling or locking.
+     */
+    public void testInFlightTokenStreamIsIsolatedFromSubsequentReload() throws IOException {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents components = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0)) {
+            // Open a token stream under the original (no-op) components — input stays upper-case.
+            TokenStream stream = analyzer.tokenStream("f", "FOO BAR BAZ");
+            stream.reset();
+            CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+
+            // Consume the first token: no-op filter preserves upper-case.
+            assertTrue(stream.incrementToken());
+            assertEquals("FOO", term.toString());
+
+            // Reload with the lowercase filter while the stream is still open and mid-sequence.
+            // The volatile write is immediately visible to any thread reading components, but the
+            // pipeline that was materialised at stream-creation time (Tokenizer + TokenFilter chain)
+            // has no back-pointer to the volatile field.
+            analyzer.reload(
+                "my_analyzer",
+                analyzerSettings,
+                testAnalysis.tokenizer,
+                testAnalysis.charFilter,
+                Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
+            );
+
+            // The remaining tokens in the SAME stream must still be upper-case (old pipeline intact).
+            assertTrue(stream.incrementToken());
+            assertEquals("BAR", term.toString());
+            assertTrue(stream.incrementToken());
+            assertEquals("BAZ", term.toString());
+            assertFalse(stream.incrementToken());
+            stream.end();
+            stream.close();
+
+            // A freshly opened stream must now reflect the new (lowercase) components.
+            try (TokenStream fresh = analyzer.tokenStream("f", "FOO BAR")) {
+                fresh.reset();
+                CharTermAttribute freshTerm = fresh.addAttribute(CharTermAttribute.class);
+                assertTrue(fresh.incrementToken());
+                assertEquals("foo", freshTerm.toString());
+                fresh.end();
+            }
+        }
+    }
+
+    /**
+     * {@link ReloadableCustomAnalyzer#reload} is {@code synchronized}: when N threads call it
+     * concurrently they serialise and each builds a complete, self-consistent
+     * {@link AnalyzerComponents}. The last writer wins (single volatile pointer swap), but no
+     * caller can ever observe a partially-constructed component set.
+     */
+    public void testConcurrentReloadsProduceConsistentState() throws Exception {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        int nThreads = randomIntBetween(4, 8);
+        CountDownLatch ready = new CountDownLatch(nThreads);
+        CountDownLatch go = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
+            Thread[] threads = new Thread[nThreads];
+            for (int i = 0; i < nThreads; i++) {
+                threads[i] = new Thread(() -> {
+                    ready.countDown();
+                    try {
+                        go.await();
+                        analyzer.reload(
+                            "my_analyzer",
+                            analyzerSettings,
+                            testAnalysis.tokenizer,
+                            testAnalysis.charFilter,
+                            Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
+                        );
+                    } catch (Exception e) {
+                        failure.compareAndSet(null, e);
+                    }
+                });
+            }
+            for (Thread t : threads)
+                t.start();
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            go.countDown();
+            for (Thread t : threads)
+                t.join(30_000);
+
+            assertNull("concurrent reload threw: " + failure.get(), failure.get());
+
+            // The volatile pointer is always swapped to a fully-built immutable object, so the
+            // final state must be consistent — never a mix of old and new components.
+            try (TokenStream ts = analyzer.tokenStream("f", "FOO")) {
+                ts.reset();
+                CharTermAttribute term = ts.addAttribute(CharTermAttribute.class);
+                assertTrue(ts.incrementToken());
+                assertEquals("foo", term.toString());
+                ts.end();
+            }
+        }
+    }
+
+    /**
+     * {@link ReloadableCustomAnalyzer#tryClaimReload} is {@code synchronized}: when N threads
+     * race to claim the same reload token, exactly one must receive {@code true} and the rest
+     * {@code false}. A fresh token resets the gate and again allows exactly one claim.
+     */
+    public void testTryClaimReloadAllowsExactlyOneClaimPerToken() throws Exception {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents components = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0)) {
+            int nThreads = randomIntBetween(4, 12);
+
+            for (int round = 0; round < 3; round++) {
+                Object token = new Object();
+                CountDownLatch ready = new CountDownLatch(nThreads);
+                CountDownLatch go = new CountDownLatch(1);
+                AtomicInteger claimCount = new AtomicInteger();
+
+                Thread[] threads = new Thread[nThreads];
+                for (int i = 0; i < nThreads; i++) {
+                    threads[i] = new Thread(() -> {
+                        ready.countDown();
+                        try {
+                            go.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        if (analyzer.tryClaimReload(token)) {
+                            claimCount.incrementAndGet();
+                        }
+                    });
+                }
+                for (Thread t : threads)
+                    t.start();
+                assertTrue(ready.await(10, TimeUnit.SECONDS));
+                go.countDown();
+                for (Thread t : threads)
+                    t.join(30_000);
+
+                assertEquals("round " + round + ": exactly one thread must claim the token", 1, claimCount.get());
+            }
+        }
     }
 
     /**

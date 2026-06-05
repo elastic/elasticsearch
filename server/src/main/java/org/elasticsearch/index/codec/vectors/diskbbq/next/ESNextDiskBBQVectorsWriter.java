@@ -156,14 +156,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
-        throws IOException {
-        return mergeConfigResolver.resolve(
-            fieldInfo,
-            mergedFloatVectorValues,
-            mergeState,
-            IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition)
-        );
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        return mergeConfigResolver.resolve(fieldInfo, mergeState, IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition));
     }
 
     private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {
@@ -922,7 +916,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
 
     @Override
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
         // Sliced indices treat each slice as an independent partition that must be clustered on its
         // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
@@ -1017,7 +1011,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     private CentroidAssignments calculateCentroidsFullRebuildSliced(
-        KMeansFloatVectorValues floatVectorValues,
+        ClusteringFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo,
         MergeState mergeState
     ) throws IOException {
@@ -1149,7 +1143,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues) throws IOException {
+    public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues) throws IOException {
         if (sliceField != null) {
             // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);

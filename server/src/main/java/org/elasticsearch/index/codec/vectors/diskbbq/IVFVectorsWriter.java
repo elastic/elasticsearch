@@ -32,6 +32,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -115,12 +116,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
+    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues)
         throws IOException;
 
     public abstract CentroidAssignments calculateCentroids(
         FieldInfo fieldInfo,
-        KMeansFloatVectorValues floatVectorValues,
+        ClusteringFloatVectorValues floatVectorValues,
         MergeState mergeState
     ) throws IOException;
 
@@ -208,8 +209,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsWriter} returns a resolved {@link IvfSegmentConfig};
      * other writers return {@code null}.
      */
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
-        throws IOException {
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         return null;
     }
 
@@ -440,16 +440,23 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, mergeState);
+        final IvfSegmentConfig ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
         final int numVectors;
         String tempRawVectorsFileName = null;
         String docsFileName = null;
-        // Lucene merged FloatVectorValues is single-pass; spill raw vectors to a temp file for random access
-        // (calibration, preconditioning, clustering) without a full on-heap copy.
+        Preconditioner preconditioner;
+        // Lucene merged FloatVectorValues is single-pass; spill vectors to a temp file for random access
+        // (clustering) without a full on-heap copy. Config is resolved before spill so preconditioning
+        // can be applied inline on the merged stream.
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
+            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
+            preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
+            mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
             boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
             try (
                 IndexOutput docsOut = dense
@@ -474,36 +481,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
             throw t;
         }
-        final IvfSegmentConfig ivfSegmentConfig;
-        final Preconditioner preconditioner;
-        try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
-                tempRawVectorsFileName,
-                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
-            );
-            IndexInput docs = docsFileName == null
-                ? null
-                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
-        ) {
-            final KMeansFloatVectorValues stored = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
-            IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, stored, mergeState);
-            ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
-            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
-            preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
+        if (numVectors == 0) {
+            long centroidOffset = ivfCentroids.getFilePointer();
+            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
+            return;
         }
-        if (numVectors > 0 && ivfSegmentConfig.usePrecondition() && preconditioner != null) {
-            tempRawVectorsFileName = rewriteTempVectorsWithPrecondition(
-                fieldInfo,
-                mergeState,
-                tempRawVectorsFileName,
-                docsFileName,
-                numVectors,
-                preconditioner,
-                ivfSegmentConfig
-            );
-        }
-        // Build IVF structures from the temp spill (preconditioned on disk when enabled).
-        // Reads are in increasing ordinal order, so use SEQUENTIAL advice for read-ahead in low-memory situations.
+        // Build IVF structures from the temp spill. Reads are in increasing ordinal order, so use SEQUENTIAL
+        // advice for read-ahead in low-memory situations.
         try (
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(
                 tempRawVectorsFileName,
@@ -514,12 +498,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
             final KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
-
-            if (numVectors == 0) {
-                long centroidOffset = ivfCentroids.getFilePointer();
-                writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
-                return;
-            }
 
             final long centroidOffset;
             final long centroidLength;
@@ -642,40 +620,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int numVectors
     ) throws IOException {
         return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
-    }
-
-    /**
-     * Replaces the raw vector temp spill with preconditioned vectors (sequential rewrite; docs file unchanged).
-     */
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private String rewriteTempVectorsWithPrecondition(
-        FieldInfo fieldInfo,
-        MergeState mergeState,
-        String vectorsFileName,
-        String docsFileName,
-        int numVectors,
-        Preconditioner preconditioner,
-        IvfSegmentConfig ivfSegmentConfig
-    ) throws IOException {
-        try (
-            IndexInput vectors = mergeState.segmentInfo.dir.openInput(vectorsFileName, IOContext.DEFAULT);
-            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
-        ) {
-            final KMeansFloatVectorValues stored = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
-            final FloatVectorValues preconditioned = preconditionVectors(preconditioner, stored, ivfSegmentConfig);
-            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, vectorsFileName);
-            try (
-                IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
-                    mergeState.segmentInfo.name,
-                    "ivfvec_",
-                    IOContext.DEFAULT
-                )
-            ) {
-                writeFloatVectorValues(fieldInfo, null, vectorsOut, preconditioned);
-                CodecUtil.writeFooter(vectorsOut);
-                return vectorsOut.getName();
-            }
-        }
     }
 
     private static int writeFloatVectorValues(

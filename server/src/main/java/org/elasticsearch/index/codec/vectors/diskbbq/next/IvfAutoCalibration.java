@@ -11,11 +11,11 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
@@ -54,27 +54,17 @@ public class IvfAutoCalibration {
      * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
      */
     public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
-        return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> new IvfAutoCalibration().resolve(
-            fieldInfo,
-            floatVectorValues,
-            mergeState,
-            codecDefault
-        );
+        return (fieldInfo, mergeState, codecDefault) -> new IvfAutoCalibration().resolve(fieldInfo, mergeState, codecDefault);
     }
 
     /**
      * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
      * When reuse is not possible, returns {@code codecDefault}. Bounded (force-merge) merges skip metadata reuse.
      */
-    public IvfSegmentConfig resolve(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        MergeState mergeState,
-        IvfSegmentConfig codecDefault
-    ) {
+    public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
         Objects.requireNonNull(mergeState, "mergeState");
         Objects.requireNonNull(codecDefault, "codecDefault");
-        int numVectors = floatVectorValues.size();
+        int numVectors = MergeCalibrationSampleVectors.countMergedVectors(fieldInfo, mergeState);
 
         if (numVectors < MIN_VECTORS_FOR_CALIBRATION) {
             return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
@@ -82,7 +72,7 @@ public class IvfAutoCalibration {
 
         MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
         if (mergeCtx.boundedForceMerge() == false) {
-            IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, floatVectorValues.size());
+            IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, numVectors);
             if (reused != null) {
                 return reused;
             }

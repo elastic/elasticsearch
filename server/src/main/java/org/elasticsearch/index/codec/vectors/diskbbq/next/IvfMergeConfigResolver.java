@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
 
 import java.io.IOException;
@@ -22,11 +21,10 @@ import java.io.IOException;
 @FunctionalInterface
 public interface IvfMergeConfigResolver {
 
-    IvfSegmentConfig resolve(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState, IvfSegmentConfig codecDefault)
-        throws IOException;
+    IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException;
 
     static IvfMergeConfigResolver useCodecDefault() {
-        return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> codecDefault;
+        return (fieldInfo, mergeState, codecDefault) -> codecDefault;
     }
 
 }

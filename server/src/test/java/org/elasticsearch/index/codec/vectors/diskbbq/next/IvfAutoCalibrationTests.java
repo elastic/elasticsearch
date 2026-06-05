@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
@@ -60,11 +61,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     public void testSelectBelowMinVectorsReturnsDefaultOversample() throws IOException {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
-        FloatVectorValues vectors = randomHeapVectors(500, DIM);
         try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(dir));
+            MergeState mergeState = mergeStateWithVectorCount(dir, fieldInfo, 500);
 
-            IvfSegmentConfig config = selector.resolve(fieldInfo, vectors, mergeState, CODEC_DEFAULT);
+            IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
             assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertFalse(config.usePrecondition());
@@ -335,15 +335,14 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     public void testSelectBoundedForceMergeUsesCodecDefault() throws IOException {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
-        FloatVectorValues vectors = randomHeapVectors(IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION, DIM);
         IvfSegmentConfig codecDefault = IvfSegmentConfig.fromCodecDefaults(
             ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
             true
         );
         try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
+            MergeState mergeState = mergeStateWithVectorCount(dir, fieldInfo, IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION);
 
-            IvfSegmentConfig config = selector.resolve(fieldInfo, vectors, mergeState, codecDefault);
+            IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, codecDefault);
 
             assertThat(config, equalTo(codecDefault));
         }
@@ -352,11 +351,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     public void testSelectBackgroundMergeUsesCodecDefaultWhenReuseFails() throws IOException {
         IvfAutoCalibration selector = new IvfAutoCalibration();
         FieldInfo fieldInfo = vectorFieldInfo("f");
-        FloatVectorValues vectors = randomHeapVectors(IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION, DIM);
         try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(dir));
+            MergeState mergeState = mergeStateWithVectorCount(dir, fieldInfo, IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION);
 
-            IvfSegmentConfig config = selector.resolve(fieldInfo, vectors, mergeState, CODEC_DEFAULT);
+            IvfSegmentConfig config = selector.resolve(fieldInfo, mergeState, CODEC_DEFAULT);
 
             assertThat(config, equalTo(CODEC_DEFAULT));
         }
@@ -443,7 +441,87 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         );
     }
 
+    private MergeState mergeStateWithVectorCount(Directory dir, FieldInfo fieldInfo, int vectorCount) throws IOException {
+        KnnVectorsReader reader = heapVectorReader(fieldInfo, randomHeapVectors(vectorCount, DIM));
+        return mergeState(
+            dir,
+            new KnnVectorsReader[] { reader },
+            new Bits[] { liveDocs(vectorCount) },
+            backgroundSegmentInfo(dir),
+            fieldInfo
+        );
+    }
+
+    private static KnnVectorsReader heapVectorReader(FieldInfo fieldInfo, FloatVectorValues vectors) {
+        return new KnnVectorsReader() {
+            @Override
+            public FloatVectorValues getFloatVectorValues(String field) {
+                return field.equals(fieldInfo.name) ? vectors : null;
+            }
+
+            @Override
+            public org.apache.lucene.index.ByteVectorValues getByteVectorValues(String field) {
+                return null;
+            }
+
+            @Override
+            public void search(
+                String field,
+                float[] target,
+                org.apache.lucene.search.KnnCollector knnCollector,
+                org.apache.lucene.search.AcceptDocs acceptDocs
+            ) {}
+
+            @Override
+            public void search(
+                String field,
+                byte[] target,
+                org.apache.lucene.search.KnnCollector knnCollector,
+                org.apache.lucene.search.AcceptDocs acceptDocs
+            ) {}
+
+            @Override
+            public Map<String, Long> getOffHeapByteSize(FieldInfo info) {
+                return Map.of();
+            }
+
+            @Override
+            public void checkIntegrity() {}
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private static MergeState mergeState(
+        Directory dir,
+        KnnVectorsReader[] readers,
+        Bits[] liveDocsBits,
+        SegmentInfo segmentInfo,
+        FieldInfo fieldInfo
+    ) throws IOException {
+        FieldInfos[] fieldInfos = null;
+        if (fieldInfo != null && readers != null) {
+            fieldInfos = new FieldInfos[readers.length];
+            for (int i = 0; i < readers.length; i++) {
+                FloatVectorValues vectors = readers[i].getFloatVectorValues(fieldInfo.name);
+                fieldInfos[i] = vectors != null ? new FieldInfos(new FieldInfo[] { fieldInfo }) : new FieldInfos(new FieldInfo[0]);
+            }
+        }
+        return mergeState(dir, readers, liveDocsBits, segmentInfo, fieldInfos);
+    }
+
     private static MergeState mergeState(Directory dir, KnnVectorsReader[] readers, Bits[] liveDocsBits, SegmentInfo segmentInfo) {
+        return mergeState(dir, readers, liveDocsBits, segmentInfo, (FieldInfos[]) null);
+    }
+
+    private static MergeState mergeState(
+        Directory dir,
+        KnnVectorsReader[] readers,
+        Bits[] liveDocsBits,
+        SegmentInfo segmentInfo,
+        FieldInfos[] fieldInfos
+    ) {
         return new MergeState(
             null,
             segmentInfo,
@@ -452,7 +530,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             null,
             null,
             null,
-            null,
+            fieldInfos,
             liveDocsBits,
             null,
             null,

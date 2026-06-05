@@ -107,16 +107,12 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
-        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
-        // retry returns only docs that are already excluded or that fail the post-hoc filter.
-        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
             filter,
             remainingK,
-            retryNumCands,
+            numCandsParam,
             parentsFilter,
             searchStrategy,
             earlyTermination,
@@ -132,7 +128,8 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
             NUM_CANDS_LIMIT
         );
-        // Maintain the configured numCands/k ratio so HNSW exploration scales with K.
+        // maintain the configured numCands/k ratio so HNSW exploration scales with K.
+        // todo: do we actually need scaling numCands?
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
         return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,

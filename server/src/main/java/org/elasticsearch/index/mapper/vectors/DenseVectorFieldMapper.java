@@ -3271,9 +3271,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean hasIndexSort
         ) {
             element.checkDimensions(dims, queryVector.length);
-            // Pre-filter consumers (HNSW graph traversal) eagerly materialize the filter into a bitset, so we
-            // force the cache wrapper. PostFilterKnnQuery (below) gets the raw filter because it evaluates the
-            // filter against a small candidate set per query and would otherwise pay an unnecessary cache build.
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
@@ -3293,7 +3290,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f
@@ -3327,8 +3323,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
-            // Pre-filter consumers (HNSW graph traversal) eagerly materialize the filter into a bitset, so we
-            // force the cache wrapper. PostFilterKnnQuery (below) gets the raw filter because it evaluates the
+            // Pre-filter consumers eagerly materialize the filter into a bitset, so we
+            // force the cache wrapper. PostFilterKnnQuery gets the raw filter because it evaluates the
             // filter against a small candidate set per query and would otherwise pay an unnecessary cache build.
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
@@ -3349,7 +3345,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     )
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
-            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f
@@ -3410,10 +3405,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
-            // Pre-filter consumers (HNSW graph traversal, IVF posting-list iteration) eagerly materialize the
-            // filter into a bitset, so we force the cache wrapper. PostFilterKnnQuery (below) only evaluates the
-            // filter against a small candidate set per query and gets the raw filter so we don't pay an
-            // unnecessary cache build.
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
@@ -3486,7 +3477,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         hnswEarlyTermination
                     );
             }
-            // Post-filter retry excludes/seeds by doc id; index sort shuffles the doc-id space, so disable it there.
             if (filter != null
                 && hasIndexSort == false
                 && postFilterSelectivityThreshold < 1.0f

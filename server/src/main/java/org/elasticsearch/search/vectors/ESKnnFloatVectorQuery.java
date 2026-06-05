@@ -90,11 +90,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
-        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
-        // retry returns only docs that are already excluded or that fail the post-hoc filter.
-        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
-        return new ESKnnFloatVectorQuery(field, target, remainingK, retryNumCands, filter, searchStrategy, earlyTermination, seedDocs);
+        return new ESKnnFloatVectorQuery(field, target, remainingK, numCandsParam, filter, searchStrategy, earlyTermination, seedDocs);
     }
 
     @Override
@@ -106,6 +102,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
+        // todo: do we actually need scaling numCands?
         return new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 

@@ -8,7 +8,7 @@ setup:
           capabilities: [ synonyms_refresh_param ]
       reason: >
         Synonyms API with updateable synonym filters requires 8.10.0;
-        synonyms_refresh_param needed to update synonyms without an immediate auto-reload
+        synonyms_refresh_param lets us update synonyms without an immediate auto-reload
         so that the explicit reload order can be controlled.
 
   - do:
@@ -19,9 +19,12 @@ setup:
             - synonyms: "hello, hi"
               id: "rule-1"
 
-  # index_z_orig is created FIRST — its analyzer name "my_search_analyzer_z" is registered in
-  # the shared cache. In a single-node cluster the node-level reload broadcast processes
-  # indices in creation order, so index_z_orig is visited FIRST when "shared_set" is reloaded.
+  # Two indices with a byte-for-byte identical analysis recipe, but each names its search analyzer
+  # differently (my_search_analyzer_z vs my_search_analyzer_a). Analyzer sharing keys on the recipe,
+  # not the name, so both indices end up backed by one shared ReloadableCustomAnalyzer instance.
+  #
+  # index_z_orig is created FIRST, so the shared instance carries its name (my_search_analyzer_z).
+  # In a single-node cluster the node-level reload broadcast visits indices in creation order.
   - do:
       indices.create:
         index: index_z_orig
@@ -41,14 +44,8 @@ setup:
                   tokenizer: standard
                   filter: [ lowercase, syn_filter ]
 
-  # index_a_shared is created SECOND. When shared_analyzers is enabled it reuses the same
-  # ReloadableCustomAnalyzer instance (whose internal name is "my_search_analyzer_z").
-  #
-  # Bug (B3): if index_a_shared is asked to reload first, reloadAnalyzerInPlace looks up
-  # settings using currentReference.name() = "my_search_analyzer_z", but index_a_shared only
-  # has "my_search_analyzer_a" in its settings -> null -> bail, yet the per-request reload
-  # token is already claimed. index_z_orig then processes second and finds the token claimed
-  # -> also bails. Neither index receives the updated synonyms.
+  # index_a_shared is created SECOND and reuses the same shared instance, but refers to it under its
+  # own local name my_search_analyzer_a.
   - do:
       indices.create:
         index: index_a_shared
@@ -78,7 +75,7 @@ setup:
           - '{"content": "hello"}'
 
 ---
-"After reload with sharer processed first, both indices pick up the new synonym":
+"Reloading shared indices refreshes both regardless of reload order":
   # Update synonyms without auto-reload so we control which index is reloaded first.
   - do:
       synonyms.put_synonym:
@@ -91,18 +88,14 @@ setup:
   - match: { result: "updated" }
   - not_exists: reload_analyzers_details
 
-  # Explicitly reload with index_a_shared listed FIRST. index_a_shared owns a slot named
-  # "my_search_analyzer_a" but the shared cache entry carries the name "my_search_analyzer_z"
-  # (set by the first-created index). Listing index_a_shared first causes its shard to be
-  # processed before index_z_orig's shard. With the B3 bug present, index_a_shared claims the
-  # reload token but finds null settings (wrong name lookup) and bails; index_z_orig then
-  # finds the token already claimed and also bails — neither index is reloaded.
+  # List index_a_shared FIRST so its shard is reloaded before index_z_orig's. index_a_shared owns a
+  # slot named my_search_analyzer_a while the shared instance's embedded name is my_search_analyzer_z,
+  # so the reload must locate the recipe by index_a_shared's own local name, not the embedded one.
   - do:
       indices.reload_search_analyzers:
         index: index_a_shared,index_z_orig
 
-  # Querying "hey" with my_search_analyzer_z must match the "hello" document because "hey"
-  # is now a synonym for "hello". This fails when the B3 bug is present.
+  # "hey" is now a synonym for "hello", so it must match the indexed "hello" document in both indices.
   - do:
       search:
         index: index_z_orig
@@ -114,7 +107,6 @@ setup:
                 analyzer: my_search_analyzer_z
   - match: { hits.total.value: 1 }
 
-  # The same must hold for index_a_shared.
   - do:
       search:
         index: index_a_shared
@@ -124,4 +116,46 @@ setup:
               content:
                 query: hey
                 analyzer: my_search_analyzer_a
+  - match: { hits.total.value: 1 }
+
+---
+"Reloading a single shared index converges the other indices sharing the analyzer":
+  - do:
+      synonyms.put_synonym:
+        id: shared_set
+        refresh: false
+        body:
+          synonyms_set:
+            - synonyms: "hello, hi, howdy"
+
+  - match: { result: "updated" }
+  - not_exists: reload_analyzers_details
+
+  # Reload ONLY index_a_shared. Because the analyzer is shared and refreshed in place, index_z_orig —
+  # which is not named in the request — converges on the same updated synonyms.
+  - do:
+      indices.reload_search_analyzers:
+        index: index_a_shared
+
+  - do:
+      search:
+        index: index_a_shared
+        body:
+          query:
+            match:
+              content:
+                query: howdy
+                analyzer: my_search_analyzer_a
+  - match: { hits.total.value: 1 }
+
+  # index_z_orig was never reloaded explicitly, yet it sees "howdy" because it shares the instance.
+  - do:
+      search:
+        index: index_z_orig
+        body:
+          query:
+            match:
+              content:
+                query: howdy
+                analyzer: my_search_analyzer_z
   - match: { hits.total.value: 1 }

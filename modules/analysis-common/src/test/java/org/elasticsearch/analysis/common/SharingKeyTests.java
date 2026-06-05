@@ -537,45 +537,23 @@ public class SharingKeyTests extends ESTestCase {
     }
 
     /**
-     * Regression test for the reload/local-name mismatch bug: when two indices share a
-     * {@link ReloadableCustomAnalyzer} but each refers to it under a different local name
-     * (index A calls it {@code search_a}, index B calls it {@code search_b}),
-     * {@code reloadAnalyzerInPlace} looks up the requesting index's settings by
-     * {@code currentReference.name()} — which is always the original builder's name
-     * ({@code "search_a"}) regardless of which index is currently reloading.
+     * Two indices may share one {@link ReloadableCustomAnalyzer} while referring to it under
+     * different local analyzer names (index A calls it {@code search_a}, index B calls it
+     * {@code search_b}) — sharing keys on the analysis recipe, not the name. This pins that a
+     * {@code _reload_search_analyzers} request refreshes that shared instance whichever index's
+     * shard the broadcast happens to visit first, and that both indices observe the refresh.
      *
-     * <p>If B's shard processes first:
-     * <ol>
-     *   <li>{@code tryClaimReload(token)} returns {@code true} — the token is claimed.</li>
-     *   <li>Settings lookup: {@code B_settings.get("search_a")} → {@code null}.</li>
-     *   <li>Silent bail-out — no reload happens.</li>
-     *   <li>A's shard arrives with the same token → {@code tryClaimReload} returns {@code false}
-     *       → A also skips.</li>
-     * </ol>
-     * Result: reload is silently missed for the whole broadcast, but the response reports success.
-     *
-     * <p>This test deliberately calls {@code ib.reload(...)} before {@code ia.reload(...)} to
-     * trigger the bug deterministically rather than relying on nondeterministic shard ordering.
+     * <p>The shared instance carries the name of whichever index built it first, so the per-index
+     * reload must locate the recipe by the requesting index's own local name. Exercising both
+     * orders guards that lookup against regressing for either sharer.
      */
-    public void testReloadWithDifferentLocalNamesActuallyReloads() throws IOException {
+    public void testSharedAnalyzerWithDifferentLocalNamesReloads() throws IOException {
         Path file = configDir.resolve("syn_localnames.txt");
         Files.writeString(file, "i-pod, ipod\n");
 
-        // Same filter recipe, different local analyzer names.
-        Settings sA = Settings.builder()
-            .put("index.analysis.filter.syn.type", "synonym")
-            .put("index.analysis.filter.syn.synonyms_path", "syn_localnames.txt")
-            .put("index.analysis.filter.syn.updateable", true)
-            .put("index.analysis.analyzer.search_a.tokenizer", "standard")
-            .putList("index.analysis.analyzer.search_a.filter", "lowercase", "syn")
-            .build();
-        Settings sB = Settings.builder()
-            .put("index.analysis.filter.syn.type", "synonym")
-            .put("index.analysis.filter.syn.synonyms_path", "syn_localnames.txt")
-            .put("index.analysis.filter.syn.updateable", true)
-            .put("index.analysis.analyzer.search_b.tokenizer", "standard")
-            .putList("index.analysis.analyzer.search_b.filter", "lowercase", "syn")
-            .build();
+        // Byte-for-byte identical recipe, different local analyzer names.
+        Settings sA = sharedSynonymAnalyzer("search_a", "syn_localnames.txt");
+        Settings sB = sharedSynonymAnalyzer("search_b", "syn_localnames.txt");
 
         IndexAnalyzers ia = build(sA);
         IndexAnalyzers ib = build(sB);
@@ -584,33 +562,79 @@ public class SharingKeyTests extends ESTestCase {
         NamedAnalyzer naB = ib.get("search_b");
         assertNotNull("search_a must be found in index A", naA);
         assertNotNull("search_b must be found in index B", naB);
-        // Same recipe → same underlying ReloadableCustomAnalyzer.
-        assertSame("same recipe must share the underlying analyzer", naA.analyzer(), naB.analyzer());
+        assertSame("identical recipes must share the analyzer despite different local names", naA.analyzer(), naB.analyzer());
 
-        // Confirm baseline: "mp3-player" is not yet a synonym.
-        List<String> tokensBefore = tokens(naA, "i-pod");
-        assertFalse("mp3-player must not be a synonym before reload, got: " + tokensBefore, tokensBefore.contains("mp3-player"));
+        // Baseline: neither index expands "i-pod" to the not-yet-defined synonyms. (Single tokens
+        // deliberately — the standard tokenizer would split a hyphenated "mp3-player" into
+        // "mp3"/"player", making the post-reload assertions ambiguous.)
+        assertFalse("mp3player must not be a synonym yet, got: " + tokens(naA, "i-pod"), tokens(naA, "i-pod").contains("mp3player"));
 
-        // Update the file so reload would add "mp3-player" as a synonym for "i-pod".
-        Files.writeString(file, "i-pod, ipod, mp3-player\n");
+        // Drive the reload from index B first — the index whose local name (search_b) does NOT match
+        // the shared instance's embedded name (search_a) — then index A, under one request token.
+        Files.writeString(file, "i-pod, ipod, mp3player\n");
+        Object request = new Object();
+        ib.reload(registry, settingsFor(sB), null, false, request);
+        ia.reload(registry, settingsFor(sA), null, false, request);
 
-        // Simulate the order that triggers the bug: B's shard processes first, then A's,
-        // both within the same reload request (same token).
-        Object token = new Object();
-        ib.reload(registry, settingsFor(sB), null, false, token);
-        ia.reload(registry, settingsFor(sA), null, false, token);
+        // Both indices observe the refreshed synonym, because they share the one instance.
+        assertTrue("index A must see the reloaded synonym, got: " + tokens(naA, "i-pod"), tokens(naA, "i-pod").contains("mp3player"));
+        assertTrue("index B must see the reloaded synonym, got: " + tokens(naB, "i-pod"), tokens(naB, "i-pod").contains("mp3player"));
 
-        // After reload, querying "i-pod" must expand to include "mp3-player".
-        // If the bug is present the components are never updated and this fails,
-        // showing the stale token list (e.g. [i-pod, ipod]) rather than the new one.
-        List<String> tokensAfter = tokens(naA, "i-pod");
-        assertTrue(
-            "after reload 'mp3-player' must be a synonym for 'i-pod' — got: "
-                + tokensAfter
-                + " (bug: B claimed the reload token but found null settings for 'search_a',"
-                + " so reload was silently skipped for the whole broadcast)",
-            tokensAfter.contains("mp3-player")
+        // The reverse order must work too: add another synonym and reload index A first this time.
+        Files.writeString(file, "i-pod, ipod, mp3player, walkman\n");
+        Object nextRequest = new Object();
+        ia.reload(registry, settingsFor(sA), null, false, nextRequest);
+        ib.reload(registry, settingsFor(sB), null, false, nextRequest);
+        assertTrue("index A must see the second reload, got: " + tokens(naA, "i-pod"), tokens(naA, "i-pod").contains("walkman"));
+        assertTrue("index B must see the second reload, got: " + tokens(naB, "i-pod"), tokens(naB, "i-pod").contains("walkman"));
+    }
+
+    /**
+     * The once-per-request dedup must hold even when sharers refer to the shared instance under
+     * different local names. {@link #testSharedSynonymsReloadOncePerRequest} covers this for indices
+     * that all use the same analyzer name; this is the different-names counterpart — a single request
+     * token rebuilds the shared components exactly once across all three indices, and a fresh token
+     * rebuilds again.
+     */
+    public void testSharedReloadDedupAcrossDifferentLocalNames() throws IOException {
+        Path file = configDir.resolve("syn_dedup_names.txt");
+        Files.writeString(file, "i-pod, ipod\n");
+        Settings sA = sharedSynonymAnalyzer("search_a", "syn_dedup_names.txt");
+        Settings sB = sharedSynonymAnalyzer("search_b", "syn_dedup_names.txt");
+        Settings sC = sharedSynonymAnalyzer("search_c", "syn_dedup_names.txt");
+        IndexAnalyzers ia = build(sA);
+        IndexAnalyzers ib = build(sB);
+        IndexAnalyzers ic = build(sC);
+        ReloadableCustomAnalyzer shared = (ReloadableCustomAnalyzer) ia.get("search_a").analyzer();
+        assertSame(shared, ib.get("search_b").analyzer());
+        assertSame(shared, ic.get("search_c").analyzer());
+
+        // One request token fans out to all three indices; only the first reaches a rebuild.
+        Object request = new Object();
+        ia.reload(registry, settingsFor(sA), null, false, request);
+        AnalyzerComponents afterFirst = shared.getComponents();
+        ib.reload(registry, settingsFor(sB), null, false, request);
+        ic.reload(registry, settingsFor(sC), null, false, request);
+        assertSame(
+            "one request token must rebuild the shared instance once, regardless of local names",
+            afterFirst,
+            shared.getComponents()
         );
+
+        // A subsequent request (new token) rebuilds the shared instance again.
+        ia.reload(registry, settingsFor(sA), null, false, new Object());
+        assertNotSame("a new reload request must rebuild the shared analyzer", afterFirst, shared.getComponents());
+    }
+
+    /** A custom synonym search analyzer named {@code analyzerName} reading from {@code synonymsPath}. */
+    private static Settings sharedSynonymAnalyzer(String analyzerName, String synonymsPath) {
+        return Settings.builder()
+            .put("index.analysis.filter.syn.type", "synonym")
+            .put("index.analysis.filter.syn.synonyms_path", synonymsPath)
+            .put("index.analysis.filter.syn.updateable", true)
+            .put("index.analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+            .putList("index.analysis.analyzer." + analyzerName + ".filter", "lowercase", "syn")
+            .build();
     }
 
     /** Changing only the tokenizer of an otherwise-identical chain changes the recipe. */

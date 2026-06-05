@@ -254,7 +254,7 @@ FROM logs-*
 
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
 
-### Watch out for high-cardinality STATS BY
+### Avoid high-cardinality STATS BY
 
 Each unique combination of `BY` values creates a bucket in memory. Grouping by high-cardinality fields such as raw timestamps, full URLs, or document IDs, or by many fields at once, can produce millions of buckets.
 
@@ -379,7 +379,7 @@ FROM logs-*
 
 {{esql}} tries to push filters before the join when possible. Write the query with the selective filters before `LOOKUP JOIN` so the intended execution order is clear and the join receives the smallest practical input.
 
-### Use approximate aggregations when exact results are not required
+### Use approximate aggregations where possible
 
 For large [`STATS`](/reference/query-languages/esql/commands/stats-by.md) queries, exact results can be expensive. If approximate results are acceptable, [approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md) can trade exactness for much faster execution on large datasets.
 

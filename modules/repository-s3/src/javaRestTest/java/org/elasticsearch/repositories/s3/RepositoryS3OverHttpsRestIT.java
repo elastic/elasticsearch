@@ -9,16 +9,11 @@
 
 package org.elasticsearch.repositories.s3;
 
-import fixture.aws.ChunkedEncodingConfiguration;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
@@ -30,7 +25,6 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -41,9 +35,6 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "https_s3_client";
-
-    private static final Supplier<ChunkedEncodingConfiguration> chunkedEncodingConfigurationSupplier = ChunkedEncodingConfiguration
-        .randomSupplier();
 
     protected static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
 
@@ -57,24 +48,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         BUCKET,
         BASE_PATH,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    ) {
-        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
-        @Override
-        protected HttpHandler createHandler() {
-            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
-            return exchange -> {
-                delegate.assertContentSha256Header(
-                    exchange,
-                    equalTo(
-                        chunkedEncodingConfigurationSupplier.get() == ChunkedEncodingConfiguration.DISABLED
-                            ? "UNSIGNED-PAYLOAD"
-                            : "STREAMING-UNSIGNED-PAYLOAD-TRAILER"
-                    )
-                );
-                delegate.handle(exchange);
-            };
-        }
-    };
+    );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -107,10 +81,5 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
     @Override
     protected String getClientName() {
         return CLIENT;
-    }
-
-    @Override
-    protected Settings extraRepositorySettings() {
-        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

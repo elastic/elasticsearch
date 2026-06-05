@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -30,6 +32,7 @@ import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 
@@ -53,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private final boolean indexed;
@@ -898,6 +902,62 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    public void testHasIndexSortDisablesPostFilter() {
+        // With a filter present the post-filter pipeline normally wraps the HNSW query; assert that
+        // setting hasIndexSort=true skips the PostFilterKnnQuery wrap and returns the inner
+        // pre-filter knn query directly. The HNSW retry path's seedDocs / ExcludeDocsQuery
+        // semantics don't compose with index-sorted segments.
+        DenseVectorFieldType fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            randomIndexOptionsHnswQuantized(),
+            Collections.emptyMap(),
+            false
+        );
+        Query filter = new TermQuery(new Term("tag", "match"));
+
+        // Sanity: hasIndexSort=false → post-filter wrap is in place.
+        Query unsorted = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            null,
+            0f,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.ACORN,
+            randomBoolean(),
+            false,
+            null,
+            false
+        );
+        assertThat(unsorted, instanceOf(PostFilterKnnQuery.class));
+
+        // hasIndexSort=true → post-filter wrap is skipped; the inner pre-filter query is returned.
+        Query sorted = fieldType.createKnnQuery(
+            VectorData.fromFloats(new float[] { 1, 4, 10 }),
+            10,
+            100,
+            null,
+            0f,
+            filter,
+            null,
+            null,
+            DenseVectorFieldMapper.FilterHeuristic.ACORN,
+            randomBoolean(),
+            false,
+            null,
+            true
+        );
+        assertThat(sorted, not(instanceOf(PostFilterKnnQuery.class)));
+        assertThat(sorted, instanceOf(ESKnnFloatVectorQuery.class));
+    }
+
     private static void checkRescoreQueryParameters(
         DenseVectorFieldType fieldType,
         int k,
@@ -963,7 +1023,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 true,
-                null
+                null,
+                false
             )
         );
         assertThat(exception.getMessage(), containsString("[_slice] is required for KNN queries when [index.slice.enabled] is true"));
@@ -983,7 +1044,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
             randomBoolean(),
             false,
-            null
+            null,
+            false
         );
         assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
     }
@@ -1005,7 +1067,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
                 randomBoolean(),
                 true,
-                "s1"
+                "s1",
+                false
             )
         );
         assertThat(exception.getMessage(), containsString("[_slice] is not supported for nested KNN queries"));

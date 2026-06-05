@@ -11,7 +11,10 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.util.List;
@@ -117,9 +120,28 @@ public interface PostFilterableKnnQuery {
     int numCands();
 
     /**
-     * Per-leaf docs collected during first round of post-filtering, used by the retry round.
+     * Per-leaf candidate docs collected during the delegate's {@code mergeLeafResults}, indexed
+     * by leaf ordinal. Each non-null entry contains the full candidate pool for that leaf with
+     * global doc IDs and scores. The orchestrator walks each leaf to partition candidates into
+     * filter-matching and filtered-out sets without per-doc {@code subIndex} lookups.
      */
-    default int[] getTrackedDocs() {
-        return new int[0];
+    default ScoreDoc[][] getPostFilterCandidates() {
+        return null;
+    }
+
+    /**
+     * Groups arbitrary-order per-leaf {@link TopDocs} into a {@code ScoreDoc[][]} indexed by
+     * leaf ordinal. Lucene's {@code AbstractKnnVectorQuery} passes {@code mergeLeafResults} an
+     * array sourced from {@code HashMap.values()} whose iteration order is unspecified, so this
+     * method resolves each entry's leaf via {@link ReaderUtil#subIndex}.
+     */
+    static ScoreDoc[][] buildPerLeafCandidates(TopDocs[] perLeafResults, List<LeafReaderContext> leaves) {
+        ScoreDoc[][] perLeafCandidates = new ScoreDoc[leaves.size()][];
+        for (TopDocs td : perLeafResults) {
+            if (td.scoreDocs.length == 0) continue;
+            int leafOrd = ReaderUtil.subIndex(td.scoreDocs[0].doc, leaves);
+            perLeafCandidates[leafOrd] = td.scoreDocs;
+        }
+        return perLeafCandidates;
     }
 }

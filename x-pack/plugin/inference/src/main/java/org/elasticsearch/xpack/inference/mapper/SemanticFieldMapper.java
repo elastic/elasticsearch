@@ -366,7 +366,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 false,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders,
-                false
+                false,
+                indexSettings.getPostFilterSelectivityThreshold()
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())

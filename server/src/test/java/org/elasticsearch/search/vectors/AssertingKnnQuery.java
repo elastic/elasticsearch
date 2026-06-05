@@ -13,15 +13,17 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnnQuery {
 
@@ -137,24 +139,24 @@ class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnn
         postFilterMeta.recordPostFilterDelegate(filterSelectivity);
         int scaledK = Math.max(1, (int) Math.ceil(kParam * postFilterScale));
         return new AssertingKnnQuery(field, target, scaledK, numCandsParam, null, postFilterScale, postFilterMeta) {
-            final AtomicReference<DocTrackingCollectorManager> collectorManager = new AtomicReference<>();
+            private List<LeafReaderContext> leaves;
+            private ScoreDoc[][] perLeafCandidates;
 
             @Override
-            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-                DocTrackingCollectorManager existing = collectorManager.get();
-                if (existing != null) {
-                    return existing;
-                }
-                KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
-                DocTrackingCollectorManager wrapped = DocTrackingCollectorManager.wrap(base, searcher.getIndexReader().leaves().size());
-                collectorManager.compareAndSet(null, wrapped);
-                return collectorManager.get();
+            public Query rewrite(IndexSearcher searcher) throws IOException {
+                this.leaves = searcher.getIndexReader().leaves();
+                return super.rewrite(searcher);
             }
 
             @Override
-            public int[] getTrackedDocs() {
-                DocTrackingCollectorManager mgr = collectorManager.get();
-                return mgr == null ? new int[0] : mgr.getTrackedDocs();
+            protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
+                perLeafCandidates = PostFilterableKnnQuery.buildPerLeafCandidates(perLeafResults, leaves);
+                return super.mergeLeafResults(perLeafResults);
+            }
+
+            @Override
+            public ScoreDoc[][] getPostFilterCandidates() {
+                return perLeafCandidates;
             }
         };
     }
@@ -203,6 +205,22 @@ class AssertingKnnQuery extends KnnFloatVectorQuery implements PostFilterableKnn
     @Override
     public int numCands() {
         return numCandsParam;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
+        return new KnnCollectorManager() {
+            @Override
+            public KnnCollector newCollector(int visitedLimit, KnnSearchStrategy strategy, LeafReaderContext ctx) throws IOException {
+                return base.newCollector(visitedLimit, strategy, ctx);
+            }
+
+            @Override
+            public boolean isOptimistic() {
+                return false;
+            }
+        };
     }
 
     @Override

@@ -9,18 +9,29 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
+
+public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider, PostFilterableKnnQuery {
     private final int kParam;
+    private final int numCandsParam;
     private long vectorOpsCount;
     private final boolean earlyTermination;
+    private final int[] seedDocs;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
         this(field, target, k, numCands, filter, strategy, false);
@@ -35,9 +46,24 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         KnnSearchStrategy strategy,
         boolean earlyTermination
     ) {
+        this(field, target, k, numCands, filter, strategy, earlyTermination, null);
+    }
+
+    ESKnnFloatVectorQuery(
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination,
+        int[] seedDocs
+    ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
+        this.numCandsParam = numCands;
         this.earlyTermination = earlyTermination;
+        this.seedDocs = seedDocs;
     }
 
     @Override
@@ -53,6 +79,82 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
+    @Override
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+        Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
+        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
+        // retry returns only docs that are already excluded or that fail the post-hoc filter.
+        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
+        return new ESKnnFloatVectorQuery(field, target, remainingK, retryNumCands, filter, searchStrategy, earlyTermination, seedDocs);
+    }
+
+    @Override
+    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
+        Query newFilter = KnnQueryUtils.augmentFilter(getFilter(), excludedDocs, reader);
+        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
+        return new ESKnnFloatVectorQuery(field, target, remainingK, retryNumCands, newFilter, searchStrategy, earlyTermination, null);
+    }
+
+    @Override
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
+        int scaledK = (int) Math.clamp(
+            Math.ceil((kParam + zMargin) / filterSelectivity),
+            Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
+        );
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
+        return new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null) {
+            private List<LeafReaderContext> leaves;
+            private ScoreDoc[][] perLeafCandidates;
+
+            @Override
+            public Query rewrite(IndexSearcher searcher) throws IOException {
+                this.leaves = searcher.getIndexReader().leaves();
+                return super.rewrite(searcher);
+            }
+
+            @Override
+            protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
+                perLeafCandidates = PostFilterableKnnQuery.buildPerLeafCandidates(perLeafResults, leaves);
+                return super.mergeLeafResults(perLeafResults);
+            }
+
+            @Override
+            public ScoreDoc[][] getPostFilterCandidates() {
+                return perLeafCandidates;
+            }
+        };
+    }
+
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);
+            if (fvv != null) {
+                totalVectors += fvv.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return kParam;
+    }
+
+    @Override
+    public int numCands() {
+        return numCandsParam;
+    }
+
     public int kParam() {
         return kParam;
     }
@@ -63,7 +165,10 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     @Override
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
-        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
+        KnnCollectorManager base = super.getKnnCollectorManager(k, searcher);
+        if (seedDocs != null && seedDocs.length > 0) {
+            base = new SeededRetryCollectorManager(base, seedDocs, field);
+        }
+        return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
     }
 }

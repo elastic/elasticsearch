@@ -724,7 +724,8 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination"
+                "early_termination",
+                "post_filter"
             );
             if (hasPartitionRecall) {
                 searchHeaderList.add("partition_recall_min");
@@ -768,7 +769,8 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination)
+                    Boolean.toString(queryResult.earlyTermination),
+                    Boolean.toString(queryResult.postFilter)
                 );
                 if (hasPartitionRecall) {
                     String partitionMin = "";
@@ -866,6 +868,7 @@ public class KnnIndexTester {
         boolean filterCached;
         double overSamplingFactor;
         boolean earlyTermination;
+        boolean postFilter;
         int numCandidates;
         int topK;
         Map<String, Float> perPartitionRecall;
@@ -1006,6 +1009,7 @@ public class KnnIndexTester {
         "visit_percentage",
         "over_sampling_factor",
         "early_termination",
+        "post_filter",
         "filter_selectivity",
         "filter_cached",
         "search_threads",
@@ -1117,6 +1121,7 @@ public class KnnIndexTester {
                             String.format(Locale.ROOT, "%.4f", sp.visitPercentage()),
                             String.format(Locale.ROOT, "%.4f", sp.overSamplingFactor()),
                             Boolean.toString(sp.earlyTermination()),
+                            Boolean.toString(sp.postFilter()),
                             String.format(Locale.ROOT, "%.4f", sp.filterSelectivity()),
                             Boolean.toString(sp.filterCached()),
                             Integer.toString(sp.searchThreads()),

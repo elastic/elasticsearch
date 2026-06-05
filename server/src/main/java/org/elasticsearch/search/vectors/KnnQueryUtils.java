@@ -30,12 +30,9 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public final class KnnQueryUtils {
 
@@ -83,54 +80,6 @@ public final class KnnQueryUtils {
             return FilterWeight.MATCH_NO_DOCS;
         }
         return new FilterWeight(searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f));
-    }
-
-    /**
-     * Applies the filter to ScoreDocs with global doc IDs. Groups docs by leaf for efficient
-     * filter iterator advancement and returns passing docs in an unspecified order. Order is
-     * imposed downstream by {@link #dedupAndSelectTopK} via partial selection, so we deliberately
-     * avoid a full sort here.
-     */
-    public static ScoreDoc[] applyFilter(ScoreDoc[] scoreDocs, Weight filterWeight, IndexSearcher searcher) throws IOException {
-        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-
-        // group docs by leaf ordinal
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        List<ScoreDoc>[] byLeaf = new List[leaves.size()];
-        for (ScoreDoc sd : scoreDocs) {
-            int leafOrd = ReaderUtil.subIndex(sd.doc, leaves);
-            if (byLeaf[leafOrd] == null) {
-                byLeaf[leafOrd] = new ArrayList<>();
-            }
-            byLeaf[leafOrd].add(sd);
-        }
-
-        // filter each leaf separately
-        List<ScoreDoc> passingDocs = new ArrayList<>();
-        for (int leafOrd = 0; leafOrd < leaves.size(); leafOrd++) {
-            if (byLeaf[leafOrd] == null) continue;
-            LeafReaderContext ctx = leaves.get(leafOrd);
-            ScorerSupplier ss = filterWeight.scorerSupplier(ctx);
-            if (ss == null) continue;
-
-            DocIdSetIterator filterIter = ss.get(byLeaf[leafOrd].size()).iterator();
-            List<ScoreDoc> leafDocs = byLeaf[leafOrd];
-            leafDocs.sort(Comparator.comparingInt(sd -> sd.doc));
-
-            int filterDoc = -1;
-            for (ScoreDoc sd : leafDocs) {
-                int localDoc = sd.doc - ctx.docBase;
-                if (filterDoc < localDoc) {
-                    filterDoc = filterIter.advance(localDoc);
-                }
-                if (filterDoc == localDoc) {
-                    passingDocs.add(sd);
-                }
-                if (filterDoc == NO_MORE_DOCS) break;
-            }
-        }
-
-        return passingDocs.toArray(new ScoreDoc[0]);
     }
 
     /**
@@ -209,6 +158,31 @@ public final class KnnQueryUtils {
         ArrayUtil.select(docs, 0, docs.length, k - 1, byScoreDesc);
         ArrayUtil.introSort(docs, 0, k, byScoreDesc);
         return Arrays.copyOf(docs, k);
+    }
+
+    /**
+     * Returns the sorted union of two sorted int arrays (deduped).
+     */
+    public static int[] sortedUnion(int[] a, int[] b) {
+        if (a.length == 0) return b.length == 0 ? a : b.clone();
+        if (b.length == 0) return a.clone();
+        int[] buf = new int[a.length + b.length];
+        int ai = 0, bi = 0, out = 0;
+        while (ai < a.length && bi < b.length) {
+            if (a[ai] < b[bi]) {
+                buf[out++] = a[ai++];
+            } else if (a[ai] > b[bi]) {
+                buf[out++] = b[bi++];
+            } else {
+                buf[out++] = a[ai++];
+                bi++;
+            }
+        }
+        while (ai < a.length)
+            buf[out++] = a[ai++];
+        while (bi < b.length)
+            buf[out++] = b[bi++];
+        return out == buf.length ? buf : Arrays.copyOf(buf, out);
     }
 
     public static ScoreDoc[] mergeScoreDocArrays(ScoreDoc[] left, ScoreDoc[] right) {

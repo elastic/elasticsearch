@@ -33,7 +33,7 @@ import java.io.IOException;
  * cross-block cache that keeps it off the steady-state path: the previous winner is
  * validated against the new block with a single {@link AlpDoubleUtils#countExceptions}
  * pass against both the 5% freshness threshold and the cached dynamic threshold. On
- * cache miss the search runs via {@link AlpDoubleUtils#findBestEFDoubleTopK}.
+ * cache miss the search runs via {@link AlpDoubleUtils#findBestEFForBlock}.
  *
  * <p>Example: a sensor block {@code [22.5, 22.7, 22.6, ...]} encodes with {@code e=1,
  * f=0} into integer mantissas {@code [225, 227, 226, ...]} that downstream
@@ -83,7 +83,8 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         assert valueCount <= excPositions.length
             : "valueCount (" + valueCount + ") must not exceed blockSize (" + excPositions.length + ")";
 
-        if (AlpDoubleUtils.baselineAlreadyNearOptimal(values, valueCount)) {
+        // Skip ALP on blocks the integer pipeline already compresses to ~1 bit per value.
+        if (AlpDoubleUtils.hasNearConstantStride(values, valueCount)) {
             return;
         }
 
@@ -98,7 +99,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         }
 
         // Cache miss: full top-K search, validate, refresh cache.
-        final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, efOut, candCounts);
+        final int bestExceptions = AlpDoubleUtils.findBestEFForBlock(values, valueCount, efOut, candCounts);
         final int bestE = efOut[0];
         final int bestF = efOut[1];
 

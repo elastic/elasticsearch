@@ -67,7 +67,7 @@ final class AlpDoubleUtils {
     /** Number of candidates evaluated against the full block during top-K selection. */
     static final int TOP_K = 5;
 
-    /** Stride for the pre-selection sample passed through {@link #bestEFForSingleDouble}. */
+    /** Stride for the pre-selection sample passed through {@link #bestEFForValue}. */
     static final int PRE_SELECT_SAMPLE = 64;
 
     /** Sample size for the precision estimate that bounds the fallback search. */
@@ -93,14 +93,18 @@ final class AlpDoubleUtils {
     }
 
     /**
-     * Returns {@code true} when the sortable-long deltas have a non-zero base stride and
-     * a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. Characterises monotonic
-     * doubles that stay inside a single IEEE 754 exponent (a slow drift gauge in a narrow
-     * range) where the integer baseline already reaches ~1 bit per value. Constant blocks
-     * (stride 0) are deliberately excluded; ALP handles those in 7 bytes versus the
-     * baseline's 12.
+     * Returns {@code true} when consecutive sortable-long deltas have a non-zero base
+     * stride and a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. This shape
+     * characterises monotonic doubles that stay inside a single IEEE 754 exponent (a slow
+     * drift gauge in a narrow range), where the downstream integer pipeline
+     * {@code delta > offset > gcd > bitPack} already reaches ~1 bit per value. Constant
+     * blocks (stride 0) return {@code false} because ALP handles them in 7 bytes versus
+     * the integer pipeline's 12.
+     *
+     * <p>Callers use this as the gate to skip ALP entirely on blocks where the integer
+     * pipeline is already near-optimal.
      */
-    static boolean baselineAlreadyNearOptimal(final long[] values, int valueCount) {
+    static boolean hasNearConstantStride(final long[] values, int valueCount) {
         if (valueCount < 3) {
             return false;
         }
@@ -276,7 +280,7 @@ final class AlpDoubleUtils {
      * ALP, packed as {@code (e << 16) | f}. Returns {@code 0} (identity) for non-finite
      * values, zero, or values that find no match within {@link #MAX_EXPONENT}.
      */
-    static int bestEFForSingleDouble(double value) {
+    static int bestEFForValue(double value) {
         if (Double.isNaN(value) || Double.isInfinite(value) || value == 0.0) {
             return 0;
         }
@@ -312,14 +316,14 @@ final class AlpDoubleUtils {
      * @return the exception count for the chosen {@code (e, f)}, written to
      *         {@code efOut[0]} and {@code efOut[1]}
      */
-    static int findBestEFDoubleTopK(final long[] values, int valueCount, final int[] efOut, final int[] candCounts) {
+    static int findBestEFForBlock(final long[] values, int valueCount, final int[] efOut, final int[] candCounts) {
         java.util.Arrays.fill(candCounts, 0);
 
         boolean anyCandidate = false;
         final int step = Math.max(1, valueCount / PRE_SELECT_SAMPLE);
         for (int i = 0; i < valueCount; i += step) {
             final double value = Double.longBitsToDouble(sortableToDoubleBits(values[i]));
-            final int packed = bestEFForSingleDouble(value);
+            final int packed = bestEFForValue(value);
             final int e = packed >>> 16;
             final int f = packed & 0xFFFF;
             candCounts[candidateKey(e, f)]++;

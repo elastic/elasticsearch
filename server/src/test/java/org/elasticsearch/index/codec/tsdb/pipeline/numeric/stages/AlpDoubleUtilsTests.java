@@ -54,11 +54,11 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         assertEquals(0, AlpDoubleUtils.estimatePrecision(0.0));
     }
 
-    public void testBestEFForSingleDouble() {
-        assertEquals(2, AlpDoubleUtils.bestEFForSingleDouble(3.14) >>> 16);
-        assertEquals(0, AlpDoubleUtils.bestEFForSingleDouble(42.0) >>> 16);
-        assertEquals(0, AlpDoubleUtils.bestEFForSingleDouble(Double.NaN));
-        assertEquals(0, AlpDoubleUtils.bestEFForSingleDouble(0.0));
+    public void testBestEFForValue() {
+        assertEquals(2, AlpDoubleUtils.bestEFForValue(3.14) >>> 16);
+        assertEquals(0, AlpDoubleUtils.bestEFForValue(42.0) >>> 16);
+        assertEquals(0, AlpDoubleUtils.bestEFForValue(Double.NaN));
+        assertEquals(0, AlpDoubleUtils.bestEFForValue(0.0));
     }
 
     public void testCountExceptionsZeroForIntegerDoubles() {
@@ -126,7 +126,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         }
         final int[] efOut = new int[2];
         final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-        final int exceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, blockSize, efOut, candCounts);
+        final int exceptions = AlpDoubleUtils.findBestEFForBlock(values, blockSize, efOut, candCounts);
 
         assertTrue("top-K must produce a non-negative e", efOut[0] >= 0);
         assertTrue("2dp exceptions must stay below the full block", exceptions < blockSize);
@@ -140,7 +140,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         }
         final int[] efOut = new int[2];
         final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-        final int exceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, blockSize, efOut, candCounts);
+        final int exceptions = AlpDoubleUtils.findBestEFForBlock(values, blockSize, efOut, candCounts);
 
         assertEquals(0, efOut[0]);
         assertEquals(0, efOut[1]);
@@ -151,7 +151,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         final long[] values = new long[0];
         final int[] efOut = new int[2];
         final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-        AlpDoubleUtils.findBestEFDoubleTopK(values, 0, efOut, candCounts);
+        AlpDoubleUtils.findBestEFForBlock(values, 0, efOut, candCounts);
         assertEquals(-1, efOut[0]);
         assertEquals(-1, efOut[1]);
     }
@@ -164,7 +164,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         }
         final int[] efOut = new int[2];
         final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-        final int exceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, blockSize, efOut, candCounts);
+        final int exceptions = AlpDoubleUtils.findBestEFForBlock(values, blockSize, efOut, candCounts);
         assertTrue(efOut[0] >= 0);
         assertEquals(0, exceptions);
     }
@@ -178,14 +178,14 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         for (int i = 0; i < blockSize; i++) {
             decimals[i] = NumericUtils.doubleToSortableLong((double) (1000 + i) / 100.0);
         }
-        AlpDoubleUtils.findBestEFDoubleTopK(decimals, blockSize, efOut, candCounts);
+        AlpDoubleUtils.findBestEFForBlock(decimals, blockSize, efOut, candCounts);
         assertTrue("decimal data should select e >= 1", efOut[0] >= 1);
 
         final long[] integers = new long[blockSize];
         for (int i = 0; i < blockSize; i++) {
             integers[i] = NumericUtils.doubleToSortableLong((double) (500 + i));
         }
-        AlpDoubleUtils.findBestEFDoubleTopK(integers, blockSize, efOut, candCounts);
+        AlpDoubleUtils.findBestEFForBlock(integers, blockSize, efOut, candCounts);
         assertEquals("integers should select identity (e=0)", 0, efOut[0]);
     }
 

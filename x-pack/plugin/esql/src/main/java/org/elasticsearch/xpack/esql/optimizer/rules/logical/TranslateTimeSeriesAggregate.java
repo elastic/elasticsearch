@@ -482,7 +482,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         LogicalPlan child,
         List<NamedExpression> firstPassAggs,
         TemporaryNameGenerator internalNames,
-        LogicalOptimizerContext context,
+        AnalyzerContext context,
         Set<NameId> groupingIds,
         Map<NameId, Alias> carriedAggInputs
     ) {

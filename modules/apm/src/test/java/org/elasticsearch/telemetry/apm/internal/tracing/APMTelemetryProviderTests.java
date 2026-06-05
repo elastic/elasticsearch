@@ -161,7 +161,7 @@ public class APMTelemetryProviderTests extends ESTestCase {
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), tracingEnabled)
             .build();
         APMMeterService meterService = new APMMeterService(settings, meterSupplier, () -> OpenTelemetry.noop().getMeter("noop"));
-        APMTracer tracer = new APMTracer(settings, traceSupplier, false, 0);
+        APMTracer tracer = new APMTracer(settings, traceSupplier, false, 0, false);
         return new APMTelemetryProvider(meterService, tracer, new APMLoggingService(Settings.EMPTY), flushTimeoutMillis);
     }
 }

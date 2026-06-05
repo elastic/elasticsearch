@@ -1,0 +1,4 @@
+pr: 150859
+summary: Report unreadable `EXTERNAL` records as 400, not 500
+area: ES|QL
+type: bug

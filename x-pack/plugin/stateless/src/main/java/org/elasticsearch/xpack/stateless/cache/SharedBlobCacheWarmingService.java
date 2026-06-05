@@ -1036,7 +1036,8 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
+                "{} {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
+                ShardWarmer.class.getName(),
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1270,7 +1271,8 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                "{} {} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                MergeWarmer.class.getName(),
                 warmingRun.shardId(),
                 warmingRun.type(),
                 duration,
@@ -1311,7 +1313,8 @@ public class SharedBlobCacheWarmingService {
         protected void onWarmingSuccess(long duration) {
             logger.log(
                 duration >= 5000 ? Level.INFO : Level.DEBUG,
-                "{} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
+                "{} {} {} warming {} completed in {} ms ({}, {} tasks, {} bytes copied to cache)",
+                BlobByteRangeWarmer.class.getName(),
                 warmingRun.shardId(),
                 warmingRun.type(),
                 blobFile.termAndGeneration(),

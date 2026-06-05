@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 
 public abstract class Publication {
 
-    protected final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(Publication.class);
 
     private final List<PublicationTarget> publicationTargets;
     private final PublishRequest publishRequest;

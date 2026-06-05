@@ -50,8 +50,11 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/143697
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:METRICS}
   issue: https://github.com/elastic/elasticsearch/issues/143697
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
@@ -113,8 +116,11 @@ tests:
 - class: org.elasticsearch.cluster.remote.test.RemoteClustersIT
   method: testHAProxyModeConnectionWorks
   issue: https://github.com/elastic/elasticsearch/issues/139171
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativePromQLIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:PROMQL}
+  issue: https://github.com/elastic/elasticsearch/issues/146923
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:PROMQL}
   issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
@@ -271,8 +277,8 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
@@ -349,8 +355,8 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
   method: testStatelessFallbackAllocation
   issue: https://github.com/elastic/elasticsearch/issues/149947
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
-  method: test
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:lookup-join.floatEqualsDouble}

@@ -68,7 +68,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertFalse(config.usePrecondition());
-            assertThat(config.rescoreOversample(), equalTo(DEFAULT_CALIBRATED_OVERSAMPLE));
+            assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
         }
     }
 
@@ -93,7 +93,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 MergeState forceMerge = mergeState(dir, new KnnVectorsReader[0], new Bits[0], mergedSegmentInfo);
                 MergeCalibrationContext ctx = MergeCalibrationContext.from(forceMerge);
                 assertTrue(ctx.boundedForceMerge());
-                assertThat(ctx.mergeKind(), equalTo("force"));
                 assertNotNull(ctx.mergeMaxNumSegments());
                 assertThat(ctx.mergeMaxNumSegments().intValue(), equalTo(1));
             }
@@ -103,7 +102,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             MergeState background = mergeState(bgDir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(bgDir));
             MergeCalibrationContext bgCtx = MergeCalibrationContext.from(background);
             assertFalse(bgCtx.boundedForceMerge());
-            assertThat(bgCtx.mergeKind(), equalTo("background"));
         }
     }
 

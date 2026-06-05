@@ -18,12 +18,9 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
- * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled: reuses
- * persisted segment metadata when possible, otherwise returns the codec default. Full statistical calibration
- * is deferred to a follow-up change.
+ * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled.
  * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
  * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@link #DEFAULT_CALIBRATED_OVERSAMPLE}.
  */
@@ -58,38 +55,14 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
-     * When reuse is not possible, returns {@code codecDefault}. Bounded (force-merge) merges skip metadata reuse.
+     * For now, just returns the codec default.
      */
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
-        Objects.requireNonNull(mergeState, "mergeState");
-        Objects.requireNonNull(codecDefault, "codecDefault");
-        int numVectors = MergeCalibrationSampleVectors.countMergedVectors(fieldInfo, mergeState);
-
-        if (numVectors < MIN_VECTORS_FOR_CALIBRATION) {
-            return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
-        }
-
-        MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-        if (mergeCtx.boundedForceMerge() == false) {
-            IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, numVectors);
-            if (reused != null) {
-                return reused;
-            }
-        } else {
-            logger.debug(
-                "Merge calibration: bounded force merge (mergeMaxNumSegments=[{}], inputSegments=[{}]), skipping metadata reuse",
-                mergeCtx.mergeMaxNumSegmentsForLog(),
-                mergeCtx.inputSegments()
-            );
-        }
-
-        logger.debug("Merge calibration reuse not possible, using codec default");
         return codecDefault;
     }
 
     /**
-     * Attempts to reuse calibration results from the input segments being merged.
+     * Attempt to reuse calibration results from the input segments being merged.
      * Returns a merged {@link IvfSegmentConfig} if the data has not changed significantly,
      * or {@code null} if merge-time calibration should be performed.
      */
@@ -143,8 +116,8 @@ public class IvfAutoCalibration {
                 (double) mergedVectorCount / largestSegmentDocs,
                 RECALIBRATE_GROWTH_RATIO,
                 mergeCtx.inputSegments(),
-                mergeCtx.mergeKind(),
-                mergeCtx.mergeMaxNumSegmentsForLog()
+                mergeCtx.boundedForceMerge() ? "bounded force" : "background",
+                mergeCtx.mergeMaxNumSegments()
             );
             return null;
         }
@@ -157,8 +130,8 @@ public class IvfAutoCalibration {
                         + "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
                     (100.0 * maxEncDocs / totalDocs),
                     mergeCtx.inputSegments(),
-                    mergeCtx.mergeKind(),
-                    mergeCtx.mergeMaxNumSegmentsForLog()
+                    mergeCtx.boundedForceMerge() ? "bounded force" : "background",
+                    mergeCtx.mergeMaxNumSegments()
                 );
                 return null;
             }
@@ -180,8 +153,8 @@ public class IvfAutoCalibration {
             doPreconditionResult,
             calibratedSegments,
             mergeCtx.inputSegments(),
-            mergeCtx.mergeKind(),
-            mergeCtx.mergeMaxNumSegmentsForLog()
+            mergeCtx.boundedForceMerge() ? "bounded force" : "background",
+            mergeCtx.mergeMaxNumSegments()
         );
         return new IvfSegmentConfig(bestEncoding, doPreconditionResult, avgOversample);
     }

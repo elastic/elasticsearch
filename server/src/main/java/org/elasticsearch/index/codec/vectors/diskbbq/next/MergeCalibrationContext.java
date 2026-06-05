@@ -47,13 +47,4 @@ public record MergeCalibrationContext(int inputSegments, Integer mergeMaxNumSegm
         return new MergeCalibrationContext(inputSegments, mergeMaxNumSegments, bounded);
     }
 
-    /** {@code force} when this is a bounded (force-merge) merge; {@code background} otherwise. */
-    public String mergeKind() {
-        return boundedForceMerge ? "force" : "background";
-    }
-
-    /** For logs when the diagnostic is absent or unparsed. */
-    public String mergeMaxNumSegmentsForLog() {
-        return mergeMaxNumSegments == null ? "n/a" : mergeMaxNumSegments.toString();
-    }
 }

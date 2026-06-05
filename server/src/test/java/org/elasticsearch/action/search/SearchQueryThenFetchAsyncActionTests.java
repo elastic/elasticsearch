@@ -157,7 +157,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> listener.onResponse(queryResult)).start();
+                    new Thread(() -> {
+                        listener.onResponse(queryResult);
+                        queryResult.decRef();
+                    }).start();
                 } finally {
                     queryResult.decRef();
                 }
@@ -365,7 +368,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     queryResult.size(1);
                     successfulOps.incrementAndGet();
                     queryResult.incRef();
-                    new Thread(() -> listener.onResponse(queryResult)).start();
+                    new Thread(() -> {
+                        listener.onResponse(queryResult);
+                        queryResult.decRef();
+                    }).start();
                 } finally {
                     queryResult.decRef();
                 }

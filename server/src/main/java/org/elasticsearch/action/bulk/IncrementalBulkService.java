@@ -157,6 +157,7 @@ public class IncrementalBulkService {
             Set<String> paramsUsed,
             TaskManager taskManager
         ) {
+            this.taskManager = taskManager;
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
@@ -165,7 +166,6 @@ public class IncrementalBulkService {
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
-            this.taskManager = taskManager;
             bulkSessionTask = (CancellableTask) taskManager.register(BULK_SESSION_TASK_TYPE, BULK_SESSION_ACTION, new TaskAwareRequest() {
                 @Override
                 public void setParentTask(TaskId taskId) {}

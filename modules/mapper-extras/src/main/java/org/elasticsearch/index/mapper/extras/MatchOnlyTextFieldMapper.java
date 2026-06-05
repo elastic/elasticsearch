@@ -905,8 +905,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
 
             if (isSyntheticSourceEnabled()) {
-                // if there is no delegate, load from a fallback field we created
-                if (textFieldType.syntheticSourceDelegate().isEmpty()) {
+                // if there is no delegate, load from a fallback field we created.
+                // columnar_stored pre-builds _source as a single blob and drops the fallback field
+                if (textFieldType.syntheticSourceDelegate().isEmpty() && blContext.mappingLookup().isSourceColumnarStored() == false) {
                     if (usesBinaryDocValuesForFallbackFields) {
                         if (indexVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(syntheticSourceFallbackFieldName());

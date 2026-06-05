@@ -677,3 +677,6 @@ tests:
 - class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.BufferingMetricExporterTests
   method: testFailBufferRecoverAndDrain
   issue: https://github.com/elastic/elasticsearch/issues/150913
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testFewVectorManyTimes
+  issue: https://github.com/elastic/elasticsearch/issues/150915

@@ -77,35 +77,18 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testFullTextAfterSubqueryMatchesDedupMessage() {
+        String query = "FROM employees, (FROM employees | DEDUP first_name) | WHERE first_name : \"world\"";
+        String error = "verification_exception: line 1:18: [:] operator cannot be used after DEDUP";
+
+        assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
     public void testFullTextAfterSubqueryRequiresSubqueryInQuery() {
         String query = "FROM logs | LOOKUP JOIN message_types_lookup ON message | WHERE qstr(\"text:hello\")";
         String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
 
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryBugMatchesLimitByBeforeStats() {
-        String query = "SET approximation={}; FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),employees";
-        String error = "verification_exception: line 1:42: approximation not supported: "
-            + "query with [LIMIT 12 BY color] before [STATS] cannot be approximated";
-
-        assertTrue(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryBugRequiresSubquery() {
-        String query = "SET approximation={}; FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)";
-        String error = "verification_exception: line 1:42: approximation not supported: "
-            + "query with [LIMIT 12 BY color] before [STATS] cannot be approximated";
-
-        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryBugRequiresLimitBy() {
-        String query = "SET approximation={}; FROM (FROM colors | LIMIT 12 | INLINE STATS c = COUNT(*)),employees";
-        String error = "verification_exception: line 1:42: approximation not supported: "
-            + "query with [LIMIT 12] before [STATS] cannot be approximated";
-
-        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
     }
 
 }

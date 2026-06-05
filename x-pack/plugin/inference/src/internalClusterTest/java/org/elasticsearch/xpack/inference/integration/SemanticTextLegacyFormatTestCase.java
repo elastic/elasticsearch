@@ -64,8 +64,7 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
     protected ModelRegistry modelRegistry;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void storeInferenceModels() throws Exception {
         indexName = "test_legacy_" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
         storeSparseModel(SPARSE_INFERENCE_ID, modelRegistry);
@@ -73,9 +72,7 @@ public abstract class SemanticTextLegacyFormatTestCase extends ESIntegTestCase {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void deleteTestIndex() throws Exception {
         IntegrationTestUtils.deleteIndex(client(), indexName);
     }
 

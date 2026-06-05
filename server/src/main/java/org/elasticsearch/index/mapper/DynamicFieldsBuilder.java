@@ -29,7 +29,7 @@ import java.util.Map;
  * Objects get dynamically mapped only under dynamic:true.
  */
 final class DynamicFieldsBuilder {
-    private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
+    private static final Concrete CONCRETE = new Concrete(DefaultDocumentParser::parseObjectOrField);
     static final DynamicFieldsBuilder DYNAMIC_TRUE = new DynamicFieldsBuilder(CONCRETE);
     static final DynamicFieldsBuilder DYNAMIC_RUNTIME = new DynamicFieldsBuilder(new Runtime());
 

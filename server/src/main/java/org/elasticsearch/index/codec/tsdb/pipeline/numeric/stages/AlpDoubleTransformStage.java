@@ -44,6 +44,12 @@ import java.io.IOException;
  *   byte(e), byte(f), VInt(excCount), excCount * (VInt(position), Long(originalSortableLong))
  * </pre>
  *
+ * <p>TODO: positions are stored as absolute VInts. Delta-encoding consecutive positions
+ * could save metadata on blocks with clustered exceptions (e.g. a sensor pegged to NaN
+ * for a run), but adds encode/decode work on every block and only pays off above a
+ * data-dependent exception-count threshold. Worth evaluating with a dedicated
+ * burst-exception storage row before changing the wire format.
+ *
  * <p>Not thread-safe: scratch state is allocated once in the constructor and reused
  * across blocks. Each pipeline must own its own instance.
  */

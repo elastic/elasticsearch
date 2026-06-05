@@ -19,10 +19,11 @@ package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
  *
  * <p>The stage-level policy (per-block cache, skip heuristics, metadata layout) lives in
  * {@link AlpDoubleTransformStage}; this class exposes only the building blocks. The
- * paper reference for the search strategy is Afroozeh et al., SIGMOD 2023, section 3.2:
- * a fixed-stride sample feeds a per-pair candidate pool, then the top-K candidates are
- * evaluated against the full block. Replaces the naive {@code O(N * E * F)} sweep with
- * {@code O(K * N)} steady-state work.
+ * search strategy is a fixed-stride sample feeding a per-pair candidate pool over the
+ * {@code f <= e} triangular space, then the top-K candidates are evaluated against the
+ * full block using a bit-cost objective (mantissa range bits per non-exception value
+ * plus the actual VInt-position-aware cost per exception). Replaces the naive
+ * {@code O(N * E * F)} sweep with {@code O(K * N)} steady-state work.
  *
  * <p>All scratch state (candidate pool, exception arrays, output slots) is owned by the
  * caller, so this class never allocates on the hot path.
@@ -48,6 +49,17 @@ final class AlpDoubleUtils {
     static final int DOUBLE_EXCEPTION_COST = EXCEPTION_POSITION_VINT_BYTES + Long.BYTES;
 
     /**
+     * Per-exception cost expressed in bits when the position fits in a 2-byte VInt
+     * (any block of size up to 16K). Used by the maxExceptions guard as a conservative
+     * bound; the per-block bit-cost objective uses the position-aware estimate via
+     * {@link #vintBitCount}.
+     */
+    static final int DOUBLE_EXCEPTION_COST_BITS = DOUBLE_EXCEPTION_COST * Byte.SIZE;
+
+    /** Number of consecutive non-improving candidates after which the top-K loop bails. */
+    private static final int CONSECUTIVE_WORSE_EXIT = 2;
+
+    /**
      * Spread threshold (in sortable-long deltas) above which the integer baseline loses
      * its near-optimal compression. Below the threshold {@code delta > offset > bitPack}
      * fits residuals into at most {@code ceil(log2(17))=5} bits per value and ALP cannot
@@ -55,13 +67,28 @@ final class AlpDoubleUtils {
      */
     static final long DELTA_SPREAD_THRESHOLD = 16L;
 
-    /** Direct-indexed candidate pool size; the layout is internal to this class. */
-    static final int CAND_POOL_SIZE = (MAX_EXPONENT + 1) * (MAX_EXPONENT + 1);
-
-    private static final int CAND_STRIDE = MAX_EXPONENT + 1;
+    /**
+     * Triangular candidate pool size for the {@code f <= e} search space:
+     * {@code (MAX_EXPONENT + 1) * (MAX_EXPONENT + 2) / 2}. Layout is internal to this class.
+     */
+    static final int CAND_POOL_SIZE = (MAX_EXPONENT + 1) * (MAX_EXPONENT + 2) / 2;
 
     private static int candidateKey(int e, int f) {
-        return e * CAND_STRIDE + f;
+        return e * (e + 1) / 2 + f;
+    }
+
+    private static final int[] IDX_TO_E = new int[CAND_POOL_SIZE];
+    private static final int[] IDX_TO_F = new int[CAND_POOL_SIZE];
+
+    static {
+        int idx = 0;
+        for (int e = 0; e <= MAX_EXPONENT; e++) {
+            for (int f = 0; f <= e; f++) {
+                IDX_TO_E[idx] = e;
+                IDX_TO_F[idx] = f;
+                idx++;
+            }
+        }
     }
 
     /** Number of candidates evaluated against the full block during top-K selection. */
@@ -226,6 +253,81 @@ final class AlpDoubleUtils {
     }
 
     /**
+     * Bit width needed to range-code a non-negative span: {@code ceil(log2(range + 1))},
+     * clamped to a minimum of one so a constant block still costs one bit per value.
+     */
+    static int bitsForRange(long range) {
+        if (range <= 0) {
+            return 1;
+        }
+        return Long.SIZE - Long.numberOfLeadingZeros(range);
+    }
+
+    /**
+     * Number of bits a non-negative VInt occupies on the metadata stream, in
+     * {@link Byte#SIZE} multiples. Used by the per-block bit-cost estimate to charge
+     * exceptions their actual position-encoding cost instead of a constant.
+     */
+    static int vintBitCount(int value) {
+        if (value < 1 << 7) {
+            return Byte.SIZE;
+        }
+        if (value < 1 << 14) {
+            return 2 * Byte.SIZE;
+        }
+        if (value < 1 << 21) {
+            return 3 * Byte.SIZE;
+        }
+        if (value < 1 << 28) {
+            return 4 * Byte.SIZE;
+        }
+        return 5 * Byte.SIZE;
+    }
+
+    /**
+     * Per-block bit-cost estimate for {@code (e, f)}: range-coded mantissa width times the
+     * non-exception count plus the actual per-exception storage cost (8-byte raw value
+     * plus the VInt position cost computed per exception position). Drives candidate
+     * selection in {@link #findBestEFForBlock}: among the top-K most frequent pairs from
+     * the sample, the one with the smallest cost wins, not the one with the fewest
+     * exceptions, so a candidate with a few extra exceptions but much narrower mantissas
+     * is correctly preferred when the trade favours it.
+     *
+     * <p>Returned packed with the exception count to avoid scratch allocation on the
+     * hot path: cost-bits in the upper 48 bits, exception count in the lower 16 bits.
+     */
+    static long estimateBlockBits(final long[] values, int valueCount, int e, int f) {
+        final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
+        final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
+        long minMantissa = Long.MAX_VALUE;
+        long maxMantissa = Long.MIN_VALUE;
+        int excCount = 0;
+        long excPositionBits = 0;
+        for (int i = 0; i < valueCount; i++) {
+            final long originalBits = sortableToDoubleBits(values[i]);
+            final double original = Double.longBitsToDouble(originalBits);
+            final long encoded = alpRound(original * mulFactor);
+            final double decoded = encoded * decodeMul;
+            if (originalBits == Double.doubleToRawLongBits(decoded)) {
+                if (encoded < minMantissa) {
+                    minMantissa = encoded;
+                }
+                if (encoded > maxMantissa) {
+                    maxMantissa = encoded;
+                }
+            } else {
+                excCount++;
+                excPositionBits += vintBitCount(i);
+            }
+        }
+        final int nonExc = valueCount - excCount;
+        final int mantissaBits = (nonExc > 0) ? bitsForRange(maxMantissa - minMantissa) : 0;
+        final long valueExcBits = (long) Long.BYTES * Byte.SIZE * excCount;
+        final long costBits = (long) mantissaBits * nonExc + valueExcBits + excPositionBits;
+        return (costBits << 16) | (excCount & 0xFFFFL);
+    }
+
+    /**
      * Maximum tolerated exception count for a block of {@code valueCount} values given the
      * per-value bit-width saving and per-exception byte cost. The threshold is the
      * break-even point where the block-wide saving from ALP's narrower mantissa stream
@@ -359,6 +461,8 @@ final class AlpDoubleUtils {
         int bestE = 0;
         int bestF = 0;
         int bestExceptions = valueCount;
+        long bestCost = Long.MAX_VALUE;
+        int consecutiveWorse = 0;
 
         for (int k = 0; k < TOP_K; k++) {
             int maxIdx = -1;
@@ -373,18 +477,25 @@ final class AlpDoubleUtils {
                 break;
             }
 
-            final int e = maxIdx / CAND_STRIDE;
-            final int f = maxIdx % CAND_STRIDE;
+            final int e = IDX_TO_E[maxIdx];
+            final int f = IDX_TO_F[maxIdx];
             // Negate to mark this candidate as evaluated. The next call resets the table
             // via Arrays.fill so we do not need to restore the sign.
             candCounts[maxIdx] = -candCounts[maxIdx];
 
-            final int exceptions = countExceptions(values, valueCount, e, f);
-            if (exceptions < bestExceptions) {
+            final long packed = estimateBlockBits(values, valueCount, e, f);
+            final long cost = packed >>> 16;
+            final int exceptions = (int) (packed & 0xFFFFL);
+
+            if (cost < bestCost) {
+                bestCost = cost;
                 bestExceptions = exceptions;
                 bestE = e;
                 bestF = f;
-                if (exceptions == 0) {
+                consecutiveWorse = 0;
+            } else {
+                consecutiveWorse++;
+                if (consecutiveWorse >= CONSECUTIVE_WORSE_EXIT) {
                     break;
                 }
             }
@@ -392,8 +503,11 @@ final class AlpDoubleUtils {
 
         // Always consider identity (0, 0) if it was not already evaluated in the top-K loop.
         if (candCounts[candidateKey(0, 0)] >= 0) {
-            final int exceptions = countExceptions(values, valueCount, 0, 0);
-            if (exceptions < bestExceptions) {
+            final long packed = estimateBlockBits(values, valueCount, 0, 0);
+            final long cost = packed >>> 16;
+            final int exceptions = (int) (packed & 0xFFFFL);
+            if (cost < bestCost) {
+                bestCost = cost;
                 bestExceptions = exceptions;
                 bestE = 0;
                 bestF = 0;

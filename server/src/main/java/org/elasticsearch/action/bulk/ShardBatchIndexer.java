@@ -127,18 +127,20 @@ public final class ShardBatchIndexer {
 
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
-
             final List<Engine.Index> operations = ShardBatchMapper.parseMappings(items, batch, primary, chunkEnd, chunkStart, resolution);
             if (operations == null) {
                 return;
             }
 
-            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations);
+            // The chunk's operations map 1:1 to the rows [chunkStart, chunkEnd); pass the matching slice so the
+            // engine can write them as a single Translog.IndexBatch record.
+            final EirfBatch chunkBatch = batch.slice(chunkStart, chunkEnd);
+            final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations, chunkBatch);
 
             for (Engine.IndexResult result : results) {
                 assert context.hasMoreOperationsToExecute();
                 context.setRequestToExecute(context.getCurrent());
-                context.markOperationAsExecuted(result);
+                context.markBatchOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
             }
         }
@@ -164,9 +166,13 @@ public final class ShardBatchIndexer {
                 if (response.isFailed()) {
                     break;
                 }
+                // A batch is written as a single contiguous Translog.IndexBatch record over rows [chunkStart, i), so a
+                // primary no-op in the middle of the chunk ends the batch here (rather than being skipped); the no-op and
+                // the remainder are handled by the sequential fallback path.
+                // TODO: This will be resolved in a follow-up to allow the engine level batch execution to handle mixed index
+                // and no-op operations
                 if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
-                    i++;
-                    continue;
+                    break;
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -216,12 +222,15 @@ public final class ShardBatchIndexer {
             }
 
             if (operations.isEmpty() == false) {
-                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations);
+                // operations are the contiguous run [chunkStart, chunkStart + operations.size()); pass the matching slice
+                // so the engine writes them as a single Translog.IndexBatch record.
+                final EirfBatch chunkBatch = batch.slice(chunkStart, chunkStart + operations.size());
+                final List<Engine.IndexResult> results = replica.applyIndexOperationBatchOnReplica(operations, chunkBatch);
                 for (Engine.IndexResult result : results) {
                     if (result.getFailure() != null) {
                         throw result.getFailure();
                     }
-                    location = TransportWriteAction.locationToSync(location, result.getTranslogLocation());
+                    location = TransportWriteAction.locationToSync(location, result.getTranslogLocation(), true);
                 }
             }
 

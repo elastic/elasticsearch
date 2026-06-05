@@ -152,9 +152,9 @@ public class CrossProjectIndexResolutionValidator {
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -199,9 +199,9 @@ public class CrossProjectIndexResolutionValidator {
                     Map<String, List<String>>> populateRemoteSecurityExceptionAndIndices = null;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -387,17 +387,6 @@ public class CrossProjectIndexResolutionValidator {
             .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(aliasPrefix) || r.startsWith(indexPrefix)));
     }
 
-    public static String[] splitQualifiedResource(String resource) {
-        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.length == 2
-            : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + resource
-                + "], but found ["
-                + splitResource.length
-                + "]";
-        return splitResource;
-    }
-
     // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead
     private static ResolvedIndexExpression.LocalExpressions findMatchingExpression(
         ResolvedIndexExpressions projectExpressions,
@@ -413,10 +402,10 @@ public class CrossProjectIndexResolutionValidator {
 
     private static String asOriginExpression(String originalExpression) {
         var split = RemoteClusterAware.splitIndexName(originalExpression);
-        if (split[0] == null || split[0].indexOf('*') == -1) {
+        if (split.clusterAlias() == null || split.clusterAlias().indexOf('*') == -1) {
             return originalExpression;
         }
-        return RemoteClusterAware.buildRemoteIndexName("_origin", split[1]);
+        return RemoteClusterAware.buildRemoteIndexName("_origin", split.indexExpression());
     }
 
     private static ElasticsearchException checkResolutionFailure(

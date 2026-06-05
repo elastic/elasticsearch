@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.downsample.DownsamplingOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -226,6 +227,9 @@ public abstract class Plugin implements Closeable {
 
         /** A utility for recording lifecycle errors for data stream lifecycles */
         DataStreamLifecycleErrorStore dlmErrorStore();
+
+        /** A utility for monitoring downsampling operations */
+        DownsamplingOperations downsamplingOperations();
     }
 
     /**

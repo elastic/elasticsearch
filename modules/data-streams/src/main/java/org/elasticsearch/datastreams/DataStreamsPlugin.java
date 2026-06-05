@@ -219,7 +219,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings()
+                services.dataStreamGlobalRetentionSettings(),
+                services.downsamplingOperations()
             )
         );
         dataLifecycleInitialisationService.get().init();

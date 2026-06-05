@@ -17,7 +17,6 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.action.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -54,8 +53,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
@@ -119,6 +116,7 @@ public class DataStreamLifecycleServiceDownsamplingTests extends ESTestCase {
     private String dataStreamName;
     private ProjectId projectId;
     private ProjectMetadata.Builder projectBuilder;
+    private final Set<Index> downsamplingIndices = new HashSet<>();
 
     @Before
     public void setupServices() {
@@ -165,7 +163,8 @@ public class DataStreamLifecycleServiceDownsamplingTests extends ESTestCase {
             errorStore,
             allocationService,
             new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            globalRetentionSettings
+            globalRetentionSettings,
+            project -> downsamplingIndices
         );
         dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         projectId = randomProjectIdOrDefault();
@@ -563,28 +562,10 @@ public class DataStreamLifecycleServiceDownsamplingTests extends ESTestCase {
         }
 
         // Give the first MAX backing indices active persistent downsampling tasks so the active count equals the threshold
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        downsamplingIndices.clear();
         for (int i = 0; i < DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM; i++) {
-            Index sourceIndex = dataStream.getIndices().get(i);
-            String downsampleTargetName = DOWNSAMPLED_INDEX_PREFIX + "5m-" + sourceIndex.getName();
-            tasksBuilder.addTask(
-                "task-" + i,
-                DownsampleShardTaskParams.NAME,
-                new DownsampleShardTaskParams(
-                    new DownsampleConfig(new DateHistogramInterval("5m"), null),
-                    downsampleTargetName,
-                    0L,
-                    now,
-                    new ShardId(sourceIndex, 0),
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    Map.of()
-                ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
-            );
+            downsamplingIndices.add(dataStream.getIndices().get(i));
         }
-        updatedProjectBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
 
         String nodeId = "node-1";
         DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
@@ -644,27 +625,10 @@ public class DataStreamLifecycleServiceDownsamplingTests extends ESTestCase {
         markReadOnlyAndForceMerged(updatedProjectBuilder, blocks, projectId, initialProject.index(ds1.getIndices().getFirst()));
 
         // Give DS2's non-write backing indices active persistent tasks
-        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        downsamplingIndices.clear();
         for (int i = 0; i < DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM; i++) {
-            Index sourceIndex = ds2.getIndices().get(i);
-            tasksBuilder.addTask(
-                "task-ds2-" + i,
-                DownsampleShardTaskParams.NAME,
-                new DownsampleShardTaskParams(
-                    new DownsampleConfig(new DateHistogramInterval("5m"), null),
-                    DOWNSAMPLED_INDEX_PREFIX + "5m-" + sourceIndex.getName(),
-                    0L,
-                    now,
-                    new ShardId(sourceIndex, 0),
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    org.elasticsearch.common.Strings.EMPTY_ARRAY,
-                    Map.of()
-                ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
-            );
+            downsamplingIndices.add(ds2.getIndices().get(i));
         }
-        updatedProjectBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build());
 
         String nodeId = "node-1";
         DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);

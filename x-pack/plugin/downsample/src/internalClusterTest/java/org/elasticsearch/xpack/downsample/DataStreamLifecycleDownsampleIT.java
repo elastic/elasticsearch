@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.downsampling.DownsamplingOperationsMonitor;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -57,6 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
     public static final int DOC_COUNT = 50_000;
+    private final DownsamplingOperationsMonitor monitor = new DownsamplingOperationsMonitor();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -450,7 +450,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         awaitClusterState(clusterState -> {
             ProjectMetadata projectMetadata = clusterState.metadata().getProject();
             projectId.set(projectMetadata.id());
-            Set<Index> activelyDownsampledIndexNames = DownsamplingOperationsMonitor.getActivelyDownsampledIndexNames(projectMetadata);
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
             assertThat(activelyDownsampledIndexNames.size(), lessThanOrEqualTo(1));
             if (activelyDownsampledIndexNames.size() == 1) {
                 downsampledIndex.set(activelyDownsampledIndexNames.iterator().next());
@@ -469,7 +469,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         unmarkNodesForShutdown();
         awaitClusterState(clusterState -> {
             ProjectMetadata projectMetadata = clusterState.projectState(projectId.get()).metadata();
-            Set<Index> activelyDownsampledIndexNames = DownsamplingOperationsMonitor.getActivelyDownsampledIndexNames(projectMetadata);
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
             assertThat(activelyDownsampledIndexNames.size(), lessThanOrEqualTo(1));
             return activelyDownsampledIndexNames.contains(throttledIndex)
                 || projectMetadata.hasIndex("downsample-5m-" + throttledIndex.getName());
@@ -478,7 +478,7 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         // Verify both tasks are finished and cleared
         awaitClusterState(clusterState -> {
             ProjectMetadata projectMetadata = clusterState.metadata().getProject();
-            Set<Index> activelyDownsampledIndexNames = DownsamplingOperationsMonitor.getActivelyDownsampledIndexNames(projectMetadata);
+            Set<Index> activelyDownsampledIndexNames = monitor.getActivelyDownsampledIndexNames(projectMetadata);
             return activelyDownsampledIndexNames.isEmpty();
         });
     }

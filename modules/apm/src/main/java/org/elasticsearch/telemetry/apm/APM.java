@@ -116,6 +116,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS,
             OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT,
             OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES
         );

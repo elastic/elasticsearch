@@ -73,6 +73,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -3939,7 +3941,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             RESTRICTED_INDICES,
             List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "read", Set.of(allowedApplicationActionPattern), Map.of()))
         );
-        // No cluster privileges
+        // Only monitor_inference cluster privilege
         assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(TransportClusterStatsAction.TYPE.name(), request, authentication), is(false));
@@ -3953,6 +3955,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
         // Check index privileges
         assertOnlyReadAllowed(role, "observability-annotations");
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
@@ -4023,7 +4027,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             List.of(new ApplicationPrivilegeDescriptor("kibana-.kibana", "all", Set.of(allowedApplicationActionPattern), Map.of()))
         );
 
-        // No cluster privileges
+        // Only monitor_inference cluster privilege
         assertThat(role.cluster().check(TransportClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(TransportClusterStatsAction.TYPE.name(), request, authentication), is(false));
@@ -4037,6 +4041,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetProfilesAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetInferenceModelAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutInferenceModelAction.NAME, request, authentication), is(false));
 
         // Check index privileges
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));

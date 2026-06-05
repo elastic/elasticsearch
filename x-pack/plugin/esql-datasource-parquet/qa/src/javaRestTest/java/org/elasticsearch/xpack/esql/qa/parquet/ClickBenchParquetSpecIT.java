@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  * </ul>
  * Every query in {@code external-clickbench.csv-spec} uses the generic {@code {{clickbench}}} template.
  * This class cross-products each test with both {@link Layout} values, so every query runs once against
- * each dataset layout (42 queries x 2 layouts = 84 tests).
+ * each dataset layout (43 queries x 2 layouts = 86 tests).
  * <p>
  * Tests run against local {@code file://} URIs only. They skip gracefully when the remote ClickHouse
  * data is unreachable (e.g. air-gapped CI).

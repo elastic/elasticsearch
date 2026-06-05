@@ -34,18 +34,23 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Test fixture that downloads the first row group (RG0) from a selection of ClickHouse ClickBench
- * partitioned Parquet files via HTTP range requests, then writes two local datasets under the
- * {@code iceberg-fixtures} resource directory:
+ * partitioned Parquet files via HTTP range requests, then writes two local datasets under a
+ * dedicated {@code clickbench-fixtures} directory (sibling of {@code iceberg-fixtures}):
  * <ul>
  *   <li>{@code clickbench/hits.parquet} — single file with all row groups merged</li>
  *   <li>{@code clickbench_multi/hits_1.parquet} through {@code hits_5.parquet} — five splits</li>
  * </ul>
+ * The data lives outside {@code iceberg-fixtures} so that
+ * {@link org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase#loadExternalSourceFixtures()}
+ * does not load these large files into memory.
+ * <p>
  * Tests use {@code file://} URIs to query these local datasets via ES|QL EXTERNAL.
  * <p>
  * The fixture selects the 18 partitioned files whose RG0 is smallest (~94 MB total download,
@@ -53,7 +58,8 @@ import java.util.Map;
  * Row groups are copied verbatim (no decode/encode) using {@link ParquetFileWriter#appendRowGroups}.
  * <p>
  * Intermediate single-RG0 files are written to disk (not kept in memory) to avoid OOM with large
- * file padding. Downloaded fixtures are cached and not re-downloaded on subsequent runs.
+ * file padding. Downloaded RG0 files are written to a temporary path and atomically renamed on
+ * completion, so a partial download from a previous interrupted run is never treated as cached.
  */
 public class ClickBenchFixture extends ExternalResource {
 
@@ -64,6 +70,7 @@ public class ClickBenchFixture extends ExternalResource {
     private static final int REACHABILITY_TIMEOUT_MS = 10_000;
     private static final int DOWNLOAD_TIMEOUT_MS = 120_000;
     private static final byte[] PARQUET_MAGIC = { 'P', 'A', 'R', '1' };
+    private static final int SPLIT_COUNT = 5;
 
     /**
      * The 18 file indices with the smallest RG0, sorted by RG0 compressed size ascending.
@@ -121,9 +128,12 @@ public class ClickBenchFixture extends ExternalResource {
         Files.createDirectories(rawDir);
 
         Path singleFile = singleDir.resolve("hits.parquet");
-        Path firstSplit = multiDir.resolve("hits_1.parquet");
 
-        if (Files.exists(singleFile) && Files.exists(firstSplit)) {
+        boolean allExist = Files.exists(singleFile);
+        for (int i = 1; i <= SPLIT_COUNT && allExist; i++) {
+            allExist = Files.exists(multiDir.resolve("hits_" + i + ".parquet"));
+        }
+        if (allExist) {
             logger.info("ClickBench fixtures already exist at [{}], skipping download", clickbenchRoot);
             fixturesRoot = clickbenchRoot;
             return;
@@ -142,11 +152,14 @@ public class ClickBenchFixture extends ExternalResource {
 
             String url = BASE_URL + idx + SUFFIX;
             logger.info("Downloading RG0 from hits_{}", idx);
-            boolean ok = downloadRG0ToFile(url, rg0File);
+            Path tmpFile = rawDir.resolve("rg0_" + idx + ".parquet.tmp");
+            boolean ok = downloadRG0ToFile(url, tmpFile);
             if (ok == false) {
                 logger.warn("Failed to download RG0 from hits_{}, skipping", idx);
+                Files.deleteIfExists(tmpFile);
                 continue;
             }
+            Files.move(tmpFile, rg0File, StandardCopyOption.REPLACE_EXISTING);
             rg0Paths.add(rg0File);
             logger.info("Downloaded RG0 #{} ({} bytes), {} files so far", idx, Files.size(rg0File), rg0Paths.size());
         }
@@ -166,11 +179,10 @@ public class ClickBenchFixture extends ExternalResource {
         mergeRowGroups(singleFile, schema, rg0Paths, 0, rg0Paths.size());
 
         int totalFiles = rg0Paths.size();
-        int splitCount = 5;
-        logger.info("Writing {}-file split dataset", splitCount);
-        for (int i = 0; i < splitCount; i++) {
-            int from = totalFiles * i / splitCount;
-            int to = totalFiles * (i + 1) / splitCount;
+        logger.info("Writing {}-file split dataset", SPLIT_COUNT);
+        for (int i = 0; i < SPLIT_COUNT; i++) {
+            int from = totalFiles * i / SPLIT_COUNT;
+            int to = totalFiles * (i + 1) / SPLIT_COUNT;
             Path splitFile = multiDir.resolve("hits_" + (i + 1) + ".parquet");
             mergeRowGroups(splitFile, schema, rg0Paths, from, to);
         }

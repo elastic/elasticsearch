@@ -1,5 +1,5 @@
 // ClickBench-derived Parquet queries. The {{clickbench}} template is resolved by ClickBenchParquetSpecIT
-// to either a single-file or a 5-file split layout; each test runs against both layouts (84 tests total).
+// to either a single-file or a 5-file split layout; each test runs against both layouts (86 tests total).
 
 q01_countHits
 required_capability: external_command
@@ -25,7 +25,15 @@ sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
 37554                | 1283172    | 1518.508
 ;
 
-q04_statsDistinctUserid
+q04_statsAvgUserid
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS avg_UserID = AVG(UserID);
+
+avg_UserID:double
+2.567362511837506E18
+;
+
+q05_statsDistinctUserid
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID));
 
@@ -33,7 +41,7 @@ u:integer
 192760
 ;
 
-q05_statsDistinctSearchPhrase
+q06_statsDistinctSearchPhrase
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
 
@@ -41,7 +49,7 @@ u:integer
 40175
 ;
 
-q06_statsMinMaxEventDate
+q07_statsMinMaxEventDate
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
 
@@ -49,7 +57,7 @@ min_EventDate:integer | max_EventDate:integer
 15888                 | 15915
 ;
 
-q07_statsAdvEngineIdByAdvEngineId
+q08_statsAdvEngineIdByAdvEngineId
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
 
@@ -64,7 +72,7 @@ c:long | AdvEngineID:integer
 2      | 52
 ;
 
-q08_statsDistinctUseridByRegion
+q09_statsDistinctUseridByRegion
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
 
@@ -81,7 +89,7 @@ u:integer | RegionID:integer
 2317      | 1
 ;
 
-q09_statsRegionAggregates
+q10_statsRegionAggregates
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
 
@@ -98,7 +106,7 @@ sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_User
 333                  | 14871  | 1585.459                   | 2818                          | 158
 ;
 
-q10_statsMobilePhoneModelUsers
+q11_statsMobilePhoneModelUsers
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
 
@@ -115,7 +123,7 @@ u:integer | MobilePhoneModel:keyword
 18        | HTC Desire
 ;
 
-q11_statsMobilePhoneUsers
+q12_statsMobilePhoneUsers
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
 
@@ -132,7 +140,7 @@ u:integer | MobilePhone:integer | MobilePhoneModel:keyword
 96        | 13                  | iPad
 ;
 
-q12_statsSearchPhraseCount
+q13_statsSearchPhraseCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
 
@@ -149,7 +157,7 @@ c:long | SearchPhrase:keyword
 427    | метрамвай
 ;
 
-q13_statsSearchPhraseUsers
+q14_statsSearchPhraseUsers
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
 
@@ -166,7 +174,7 @@ u:integer | SearchPhrase:keyword
 257       | комбинирование смотреть
 ;
 
-q14_statsSearchEnginePhrase
+q15_statsSearchEnginePhrase
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
 
@@ -183,7 +191,7 @@ c:long | SearchEngineID:integer | SearchPhrase:keyword
 475    | 2                      | липец технические
 ;
 
-q15_statsUseridCount
+q16_statsUseridCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
 
@@ -200,7 +208,7 @@ c:long | UserID:long
 650    | 3372693799634031492
 ;
 
-q16_statsUseridSearchPhraseCount
+q17_statsUseridSearchPhraseCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
 
@@ -217,7 +225,7 @@ c:long | UserID:long         | SearchPhrase:keyword
 650    | 3372693799634031492 |
 ;
 
-q17_statsUseridSearchPhraseLimit
+q18_statsUseridSearchPhraseLimit
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
 
@@ -234,7 +242,7 @@ c:long | UserID:long         | SearchPhrase:keyword
 650    | 3372693799634031492 |
 ;
 
-q18_statsUseridMinuteSearchPhrase
+q19_statsUseridMinuteSearchPhrase
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
 
@@ -251,14 +259,14 @@ c:long | UserID:long         | m:long | SearchPhrase:keyword
 49     | 2656876941537049251 | 59     |
 ;
 
-q19_filterUserid435090932899640449
+q20_filterUserid435090932899640449
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
 
 UserID:long
 ;
 
-q20_statsGoogleUrlCount
+q21_statsGoogleUrlCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
 
@@ -266,14 +274,14 @@ count:long
 30
 ;
 
-q21_statsGoogleUrlSearchPhrase
+q22_statsGoogleUrlSearchPhrase
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
 
 min_URL:keyword | c:long | SearchPhrase:keyword
 ;
 
-q22_statsGoogleTitleNotUrl
+q23_statsGoogleTitleNotUrl
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
 
@@ -290,7 +298,7 @@ http://bdsmpeople.ru/search&do=actum.rostova.ru/search?where                    
 http://domchelove.ru/#!/search/page                                                                    | 1      | 1                             | кино 2009) смотреть онлайн бессмерти мк в россипед
 ;
 
-q23_sortGoogleUrlByTime
+q24_sortGoogleUrlByTime
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | KEEP WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer | LIMIT 10;
 
@@ -307,7 +315,7 @@ WatchID:long        | JavaEnable:integer | Title:keyword                        
 8074687839454727450 | 1                  | Шарародные заказователей длины и твое омольск» в электронины, поиск знакомств - loveplanet.ru - svpressa | 1                 | 1373002824     | 15891             | 145496            | -1660756327      | 23               | 447125666157281776  | http://video.yandex.ru/secondary/detail.google,yandex.ru%2Fkategory                                                                                                                                     | http:%2F%2Fview.html?oid=3630634&u_ah=738
 ;
 
-q24_sortSearchPhraseByTime
+q25_sortSearchPhraseByTime
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
@@ -324,7 +332,7 @@ sven орион дозорная флешки-трое вросшего поху
 скачать в семейка бобры 2 серии льво
 ;
 
-q25_sortSearchPhraseAsc
+q26_sortSearchPhraseAsc
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" AND TRIM(SearchPhrase) == SearchPhrase | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
@@ -341,7 +349,7 @@ SearchPhrase:keyword
 'kbnysq ctrcfylhtq d vfrcbvev
 ;
 
-q26_sortSearchPhraseTimeAsc
+q27_sortSearchPhraseTimeAsc
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
 
@@ -358,7 +366,7 @@ sven орион дозорная флешки-трое вросшего поху
 скачать в семейка бобры 2 серии льво
 ;
 
-q27_statsUrlLengthByCounter
+q28_statsUrlLengthByCounter
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
@@ -390,7 +398,7 @@ l:double | c:long | CounterID:integer
 47.06704 | 2148   | 175717
 ;
 
-q28_statsRefererDomainAnalysis
+q29_statsRefererDomainAnalysis
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
 
@@ -422,7 +430,7 @@ l:double | c:long | min_Referer:keyword                                         
 54.66751 | 1573   | http://goodarking_forum678/men.aspx?size%%2F46245                                                                                                                                                                                       | goodarking_forum678
 ;
 
-q29_statsResolutionWidthSums
+q30_statsResolutionWidthSums
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
 
@@ -430,7 +438,7 @@ s0:long    | s1:long    | s2:long    | s3:long    | s4:long    | s5:long    | s6
 1948507205 | 1949790377 | 1951073549 | 1952356721 | 1953639893 | 1954923065 | 1956206237 | 1957489409 | 1958772581 | 1960055753
 ;
 
-q30_statsSearchEngineClientIp
+q31_statsSearchEngineClientIp
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
 
@@ -447,7 +455,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:intege
 34     | 0                  | 1503.0                     | 2                      | 963524483
 ;
 
-q31_statsWatchIdClientIp
+q32_statsWatchIdClientIp
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
@@ -464,7 +472,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        |
 1      | 0                  | 1996.0                     | 4612082042862259891 | -1461301147
 ;
 
-q32_statsWatchIdClientIpAll
+q33_statsWatchIdClientIpAll
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
 
@@ -481,7 +489,7 @@ c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        |
 1      | 0                  | 582.0                      | 4611702069835343539 | 108360017
 ;
 
-q33_statsUrlCount
+q34_statsUrlCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
 
@@ -498,7 +506,7 @@ c:long | URL:keyword
 9293   | http://ru-en/#lingvo/#!
 ;
 
-q34_statsConstUrlCount
+q35_statsConstUrlCount
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
 
@@ -515,7 +523,7 @@ c:long | const1:integer | URL:keyword
 9293   | 1              | http://ru-en/#lingvo/#!
 ;
 
-q35_statsClientIpVariations
+q36_statsClientIpVariations
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
 
@@ -532,49 +540,49 @@ c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
 656    | 1612070501       | 1612070500    | 1612070499    | 1612070498
 ;
 
-q36_statsCounter62JulyUrls
+q37_statsCounter62JulyUrls
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
 
 PageViews:long | URL:keyword
 ;
 
-q37_statsCounter62JulyTitles
+q38_statsCounter62JulyTitles
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
 
 PageViews:long | Title:keyword
 ;
 
-q38_statsCounter62JulyLinks
+q39_statsCounter62JulyLinks
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 1010;
 
 PageViews:long | URL:keyword
 ;
 
-q39_statsCounter62JulyTrafficSources
+q40_statsCounter62JulyTrafficSources
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 1010;
 
 PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword | Dst:keyword
 ;
 
-q40_statsCounter62JulyRefererHash
+q41_statsCounter62JulyRefererHash
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 9118190589742611694 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC | LIMIT 110;
 
 PageViews:long | URLHash:long | EventDate:integer
 ;
 
-q41_statsCounter62JulyWindowClient
+q42_statsCounter62JulyWindowClient
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 9074312750323043892 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10010;
 
 PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
 ;
 
-q42_statsCounter62July1415Minutes
+q43_statsCounter62July1415Minutes
 required_capability: external_command
 EXTERNAL "{{clickbench}}" | WHERE CounterID == 17 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 1010;
 

@@ -24,6 +24,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,7 +43,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField the field used for slicing the index
      * @param sliceId the slice to be search
      */
@@ -53,12 +53,11 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
         BytesRef sliceId
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

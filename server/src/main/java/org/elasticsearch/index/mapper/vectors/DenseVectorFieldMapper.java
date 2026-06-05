@@ -52,6 +52,9 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -483,7 +486,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersionCreated,
                     false,
                     bits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    false
                 );
             }
 
@@ -1966,6 +1970,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
 
+                boolean autoCalibrate = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("auto_calibrate"), false);
+                if (autoCalibrate && experimentalFeaturesEnabled == false) {
+                    throw new IllegalArgumentException(
+                        "auto_calibrate requires experimental vector index features for field [" + fieldName + "]"
+                    );
+                }
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQIVFIndexOptions(
                     clusterSize,
@@ -1976,7 +1987,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     indexVersion,
                     doPrecondition,
                     quantizeBits,
-                    experimentalFeaturesEnabled
+                    experimentalFeaturesEnabled,
+                    autoCalibrate
                 );
             }
 
@@ -2658,6 +2670,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final int bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
+        final boolean autoCalibrate;
 
         public BBQIVFIndexOptions(
             int clusterSize,
@@ -2668,7 +2681,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
             int bits,
-            boolean experimentalFeaturesEnabled
+            boolean experimentalFeaturesEnabled,
+            boolean autoCalibrate
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
@@ -2679,6 +2693,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.bits = bits;
             this.doPrecondition = doPrecondition;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
+            this.autoCalibrate = autoCalibrate;
         }
 
         @Override
@@ -2703,6 +2718,23 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
+                if (autoCalibrate) {
+                    return new ESNextDiskBBQVectorsFormat(
+                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                        clusterSize,
+                        ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        numMergeWorkers,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold,
+                        sliceField,
+                        IvfFlushConfigSource.empty(),
+                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
+                    );
+                }
                 return new ESNextDiskBBQVectorsFormat(
                     ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
                     clusterSize,
@@ -2738,7 +2770,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
-            return this.doPrecondition == that.doPrecondition;
+            return this.doPrecondition == that.doPrecondition && this.autoCalibrate == that.autoCalibrate;
         }
 
         @Override
@@ -2750,12 +2782,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
                 && doPrecondition == that.doPrecondition
+                && autoCalibrate == that.autoCalibrate
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, doPrecondition, rescoreVector);
+            return Objects.hash(
+                clusterSize,
+                flatIndexThreshold,
+                defaultVisitPercentage,
+                onDiskRescore,
+                doPrecondition,
+                autoCalibrate,
+                rescoreVector
+            );
         }
 
         @Override
@@ -2778,6 +2819,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("bits", bits);
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
+            }
+            if (autoCalibrate) {
+                builder.field("auto_calibrate", true);
             }
         }
 
@@ -2823,6 +2867,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + doPrecondition
                 + ", bits="
                 + bits
+                + ", auto_calibrate="
+                + autoCalibrate
                 + "}";
         }
     }
@@ -3329,32 +3375,46 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                float overSampleFactor = rescore ? oversample : 1.0f;
-                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
+                if (sliceEnabled && parentFilter != null) {
+                    throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
+                }
+                if (bbqIndexOptions.autoCalibrate) {
+                    // perform rescore internally within AbstractIVFKnnVectorQuery#getAutoRescoreQuery
+                    rescore = false;
+                }
+                float mappingOversample = bbqIndexOptions.rescoreVector != null
+                    ? bbqIndexOptions.rescoreVector.oversample
+                    : DEFAULT_OVERSAMPLE;
+                var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.doPrecondition,
+                    bbqIndexOptions.bits,
+                    mappingOversample,
+                    queryOversample
+                );
+                final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
                 if (singleSliceRouting != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor,
+                            ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
                             new BytesRef(singleSliceRouting)
                         )
                         : new IVFKnnFloatSlicedVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             filter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor,
+                            ivfQueryConfigResolver,
                             RoutingFieldMapper.NAME,
                             new BytesRef(singleSliceRouting)
                         );
@@ -3363,24 +3423,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor
+                            ivfQueryConfigResolver
                         )
-                        : new IVFKnnFloatVectorQuery(
-                            name(),
-                            queryVector,
-                            adjustedK,
-                            numCands,
-                            filter,
-                            visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            overSampleFactor
-                        );
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, filter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null

@@ -208,7 +208,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
      * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsWriter} returns a resolved {@link IvfSegmentConfig};
      * other writers return {@code null}.
      */
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
+        throws IOException {
         return null;
     }
 
@@ -371,12 +372,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        final IvfSegmentConfig ivfSegmentConfig = beginIvfFieldMerge(fieldInfo, mergeState);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
-            mergeOneFieldIVF(fieldInfo, mergeState, ivfSegmentConfig);
+            mergeOneFieldIVF(fieldInfo, mergeState);
         } else {
             // we simply write information that the field is present but we don't do anything with it.
-            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null, 0, 0, 0, 0, IvfSegmentConfig.NONE);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -439,24 +439,17 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException;
 
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
-    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig ivfSegmentConfig) throws IOException {
+    private void mergeOneFieldIVF(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         final int numVectors;
         String tempRawVectorsFileName = null;
         String docsFileName = null;
-        // build a float vector values with random access. In order to do that we dump the vectors to
-        // a temporary file and if the segment is not dense, the docs to another file/
-        Preconditioner preconditioner;
+        // Lucene merged FloatVectorValues is single-pass; spill raw vectors to a temp file for random access
+        // (calibration, preconditioning, clustering) without a full on-heap copy.
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
             tempRawVectorsFileName = vectorsOut.getName();
             FloatVectorValues mergedFloatVectorValues = MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
-
-            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
-            preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
-            mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
-
-            // if the segment is dense, we don't need to do anything with docIds.
             boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
             try (
                 IndexOutput docsOut = dense
@@ -466,8 +459,6 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 if (docsOut != null) {
                     docsFileName = docsOut.getName();
                 }
-                // TODO do this better, we shouldn't have to write to a temp file, we should be able to
-                // to just from the merged vector values, the tricky part is the random access.
                 numVectors = writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
                 CodecUtil.writeFooter(vectorsOut);
                 if (docsOut != null) {
@@ -483,14 +474,36 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             }
             throw t;
         }
-        if (numVectors == 0) {
-            long centroidOffset = ivfCentroids.getFilePointer();
-            writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
-            return;
+        final IvfSegmentConfig ivfSegmentConfig;
+        final Preconditioner preconditioner;
+        try (
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(
+                tempRawVectorsFileName,
+                IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL)
+            );
+            IndexInput docs = docsFileName == null
+                ? null
+                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
+        ) {
+            final KMeansFloatVectorValues stored = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            IvfSegmentConfig resolvedConfig = beginIvfFieldMerge(fieldInfo, stored, mergeState);
+            ivfSegmentConfig = resolvedConfig != null ? resolvedConfig : IvfSegmentConfig.NONE;
+            // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
+            preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
         }
-        // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
-        // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
-        // so the OS can optimize read ahead in low memory situations.
+        if (numVectors > 0 && ivfSegmentConfig.usePrecondition() && preconditioner != null) {
+            tempRawVectorsFileName = rewriteTempVectorsWithPrecondition(
+                fieldInfo,
+                mergeState,
+                tempRawVectorsFileName,
+                docsFileName,
+                numVectors,
+                preconditioner,
+                ivfSegmentConfig
+            );
+        }
+        // Build IVF structures from the temp spill (preconditioned on disk when enabled).
+        // Reads are in increasing ordinal order, so use SEQUENTIAL advice for read-ahead in low-memory situations.
         try (
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(
                 tempRawVectorsFileName,
@@ -501,6 +514,12 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
             final KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+
+            if (numVectors == 0) {
+                long centroidOffset = ivfCentroids.getFilePointer();
+                writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
+                return;
+            }
 
             final long centroidOffset;
             final long centroidLength;
@@ -623,6 +642,40 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         int numVectors
     ) throws IOException {
         return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
+    }
+
+    /**
+     * Replaces the raw vector temp spill with preconditioned vectors (sequential rewrite; docs file unchanged).
+     */
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
+    private String rewriteTempVectorsWithPrecondition(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        String vectorsFileName,
+        String docsFileName,
+        int numVectors,
+        Preconditioner preconditioner,
+        IvfSegmentConfig ivfSegmentConfig
+    ) throws IOException {
+        try (
+            IndexInput vectors = mergeState.segmentInfo.dir.openInput(vectorsFileName, IOContext.DEFAULT);
+            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
+        ) {
+            final KMeansFloatVectorValues stored = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final FloatVectorValues preconditioned = preconditionVectors(preconditioner, stored, ivfSegmentConfig);
+            org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, vectorsFileName);
+            try (
+                IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(
+                    mergeState.segmentInfo.name,
+                    "ivfvec_",
+                    IOContext.DEFAULT
+                )
+            ) {
+                writeFloatVectorValues(fieldInfo, null, vectorsOut, preconditioned);
+                CodecUtil.writeFooter(vectorsOut);
+                return vectorsOut.getName();
+            }
+        }
     }
 
     private static int writeFloatVectorValues(

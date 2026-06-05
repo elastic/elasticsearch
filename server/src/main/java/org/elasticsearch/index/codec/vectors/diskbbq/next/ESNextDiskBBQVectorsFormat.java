@@ -366,7 +366,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             false,
             DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -393,7 +395,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             doPrecondition,
             preconditioningBlockDimension,
             defaultFlatThreshold(vectorPerCluster),
-            sliceField
+            sliceField,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 
@@ -422,8 +426,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             flatVectorThreshold,
             sliceField,
-            null,
-            null
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
         );
     }
 

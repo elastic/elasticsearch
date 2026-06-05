@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
@@ -32,8 +34,11 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -45,6 +50,10 @@ import java.util.concurrent.atomic.LongAccumulator;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
+/**
+ * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore); per-segment
+ * preconditioning and oversample expansion come from {@link IvfQueryConfigResolver#resolve}.
+ */
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
@@ -55,9 +64,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
-    protected boolean doPrecondition;
+    protected final IvfQueryConfigResolver ivfQueryConfigResolver;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
+    protected AbstractIVFKnnVectorQuery(
+        String field,
+        float visitRatio,
+        int k,
+        int numCands,
+        Query filter,
+        IvfQueryConfigResolver ivfQueryConfigResolver
+    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -72,7 +88,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
-        this.doPrecondition = doPrecondition;
+        this.ivfQueryConfigResolver = Objects.requireNonNull(ivfQueryConfigResolver, "ivfQueryConfigResolver should not be null");
     }
 
     @Override
@@ -118,11 +134,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             filterWeight = null;
         }
 
-        // we request numCands as we are using it as an approximation measure
-        // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
-        // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
-        // 2k to the collector.
-        IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
@@ -131,25 +142,49 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
+        float maxRescoreOversampleAcrossLeaves = Float.NEGATIVE_INFINITY;
         for (LeafReaderContext context : leafReaderContexts) {
-            if (doPrecondition) {
+            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
+            if (segmentReader == null) {
+                continue;
+            }
+            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+            IvfSegmentConfig resolved = ivfQueryConfigResolver.resolve(fieldInfo, segmentReader);
+
+            float segmentOversample = resolved.rescoreOversample();
+            maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
+
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
+                IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
+                indexSearcher
+            );
+
+            if (resolved.usePrecondition()) {
                 preconditionQuery(context);
             }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
-        TopDocs topK = mergeLeafResults(k, perLeafResults);
+        int mergeK = tasks.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
+        if (ivfQueryConfigResolver.isAutoCalibrate()) {
+            return getAutoRescoreQuery(indexSearcher, topK, mergeK);
+        }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
+    /**
+     * Returns a query that performs exact rescoring of oversampled candidates.
+     * Implementations can return {@code null} when rescoring is unavailable.
+     */
+    abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK);
+
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
-        // During merge across segments, always favor bulk pivot collection.
-        // Segment-level unsorted gathering avoids per-segment sorting work.
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
         long totalHitsValue = 0;
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;

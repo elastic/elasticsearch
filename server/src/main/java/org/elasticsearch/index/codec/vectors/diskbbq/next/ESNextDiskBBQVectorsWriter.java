@@ -156,9 +156,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
-        return mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, FloatVectorValues mergedFloatVectorValues, MergeState mergeState)
+        throws IOException {
+        return mergeConfigResolver.resolve(
+            fieldInfo,
+            mergedFloatVectorValues,
+            mergeState,
+            IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition)
+        );
     }
 
     private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {

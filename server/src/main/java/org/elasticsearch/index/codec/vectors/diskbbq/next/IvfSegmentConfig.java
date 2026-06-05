@@ -23,7 +23,44 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next;
  */
 public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean usePrecondition, float rescoreOversample) {
 
+    public static final IvfSegmentConfig NONE = new IvfSegmentConfig(
+        ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+        false,
+        Float.NaN
+    );
+
     public static IvfSegmentConfig fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding, boolean doPrecondition) {
         return new IvfSegmentConfig(quantEncoding, doPrecondition, Float.NaN);
+    }
+
+    /**
+     * Resolves oversample for search: query override, else finite persisted value, else mapping default.
+     */
+    public static float effectiveRescoreOversample(float persisted, Float queryOverride, float mappingDefault) {
+        if (queryOverride != null) {
+            return queryOverride;
+        }
+        if (Float.isFinite(persisted)) {
+            return persisted;
+        }
+        return mappingDefault;
+    }
+
+    /**
+     * Returns a copy of {@code raw} with {@link #rescoreOversample()} set to the effective value.
+     */
+    public static IvfSegmentConfig withEffectiveRescoreOversample(IvfSegmentConfig raw, Float queryOverride, float mappingDefault) {
+        float effective = effectiveRescoreOversample(raw.rescoreOversample(), queryOverride, mappingDefault);
+        return new IvfSegmentConfig(raw.quantEncoding(), raw.usePrecondition(), effective);
+    }
+
+    /** Per-leaf IVF collector size (includes 2× factor for overspill duplicates). */
+    public static int leafCollectorBudget(int resultK, float segmentOversample) {
+        return Math.round(2f * resultK * segmentOversample);
+    }
+
+    /** Shard-level merge cap across segments after approximate search. */
+    public static int shardMergeBudget(int resultK, float maxSegmentOversample) {
+        return (int) Math.ceil(resultK * maxSegmentOversample);
     }
 }

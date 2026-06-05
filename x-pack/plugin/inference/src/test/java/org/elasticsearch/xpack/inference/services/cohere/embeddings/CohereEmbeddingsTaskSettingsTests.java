@@ -8,27 +8,25 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereService.VALID_INPUT_TYPE_VALUES;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsTaskSettings> {
+public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereEmbeddingsTaskSettings> {
 
     public static CohereEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
@@ -67,15 +65,21 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        MatcherAssert.assertThat(CohereEmbeddingsTaskSettings.fromMap(new HashMap<>()), is(new CohereEmbeddingsTaskSettings(null, null)));
+        assertThat(
+            CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(), ConfigurationParseContext.REQUEST),
+            is(new CohereEmbeddingsTaskSettings(null, null))
+        );
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
-        MatcherAssert.assertThat(CohereEmbeddingsTaskSettings.fromMap(null), is(new CohereEmbeddingsTaskSettings(null, null)));
+        assertThat(
+            CohereEmbeddingsTaskSettings.fromMap(null, ConfigurationParseContext.REQUEST),
+            is(new CohereEmbeddingsTaskSettings(null, null))
+        );
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
-        MatcherAssert.assertThat(
+        assertThat(
             CohereEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(
                     Map.of(
@@ -84,7 +88,8 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
                         CohereServiceFields.TRUNCATE,
                         Truncation.END.toString()
                     )
-                )
+                ),
+                ConfigurationParseContext.REQUEST
             ),
             is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.END))
         );
@@ -92,50 +97,31 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testFromMap_ReturnsFailure_WhenInputTypeIsInvalid() {
         var exception = expectThrows(
-            ValidationException.class,
-            () -> CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, "abc")))
-        );
-
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
-                )
+            XContentParseException.class,
+            () -> CohereEmbeddingsTaskSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, "abc")),
+                ConfigurationParseContext.REQUEST
             )
         );
+
+        assertThat(exception.getCause().getMessage(), containsString("ABC"));
     }
 
     public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> CohereEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+                new HashMap<>(Map.of(CohereEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString())),
+                ConfigurationParseContext.REQUEST
             )
         );
 
-        MatcherAssert.assertThat(
-            exception.getMessage(),
-            is(
-                Strings.format(
-                    "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
-                )
-            )
-        );
-    }
-
-    private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {
-        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
-        Arrays.sort(validValuesAsStrings);
-
-        return String.join(", ", validValuesAsStrings);
+        assertThat(exception.getCause().getMessage(), containsString("unspecified"));
     }
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(AssertionError.class, () -> new CohereEmbeddingsTaskSettings(InputType.UNSPECIFIED, null));
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+        assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
     public void testOf_UsesRequestTaskSettings() {
@@ -145,7 +131,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.END)
         );
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.END)));
+        assertThat(overriddenTaskSettings, is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.END)));
     }
 
     @Override
@@ -167,6 +153,16 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             Truncation truncation = randomValueOtherThan(instance.getTruncation(), () -> randomFrom(randomFrom(Truncation.values()), null));
             return new CohereEmbeddingsTaskSettings(instance.getInputType(), truncation);
         }
+    }
+
+    @Override
+    protected CohereEmbeddingsTaskSettings doParseInstance(XContentParser parser) throws IOException {
+        return CohereEmbeddingsTaskSettings.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

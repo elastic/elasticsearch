@@ -147,6 +147,39 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /** Per-trace sample rate applied to locally-started traces.*/
+    public static final Setting<Double> TELEMETRY_OTEL_TRACES_SAMPLE_RATE = Setting.doubleSetting(
+        "telemetry.otel.traces.sample_rate",
+        0.001,
+        0.0,
+        1.0,
+        NodeScope
+    );
+
+    /** Maximum number of spans the {@code BatchSpanProcessor} buffers before dropping.*/
+    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE = Setting.intSetting(
+        "telemetry.otel.traces.batch.max_queue_size",
+        1024,
+        1,
+        NodeScope
+    );
+
+    /** Maximum number of spans exported per OTLP batch. Must be {@code <= max_queue_size}. */
+    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE = Setting.intSetting(
+        "telemetry.otel.traces.batch.max_export_batch_size",
+        512,
+        1,
+        NodeScope
+    );
+
+    /** Per-batch deadline the {@code BatchSpanProcessor} gives the exporter before timing out. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.traces.batch.export_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMillis(1),
+        NodeScope
+    );
+
     /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
         "telemetry.otel.flush_timeout",

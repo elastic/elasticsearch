@@ -64,6 +64,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/traces")
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.getKey(), "1ms")
+            .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE.getKey(), 1.0)
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, () -> meterProvider)) {
             // Start and end a span so BatchSpanProcessor registers its queue metrics.

@@ -118,6 +118,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         Settings tracerSettings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/traces")
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.getKey(), "1ms")
+            .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE.getKey(), 1.0)
             .build();
         try (var tracerSupplier = new OtelSdkExportTracerSupplier(tracerSettings, meterSupplier::getMeterProvider)) {
             var span = tracerSupplier.get().getTracer("test").spanBuilder("test").startSpan();

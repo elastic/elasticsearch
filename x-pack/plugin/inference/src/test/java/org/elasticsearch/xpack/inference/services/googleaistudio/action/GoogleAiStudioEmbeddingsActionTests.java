@@ -31,10 +31,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioResponseHandler;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.services.googleaistudio.response.GoogleAiStudioEmbeddingsResponseEntity;
 import org.junit.After;
 import org.junit.Before;
 

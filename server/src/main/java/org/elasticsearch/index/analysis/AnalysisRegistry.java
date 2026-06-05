@@ -1275,16 +1275,21 @@ public final class AnalysisRegistry implements Closeable {
      * token always rebuilds (internal / direct callers). A subsequent reload request carries a new
      * token and rebuilds once again, so an explicit reload still re-reads the resource.
      */
-    public void reloadAnalyzerInPlace(IndexSettings indexSettings, NamedAnalyzer currentReference, Object reloadToken) throws IOException {
+    public void reloadAnalyzerInPlace(IndexSettings indexSettings, String name, NamedAnalyzer currentReference, Object reloadToken)
+        throws IOException {
         ReloadableCustomAnalyzer reloadable = (ReloadableCustomAnalyzer) currentReference.analyzer();
-        if (reloadable.tryClaimReload(reloadToken) == false) {
-            // Another index sharing this exact instance already reloaded it for this request.
-            return;
-        }
-        String name = currentReference.name();
+        // Look up the recipe under {@code name} — the requesting index's LOCAL analyzer name — rather
+        // than {@code currentReference.name()}: a shared analyzer keeps the name of whichever index
+        // built it first, which need not match this index's name for the same recipe. Using the
+        // embedded name would read the wrong (or a missing) settings group for every other sharer.
         Settings analyzerSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_ANALYZER).get(name);
         if (analyzerSettings == null) {
-            // No recipe — reloadable analyzers always have one. Bail.
+            // No recipe under this index's local name — reloadable analyzers always have one. Bail
+            // WITHOUT claiming the token, so a sharer that does carry the recipe can still reload it.
+            return;
+        }
+        if (reloadable.tryClaimReload(reloadToken) == false) {
+            // Another index sharing this exact instance already reloaded it for this request.
             return;
         }
         Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);

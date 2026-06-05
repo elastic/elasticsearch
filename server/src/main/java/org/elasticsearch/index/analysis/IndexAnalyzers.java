@@ -194,9 +194,12 @@ public interface IndexAnalyzers extends Closeable {
                 Object reloadToken
             ) throws IOException {
 
-                List<NamedAnalyzer> reloadableAnalyzers = analyzers.values()
+                // Keep the local analyzer name (the map key): a shared ReloadableCustomAnalyzer keeps
+                // the name of whichever index built it first, so reloadAnalyzerInPlace must look the
+                // recipe up under THIS index's name, not the shared instance's embedded name.
+                List<Map.Entry<String, NamedAnalyzer>> reloadableAnalyzers = analyzers.entrySet()
                     .stream()
-                    .filter(a -> a.analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
+                    .filter(e -> e.getValue().analyzer() instanceof ReloadableCustomAnalyzer ra && ra.usesResource(resource))
                     .toList();
 
                 if (reloadableAnalyzers.isEmpty()) {
@@ -222,12 +225,12 @@ public interface IndexAnalyzers extends Closeable {
                     // In-place mutation makes every sharer converge to the same up-to-date state,
                     // which matches user expectations for resource-driven reloads. The reloadToken
                     // makes a shared instance rebuild once per request, not once per sharing index.
-                    for (NamedAnalyzer analyzer : reloadableAnalyzers) {
-                        registry.reloadAnalyzerInPlace(indexSettings, analyzer, reloadToken);
+                    for (Map.Entry<String, NamedAnalyzer> entry : reloadableAnalyzers) {
+                        registry.reloadAnalyzerInPlace(indexSettings, entry.getKey(), entry.getValue(), reloadToken);
                     }
                 }
 
-                return reloadableAnalyzers.stream().map(NamedAnalyzer::name).toList();
+                return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };
     }

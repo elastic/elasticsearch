@@ -22,6 +22,7 @@ import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedCom
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.action.downsample.DownsamplingOperations;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
@@ -1038,6 +1039,7 @@ class NodeConstruction {
         final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
 
         final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+        final DownsamplingOperations downsamplingOperations = DownsamplingOperations.load(pluginsService);
 
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -1069,7 +1071,8 @@ class NodeConstruction {
             remoteTransportClient,
             crossProjectModeDecider,
             taskLifecycleManager,
-            dlmErrorStore
+            dlmErrorStore,
+            downsamplingOperations
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

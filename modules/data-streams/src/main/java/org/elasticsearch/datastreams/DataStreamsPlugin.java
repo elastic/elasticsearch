@@ -25,6 +25,7 @@ import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.downsample.DownsamplingOperations;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -207,6 +208,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
             new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
 
+        // TODO: not used but wired for follow up PR
+        DownsamplingOperations downsamplingOperations = services.downsamplingOperations();
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,

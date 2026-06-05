@@ -3024,6 +3024,12 @@ public class EsqlCapabilities {
         EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Fix TopN encoding/decoding of {@code long_range} values.
+         * <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>
+         */
+        FIX_TOPN_LONG_RANGE_ENCODING(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */

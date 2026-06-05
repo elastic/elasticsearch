@@ -8,11 +8,17 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -22,6 +28,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,13 +38,44 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
+
+    /**
+     * Regression guard for the promcheck "Unknown column [label]" failures: {@code sum by (<absent>) (metric)}
+     * must drop the absent grouping label rather than emit a dangling reference. Strict {@link UnmappedResolution#DEFAULT}
+     * is used on purpose; the lenient {@code NULLIFY} mode most PromQL tests run with hides the dangling reference.
+     */
+    public void testGroupByAbsentLabelIsDropped() {
+        var analyzed = analyzerWithEnrichPolicies().addK8s()
+            .unmappedResolution(UnmappedResolution.DEFAULT)
+            .query("PROMQL index=k8s step=1m result=(sum by (missing_label) (network.bytes_in))");
+        var optimized = logicalOptimizer.optimize(analyzed);
+        assertThat(outputColumns(optimized), equalTo(List.of("result", "step")));
+        assertNoUnresolvedAttributes(optimized);
+    }
+
+    /**
+     * A grouping label that collides with a metric field of the same name is not a real label, so it must be
+     * dropped: the output carries only result and step, not a {@code name} column derived from the counter.
+     * The grouping-key assertion is the stronger guard: the projection alone could be sanitized downstream, but
+     * grouping the aggregate by a metric value would silently change the result, so {@code name} must not appear
+     * as a grouping key either.
+     */
+    public void testGroupByMetricNamedLabelIsDropped() {
+        var plan = planPromqlMetricNamedLabel("PROMQL index=metrics step=30s result=(sum by (name) (container_cpu_usage_seconds_total))");
+        assertThat(outputColumns(plan), equalTo(List.of("result", "step")));
+        assertThat(groupingKeyNames(plan), not(hasItem("name")));
+    }
 
     public void testRangeSelector() {
         var plan = planPromql("PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )");
@@ -214,6 +253,39 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     private static List<String> outputColumns(LogicalPlan plan) {
         return plan.output().stream().map(a -> a.name()).toList();
+    }
+
+    /** An index with a metric field named {@code name}, so a {@code by (name)} clause collides with a metric. */
+    private LogicalPlan planPromqlMetricNamedLabel(String query) {
+        var index = new EsIndex(
+            "metrics",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "name",
+                new EsField("name", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+                "container_cpu_usage_seconds_total",
+                new EsField("container_cpu_usage_seconds_total", DataType.COUNTER_LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC)
+            ),
+            Map.of("metrics", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = analyzerWithEnrichPolicies().addIndex(index).unmappedResolution(UnmappedResolution.NULLIFY).query(query);
+        return logicalOptimizer.optimize(analyzed);
+    }
+
+    /** Names of every attribute referenced by any aggregate's grouping keys (covers {@link TimeSeriesAggregate}). */
+    private static List<String> groupingKeyNames(LogicalPlan plan) {
+        List<String> names = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> agg.groupings().forEach(g -> g.forEachDown(Attribute.class, a -> names.add(a.name()))));
+        return names;
+    }
+
+    private static void assertNoUnresolvedAttributes(LogicalPlan plan) {
+        List<String> unresolved = new ArrayList<>();
+        plan.forEachDown(lp -> lp.forEachExpressionDown(UnresolvedAttribute.class, u -> unresolved.add(u.name())));
+        assertThat("plan still references unresolved attributes", unresolved, empty());
     }
 
     private static List<LastOverTime> collectInnerLastOverTimes(LogicalPlan plan) {

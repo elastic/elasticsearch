@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -332,9 +333,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * lowered to expressions and folded into the aggregate.
      */
     private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+        // Keep only real labels: an absent label is unresolved (no FieldAttribute) and a metric value is not a label.
+        // Grouping on either would reference a column the plan can't produce or split series by a metric value.
+        List<Attribute> groupings = agg.groupings()
+            .stream()
+            .filter(a -> a instanceof FieldAttribute field && field.isMetric() == false)
+            .toList();
         LabelSetSpec importAggregateLabels = switch (agg.grouping()) {
-            case BY -> LabelSetSpec.of(agg.groupings(), ctx.labelSetSpec.excluded());
-            case WITHOUT -> LabelSetSpec.without(ctx.labelSetSpec, agg.groupings());
+            case BY -> LabelSetSpec.of(groupings, ctx.labelSetSpec.excluded());
+            case WITHOUT -> LabelSetSpec.without(ctx.labelSetSpec, groupings);
             case NONE -> LabelSetSpec.none();
         };
 
@@ -349,9 +356,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         LabelSetSpec exportAggregateLabels = switch (agg.grouping()) {
             case BY -> LabelSetSpec.by(
                 childResult.labelSetSpec,
-                resolvePromqlLabelReferences(agg.groupings(), childResult.labelSetSpec.declared())
+                resolvePromqlLabelReferences(groupings, childResult.labelSetSpec.declared())
             );
-            case WITHOUT -> LabelSetSpec.without(childResult.labelSetSpec, agg.groupings());
+            case WITHOUT -> LabelSetSpec.without(childResult.labelSetSpec, groupings);
             case NONE -> LabelSetSpec.none();
         };
 

@@ -52,7 +52,7 @@ public class EsqlCCSUtils {
     static Map<String, List<FieldCapabilitiesFailure>> groupFailuresPerCluster(List<FieldCapabilitiesFailure> failures) {
         Map<String, List<FieldCapabilitiesFailure>> perCluster = new HashMap<>();
         for (FieldCapabilitiesFailure failure : failures) {
-            String cluster = RemoteClusterAware.parseClusterAlias(failure.getIndices()[0]);
+            String cluster = RemoteClusterAware.splitIndexName(failure.getIndices()[0]).getClusterGroupingKey();
             perCluster.computeIfAbsent(cluster, k -> new ArrayList<>()).add(failure);
         }
         return perCluster;
@@ -237,12 +237,12 @@ public class EsqlCCSUtils {
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getRunningClusterAliases().collect(toSet());
         for (IndexResolution indexResolution : indexResolutions) {
             for (String indexName : indexResolution.resolvedIndices()) {
-                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
             }
         }
         for (IndexResolution indexResolution : linkedResolution) {
             for (String indexName : indexResolution.resolvedIndices()) {
-                clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
+                clustersWithNoMatchingIndices.remove(RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey());
             }
         }
         /*
@@ -305,7 +305,7 @@ public class EsqlCCSUtils {
             if (indexResolution.isValid()
                 && indexResolution.resolvedIndices().isEmpty()
                 && concreteIndexRequested(indexResolution.get().name())) {
-                String clusterAlias = RemoteClusterAware.parseClusterAlias(indexResolution.get().name());
+                String clusterAlias = RemoteClusterAware.splitIndexName(indexResolution.get().name()).getClusterGroupingKey();
                 // Already handled
                 if (clustersWithNoMatchingIndices.contains(clusterAlias) || executionInfo.getCluster(clusterAlias) == null) {
                     continue;

@@ -184,16 +184,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         return textSearchInfo;
     }
 
-    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
         if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
         }
 
-        if (indexMode.isStrictColumnar()) {
-            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
         }
 
-        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
     }
 
     private static KeywordFieldMapper toType(FieldMapper in) {
@@ -291,7 +292,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.script.precludesParameters(nullValue);
 
             this.docValuesParameters = DocValuesParameter.ofWithCardinality(
-                defaultDocValuesParameters(indexSettings.getMode()),
+                defaultDocValuesParameters(indexSettings),
                 m -> toType(m).docValuesParameters()
             );
 
@@ -358,14 +359,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
             this.docValuesParameters.setValue(
-                hasDocValues ? defaultDocValuesParameters(indexSettings.getMode()) : DocValuesParameter.Values.DISABLED
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
             );
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
             this.docValuesParameters.setValue(
-                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings.getMode()).multiValue())
+                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings).multiValue())
             );
             return this;
         }

@@ -32,9 +32,9 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
      * @param childFilter      filter applied to child hits
      * @param parentsFilter    bit set of parent documents for join diversification
      * @param visitRatio       IVF visit ratio
+     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField       index-sort slice field (e.g. {@code _routing})
      * @param sliceId          slice term to restrict the search doc id space
-     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
         String field,
@@ -45,11 +45,11 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         BitSetProducer parentsFilter,
         float visitRatio,
         boolean doPrecondition,
+        float overSampleFactor,
         String sliceField,
-        BytesRef sliceId,
-        float overSampleFactor
+        BytesRef sliceId
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId, overSampleFactor);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, overSampleFactor, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

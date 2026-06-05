@@ -470,9 +470,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleSamplingMode
   issue: https://github.com/elastic/elasticsearch/issues/150478
-- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
-  method: testLegacyFormatInferenceIdUpdate
-  issue: https://github.com/elastic/elasticsearch/issues/150481
 - class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
   method: testRefreshesAreBlockedUntilBlockIsRemoved
   issue: https://github.com/elastic/elasticsearch/issues/150492
@@ -650,3 +647,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testRateGroupBySubset
   issue: https://github.com/elastic/elasticsearch/issues/150867
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:topN.topNLongRangeWildcardSort}
+  issue: https://github.com/elastic/elasticsearch/issues/150874
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotReadFromObjectStore
+  issue: https://github.com/elastic/elasticsearch/issues/150883
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/150884

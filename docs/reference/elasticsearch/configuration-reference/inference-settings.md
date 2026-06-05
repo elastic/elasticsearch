@@ -14,7 +14,7 @@ $$$inference-settings-description$$$
 You do not need to configure any settings to use the {{infer}} APIs. Each setting has a default.
 
 
-### Inference API logging settings [xpack-inference-logging]
+## {{infer-cap}} logging settings [xpack-inference-logging]
 
 When certain failures occur, a log message is emitted. In the case of a reoccurring failure the logging throttler restricts repeated messages from being logged.
 

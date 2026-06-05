@@ -5273,7 +5273,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *
      * Same pattern as {@link #testSubqueryRenameKeepOnMissingCounterFields()} but the field whose type is updated by the {@code UnionAll}
      * resolution is {@code @timestamp}, which is mapped as {@code date} in {@code sample_data} and as {@code date_nanos} in
-     * {@code sample_data_ts_nanos}. {@code ResolveUnionTypesInUnionAll} cast the two to {@code DATE_NANOS} implicitly. Rhe alias-cascade
+     * {@code sample_data_ts_nanos}. {@code ResolveUnionTypesInUnionAll} casts the two to {@code DATE_NANOS} implicitly. The alias-cascade
      * in {@code updateAttributesReferencingUpdatedUnionAllOutput} also transform that reference to {@code DATE_NANOS} for the plan to stay
      * consistent.
      */

@@ -18,8 +18,10 @@ import org.junit.rules.TestRule;
  *
  * Activated by setting the JVM system property {@code telemetry.otel.traces.enabled=true}.
  * Spans are exported via {@code SdkTracerProvider} + OTLP HTTP, bypassing the Elastic APM
- * Java agent. Child-span filtering and stack-trace suppression are enforced by ES code in
- * {@code APMTracer} when {@code maxChildSpans=0} and {@code stackTraceLimit=0} (the defaults).
+ * Java agent. Child-span filtering is enforced by ES code in {@code APMTracer} when
+ * {@code telemetry.otel.traces.max_trace_depth=0} (the default). Exception-stack suppression
+ * is enforced by the same code when {@code telemetry.otel.traces.record_exception_stacks=false}
+ * (the default); see {@code APMTracerTests} for coverage of that branch.
  */
 public class OtelSdkTracesIT extends AbstractTracesIT {
 

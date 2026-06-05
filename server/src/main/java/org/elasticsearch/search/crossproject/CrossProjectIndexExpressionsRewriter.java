@@ -87,8 +87,8 @@ public class CrossProjectIndexExpressionsRewriter {
             return;
         }
 
-        String[] splitResource = RemoteClusterAware.splitIndexName(indexExpression);
-        String requestedProjectAlias = splitResource[0];
+        var splitResource = RemoteClusterAware.splitIndexName(indexExpression);
+        String requestedProjectAlias = splitResource.clusterAlias();
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         if (isExclusionExpression(requestedProjectAlias)) {
             requestedProjectAlias = requestedProjectAlias.substring(1);
@@ -136,8 +136,8 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> allProjectAliases,
         @Nullable String projectRouting
     ) {
-        String[] splitResource = CrossProjectIndexResolutionValidator.splitQualifiedResource(resource);
-        String requestedProjectAlias = splitResource[0];
+        var splitResource = RemoteClusterAware.splitIndexName(resource);
+        String requestedProjectAlias = splitResource.clusterAlias();
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         boolean isExclusion = false;
         if (isExclusionExpression(requestedProjectAlias)) {
@@ -146,7 +146,7 @@ public class CrossProjectIndexExpressionsRewriter {
             isExclusion = true;
         }
 
-        final String indexExpression = splitResource[1];
+        final String indexExpression = splitResource.indexExpression();
         if (RemoteClusterAware.isRemoteIndexName(indexExpression)) {
             throw new InvalidIndexNameException(resource, "index expression cannot contain project qualifiers (no cross-project chaining)");
         }

@@ -184,7 +184,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.WRITE, ThreadPool.Names.SYSTEM_WRITE);
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.WRITE,
+            ThreadPool.Names.SYSTEM_WRITE,
+            ThreadPool.Names.SYSTEM_CRITICAL_WRITE
+        );
         var pressureExpansionTracker = indexingPressure.trackPrimaryOperationExpansion(
             primaryOperationCount(request),
             getMaxOperationMemoryOverhead(request),

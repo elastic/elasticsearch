@@ -21,35 +21,47 @@ import java.io.IOException;
 /**
  * ALP (Adaptive Lossless floating-Point) transform stage for doubles.
  *
- * <p>Applied when the block can be losslessly encoded as integer mantissas using a
- * shared exponent pair {@code (e, f)} such that {@code encoded = round(v * 10^e * 10^-f)}
- * and {@code v == encoded * 10^f * 10^-e} bit-for-bit. Mantissa positions whose round
- * trip fails become exceptions stored verbatim in metadata; the mantissa slot is filled
- * with the previous value (or zero at position 0) so the downstream bit-pack does not
- * absorb an outlier. Blocks with no bit-width reduction or too many exceptions are
- * skipped so the downstream pipeline sees the original sortable-longs unchanged.
+ * <h2>Effectiveness</h2>
+ * <p>Applied when the block can be losslessly encoded as integer mantissas using a shared
+ * exponent pair {@code (e, f)} such that {@code encoded = round(v * 10^e * 10^-f)} and
+ * {@code v == encoded * 10^f * 10^-e} bit-for-bit. Values whose round trip fails become
+ * exceptions stored verbatim in metadata; the mantissa slot is filled with the previous
+ * value (or zero at position 0) so the downstream bit-pack does not absorb an outlier.
+ * Skipped up front when the integer baseline already compresses the block to ~1 bit per
+ * value (near-constant-stride detector), and after search when no positive bit-width
+ * reduction is achievable or the exception count exceeds the per-block budget.
  *
- * <p>The dominant per-block cost is the {@code (e, f)} search. This stage holds the
- * cross-block cache that keeps it off the steady-state path: the previous winner is
- * validated against the new block with a single {@link AlpDoubleUtils#countExceptions}
- * pass against both the 5% freshness threshold and the cached dynamic threshold. On
- * cache miss the search runs via {@link AlpDoubleUtils#findBestEFForBlock}.
+ * <p>The dominant per-block cost is the {@code (e, f)} search. The stage caches the
+ * previous block's winner and revalidates with one {@link AlpDoubleUtils#countExceptions}
+ * pass against a 5% freshness threshold and the cached dynamic threshold. On cache miss
+ * the search runs via {@link AlpDoubleUtils#findBestEFForBlock}.
  *
- * <p>Example: a sensor block {@code [22.5, 22.7, 22.6, ...]} encodes with {@code e=1,
- * f=0} into integer mantissas {@code [225, 227, 226, ...]} that downstream
+ * <h2>Example</h2>
+ * <p>A sensor block {@code [22.5, 22.7, 22.6, ...]} encodes with {@code e=1, f=0} into
+ * integer mantissas {@code [225, 227, 226, ...]} that downstream
  * {@code offset > gcd > bitPack} compress aggressively.
  *
- * <p>Metadata layout (stage metadata section):
+ * <h2>Metadata layout</h2>
+ * <p>Written to the stage metadata section (see {@link org.elasticsearch.index.codec.tsdb.pipeline.BlockFormat}):
  * <pre>
- *   byte(e), byte(f), VInt(excCount), excCount * (VInt(position), Long(originalSortableLong))
+ *   +----------+----------+-----------------+--------------------------------------------+
+ *   | byte(e)  | byte(f)  | VInt(excCount)  | excCount * (VInt(pos), Long(sortableLong)) |
+ *   | 1 byte   | 1 byte   | 1-5 bytes       | 9-13 bytes per exception                   |
+ *   +----------+----------+-----------------+--------------------------------------------+
  * </pre>
+ * <p>Exception positions are stored as absolute VInts (1-2 bytes typical for block sizes
+ * up to 16K); exception values are 8-byte sortable longs. The trailing section is empty
+ * when the chosen {@code (e, f)} round-trips every value.
  *
- * <p>TODO: positions are stored as absolute VInts. Delta-encoding consecutive positions
- * could save metadata on blocks with clustered exceptions (e.g. a sensor pegged to NaN
- * for a run), but adds encode/decode work on every block and only pays off above a
- * data-dependent exception-count threshold. Worth evaluating with a dedicated
- * burst-exception storage row before changing the wire format.
+ * <h2>Wire format note</h2>
+ * <p>{@link StageId#ALP_DOUBLE_STAGE} = {@code 0x05} is permanent from this point on;
+ * once a segment carries the byte the layout above is fixed. Delta-encoding consecutive
+ * positions could save metadata on blocks with clustered exceptions (e.g. a sensor pegged
+ * to NaN for a run) but adds encode/decode work on every block and only pays off above a
+ * data-dependent exception-count threshold; worth evaluating with a dedicated
+ * burst-exception storage row before changing the format.
  *
+ * <h2>Thread safety</h2>
  * <p>Not thread-safe: scratch state is allocated once in the constructor and reused
  * across blocks. Each pipeline must own its own instance.
  */

@@ -61,7 +61,7 @@ If you never sort or aggregate on a field, disable [`doc_values`](/reference/ela
 
 ### Know your circuit breaker limits
 
-{{esql}} enforces memory limits through [circuit breakers](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql). When a query exceeds the limit, the cluster rejects it to protect node stability. High-cardinality aggregations are the most common trigger. If you see circuit breaker errors, refer to [Avoid high-cardinality STATS BY](#avoid-high-cardinality-stats-by).
+{{esql}} enforces memory limits through [circuit breakers](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql). When a query exceeds the limit, the cluster rejects it to protect node stability. High-cardinality aggregations are the most common trigger. To learn more, refer to [Avoid high-cardinality STATS BY](#avoid-high-cardinality-stats-by).
 
 ## Common anti-patterns
 

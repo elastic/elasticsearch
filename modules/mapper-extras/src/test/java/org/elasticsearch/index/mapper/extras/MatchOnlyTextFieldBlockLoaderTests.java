@@ -33,10 +33,12 @@ public class MatchOnlyTextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestC
             return valuesInSortedOrder(value);
         }
 
-        // Without doc values, synthetic source reconstructs the field from a per-field fallback. Multi fields don't get that fallback,
-        // so nothing can be loaded for them; the binary fallback returns sorted order while the stored fallback preserves source order.
+        // Without doc values, a genuinely synthetic source reconstructs the field from a per-field fallback. Multi fields don't get that
+        // fallback, so nothing can be loaded for them. Columnar-stored source, by contrast, keeps a real stored _source blob, so a multi
+        // field still resolves to its parent's reconstructed value. Either way the binary fallback returns sorted order while the stored
+        // fallback preserves source order.
         if (params.syntheticSource() || params.isColumnarStored()) {
-            if (testContext.isMultifield()) {
+            if (testContext.isMultifield() && params.syntheticSource()) {
                 return null;
             }
             return params.binaryDocValues() ? valuesInSortedOrder(value) : valuesInSourceOrder(value);

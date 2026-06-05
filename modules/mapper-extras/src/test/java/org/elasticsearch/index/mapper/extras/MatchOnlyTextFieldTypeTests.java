@@ -81,6 +81,13 @@ import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
+    // Doc values disabled, the match_only_text default; HIGH cardinality and multiValue are irrelevant when enabled is false.
+    private static final FieldMapper.DocValuesParameter.Values DOC_VALUES_DISABLED = new FieldMapper.DocValuesParameter.Values(
+        false,
+        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+        true
+    );
+
     public void testTermQuery() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
@@ -260,7 +267,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -286,7 +293,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -319,7 +326,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -370,7 +377,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -424,7 +431,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -463,7 +470,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
@@ -515,7 +522,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -543,7 +550,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -571,7 +578,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            new FieldMapper.DocValuesParameter.Values(false, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
+            DOC_VALUES_DISABLED
         );
 
         // when

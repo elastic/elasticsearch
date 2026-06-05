@@ -17,6 +17,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * Coordinator-only, in-memory cache service for external source metadata.
@@ -119,30 +121,30 @@ public class ExternalSourceCacheService implements Closeable {
             }
             // Classify each wire blob into a SourceStatsContribution, then route through an
             // exhaustive switch — a new contribution kind is a compile error here until its handling
-            // is written, rather than a silent fall-through to the summable-partial default (the
-            // class of bug that produced the SKIP_ROW-poison, fingerprint, and whole-file-double-count
-            // regressions). WholeFile and PartialChunk carry stats; Poison and Finalize are gate-only.
+            // is written, rather than a silent fall-through. WholeFile and PartialChunk carry stats;
+            // Poison is gate-only.
             boolean poisoned = false;
-            boolean finalized = false;
-            List<Map<String, Object>> wholeFile = new ArrayList<>(contributions.size());
-            List<Map<String, Object>> partials = new ArrayList<>(contributions.size());
+            List<SourceStatsContribution.WholeFile> wholeFile = new ArrayList<>(contributions.size());
+            // Coverage-addressed partial chunks. Each carries the file byte-range it observed; the
+            // reconciler unions them by range, so disjoint ranges (parallel chunks, macro-splits,
+            // splits across nodes) sum while a range re-observed by another scan of the same file (a
+            // sibling FORK branch, a schema-probe pass, a retry) is counted once. No scan/finalize
+            // counting — "which bytes" is intrinsic, "how many reads" is an implementation detail.
+            List<SourceStatsContribution.PartialChunk> partials = new ArrayList<>(contributions.size());
             for (Map<String, Object> raw : contributions) {
                 switch (SourceStatsContribution.classify(raw)) {
                     case SourceStatsContribution.Poison ignored -> poisoned = true;
-                    case SourceStatsContribution.Finalize ignored -> finalized = true;
-                    case SourceStatsContribution.WholeFile wf -> wholeFile.add(wf.stats());
-                    case SourceStatsContribution.PartialChunk pc -> partials.add(pc.stats());
+                    case SourceStatsContribution.WholeFile wf -> wholeFile.add(wf);
+                    case SourceStatsContribution.PartialChunk pc -> partials.add(pc);
                 }
             }
-            // A poisoned file (a chunk dropped rows mid-scan) is discarded entirely. Partial chunks
-            // partition the file, so they may only be summed once a finalize marker proves the whole
-            // file completed — a partial-only set risks under-counting COUNT(*).
-            if (poisoned || (partials.isEmpty() == false && finalized == false)) {
+            // A poisoned file (a chunk dropped rows mid-scan) is discarded entirely.
+            if (poisoned) {
                 continue;
             }
             Map<String, Object> mergedForFile = mergeContributions(wholeFile, partials);
             if (mergedForFile == null || mergedForFile.isEmpty()) {
-                logger.debug("dropping captured stats for [{}]: {} partial(s) produced no merged output", e.getKey(), partials.size());
+                logger.debug("dropping captured stats for [{}]: no complete cover after coverage union", e.getKey());
                 continue;
             }
             merged.put(e.getKey(), mergedForFile);
@@ -152,37 +154,113 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Combines a file's stats-bearing contributions into a single merged map, or {@code null} when
-     * there is nothing to commit. A whole-file read is authoritative and never summed: each such
-     * contribution already reports the file's full row count (text readers apply no scan-time filter,
-     * and a whole-file read is the first+last split with no parallel slicing). Duplicate whole-file
-     * contributions can legitimately differ on column-stats coverage, however — a schema-probe pass
-     * may track a narrower set of columns than the data scan — so we union those keys via
-     * {@link #mergeWholeFileContributions} rather than dropping the broader-coverage entry. Only
-     * partial chunks, which partition the file, are summed via {@code mergeStatistics}; that
-     * rebuilds the map from scratch retaining only the {@code _stats.*} keys, so MTIME_MILLIS_KEY
-     * (to match the SchemaCacheEntry) and CONFIG_FINGERPRINT_KEY (to disambiguate
-     * {@code WITH}-option variants) are re-attached from a chunk — all chunks of a file share one
-     * pinned mtime and fingerprint.
+     * there is nothing committable. A whole-file read is authoritative and never summed: each already
+     * reports the file's full row count, so duplicates (e.g. a schema-probe pass that tracks fewer
+     * columns than the data scan) are unioned via {@link #mergeWholeFileContributions}. Partial chunks
+     * are reconciled by <em>coverage</em>: {@link #foldCoveredPartials} unions them by byte range, so
+     * a range re-observed by another scan of the same file is counted once while disjoint ranges sum —
+     * and only commits when the ranges tile {@code [0, end)} with a flagged tail.
      */
-    private static Map<String, Object> mergeContributions(List<Map<String, Object>> wholeFile, List<Map<String, Object>> partials) {
+    private static Map<String, Object> mergeContributions(
+        List<SourceStatsContribution.WholeFile> wholeFile,
+        List<SourceStatsContribution.PartialChunk> partials
+    ) {
         if (wholeFile.isEmpty() == false) {
+            // A whole-file read is authoritative for the whole file; partial chunks (if any arrived
+            // alongside) add nothing and must not be summed on top.
             return mergeWholeFileContributions(wholeFile);
         }
+        return foldCoveredPartials(partials);
+    }
+
+    /**
+     * Re-serializes a typed contribution back to the flat {@code _stats.*} wire map. This is the one
+     * boundary where the reconciler hands typed statistics to the shared, cross-format map-based
+     * merger ({@link SourceStatisticsSerializer#mergeStatistics}) and to the schema cache, both of
+     * which speak the flat map. Re-attaches the keying fields (mtime, config fingerprint) that live
+     * outside {@link SourceStatistics}.
+     */
+    private static Map<String, Object> toFlatMap(SourceStatistics stats, long mtimeMillis, String configFingerprint) {
+        Map<String, Object> base = new HashMap<>();
+        if (mtimeMillis >= 0) {
+            base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+        }
+        if (configFingerprint != null) {
+            base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, configFingerprint);
+        }
+        return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
+    }
+
+    /**
+     * Reconciles partial chunks by coverage. Deduplicates contributions that observed the same byte
+     * range (a range seen by more than one scan of the file is counted once), verifies the distinct
+     * ranges tile {@code [0, end)} contiguously with the final range flagged last (an incomplete or
+     * overlapping cover is not cacheable, so the warm query just re-scans — never a wrong answer),
+     * then folds the disjoint ranges: {@code mergeStatistics} sums row/null/byte counts and takes the
+     * extreme for min/max. Returns {@code null} when the cover is incomplete or un-addressable.
+     */
+    private static Map<String, Object> foldCoveredPartials(List<SourceStatsContribution.PartialChunk> partials) {
         if (partials.isEmpty()) {
             return null;
         }
-        if (partials.size() == 1) {
-            return partials.get(0);
-        }
-        Map<String, Object> mergedForFile = SourceStatisticsSerializer.mergeStatistics(partials);
-        if (mergedForFile != null) {
-            Object mtime = partials.get(0).get(ExternalStats.MTIME_MILLIS_KEY);
-            if (mtime != null) {
-                mergedForFile.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+        // Union by start offset. Two partials sharing a start must share an end (same range, a
+        // re-scan duplicate) — a different end is an ambiguous overlap, so bail rather than guess.
+        TreeMap<Long, SourceStatsContribution.PartialChunk> byStart = new TreeMap<>();
+        for (SourceStatsContribution.PartialChunk pc : partials) {
+            if (pc.hasCoverage() == false) {
+                return null; // un-addressable partial (older node) — cannot prove a complete cover
             }
-            Object fingerprint = partials.get(0).get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-            if (fingerprint != null) {
-                mergedForFile.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+            SourceStatsContribution.PartialChunk existing = byStart.putIfAbsent(pc.start(), pc);
+            if (existing != null && existing.end() != pc.end()) {
+                return null;
+            }
+        }
+        // Completeness: ranges must tile [0, end) with no gap or overlap, and the final range must be
+        // flagged last (it observed end-of-input). Intermediate last-flags — e.g. the tail segment of a
+        // non-final macro-split — are harmless; only the highest-offset range's flag is read.
+        long expectedStart = 0;
+        List<SourceStatsContribution.PartialChunk> distinct = new ArrayList<>(byStart.size());
+        for (SourceStatsContribution.PartialChunk pc : byStart.values()) {
+            if (pc.start() != expectedStart) {
+                return null; // gap or overlap — not a clean tiling
+            }
+            expectedStart = pc.end();
+            distinct.add(pc);
+        }
+        SourceStatsContribution.PartialChunk lastRange = distinct.get(distinct.size() - 1);
+        if (lastRange.last() == false) {
+            return null; // never observed end-of-input — partial cover, do not cache
+        }
+        return foldDistinctRanges(distinct);
+    }
+
+    /**
+     * Folds the disjoint, distinct coverage ranges of one complete cover into a single merged map.
+     * The sum/extreme arithmetic is delegated to the shared {@link SourceStatisticsSerializer#mergeStatistics}
+     * (the same algorithm Parquet's multi-row-group merge uses), so each range's typed statistics are
+     * re-serialized to the flat wire map here — the one place the reconciler touches that map.
+     */
+    private static Map<String, Object> foldDistinctRanges(List<SourceStatsContribution.PartialChunk> distinct) {
+        if (distinct.isEmpty()) {
+            return null;
+        }
+        SourceStatsContribution.PartialChunk first = distinct.get(0);
+        if (distinct.size() == 1) {
+            return toFlatMap(first.stats(), first.mtimeMillis(), first.configFingerprint());
+        }
+        List<Map<String, Object>> maps = new ArrayList<>(distinct.size());
+        for (SourceStatsContribution.PartialChunk pc : distinct) {
+            maps.add(toFlatMap(pc.stats(), pc.mtimeMillis(), pc.configFingerprint()));
+        }
+        Map<String, Object> mergedForFile = SourceStatisticsSerializer.mergeStatistics(maps);
+        if (mergedForFile != null) {
+            // mergeStatistics rebuilds from the _stats.* keys only; re-attach the keying fields that
+            // identify the matching schema-cache entry (all ranges of a file share one mtime+fingerprint).
+            if (first.mtimeMillis() >= 0) {
+                mergedForFile.put(ExternalStats.MTIME_MILLIS_KEY, first.mtimeMillis());
+            }
+            if (first.configFingerprint() != null) {
+                mergedForFile.put(ExternalStats.CONFIG_FINGERPRINT_KEY, first.configFingerprint());
             }
         }
         return mergedForFile;
@@ -197,14 +275,20 @@ public class ExternalSourceCacheService implements Closeable {
      * the unique value is taken; for keys present in multiple contributions the values must agree
      * (asserted) since they measure the same file under the same config.
      */
-    private static Map<String, Object> mergeWholeFileContributions(List<Map<String, Object>> wholeFile) {
-        if (wholeFile.size() == 1) {
-            return wholeFile.get(0);
+    private static Map<String, Object> mergeWholeFileContributions(List<SourceStatsContribution.WholeFile> wholeFile) {
+        // The whole-file column-union below keys off the flat _stats.* layout, so re-serialize the
+        // typed contributions to the wire map at this boundary (mirrors foldDistinctRanges).
+        List<Map<String, Object>> maps = new ArrayList<>(wholeFile.size());
+        for (SourceStatsContribution.WholeFile wf : wholeFile) {
+            maps.add(toFlatMap(wf.stats(), wf.mtimeMillis(), wf.configFingerprint()));
         }
-        Map<String, Object> base = wholeFile.get(0);
+        if (maps.size() == 1) {
+            return maps.get(0);
+        }
+        Map<String, Object> base = maps.get(0);
         Map<String, Object> merged = new HashMap<>(base);
-        for (int i = 1; i < wholeFile.size(); i++) {
-            Map<String, Object> next = wholeFile.get(i);
+        for (int i = 1; i < maps.size(); i++) {
+            Map<String, Object> next = maps.get(i);
             assert agreesWithBase(base, next)
                 : "whole-file contributions for the same file must agree on row count, mtime, and config fingerprint: "
                     + base

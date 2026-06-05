@@ -83,6 +83,19 @@ public abstract class FieldMapper extends Mapper {
         Property.ServerlessPublic
     );
 
+    /**
+     * Index-level default for the {@code doc_values.multi_value} field mapping parameter. When {@code false}, all fields in the index
+     * default to single-valued doc values (rejecting documents that supply more than one value), unless a field explicitly sets its own
+     * {@code doc_values.multi_value}. Only honoured when {@link DocValuesParameter#EXTENDED_DOC_VALUES_PARAMS_FF} is enabled.
+     */
+    public static final Setting<Boolean> DOC_VALUES_MULTI_VALUE_SETTING = Setting.boolSetting(
+        "index.mapping.doc_values.multi_value",
+        true,
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];

@@ -1011,7 +1011,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     private CentroidAssignments calculateCentroidsFullRebuildSliced(
-        ClusteringFloatVectorValues floatVectorValues,
+        KMeansFloatVectorValues floatVectorValues,
         FieldInfo fieldInfo,
         MergeState mergeState
     ) throws IOException {

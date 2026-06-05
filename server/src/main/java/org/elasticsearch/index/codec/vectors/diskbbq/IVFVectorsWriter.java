@@ -446,9 +446,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         String tempRawVectorsFileName = null;
         String docsFileName = null;
         Preconditioner preconditioner;
-        // Lucene merged FloatVectorValues is single-pass; spill vectors to a temp file for random access
-        // (clustering) without a full on-heap copy. Config is resolved before spill so preconditioning
-        // can be applied inline on the merged stream.
+        // build a float vector values with random access. In order to do that we dump the vectors to
+        // a temporary file and if the segment is not dense, the docs to another file/
         try (
             IndexOutput vectorsOut = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "ivfvec_", IOContext.DEFAULT)
         ) {
@@ -457,6 +456,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             // TODO: we only want to write this once but we'll wind up doing it for every field with the same dim and blockdim
             preconditioner = inheritPreconditioner(fieldInfo, mergeState, ivfSegmentConfig);
             mergedFloatVectorValues = preconditionVectors(preconditioner, mergedFloatVectorValues, ivfSegmentConfig);
+
+            // if the segment is dense, we don't need to do anything with docIds.
             boolean dense = mergedFloatVectorValues.size() == mergeState.segmentInfo.maxDoc();
             try (
                 IndexOutput docsOut = dense
@@ -466,6 +467,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 if (docsOut != null) {
                     docsFileName = docsOut.getName();
                 }
+                // TODO do this better, we shouldn't have to write to a temp file, we should be able to
+                // to just from the merged vector values, the tricky part is the random access.
                 numVectors = writeFloatVectorValues(fieldInfo, docsOut, vectorsOut, mergedFloatVectorValues);
                 CodecUtil.writeFooter(vectorsOut);
                 if (docsOut != null) {
@@ -486,8 +489,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             writeMeta(fieldInfo, 0, centroidOffset, 0, 0, 0, null, 0, 0, 0, 0, ivfSegmentConfig);
             return;
         }
-        // Build IVF structures from the temp spill. Reads are in increasing ordinal order, so use SEQUENTIAL
-        // advice for read-ahead in low-memory situations.
+        // now open the temp file and build the index structures. It is expected these files to be read in sequential order.
+        // Even when the file might be sample, the reads will be always in increase order, therefore we set the ReadAdvice to SEQUENTIAL
+        // so the OS can optimize read ahead in low memory situations.
         try (
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(
                 tempRawVectorsFileName,

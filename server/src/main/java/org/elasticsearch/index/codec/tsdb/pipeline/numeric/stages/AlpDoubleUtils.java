@@ -84,8 +84,18 @@ final class AlpDoubleUtils {
     /** Approximate per-exception cost in bytes: VInt position plus raw long value. */
     static final int DOUBLE_EXCEPTION_COST = 10;
 
-    /** Number of slots in the candidate {@code (e, f)} pool. */
-    static final int CAND_POOL_SIZE = 32;
+    /**
+     * Size of the direct-indexed candidate pool. {@code (e, f)} is encoded as
+     * {@code e * CAND_STRIDE + f} so the lookup is one array indexing, no
+     * hashing, no linear scan. Covers every legal pair with {@code e in [0, MAX_EXPONENT]}
+     * and {@code f in [0, e]} (and an unused upper triangle, which the search never visits).
+     */
+    static final int CAND_STRIDE = MAX_EXPONENT + 1;
+    static final int CAND_POOL_SIZE = CAND_STRIDE * CAND_STRIDE;
+
+    static int candidateKey(int e, int f) {
+        return e * CAND_STRIDE + f;
+    }
 
     /** Number of candidates evaluated against the full block during top-K selection. */
     static final int TOP_K = 5;
@@ -273,12 +283,22 @@ final class AlpDoubleUtils {
             return 0;
         }
         final int p = estimatePrecision(value, maxExponent);
+        final long valueBits = Double.doubleToRawLongBits(value);
+        // NOTE: f=0 is the common winner for decimal-friendly values; specialize so the
+        // hot path skips the redundant multiplications by POWERS_OF_TEN[0]=1.0.
         for (int e = p; e <= maxExponent; e++) {
-            for (int f = 0; f <= e; f++) {
+            final long encoded = alpRound(value * POWERS_OF_TEN[e]);
+            final double decoded = encoded * NEG_POWERS_OF_TEN[e];
+            if (valueBits == Double.doubleToRawLongBits(decoded)) {
+                return e << 16;
+            }
+        }
+        for (int e = Math.max(p, 1); e <= maxExponent; e++) {
+            for (int f = 1; f <= e; f++) {
                 final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
                 final long encoded = alpRound(value * mulFactor);
                 final double decoded = encoded * POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
-                if (Double.doubleToRawLongBits(value) == Double.doubleToRawLongBits(decoded)) {
+                if (valueBits == Double.doubleToRawLongBits(decoded)) {
                     return (e << 16) | f;
                 }
             }
@@ -298,27 +318,20 @@ final class AlpDoubleUtils {
      * {@code (e, f)} on the caller side it keeps the steady-state cost at one linear
      * pass per block.
      *
-     * <p>All scratch buffers ({@code efOut}, {@code candE}, {@code candF},
-     * {@code candCount}) are owned by the caller and must be sized to
-     * {@link #CAND_POOL_SIZE}.
+     * <p>{@code candCounts} is a direct-indexed pool sized to {@link #CAND_POOL_SIZE}
+     * where {@code candCounts[candidateKey(e, f)]} holds the sample frequency of the
+     * pair {@code (e, f)}. The lookup is one array index per sample; there is no
+     * linear scan or eviction logic. The mark-as-evaluated trick uses sign negation
+     * during top-K selection and is cleared by the {@code Arrays.fill} at the start
+     * of the next call, so no un-negate pass is needed.
      *
      * @return the exception count for the chosen {@code (e, f)}, written to
      *         {@code efOut[0]} and {@code efOut[1]}
      */
-    static int findBestEFDoubleTopK(
-        final long[] values,
-        int valueCount,
-        int maxExponent,
-        final int[] efOut,
-        final int[] candE,
-        final int[] candF,
-        final int[] candCount
-    ) {
-        for (int i = 0; i < CAND_POOL_SIZE; i++) {
-            candCount[i] = 0;
-        }
-        int poolUsed = 0;
+    static int findBestEFDoubleTopK(final long[] values, int valueCount, int maxExponent, final int[] efOut, final int[] candCounts) {
+        java.util.Arrays.fill(candCounts, 0);
 
+        boolean anyCandidate = false;
         final int step = Math.max(1, valueCount / PRE_SELECT_SAMPLE);
         for (int i = 0; i < valueCount; i += step) {
             final long sortable = values[i];
@@ -326,10 +339,11 @@ final class AlpDoubleUtils {
             final int packed = bestEFForSingleDouble(value, maxExponent);
             final int e = packed >>> 16;
             final int f = packed & 0xFFFF;
-            poolUsed = insertIntoPool(candE, candF, candCount, poolUsed, e, f);
+            candCounts[candidateKey(e, f)]++;
+            anyCandidate = true;
         }
 
-        if (poolUsed == 0) {
+        if (anyCandidate == false) {
             if (valueCount == 0) {
                 efOut[0] = -1;
                 efOut[1] = -1;
@@ -347,73 +361,37 @@ final class AlpDoubleUtils {
             }
             for (int e = minP; e <= maxExponent; e++) {
                 for (int f = 0; f <= e; f++) {
-                    poolUsed = insertIntoPool(candE, candF, candCount, poolUsed, e, f);
+                    candCounts[candidateKey(e, f)] = 1;
                 }
             }
         }
 
-        return evaluateTopK(values, valueCount, efOut, candE, candF, candCount, poolUsed);
+        return evaluateTopK(values, valueCount, efOut, candCounts);
     }
 
-    private static int insertIntoPool(final int[] candE, final int[] candF, final int[] candCount, int poolUsed, int e, int f) {
-        for (int j = 0; j < poolUsed; j++) {
-            if (candE[j] == e && candF[j] == f) {
-                candCount[j]++;
-                return poolUsed;
-            }
-        }
-        if (poolUsed < CAND_POOL_SIZE) {
-            candE[poolUsed] = e;
-            candF[poolUsed] = f;
-            candCount[poolUsed] = 1;
-            return poolUsed + 1;
-        }
-        // Pool full: evict the least-frequent entry so later samples can displace stale
-        // candidates that only appeared in early positions of the block.
-        int minIdx = 0;
-        int minCount = candCount[0];
-        for (int j = 1; j < CAND_POOL_SIZE; j++) {
-            if (candCount[j] < minCount) {
-                minCount = candCount[j];
-                minIdx = j;
-            }
-        }
-        candE[minIdx] = e;
-        candF[minIdx] = f;
-        candCount[minIdx] = 1;
-        return poolUsed;
-    }
-
-    private static int evaluateTopK(
-        final long[] values,
-        int valueCount,
-        final int[] efOut,
-        final int[] candE,
-        final int[] candF,
-        final int[] candCount,
-        int poolUsed
-    ) {
+    private static int evaluateTopK(final long[] values, int valueCount, final int[] efOut, final int[] candCounts) {
         int bestE = 0;
         int bestF = 0;
         int bestExceptions = valueCount;
 
-        for (int k = 0; k < TOP_K && k < poolUsed; k++) {
+        for (int k = 0; k < TOP_K; k++) {
             int maxIdx = -1;
-            int maxCount = -1;
-            for (int j = 0; j < poolUsed; j++) {
-                if (candCount[j] > maxCount) {
-                    maxCount = candCount[j];
-                    maxIdx = j;
+            int maxCount = 0;
+            for (int idx = 0; idx < CAND_POOL_SIZE; idx++) {
+                if (candCounts[idx] > maxCount) {
+                    maxCount = candCounts[idx];
+                    maxIdx = idx;
                 }
             }
-            if (maxIdx < 0 || maxCount <= 0) {
+            if (maxIdx < 0) {
                 break;
             }
 
-            final int e = candE[maxIdx];
-            final int f = candF[maxIdx];
-            // Negate the count to mark this candidate as evaluated without leaving the pool.
-            candCount[maxIdx] = -candCount[maxIdx];
+            final int e = maxIdx / CAND_STRIDE;
+            final int f = maxIdx % CAND_STRIDE;
+            // Negate to mark this candidate as evaluated. The next call resets the table
+            // via Arrays.fill so we do not need to restore the sign.
+            candCounts[maxIdx] = -candCounts[maxIdx];
 
             final int exceptions = countExceptions(values, valueCount, e, f);
             if (exceptions < bestExceptions) {
@@ -426,25 +404,13 @@ final class AlpDoubleUtils {
             }
         }
 
-        boolean identityEvaluated = false;
-        for (int j = 0; j < poolUsed; j++) {
-            if (candE[j] == 0 && candF[j] == 0 && candCount[j] < 0) {
-                identityEvaluated = true;
-                break;
-            }
-        }
-        if (identityEvaluated == false) {
+        // Always consider identity (0, 0) if it was not already evaluated in the top-K loop.
+        if (candCounts[candidateKey(0, 0)] >= 0) {
             final int exceptions = countExceptions(values, valueCount, 0, 0);
             if (exceptions < bestExceptions) {
                 bestExceptions = exceptions;
                 bestE = 0;
                 bestF = 0;
-            }
-        }
-
-        for (int j = 0; j < poolUsed; j++) {
-            if (candCount[j] < 0) {
-                candCount[j] = -candCount[j];
             }
         }
 

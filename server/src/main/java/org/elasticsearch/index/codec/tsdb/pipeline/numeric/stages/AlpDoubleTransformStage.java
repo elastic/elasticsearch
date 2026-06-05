@@ -90,9 +90,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
 
     private final int maxExponent;
     private final int[] efOut = new int[2];
-    private final int[] candE = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-    private final int[] candF = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-    private final int[] candCount = new int[AlpDoubleUtils.CAND_POOL_SIZE];
+    private final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] excPositions;
     private final long[] excValues;
     private int cachedE = -1;
@@ -148,7 +146,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
 
         // Cache miss: search for a new (e, f), validate against the dynamic threshold,
         // and refresh the cache before writing.
-        final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candE, candF, candCount);
+        final int bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candCounts);
         final int bestE = efOut[0];
         final int bestF = efOut[1];
 

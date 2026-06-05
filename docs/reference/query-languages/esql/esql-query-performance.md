@@ -26,7 +26,7 @@ This guide serves two audiences:
   - [Reduce what you return](#reduce-what-you-return)
   - [Avoid expensive operations](#avoid-expensive-operations)
 - If you administer clusters and need to monitor query performance fleet-wide, the following section describes the tools available:
-  - [Check query performance](#check-query-performance)
+  - [Monitor query performance](#check-query-performance)
 
 ### Check your Elastic Stack version
 
@@ -88,7 +88,7 @@ The most impactful fixes are usually: add a time range filter, add a [`WHERE`](/
 
 ## Reduce what you scan
 
-Most {{esql}} queries spend the bulk of their time reading data from disk. The fastest queries read the least data. This section covers the four levers that most directly control scan size.
+Most {{esql}} queries spend the bulk of their time reading data from disk. The fastest queries read the least data. This section covers the levers that most directly control scan size.
 
 ### Narrow the time range
 
@@ -116,7 +116,7 @@ In {{kib}}, the time picker automatically applies a time range filter. When writ
 
 ### Filter early with WHERE
 
-A [`WHERE`](/reference/query-languages/esql/commands/where.md) clause earlier in the pipeline reduces the dataset before downstream commands process it. Conditions on indexed fields such as keyword, numeric, date, or IP types are pushed down to Lucene, which skips irrelevant documents entirely.
+A [`WHERE`](/reference/query-languages/esql/commands/where.md) clause earlier in the pipeline reduces the dataset before downstream commands process it. Conditions on indexed fields such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, or `ip` types are pushed down to Lucene, which skips irrelevant documents entirely.
 
 Without a [`WHERE`](/reference/query-languages/esql/commands/where.md), {{esql}} scans every document in the matched indices:
 
@@ -157,7 +157,11 @@ FROM logs-system-*
 | STATS failures = COUNT(*) BY user.name
 ```
 
-When a query genuinely needs multiple patterns, list them explicitly with [`FROM`](/reference/query-languages/esql/commands/from.md), for example `FROM logs-system-*, logs-auth-*`.
+When a query genuinely needs multiple patterns, list them explicitly with [`FROM`](/reference/query-languages/esql/commands/from.md). For example:
+
+```esql
+FROM logs-system-*, logs-auth-*
+```
 
 ### Use TS for time series data
 
@@ -189,11 +193,11 @@ TS metrics-system.cpu-*
 
 ## Reduce what you return
 
-Every column returned has to be read from storage, serialized, and transferred. Cutting the result set, both in width and in row count, often produces large gains on wide indices.
+Every column returned has to be read from storage, serialized, and transmitted. Shrinking the result set, by returning fewer columns or rows, often produces significant gains on large indices.
 
 ### Select columns with KEEP
 
-[`KEEP`](/reference/query-languages/esql/commands/keep.md) selects which columns to return. [`DROP`](/reference/query-languages/esql/commands/drop.md) does the inverse. Without either, {{esql}} returns every field in every matching document. On wide indices with hundreds or thousands of fields, that is the single biggest source of avoidable overhead.
+[`KEEP`](/reference/query-languages/esql/commands/keep.md) selects which columns to return. [`DROP`](/reference/query-languages/esql/commands/drop.md) does the inverse. Without either, {{esql}} returns every field in every matching document. This is the single biggest source of avoidable overhead on indices with hundreds or thousands of fields.
 
 ❌ **Don't:** Return every field by default
 ```esql
@@ -213,7 +217,9 @@ FROM logs-*
 | LIMIT 100
 ```
 
+:::{tip}
 Use wildcards in [`KEEP`](/reference/query-languages/esql/commands/keep.md) sparingly. `host.*` is better than no `KEEP` at all, but `host.name` is better than `host.*` because it avoids pulling in adjacent fields.
+:::
 
 ### Cap rows with LIMIT
 
@@ -241,7 +247,7 @@ Some {{esql}} operations are intrinsically more expensive than their alternative
 
 ### Use full-text search instead of LIKE or RLIKE
 
-For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are the right fit for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators; pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
+For text search, prefer [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md), [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md), or [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) over [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) or [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike). The full-text search functions use the inverted index and are optimized for analyzed text. `LIKE` and `RLIKE` are pattern-matching operators. Pre 8.18/9.0 they are especially costly because they are not pushed down to Lucene.
 
 ❌ **Don't:** Use pattern matching on free text with [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like)
 ```esql
@@ -260,7 +266,9 @@ FROM logs-*
 
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) when the words must appear together in order. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
+:::{tip}
 To learn more about using {{esql}} for search use cases, refer to [{{esql}} for search](docs-content://solutions/search/esql-for-search.md).
+:::
 
 ### Avoid high-cardinality STATS BY
 
@@ -282,14 +290,14 @@ FROM logs-*
 ```esql
 FROM logs-*
 | WHERE @timestamp > NOW() - 1 day
-| STATS count = COUNT(*) BY url.path, user.name, bucket = DATE_TRUNC(1 hour, @timestamp)
+| STATS count = COUNT(*) BY url.path, user.name, bucket = DATE_TRUNC(1 hour, @timestamp) // Uses `url.path` instead of `url.full`, bucketed timestamps instead of raw
 ```
 
 Common reductions include: bucketing timestamps with [`DATE_TRUNC`](/reference/query-languages/esql/functions-operators/date-time-functions/date_trunc.md) or [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions/bucket.md), using `url.path` instead of `url.full`, and filtering to a known subset before the [`STATS`](/reference/query-languages/esql/commands/stats-by.md).
 
 ### Prefer fields backed by doc values
 
-{{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, numeric, `date`, and `ip` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
+{{esql}} reads field values through a block-loading system that strongly prefers [doc values](/reference/elasticsearch/mapping-reference/doc-values.md). Fields with doc values, such as `keyword`, [numeric](/reference/elasticsearch/mapping-reference/number.md), `date`, and `ip` types, are read in fast columnar batches. Fields without doc values, such as `text` and `match_only_text`, fall back to reading [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md), which requires decompressing and parsing the full JSON document per row. This applies to any operation that reads the field value, including filtering, grouping, sorting, and returning fields through [`KEEP`](/reference/query-languages/esql/commands/keep.md).
 
 When a `.keyword` subfield exists, prefer it for filtering, grouping, and returning. When one does not, filter aggressively to limit the number of documents that require `_source` reads.
 
@@ -308,12 +316,7 @@ FROM logs-*
 | STATS count = COUNT(*) BY message.keyword
 ```
 
-For free-text grouping, [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) groups similar messages automatically:
-
-```{applies_to}
-stack: preview 9.0, ga 9.1+
-serverless: ga
-```
+For free-text grouping, [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) {applies_to}`stack: preview 9.0, ga 9.1+` groups similar messages automatically:
 
 ```esql
 FROM logs-*
@@ -393,18 +396,18 @@ For large [`STATS`](/reference/query-languages/esql/commands/stats-by.md) querie
 
 Approximation is useful for exploratory analysis, dashboard panels, and high-cardinality aggregations where a close estimate is enough. Use exact aggregations when the result feeds billing, compliance, alerting, or other workflows that require precise values.
 
-## Check query performance
+## Monitor query performance
 
 Once a query is written, several tools help confirm whether it is actually fast and identify regressions over time. When reviewing query logs, scan for [common anti-patterns](#common-anti-patterns) first.
 
-- **Inspect panel**: Check one query from Discover or a dashboard.
-- **Query activity**: Find and cancel in-flight queries.
-- **Query logging**: Analyze historical slow queries.
-- **Task management API**: Monitor or cancel {{esql}} tasks from the API.
+- [**Inspect panel**](#inspect-panel-in-kib): Check a query from Discover or a dashboard.
+- [**Query activity**](#query-activity): Find and cancel in-flight queries.
+- [**Query logging**](#query-logging): Analyze historical slow queries.
+- [**Task management API**](#task-management-api): Monitor or cancel {{esql}} tasks from the API.
 
 ### Inspect panel in {{kib}}
 
-In [Discover](docs-content://explore-analyze/discover.md) or a dashboard, select **Inspect** to see the {{esql}} sent to the cluster and the `took` value, which is the server-side execution time in milliseconds. This makes it clear whether slowness comes from the query itself, the network, or {{kib}}'s rendering.
+In [Discover](docs-content://explore-analyze/discover.md) or within a [dashboard](docs-content://explore-analyze/dashboards.md), select **Inspect** to see the {{esql}} query sent to the cluster and the `took` value, which is the server-side execution time in milliseconds. This helps clarify if the root cause is the query itself, the network, or {{kib}}'s rendering.
 
 ### Query activity
 
@@ -413,7 +416,7 @@ stack: preview 9.4
 serverless: preview
 ```
 
-The **Query activity** page in {{kib}} provides a real-time view of all in-flight search work in your cluster, including {{esql}}, DSL, EQL, and SQL queries. Use it to find long-running queries, trace them back to their source in {{kib}}, and cancel them when needed. To learn more, refer to [Query activity](docs-content://deploy-manage/monitor/query-activity.md).
+The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} provides a real-time view of all in-flight search work in your cluster, including {{esql}}, DSL, EQL, and SQL queries. Use it to find long-running queries, trace them back to their source in {{kib}}, and cancel them when needed.
 
 ### Query logging
 
@@ -428,12 +431,26 @@ For clusters on earlier versions, a legacy {{esql}}-specific query log {applies_
 
 ### Task management API
 
-The task management API lets you monitor and cancel long-running {{esql}} queries through `GET _tasks?actions=*esql*&detailed` and `POST _tasks/<task_id>/_cancel`. To learn more, refer to [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md).
+The [task management API](/reference/query-languages/esql/esql-task-management.md) lets you monitor and cancel long-running {{esql}} queries.
+
+List running {{esql}} tasks:
+
+```console
+GET _tasks?actions=*esql*&detailed
+```
+
+Cancel a specific task:
+
+```console
+POST _tasks/<task_id>/_cancel
+```
 
 
 ## Related pages
 
 - [{{esql}} troubleshooting](/reference/query-languages/esql/esql-troubleshooting.md): diagnose problems and file a support case for slow queries
-- [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md): log slow DSL, EQL, KQL, and {{esql}} queries through a managed data stream
-- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): monitor and cancel long-running queries
-- [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md): trade exact results for dramatically faster aggregations on large datasets
+- [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md): trade exact results for faster aggregations on large datasets
+- [{{esql}} for search](docs-content://solutions/search/esql-for-search.md): full-text search patterns in {{esql}}
+- [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): control which fields are indexed and how
+- [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md): columnar storage for sorting, aggregations, and fast field reads
+- [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md): the original JSON document stored with each record

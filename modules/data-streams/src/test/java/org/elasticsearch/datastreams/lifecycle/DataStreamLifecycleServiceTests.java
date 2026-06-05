@@ -11,9 +11,6 @@ package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
@@ -25,37 +22,20 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -63,35 +43,20 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -104,12 +69,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskSta
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomRolloverConditions;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -124,73 +87,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class DataStreamLifecycleServiceTests extends ESTestCase {
-
-    private long now;
-    private ThreadPool threadPool;
-    private DataStreamLifecycleService dataStreamLifecycleService;
-    private List<TransportRequest> clientSeenRequests;
-    private DoExecuteDelegate clientDelegate;
-    private volatile CountDownLatch clientWaitLatch;
-    private volatile CountDownLatch invokerWaitLatch;
-    private ClusterService clusterService;
-    private final DataStreamGlobalRetentionSettings globalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        ClusterSettings.createBuiltInClusterSettings()
-    );
-
-    @Before
-    public void setupServices() {
-        threadPool = new TestThreadPool(getTestName());
-        Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
-        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
-        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        clusterService = createClusterService(threadPool, clusterSettings);
-
-        now = System.currentTimeMillis();
-        Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
-        clientSeenRequests = new CopyOnWriteArrayList<>();
-
-        final Client client = getTransportRequestsRecordingClient();
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(
-                new HashSet<>(
-                    Arrays.asList(new SameShardAllocationDecider(clusterSettings), new ReplicaAfterPrimaryActiveAllocationDecider())
-                )
-            ),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-        );
-        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
-
-        dataStreamLifecycleService = new DataStreamLifecycleService(
-            Settings.EMPTY,
-            client,
-            clusterService,
-            clock,
-            threadPool,
-            () -> now,
-            errorStore,
-            allocationService,
-            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            globalRetentionSettings
-        );
-        clientWaitLatch = null;
-        invokerWaitLatch = null;
-        clientDelegate = null;
-    }
-
-    @After
-    public void cleanup() {
-        clientSeenRequests.clear();
-        dataStreamLifecycleService.close();
-        clusterService.close();
-        threadPool.shutdownNow();
-    }
+public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceTestCase {
 
     public void testOperationsExecutedOnce() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -1500,183 +1397,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Set.of()
         );
         assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
-    }
-
-    private ClusterState downsampleSetup(ProjectId projectId, String dataStreamName, IndexMetadata.DownsampleTaskStatus status) {
-        // Base setup:
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
-        DataStream dataStream = createDataStream(
-            builder,
-            dataStreamName,
-            2,
-            settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                .put("index.routing_path", "@timestamp"),
-            DataStreamLifecycle.dataLifecycleBuilder()
-                .downsamplingRounds(List.of(new DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m"))))
-                .dataRetention(TimeValue.timeValueMillis(1))
-                .build(),
-            now
-        );
-        builder.put(dataStream);
-
-        // Update the first backing index so that is appears to have been downsampled:
-        String firstGenIndexName = dataStream.getIndices().getFirst().getName();
-        var imd = builder.get(firstGenIndexName);
-        var imdBuilder = new IndexMetadata.Builder(imd);
-        imdBuilder.settings(Settings.builder().put(imd.getSettings()).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), status).build());
-        builder.put(imdBuilder);
-
-        // Attaching state:
-        String nodeId = "localNode";
-        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
-        nodesBuilder.masterNodeId(nodeId);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).nodes(nodesBuilder).build();
-        setState(clusterService, state);
-        return state;
-    }
-
-    /*
-     * Creates a test cluster state with the given indexName. If customDataStreamLifecycleMetadata is not null, it is added as the value
-     * of the index's custom metadata named "data_stream_lifecycle".
-     */
-    private ClusterState createClusterState(ProjectId projectId, String indexName, Map<String, String> customDataStreamLifecycleMetadata) {
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .version(randomLong())
-            .settings(
-                indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 3)).put(
-                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    IndexVersion.current()
-                )
-            );
-        if (customDataStreamLifecycleMetadata != null) {
-            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customDataStreamLifecycleMetadata);
-        }
-        final var project = ProjectMetadata.builder(projectId).put(indexMetadataBuilder.build(), false).build();
-        return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
-    }
-
-    private static ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(ForceMergeRequestWrapper original) {
-        return new ForceMergeRequestWrapper(original);
-    }
-
-    private static ForceMergeRequestWrapper mutateForceMergeRequestWrapper(ForceMergeRequestWrapper original) {
-        switch (randomIntBetween(0, 4)) {
-            case 0 -> {
-                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
-                String[] originalIndices = original.indices();
-                int changedIndexIndex;
-                if (originalIndices.length > 0) {
-                    changedIndexIndex = randomIntBetween(0, originalIndices.length - 1);
-                } else {
-                    originalIndices = new String[1];
-                    changedIndexIndex = 0;
-                }
-                String[] newIndices = new String[originalIndices.length];
-                System.arraycopy(originalIndices, 0, newIndices, 0, originalIndices.length);
-                newIndices[changedIndexIndex] = randomAlphaOfLength(40);
-                copy.indices(newIndices);
-                return copy;
-            }
-            case 1 -> {
-                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
-                copy.onlyExpungeDeletes(original.onlyExpungeDeletes() == false);
-                return copy;
-            }
-            case 2 -> {
-                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
-                copy.flush(original.flush() == false);
-                return copy;
-            }
-            case 3 -> {
-                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
-                copy.maxNumSegments(original.maxNumSegments() + 1);
-                return copy;
-            }
-            case 4 -> {
-                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
-                copy.setRequestId(original.getRequestId() + 1);
-                return copy;
-            }
-            default -> throw new AssertionError("Can't get here");
-        }
-    }
-
-    private static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
-        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
-        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
-        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
-        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
-        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
-        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
-        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
-
-        return RolloverConditions.newBuilder()
-            .addMaxIndexSizeCondition(maxSize)
-            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
-            .addMaxIndexAgeCondition(maxAge)
-            .addMaxIndexDocsCondition(maxDocs)
-            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
-            .addMinIndexSizeCondition(minSize)
-            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
-            .addMinIndexAgeCondition(minAge)
-            .addMinIndexDocsCondition(minDocs)
-            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
-            .build();
-    }
-
-    static DiscoveryNodes.Builder buildNodes(String nodeId) {
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.localNodeId(nodeId);
-        nodesBuilder.add(getNode(nodeId));
-        return nodesBuilder;
-    }
-
-    private static DiscoveryNode getNode(String nodeId) {
-        return DiscoveryNodeUtils.builder(nodeId)
-            .name(nodeId)
-            .ephemeralId(nodeId)
-            .address("host", "host_address", buildNewFakeTransportAddress())
-            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE))
-            .build();
-    }
-
-    /**
-     * This method returns a client that keeps track of the requests it has seen in clientSeenRequests. By default it does nothing else
-     * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
-     */
-    private Client getTransportRequestsRecordingClient() {
-        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                clientSeenRequests.add(request);
-                if (clientDelegate != null) {
-                    clientDelegate.doExecute(action, request, listener);
-                }
-                if (invokerWaitLatch != null) {
-                    invokerWaitLatch.countDown();
-                }
-                if (clientWaitLatch != null && clientWaitLatch.getCount() > 0) {
-                    try {
-                        logger.info("--> blocking client invocation");
-                        assertTrue("waited for latch but it never decremented", clientWaitLatch.await(10, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        throw new ElasticsearchException(e);
-                    }
-                }
-            }
-        };
-    }
-
-    private interface DoExecuteDelegate {
-        @SuppressWarnings("rawtypes")
-        void doExecute(ActionType action, ActionRequest request, ActionListener listener);
     }
 
     public void testFormatExecutionTimeMilliseconds() {

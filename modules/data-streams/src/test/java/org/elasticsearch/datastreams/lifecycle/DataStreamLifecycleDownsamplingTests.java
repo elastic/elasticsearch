@@ -9,24 +9,15 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -34,58 +25,27 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
-import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
-import org.junit.After;
-import org.junit.Before;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DOWNSAMPLED_INDEX_PREFIX;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
-import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceTests.buildNodes;
-import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -97,70 +57,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Testing the downsampling part of the data stream lifecycle, more specifically code relating to
  * [DataStreamLifecycleService#maybeExecuteDownsampling(ProjectState, DataStream, List)].
   */
-public class DataStreamLifecycleDownsamplingTests extends ESTestCase {
-
-    private long now;
-    private ThreadPool threadPool;
-    private DataStreamLifecycleService dataStreamLifecycleService;
-    private List<TransportRequest> clientSeenRequests;
-    private DoExecuteDelegate clientDelegate;
-    private volatile CountDownLatch clientWaitLatch;
-    private volatile CountDownLatch invokerWaitLatch;
-    private ClusterService clusterService;
-
-    @Before
-    public void setupServices() {
-        threadPool = new TestThreadPool(getTestName());
-        Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
-        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
-        builtInClusterSettings.add(DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
-        clusterService = createClusterService(threadPool, clusterSettings);
-
-        now = System.currentTimeMillis();
-        Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
-        clientSeenRequests = new CopyOnWriteArrayList<>();
-
-        final Client client = getTransportRequestsRecordingClient();
-        AllocationService allocationService = new AllocationService(
-            new AllocationDeciders(
-                new HashSet<>(
-                    Arrays.asList(new SameShardAllocationDecider(clusterSettings), new ReplicaAfterPrimaryActiveAllocationDecider())
-                )
-            ),
-            new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
-            EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
-        );
-        DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
-
-        dataStreamLifecycleService = new DataStreamLifecycleService(
-            Settings.EMPTY,
-            client,
-            clusterService,
-            clock,
-            threadPool,
-            () -> now,
-            errorStore,
-            allocationService,
-            new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
-        );
-        clientWaitLatch = null;
-        invokerWaitLatch = null;
-        clientDelegate = null;
-    }
-
-    @After
-    public void cleanup() {
-        clientSeenRequests.clear();
-        dataStreamLifecycleService.close();
-        clusterService.close();
-        threadPool.shutdownNow();
-    }
+public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleServiceTestCase {
 
     public void testDownsampling() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -371,41 +268,5 @@ public class DataStreamLifecycleDownsamplingTests extends ESTestCase {
         ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(projectId, firstGenIndexName);
         assertThat(error, notNullValue());
         assertThat(error.error(), containsString("resource_already_exists_exception"));
-    }
-
-    /**
-     * This method returns a client that keeps track of the requests it has seen in clientSeenRequests. By default it does nothing else
-     * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
-     */
-    private Client getTransportRequestsRecordingClient() {
-        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                clientSeenRequests.add(request);
-                if (clientDelegate != null) {
-                    clientDelegate.doExecute(action, request, listener);
-                }
-                if (invokerWaitLatch != null) {
-                    invokerWaitLatch.countDown();
-                }
-                if (clientWaitLatch != null && clientWaitLatch.getCount() > 0) {
-                    try {
-                        logger.info("--> blocking client invocation");
-                        assertTrue("waited for latch but it never decremented", clientWaitLatch.await(10, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        throw new ElasticsearchException(e);
-                    }
-                }
-            }
-        };
-    }
-
-    private interface DoExecuteDelegate {
-        @SuppressWarnings("rawtypes")
-        void doExecute(ActionType action, ActionRequest request, ActionListener listener);
     }
 }

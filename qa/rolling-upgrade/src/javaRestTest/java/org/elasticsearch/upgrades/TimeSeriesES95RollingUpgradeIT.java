@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class TimeSeriesES95RollingUpgradeIT extends AbstractRollingUpgradeTestCa
     private static final int MIN_ADDITIONAL_DOC_COUNT = 10;
     private static final int MAX_ADDITIONAL_DOC_COUNT = 40;
 
-    private static final DateFormatter TS_FORMATTER = DateFormatter.forPattern("strict_date_time");
+    private static final DateFormatter TS_FORMATTER = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName());
     private static final String TS_START = "2024-01-01T00:00:00.000Z";
     private static final String TS_END = "2024-12-31T23:59:59.000Z";
     private static final long STEP_MS = 60_000L;

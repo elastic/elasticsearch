@@ -19,6 +19,8 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -31,8 +33,15 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.sts.StsAsyncClient;
+import software.amazon.awssdk.services.sts.StsAsyncClientBuilder;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.workload.identity.aws.AsyncWebIdentityCredentialsProvider;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -40,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
@@ -70,29 +80,70 @@ import java.util.NoSuchElementException;
  * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
 public class S3StorageProvider implements StorageProvider {
+    private static final String DEFAULT_ROLE_SESSION_NAME = "elasticsearch-esql-datasource";
+
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
+    // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
+    private final StsAsyncClient stsAsyncClient;
 
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
-        AwsCredentialsProvider creds = credentialsProvider(config);
-        this.s3Client = buildS3Client(creds, config);
-        this.s3AsyncClient = buildS3AsyncClient(creds, config);
+        final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
+        StsAsyncClient sts = null;
+        S3Client s3 = null;
+        boolean success = false;
+        try {
+            if (config != null && config.hasKeylessAuth()) {
+                // Resolve the issuer client (and assert it is enabled) before allocating the STS client, so a
+                // disabled-feature misconfiguration fails fast without leaking the STS client's Netty resources.
+                WorkloadIdentityIssuerClient issuerClient = enabledWorkloadIdentityIssuerClient();
+                // One STS async client and one credentials provider, shared by both S3 clients so a single token
+                // cache and a single single-flight refresh back every request.
+                sts = buildStsAsyncClient(config);
+                credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
+            } else {
+                // auth=none / auth=workload_identity (IMDS) / static creds all flow through credentialsProvider();
+                // its return type AwsCredentialsProvider is a subtype of IdentityProvider<AwsCredentialsIdentity>.
+                credentials = credentialsProvider(config);
+            }
+            s3 = buildS3Client(config, credentials);
+            this.stsAsyncClient = sts;
+            this.s3Client = s3;
+            this.s3AsyncClient = buildS3AsyncClient(config, credentials);
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(asCloseable(sts), asCloseable(s3));
+            }
+        }
+    }
+
+    /**
+     * Adapts a (possibly {@code null}) AWS SDK {@link SdkAutoCloseable} client to a {@link Closeable} so it can be
+     * handed to {@link IOUtils}.
+     */
+    private static Closeable asCloseable(SdkAutoCloseable closeable) {
+        return closeable == null ? null : closeable::close;
     }
 
     /** Test-only constructor that accepts pre-built clients. */
     S3StorageProvider(S3Client s3Client, S3AsyncClient s3AsyncClient) {
         this.config = null;
+        this.stsAsyncClient = null;
         this.s3Client = s3Client;
         this.s3AsyncClient = s3AsyncClient;
     }
 
-    private static S3Client buildS3Client(AwsCredentialsProvider creds, S3Configuration config) {
-        return configureCommon(S3Client.builder(), creds, config).build();
+    private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
+        return configureCommon(S3Client.builder(), config, credentials).build();
     }
 
-    private static S3AsyncClient buildS3AsyncClient(AwsCredentialsProvider creds, S3Configuration config) {
+    private static S3AsyncClient buildS3AsyncClient(
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials
+    ) {
         // Install a pooled receive-buffer allocator so that socket reads on Netty channels reuse
         // pooled memory instead of allocating a fresh zero-filled byte[] per read. The AWS SDK's
         // Netty client unconditionally overrides ChannelOption.ALLOCATOR to UnpooledByteBufAllocator
@@ -102,7 +153,7 @@ public class S3StorageProvider implements StorageProvider {
         // PooledRecvByteBufAllocator for the full rationale.
         NettyNioAsyncHttpClient.Builder httpClient = NettyNioAsyncHttpClient.builder()
             .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT);
-        return configureCommon(S3AsyncClient.builder(), creds, config).httpClient(httpClient.build()).build();
+        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClient(httpClient.build()).build();
     }
 
     /**
@@ -110,8 +161,8 @@ public class S3StorageProvider implements StorageProvider {
      */
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
         B builder,
-        AwsCredentialsProvider creds,
-        S3Configuration config
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials
     ) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
@@ -131,7 +182,7 @@ public class S3StorageProvider implements StorageProvider {
         // TLS already provides in-transit integrity; this matches what other engines do.
         builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
-        builder.credentialsProvider(creds);
+        builder.credentialsProvider(credentials);
 
         if (config != null && config.region() != null) {
             builder.region(Region.of(config.region()));
@@ -145,6 +196,17 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         return builder;
+    }
+
+    /**
+     * Returns the node-wide workload-identity issuer client, asserting the feature is enabled on this node.
+     */
+    private static WorkloadIdentityIssuerClient enabledWorkloadIdentityIssuerClient() {
+        WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
+        if (issuerClient.isEnabled() == false) {
+            throw new IllegalStateException("S3 keyless authentication requires the workload-identity feature to be enabled on this node");
+        }
+        return issuerClient;
     }
 
     /**
@@ -182,7 +244,8 @@ public class S3StorageProvider implements StorageProvider {
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
                 + "WITH (auth = 'none') for public buckets, "
-                + "or WITH (auth = 'workload_identity') to use the node's instance role (requires cluster setting)"
+                + "WITH (auth = 'workload_identity') to use the node's instance role (requires cluster setting), "
+                + "or configure keyless authentication settings (role_arn, jwt_audience)"
         );
     }
 
@@ -201,6 +264,54 @@ public class S3StorageProvider implements StorageProvider {
         return AwsCredentialsProviderChain.builder()
             .credentialsProviders(ContainerCredentialsProvider.create(), InstanceProfileCredentialsProvider.create())
             .build();
+    }
+
+    /**
+     * Builds an {@link AsyncWebIdentityCredentialsProvider} that mints an OIDC token through the node's
+     * workload-identity issuer and exchanges it for temporary credentials via STS {@code AssumeRoleWithWebIdentity}.
+     * Visible for testing so a stub issuer client and {@link StsAsyncClient} can be injected.
+     */
+    static AsyncWebIdentityCredentialsProvider buildWorkloadIdentityCredentialsProvider(
+        S3Configuration config,
+        WorkloadIdentityIssuerClient issuerClient,
+        StsAsyncClient stsAsyncClient
+    ) {
+        String roleSessionName = Strings.hasText(config.roleSessionName()) ? config.roleSessionName() : DEFAULT_ROLE_SESSION_NAME;
+        return AsyncWebIdentityCredentialsProvider.builder()
+            .roleArn(config.roleArn())
+            .roleSessionName(roleSessionName)
+            .tokenSupplier(new S3WorkloadIdentityTokenSupplier(issuerClient, config.jwtAudience()))
+            .stsAsyncClient(stsAsyncClient)
+            .build();
+    }
+
+    /**
+     * Builds the async STS client used for {@code AssumeRoleWithWebIdentity}. The exchange itself is unauthenticated
+     * (the web-identity token is the credential), so anonymous credentials are configured.
+     * <p>
+     * The region is resolved independently of the bucket region: an explicit {@code sts_region} wins, otherwise the
+     * bucket {@code region} is used, otherwise {@code us-east-1}. STS uses regional endpoints
+     * ({@code sts.<region>.amazonaws.com}); inheriting the bucket region by default also keeps STS in the bucket's
+     * AWS partition (commercial vs. GovCloud/China), while {@code sts_region}/{@code sts_endpoint} allow overriding it.
+     */
+    private static StsAsyncClient buildStsAsyncClient(S3Configuration config) {
+        // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config, which the
+        // entitlement system would block (matching configureCommon).
+        ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
+        StsAsyncClientBuilder builder = StsAsyncClient.builder()
+            .credentialsProvider(AnonymousCredentialsProvider.create())
+            .httpClient(NettyNioAsyncHttpClient.builder().build())
+            .overrideConfiguration(c -> {
+                c.defaultProfileFile(emptyProfileFile);
+                c.defaultProfileFileSupplier(() -> emptyProfileFile);
+                c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
+            });
+        String region = config != null ? (Strings.hasText(config.stsRegion()) ? config.stsRegion() : config.region()) : null;
+        builder.region(Strings.hasText(region) ? Region.of(region) : Region.US_EAST_1);
+        if (config != null && Strings.hasText(config.stsEndpoint())) {
+            builder.endpointOverride(URI.create(config.stsEndpoint()));
+        }
+        return builder.build();
     }
 
     @Override
@@ -282,17 +393,14 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        try {
-            s3Client.close();
-        } finally {
-            s3AsyncClient.close();
-        }
+        IOUtils.close(asCloseable(s3Client), asCloseable(s3AsyncClient), asCloseable(stsAsyncClient));
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
             return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...')";
+                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') "
+                + "or configure keyless authentication settings (role_arn, jwt_audience)";
         }
         return "";
     }

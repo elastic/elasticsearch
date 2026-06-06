@@ -106,14 +106,8 @@ public class Augmentation {
     // instead of covariant overrides for every possibility, we just return receiver as 'def' for now
     // that way if someone chains the calls, everything works.
 
-    /** Iterates through an Iterable, passing each item to the given consumer. */
-    public static <T> Object each(Iterable<T> receiver, Consumer<T> consumer) {
-        receiver.forEach(consumer);
-        return receiver;
-    }
-
     /**
-     * Cancellation-aware overload of {@link #each(Iterable, Consumer)} resolved by the lookup
+     * Cancellation-aware {@code each} augmentation resolved by the lookup
      * builder in script contexts whose base class supports cancellation.  Calls
      * {@link PainlessScript#_pollCancellation()} once per element so the script's shared poll
      * counter advances and the search timeout can interrupt a long iteration even when the consumer
@@ -511,6 +505,62 @@ public class Augmentation {
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();
+    }
+
+    /**
+     * Characters copied between cancellation polls inside the script-aware {@code replace}.  Kept large so each copy is an
+     * efficient bulk operation; since the script's persistent poll counter itself only fires every 1000 decrements, an
+     * actual cancellation check lands roughly every 64,000,000 characters.
+     */
+    private static final int REPLACE_POLL_INTERVAL = 64000;
+
+    /**
+     * Cancellation-aware augmentation for {@link String#replace(CharSequence, CharSequence)}.  The JDK call is O(length)
+     * but invisible to the cancellation budget, so a growing-string loop (e.g. {@code s = s.replace('A', 'AB')}) can burn
+     * unbounded CPU.  Reimplements the literal replace as a scan that polls {@link PainlessScript#_pollCancellation()} as
+     * it works, so a deadline interrupts it mid-call.  Delegates to the JDK method when no cancel check is set.
+     */
+    public static String replace(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.replace(target, replacement);
+        }
+
+        String targetString = target.toString();
+        String replacementString = replacement.toString();
+        StringBuilder result = new StringBuilder();
+
+        if (targetString.isEmpty()) {
+            // Match the JDK: replacement before the first char, between every pair, and after the last.
+            result.append(replacementString);
+            for (int index = 0; index < receiver.length(); index++) {
+                result.append(receiver.charAt(index)).append(replacementString);
+                if (index % REPLACE_POLL_INTERVAL == 0) {
+                    script._pollCancellation();
+                }
+            }
+            return result.toString();
+        }
+
+        int from = 0;
+        for (int match = receiver.indexOf(targetString); match >= 0; match = receiver.indexOf(targetString, from)) {
+            appendChunked(script, result, receiver, from, match);
+            result.append(replacementString);
+            script._pollCancellation();
+            from = match + targetString.length();
+        }
+        appendChunked(script, result, receiver, from, receiver.length());
+        return result.toString();
+    }
+
+    /** Appends {@code sequence[start, end)} in chunks, polling after each so a single large copy cannot outrun a deadline. */
+    private static void appendChunked(PainlessScript script, StringBuilder result, CharSequence sequence, int start, int end) {
+        int index = start;
+        while (end - index > REPLACE_POLL_INTERVAL) {
+            result.append(sequence, index, index + REPLACE_POLL_INTERVAL);
+            script._pollCancellation();
+            index += REPLACE_POLL_INTERVAL;
+        }
+        result.append(sequence, index, end);
     }
 
     /**

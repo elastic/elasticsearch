@@ -66,9 +66,7 @@ public class CreateIndexCapabilities {
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
         }
-        if (IndexMode.VECTORDB_FEATURE_FLAG.isEnabled()) {
-            caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
-        }
+        caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         CAPABILITIES = Set.copyOf(caps);
     }
 }

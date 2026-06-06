@@ -46,6 +46,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
@@ -79,6 +80,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
+
+    // Doc values disabled, the match_only_text default; HIGH cardinality and multiValue are irrelevant when enabled is false.
+    private static final FieldMapper.DocValuesParameter.Values DOC_VALUES_DISABLED = new FieldMapper.DocValuesParameter.Values(
+        false,
+        FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+        true
+    );
 
     public void testTermQuery() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
@@ -259,7 +267,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -285,7 +293,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -318,7 +326,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -369,7 +377,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -423,7 +431,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -462,7 +470,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
@@ -514,7 +522,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -542,7 +550,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -570,7 +578,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
-            false
+            DOC_VALUES_DISABLED
         );
 
         // when
@@ -671,9 +679,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            true,
             false,
-            false
+            false,
+            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
         );
     }
 
@@ -691,8 +699,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            true,
-            false
+            false,
+            new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
         );
     }
 

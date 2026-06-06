@@ -413,7 +413,9 @@ public class ExchangeServiceTests extends ESTestCase {
                 AtomicBoolean sinkFailed = new AtomicBoolean();
                 ActionListener<Void> oneSinkListener = refs.acquire();
                 exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
-                    if (fetched.incrementAndGet() > failAfter) {
+                    // Don't simulate failure when allSourcesFinished - the exchange source might have
+                    // already completed, and the failure can be ignored in the completion listener
+                    if (fetched.incrementAndGet() > failAfter && allSourcesFinished == false) {
                         sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
                             failedRequests.incrementAndGet();
                             sinkFailed.set(true);

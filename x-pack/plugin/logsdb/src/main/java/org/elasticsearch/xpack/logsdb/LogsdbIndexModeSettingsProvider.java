@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.MappingVisitor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
+import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
@@ -78,14 +80,20 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
     private volatile boolean isLogsdbEnabled;
+    private volatile boolean isLogsdbColumnarEnabled;
 
     LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
         this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
+        this.isLogsdbColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
     }
 
     void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
         this.isLogsdbEnabled = isLogsdbEnabled;
+    }
+
+    void updateClusterIndexModeLogsdbColumnarEnabled(boolean isLogsdbColumnarEnabled) {
+        this.isLogsdbColumnarEnabled = isLogsdbColumnarEnabled;
     }
 
     void init(
@@ -130,8 +138,15 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             && dataStreamName != null
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
-            additionalSettings.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).put(settings).build();
+            IndexMode indexMode;
+            if (isLogsdbColumnarEnabled && Build.current().isSnapshot()) {
+                indexMode = IndexMode.LOGSDB_COLUMNAR;
+            } else {
+                indexMode = IndexMode.LOGSDB;
+            }
+            LOGGER.debug("selecting index mode [{}] for index [{}]", indexMode, indexName);
+            additionalSettings.put(IndexSettings.MODE.getKey(), indexMode.getName());
+            settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).put(settings).build();
             isLogsDB = true;
         }
 

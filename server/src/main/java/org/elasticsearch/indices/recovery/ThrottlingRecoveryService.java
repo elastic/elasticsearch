@@ -80,9 +80,8 @@ public final class ThrottlingRecoveryService {
     }
 
     /**
-     * Add termination hook to recoveryListener that dispatches next pending recovery task.
-     * Add exception handling to task by passing exceptions to listener.
-     * Return a Runnable, ready to be dispatched to Executor or put on the pending queue.
+     * Create RecoveryTask with termination hook that dispatches next pending recovery task
+     * when RecoveryListener is completed.
      */
     private RecoveryTask asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
         return new RecoveryTask(recoveryListener, recoveryState, task, this::closeAndFillSlots);

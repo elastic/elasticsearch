@@ -44,7 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -1064,7 +1064,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """);
 
         // emp_no NOT IN parses as Not(InSubquery); the outer NOT yields Not(Not(InSubquery)).
-        // Inside OR, the InSubquery is replaced by a LeftSemiJoin's mark attribute, leaving the
+        // Inside OR, the InSubquery is replaced by a MarkJoin's mark attribute, leaving the
         // surrounding double-NOT in place.
         Project topProject = as(plan, Project.class);
         assertEquals(11, topProject.projections().size());
@@ -1077,14 +1077,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(innerNot.field(), Attribute.class);
         as(or.right(), GreaterThan.class);
 
-        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
-        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
-        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Project subqueryProject = as(lsj.right(), Project.class);
+        MarkJoin mj = as(filter.child(), MarkJoin.class);
+        assertThat(mj.config().type(), equalTo(JoinTypes.MARK));
+        assertThat(mj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(mj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project subqueryProject = as(mj.right(), Project.class);
         EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
-        EsRelation main = as(lsj.left(), EsRelation.class);
+        EsRelation main = as(mj.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());
     }
 
@@ -1095,7 +1095,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                OR salary IN (FROM employees | KEEP salary)
             """);
 
-        // Both InSubquery operands of OR become LeftSemiJoins; the rewritten Filter references their marks.
+        // Both InSubquery operands of OR become MarkJoins; the rewritten Filter references their marks.
         Project topProject = as(plan, Project.class);
         assertEquals(11, topProject.projections().size());
         assertFalse(topProject.projections().stream().anyMatch(p -> p instanceof Alias a && a.synthetic()));
@@ -1103,20 +1103,20 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Filter filter = as(limit.child(), Filter.class);
         Or or = as(filter.condition(), Or.class);
         // emp_no NOT IN inside outer NOT: parses as Not(Not(InSubquery)); the inner InSubquery
-        // becomes a LeftSemiJoin mark, leaving the double NOT in place.
+        // becomes a MarkJoin mark, leaving the double NOT in place.
         Not outerNot = as(or.left(), Not.class);
         Not innerNot = as(outerNot.field(), Not.class);
         as(innerNot.field(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin salaryJoin = as(filter.child(), MarkJoin.class);
         assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
         assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
         Project subqueryProject = as(salaryJoin.right(), Project.class);
         EsRelation subqueryRelation = as(subqueryProject.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
 
-        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(salaryJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         subqueryProject = as(empNoJoin.right(), Project.class);
@@ -1179,12 +1179,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- disjunctive IN/NOT IN subquery tests --
     //
-    // These now produce LeftSemiJoin per InSubquery; each LeftSemiJoin emits a synthetic boolean
+    // These now produce MarkJoin per InSubquery; each MarkJoin emits a synthetic boolean
     // mark attribute that the rewritten WHERE condition references. The plan shape is:
     // Project (drop marks)
     // Filter (mark1 OR mark2 OR ...) -- referencing the mark attributes
-    // LeftSemiJoin (last InSubquery → mark)
-    // LeftSemiJoin (...)
+    // MarkJoin (last InSubquery → mark)
+    // MarkJoin (...)
     // ...
     // EsRelation
     // This preserves SQL three-valued logic across the disjunction (the previous UnionAll rewrite
@@ -1206,11 +1206,11 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin salaryJoin = as(filter.child(), LeftSemiJoin.class);
-        assertThat(salaryJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        MarkJoin salaryJoin = as(filter.child(), MarkJoin.class);
+        assertThat(salaryJoin.config().type(), equalTo(JoinTypes.MARK));
         assertThat(salaryJoin.config().leftFields().get(0).name(), equalTo("salary"));
         assertThat(salaryJoin.config().rightFields().get(0).name(), equalTo("salary"));
-        LeftSemiJoin empNoJoin = as(salaryJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(salaryJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
@@ -1234,8 +1234,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(leftNot.field(), Attribute.class);
         as(or.right(), Attribute.class);
 
-        // Outer LeftSemiJoin for the second IN (right-hand emp_no IN sub2)
-        LeftSemiJoin innerJoin = as(filter.child(), LeftSemiJoin.class);
+        // Outer MarkJoin for the second IN (right-hand emp_no IN sub2)
+        MarkJoin innerJoin = as(filter.child(), MarkJoin.class);
         assertThat(innerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(innerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         // Subquery has WHERE salary > 50000
@@ -1245,8 +1245,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation subqueryRelation = as(innerRightFilter.child(), EsRelation.class);
         assertEquals("employees", subqueryRelation.indexPattern());
 
-        // Inner LeftSemiJoin for the first NOT IN (which became NOT $mark below).
-        LeftSemiJoin outerJoin = as(innerJoin.left(), LeftSemiJoin.class);
+        // Inner MarkJoin for the first NOT IN (which became NOT $mark below).
+        MarkJoin outerJoin = as(innerJoin.left(), MarkJoin.class);
         assertThat(outerJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(outerJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         Project outerRightProject = as(outerJoin.right(), Project.class);
@@ -1272,14 +1272,14 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), GreaterThan.class);
         as(or.right(), Attribute.class);
 
-        LeftSemiJoin lsj = as(filter.child(), LeftSemiJoin.class);
-        assertThat(lsj.config().type(), equalTo(JoinTypes.LEFT_SEMI));
-        assertThat(lsj.config().leftFields().get(0).name(), equalTo("emp_no"));
-        assertThat(lsj.config().rightFields().get(0).name(), equalTo("emp_no"));
-        Project innerProject = as(lsj.right(), Project.class);
+        MarkJoin mj = as(filter.child(), MarkJoin.class);
+        assertThat(mj.config().type(), equalTo(JoinTypes.MARK));
+        assertThat(mj.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(mj.config().rightFields().get(0).name(), equalTo("emp_no"));
+        Project innerProject = as(mj.right(), Project.class);
         EsRelation innerRelation = as(innerProject.child(), EsRelation.class);
         assertEquals("employees", innerRelation.indexPattern());
-        EsRelation main = as(lsj.left(), EsRelation.class);
+        EsRelation main = as(mj.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());
     }
 
@@ -1288,7 +1288,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     /**
      * {@code WHERE emp_no IN (FROM employees | KEEP emp_no) OR (salary > 50000 OR (languages < 3 OR gender NOT IN (...)))}
      * <p>
-     * Both InSubqueries appear under {@code OR}, so each is rewritten to a {@link LeftSemiJoin}
+     * Both InSubqueries appear under {@code OR}, so each is rewritten to a {@link MarkJoin}
      * with a mark attribute and the entire boolean expression is preserved unchanged in a single
      * Filter on top of the join stack.
      */
@@ -1312,12 +1312,12 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), LessThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        // Two LeftSemiJoins (emp_no first, gender on top).
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
-        assertThat(genderJoin.config().type(), equalTo(JoinTypes.LEFT_SEMI));
+        // Two MarkJoins (emp_no first, gender on top).
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
+        assertThat(genderJoin.config().type(), equalTo(JoinTypes.MARK));
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
         assertThat(genderJoin.config().rightFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(empNoJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
@@ -1326,8 +1326,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     /**
      * Inner {@code AND} containing a NOT IN is itself a child of OR — the NOT IN is in boolean
-     * position, so it becomes a {@link LeftSemiJoin}. Previous rewrite required a special
-     * "complexity 2" disjunct ordering trick; the LeftSemiJoin path handles it uniformly.
+     * position, so it becomes a {@link MarkJoin}. Previous rewrite required a special
+     * "complexity 2" disjunct ordering trick; the MarkJoin path handles it uniformly.
      */
     public void testDisjunctiveOrChainWithConjunctiveNotInSubquery() {
         LogicalPlan plan = analyzeInSubquery("""
@@ -1349,15 +1349,15 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(and.left(), LessThan.class);
         Not not = as(and.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
     /**
      * NOT IN appears in the middle of the OR chain. With the new rewrite this still produces a
-     * single Filter over a stack of two LeftSemiJoins; the order of OR operands does not affect
+     * single Filter over a stack of two MarkJoins; the order of OR operands does not affect
      * the structural outcome.
      */
     public void testDisjunctiveOrChainWithNotInSubqueryInMiddle() {
@@ -1380,9 +1380,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), GreaterThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
     }
 
@@ -1391,7 +1391,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * <p>
      * Previously rejected as "Complicated IN subquery". The {@code OR}/{@code AND}/{@code NOT}
      * tree above each {@code InSubquery} is all boolean operators, so each becomes a
-     * {@link LeftSemiJoin} and the whole condition is evaluated by the standard expression
+     * {@link MarkJoin} and the whole condition is evaluated by the standard expression
      * machinery. This preserves SQL three-valued logic.
      */
     public void testNestedConjunctiveAndDisjunctiveInSubquery() {
@@ -1414,9 +1414,9 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         as(or.left(), LessThan.class);
         Not not = as(or.right(), Not.class);
         as(not.field(), Attribute.class);
-        LeftSemiJoin genderJoin = as(filter.child(), LeftSemiJoin.class);
+        MarkJoin genderJoin = as(filter.child(), MarkJoin.class);
         assertThat(genderJoin.config().leftFields().get(0).name(), equalTo("gender"));
-        LeftSemiJoin empNoJoin = as(genderJoin.left(), LeftSemiJoin.class);
+        MarkJoin empNoJoin = as(genderJoin.left(), MarkJoin.class);
         assertThat(empNoJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         EsRelation main = as(empNoJoin.left(), EsRelation.class);
         assertEquals("test", main.indexPattern());

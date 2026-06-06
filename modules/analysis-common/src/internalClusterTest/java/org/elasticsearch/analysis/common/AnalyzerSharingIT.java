@@ -378,26 +378,19 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Documents the interaction between the node-level analyzer sharing cache and the shard-recovery
-     * reload that fires for every new index.
+     * A shared synonym analyzer is loaded from its resources once per node, not once per index that
+     * shares it. The initial load is deferred from build time to shard recovery
+     * ({@link IndicesService}'s {@code beforeIndexShardRecovery}, a null-token
+     * reload); once the shared instance is loaded, a second index with an identical recipe attaches to
+     * it and its own shard recovery does NOT rebuild it.
      *
-     * <p>The sharing key for {@code updateable: true} synonym filters with {@code synonyms_path}
-     * includes only the file <em>path</em>, not the file content. When index_a is created at T0,
-     * index_b is created at T2 with an identical recipe, index_b joins index_a's cache entry and
-     * therefore both indices share a single {@link org.elasticsearch.index.analysis.ReloadableCustomAnalyzer}
-     * instance.
-     *
-     * <p>Crucially, {@link org.elasticsearch.indices.IndicesService}'s {@code beforeIndexShardRecovery}
-     * listener calls {@code reloadSearchAnalyzers(..., null, false, null)} during every index
-     * creation. The {@code null} reload token means the claim is always granted, so each new index's
-     * shard recovery re-reads the synonym file from disk and writes a fresh
-     * {@code AnalyzerComponents} generation to the shared {@code ReloadableCustomAnalyzer}. Because
-     * the instance is shared, this reload is immediately visible to all other indices on the node
-     * that share the same recipe — including index_a. Consequently, when a synonym file is updated
-     * between index_a's and index_b's creations, index_b's shard recovery reads the updated file
-     * and propagates the change to index_a at the same time.
+     * <p>Concretely: index_a loads {@code hello, hi}. The file is then changed to add {@code hey}, and
+     * index_b is created with the same recipe. index_b shares index_a's already-loaded instance and does
+     * not re-read the file, so neither index sees {@code hey} yet — creating an index never silently
+     * mutates the synonyms other indices are already using. An explicit
+     * {@code _reload_search_analyzers} then reloads the shared instance once and converges both indices.
      */
-    public void testSecondIndexCreationReloadsSharedSynonymAnalyzerForBothIndices() throws IOException {
+    public void testSecondIndexSharesLoadedAnalyzerWithoutRebuilding() throws IOException {
         final String synFileName = "syn_stale_test.txt";
         Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
@@ -450,10 +443,9 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
         }
 
         // Step 4: create index_b with identical recipe. Because updateable synonyms key on path only,
-        // index_b joins index_a's cache entry and shares the same ReloadableCustomAnalyzer.
-        // During shard recovery, beforeIndexShardRecovery fires reloadSearchAnalyzers with a null
-        // reload token; the shared analyzer re-reads the file (now "hello, hi, hey") and updates
-        // its components. Since the instance is shared, index_a also immediately sees "hey".
+        // index_b joins index_a's cache entry and shares the same ReloadableCustomAnalyzer. Its shard
+        // recovery fires a null-token reload, but the shared instance is already loaded, so the claim is
+        // refused and the analyzer is NOT rebuilt — the updated file is not read on index creation.
         assertAcked(
             indicesAdmin().prepareCreate("index_b")
                 .setSettings(
@@ -487,13 +479,20 @@ public class AnalyzerSharingIT extends ESSingleNodeTestCase {
             analyzerB
         );
 
-        // After index_b's creation, shard recovery reloaded the shared analyzer from the updated
-        // file. Both indices now see the updated synonyms — "hey" matches on both without any
-        // explicit _reload_search_analyzers call.
-        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
-        assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
+        // index_b did not rebuild the shared (already-loaded) analyzer, so neither index sees the new
+        // "hey" synonym yet — index creation must not silently re-read the file and change the synonyms
+        // other indices are already using. "hi" still matches on both.
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 0L);
+        assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 0L);
         assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hi").analyzer("search_syn")), 1L);
         assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hi").analyzer("search_syn")), 1L);
+
+        // An explicit reload (non-null token) does rebuild the shared instance once, converging both.
+        assertNoFailures(
+            client().execute(TransportReloadAnalyzersAction.TYPE, new ReloadAnalyzersRequest(null, false, "index_a", "index_b")).actionGet()
+        );
+        assertHitCount(client().prepareSearch("index_a").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
+        assertHitCount(client().prepareSearch("index_b").setQuery(QueryBuilders.matchQuery("content", "hey").analyzer("search_syn")), 1L);
     }
 
     /**

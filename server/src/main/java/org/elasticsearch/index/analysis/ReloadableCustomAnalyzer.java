@@ -130,8 +130,18 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return result;
     }
 
-    // The reload token (the reload request) this analyzer was last claimed for; guarded by {@code this}.
-    private Object lastReloadToken;
+    // The reload token (the reload request) this analyzer was last reloaded for. Written only under the
+    // monitor in reload(); volatile so the unsynchronized shouldReload() hint can read it without
+    // blocking behind an in-flight (slow) reload.
+    private volatile Object lastReloadToken;
+
+    // Set once this analyzer has been loaded from its resources (synonyms etc.) at least once. The
+    // initial load is deferred from build time to shard recovery (IndicesService#beforeIndexShardRecovery,
+    // a null-token reload); because one instance is shared across indices, that initial load only needs
+    // to happen once per node. Later shard recoveries — including those of other indices that share this
+    // instance — observe this flag (in reload(), under the lock) and skip, instead of rebuilding the
+    // analyzer on every shard opening. Volatile so shouldReload() can read it without the lock.
+    private volatile boolean loaded;
 
     // Set by close() once the last sharer has released this instance. reload() (synchronized) observes
     // it and discards its result rather than mutate an analyzer nobody references; getStoredComponents()
@@ -141,34 +151,60 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     private volatile boolean closed;
 
     /**
-     * Claims this analyzer for the reload identified by {@code token}: returns {@code true} for the
-     * first caller (recording the token) and {@code false} for any later caller carrying the same
-     * token. A single reload request broadcasts to every index on the node, but many share one
-     * analyzer instance — this lets the registry rebuild that shared instance once per request rather
-     * than once per index. A {@code null} token never dedups (always reloads), the behavior for
-     * internal / direct callers. A closed instance never claims: there is no sharer left to reload for.
+     * Cheap pre-check the registry uses to skip building reload inputs for a reload that {@link #reload}
+     * would skip anyway: {@code false} when the analyzer is closed, when a {@code null} (recovery) token
+     * arrives after the instance has already been loaded once, or when a non-null request token has
+     * already reloaded this instance. This is only a hint — it does not mutate dedup state, so under
+     * concurrency it may return {@code true} for more than one caller; {@link #reload} makes the
+     * authoritative, atomic decision under the lock.
      */
-    public synchronized boolean tryClaimReload(Object token) {
+    public boolean shouldReload(Object token) {
         if (closed) {
             return false;
         }
-        if (token != null && token == lastReloadToken) {
-            return false;
+        if (token == null) {
+            return loaded == false;
         }
-        lastReloadToken = token;
-        return true;
+        return token != lastReloadToken;
     }
 
+    /**
+     * Rebuilds and publishes the analyzer's components from the given inputs — unless this reload is not
+     * needed, decided atomically under the lock so concurrent reloads never rebuild the same instance
+     * more than once for the same reason:
+     * <ul>
+     *   <li>a {@code null} token is the deferred initial resource load fired by shard recovery; because
+     *       one instance is shared across indices it only needs to load once per node, so it is a no-op
+     *       once {@link #loaded};</li>
+     *   <li>a non-null token is an explicit {@code _reload_search_analyzers} request; it always rebuilds,
+     *       except that the once-per-request token dedups the broadcast to a shared instance.</li>
+     * </ul>
+     * {@code synchronized} so reloads serialize and never build in parallel; {@link #close} does NOT take
+     * this monitor (it only flips the volatile {@link #closed} flag), so it never blocks behind a build.
+     */
     public synchronized void reload(
+        Object reloadToken,
         String name,
         Settings settings,
         final Map<String, TokenizerFactory> tokenizers,
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        // synchronized: reloads of this instance serialize, so two requests never rebuild the same
-        // (potentially expensive) analyzer in parallel. close() does NOT take this monitor (it only
-        // flips the volatile closed flag), so it never blocks behind this rebuild.
+        if (closed) {
+            return;
+        }
+        if (reloadToken == null) {
+            if (loaded) {
+                // Initial resource load already done (possibly by a concurrent recovery claim). Skip the
+                // rebuild rather than re-read the source on every shard opening.
+                return;
+            }
+        } else if (reloadToken == lastReloadToken) {
+            // This broadcast request already reloaded this shared instance.
+            return;
+        } else {
+            lastReloadToken = reloadToken;
+        }
         AnalyzerComponents components = AnalyzerComponents.createComponents(
             IndexCreationContext.RELOAD_ANALYZERS,
             name,
@@ -184,6 +220,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             return;
         }
         this.components = components;
+        this.loaded = true;
     }
 
     @Override

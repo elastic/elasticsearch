@@ -816,10 +816,12 @@ public class SharingKeyTests extends ESTestCase {
         IndexAnalyzers b = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, settingsBase);
         IndexAnalyzers c = registry.build(IndexService.IndexCreationContext.CREATE_INDEX, settingsBase);
 
-        // Sequentially-issued reloads (mimicking a broadcast) should coalesce to one new instance.
-        a.reload(registry, settingsBase, null, false, null);
-        b.reload(registry, settingsBase, null, false, null);
-        c.reload(registry, settingsBase, null, false, null);
+        // Sequentially-issued reloads of one broadcast (shared request token) should coalesce: the
+        // first rebuilds the shared instance, the rest dedup on the token.
+        Object request = new Object();
+        a.reload(registry, settingsBase, null, false, request);
+        b.reload(registry, settingsBase, null, false, request);
+        c.reload(registry, settingsBase, null, false, request);
 
         assertSame("coalesced reload — A and B share the same new instance", a.get("a"), b.get("a"));
         assertSame("coalesced reload — B and C share the same new instance", b.get("a"), c.get("a"));
@@ -1120,10 +1122,11 @@ public class SharingKeyTests extends ESTestCase {
     }
 
     /**
-     * Reload always re-reads the resource — there is no no-op short-circuit. An updateable synonym
-     * filter's sharing key is content-independent (one shared live instance per recipe, refreshed
-     * in place for every sharer), so there is no stamp to compare against and a redundant
-     * {@code _reload_search_analyzers} rebuilds the components rather than skipping. Verified by
+     * An explicit {@code _reload_search_analyzers} request always re-reads the resource — there is no
+     * no-op short-circuit. An updateable synonym filter's sharing key is content-independent (one shared
+     * live instance per recipe, refreshed in place for every sharer), so there is no stamp to compare
+     * against and a redundant request rebuilds the components rather than skipping. Verified with two
+     * distinct request tokens (the once-per-request token only dedups within a single request) by
      * checking the components reference changes across a second, no-change reload.
      */
     public void testRedundantReloadStillRebuilds() throws IOException {
@@ -1139,12 +1142,13 @@ public class SharingKeyTests extends ESTestCase {
         IndexAnalyzers ia = build(s);
         ReloadableCustomAnalyzer rca = (ReloadableCustomAnalyzer) ia.get("a").analyzer();
 
-        ia.reload(registry, settingsFor(s), null, false, null);
+        ia.reload(registry, settingsFor(s), null, false, new Object());
         AnalyzerComponents componentsAfterFirstReload = rca.getComponents();
 
-        // Second reload without touching the file still rebuilds: reload unconditionally re-reads.
-        ia.reload(registry, settingsFor(s), null, false, null);
-        assertNotSame("reload always re-reads; there is no no-op skip", componentsAfterFirstReload, rca.getComponents());
+        // A second explicit request (distinct token) without touching the file still rebuilds: an
+        // explicit reload unconditionally re-reads.
+        ia.reload(registry, settingsFor(s), null, false, new Object());
+        assertNotSame("an explicit reload always re-reads; there is no no-op skip", componentsAfterFirstReload, rca.getComponents());
     }
 
     /**

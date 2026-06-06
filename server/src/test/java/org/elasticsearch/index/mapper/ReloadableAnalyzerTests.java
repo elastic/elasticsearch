@@ -77,8 +77,11 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals(1, originalTokenFilters.length);
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
-        // now reload, this should change the tokenfilterFactory inside the analyzer
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false, null);
+        // now reload, this should change the tokenfilterFactory inside the analyzer. A non-null token
+        // models an explicit _reload_search_analyzers request (TransportReloadAnalyzersAction passes a
+        // per-request token), which always rebuilds — unlike the null-token initial load fired by shard
+        // recovery, which only runs once per node.
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false, new Object());
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());

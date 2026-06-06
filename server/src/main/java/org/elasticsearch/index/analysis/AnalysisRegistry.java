@@ -1307,8 +1307,9 @@ public final class AnalysisRegistry implements Closeable {
             // WITHOUT claiming the token, so a sharer that does carry the recipe can still reload it.
             return;
         }
-        if (reloadable.tryClaimReload(reloadToken) == false) {
-            // Another index sharing this exact instance already reloaded it for this request.
+        if (reloadable.shouldReload(reloadToken) == false) {
+            // Already reloaded for this request, or already loaded and this is only a recovery load — skip
+            // building the inputs. reload() re-checks authoritatively under its lock.
             return;
         }
         Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
@@ -1316,7 +1317,7 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
         // Rebuild the components fresh from settings. This reads from disk / the .synonyms index for
         // synonym chains; lenient handling lives inside the synonym factory.
-        reloadable.reload(name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+        reloadable.reload(reloadToken, name, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
     }
 
     private static NamedAnalyzer overridePositionIncrementGap(NamedAnalyzer analyzer, int overridePositionIncrementGap) {

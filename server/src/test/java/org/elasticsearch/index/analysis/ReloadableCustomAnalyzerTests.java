@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -128,6 +129,43 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     }
 
     /**
+     * The initial resource load of a shared analyzer (the null-token reload fired by shard recovery)
+     * happens once per node: the first claim succeeds, and once the instance is loaded later null-token
+     * claims are refused so a new shard opening does not rebuild an already-loaded shared analyzer. An
+     * explicit reload request (non-null token) always reloads regardless.
+     */
+    public void testNullTokenReloadLoadsOnce() throws IOException {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
+            assertTrue("the initial recovery load is needed", analyzer.shouldReload(null));
+            analyzer.reload(null, "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, noOp());
+            AnalyzerComponents afterInitialLoad = analyzer.getComponents();
+
+            // A later recovery (null-token) reload is a no-op — neither the hint nor the reload rebuilds.
+            assertFalse("a later recovery load must skip once the instance is loaded", analyzer.shouldReload(null));
+            analyzer.reload(null, "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, noOp());
+            assertSame("a recovery reload after the initial load must not rebuild", afterInitialLoad, analyzer.getComponents());
+
+            // An explicit request (non-null token) always rebuilds.
+            assertTrue("an explicit reload request must rebuild", analyzer.shouldReload(new Object()));
+            analyzer.reload(new Object(), "my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, noOp());
+            assertNotSame("an explicit reload must rebuild", afterInitialLoad, analyzer.getComponents());
+        }
+    }
+
+    private static Map<String, TokenFilterFactory> noOp() {
+        return Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER);
+    }
+
+    /**
      * Once the last sharer releases a shared {@link ReloadableCustomAnalyzer} the registry closes it.
      * A reload that was already in flight for that instance must quietly discard its result rather
      * than swap new components into — and keep alive — a torn-down analyzer. {@code close()} wins and
@@ -149,8 +187,9 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         analyzer.close();
 
         // A reload arriving after close() must be a no-op (the components stay as they were) and must
-        // not throw, and a closed instance must refuse to claim a reload token.
+        // not throw, and a closed instance must report that no reload is needed.
         analyzer.reload(
+            new Object(),
             "my_analyzer",
             analyzerSettings,
             testAnalysis.tokenizer,
@@ -158,7 +197,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
         );
         assertSame("a reload after close must not swap in new components", before, analyzer.getComponents());
-        assertFalse("a closed instance must refuse to claim a reload token", analyzer.tryClaimReload(new Object()));
+        assertFalse("a closed instance must report no reload is needed", analyzer.shouldReload(new Object()));
     }
 
     /**
@@ -226,7 +265,10 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
             Runnable reload = () -> {
                 try {
+                    // Distinct token per call so both reloads are genuine rebuilds (no dedup), exercising
+                    // serialization.
                     analyzer.reload(
+                        new Object(),
                         "my_analyzer",
                         analyzerSettings,
                         testAnalysis.tokenizer,
@@ -324,6 +366,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             // pipeline that was materialised at stream-creation time (Tokenizer + TokenFilter chain)
             // has no back-pointer to the volatile field.
             analyzer.reload(
+                new Object(),
                 "my_analyzer",
                 analyzerSettings,
                 testAnalysis.tokenizer,
@@ -381,6 +424,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                     try {
                         go.await();
                         analyzer.reload(
+                            new Object(),
                             "my_analyzer",
                             analyzerSettings,
                             testAnalysis.tokenizer,
@@ -414,29 +458,60 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     }
 
     /**
-     * {@link ReloadableCustomAnalyzer#tryClaimReload} is {@code synchronized}: when N threads
-     * race to claim the same reload token, exactly one must receive {@code true} and the rest
-     * {@code false}. A fresh token resets the gate and again allows exactly one claim.
+     * The once-per-request dedup lives in {@link ReloadableCustomAnalyzer#reload}: when N threads
+     * concurrently reload with the same token — a broadcast of one request reaching several shards that
+     * share the instance — exactly one rebuild happens and the rest dedup on the token. A fresh token
+     * (the next request) rebuilds again. A token filter counts how many times the components are built.
      */
-    public void testTryClaimReloadAllowsExactlyOneClaimPerToken() throws Exception {
+    public void testConcurrentReloadWithSameTokenRebuildsOnce() throws Exception {
+        AtomicInteger builds = new AtomicInteger();
+        TokenFilterFactory buildCounter = new AbstractTokenFilterFactory("my_filter") {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return AnalysisMode.SEARCH_TIME;
+            }
+
+            @Override
+            public TokenFilterFactory getChainAwareTokenFilterFactory(
+                IndexCreationContext context,
+                TokenizerFactory tokenizer,
+                List<CharFilterFactory> charFilters,
+                List<TokenFilterFactory> previousTokenFilters,
+                Function<String, TokenFilterFactory> allFilters
+            ) {
+                builds.incrementAndGet();
+                return this;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+
         Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
-        AnalyzerComponents components = createComponents(
+        AnalyzerComponents initial = createComponents(
             IndexCreationContext.RELOAD_ANALYZERS,
             "my_analyzer",
             analyzerSettings,
             testAnalysis.tokenizer,
             testAnalysis.charFilter,
-            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+            noOp()
         );
 
-        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0)) {
+        try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0)) {
             int nThreads = randomIntBetween(4, 12);
-
-            for (int round = 0; round < 3; round++) {
+            for (int round = 1; round <= 3; round++) {
                 Object token = new Object();
+                int buildsBefore = builds.get();
                 CountDownLatch ready = new CountDownLatch(nThreads);
                 CountDownLatch go = new CountDownLatch(1);
-                AtomicInteger claimCount = new AtomicInteger();
+                AtomicReference<Exception> failure = new AtomicReference<>();
 
                 Thread[] threads = new Thread[nThreads];
                 for (int i = 0; i < nThreads; i++) {
@@ -444,11 +519,16 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                         ready.countDown();
                         try {
                             go.await();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                        }
-                        if (analyzer.tryClaimReload(token)) {
-                            claimCount.incrementAndGet();
+                            analyzer.reload(
+                                token,
+                                "my_analyzer",
+                                analyzerSettings,
+                                testAnalysis.tokenizer,
+                                testAnalysis.charFilter,
+                                Collections.singletonMap("my_filter", buildCounter)
+                            );
+                        } catch (Exception e) {
+                            failure.compareAndSet(null, e);
                         }
                     });
                 }
@@ -459,7 +539,8 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
                 for (Thread t : threads)
                     t.join(30_000);
 
-                assertEquals("round " + round + ": exactly one thread must claim the token", 1, claimCount.get());
+                assertNull("concurrent reload threw: " + failure.get(), failure.get());
+                assertEquals("round " + round + ": one shared request token must rebuild exactly once", buildsBefore + 1, builds.get());
             }
         }
     }
@@ -509,6 +590,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             assertTrue(firstCheckpoint.await(5, TimeUnit.SECONDS));
 
             analyzer.reload(
+                new Object(),
                 "my_analyzer",
                 analyzerSettings,
                 testAnalysis.tokenizer,

@@ -233,6 +233,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:fork.forkBeforeCompletion}
   issue: https://github.com/elastic/elasticsearch/issues/150932
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-rate.rate_of_long_no_grouping_promql_implicit_range}
+  issue: https://github.com/elastic/elasticsearch/issues/150933
 
 # Examples:
 #

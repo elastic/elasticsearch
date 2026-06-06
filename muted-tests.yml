@@ -248,9 +248,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
   method: testGetCheckpointTimeoutExceeded
   issue: https://github.com/elastic/elasticsearch/issues/150934
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  method: testBasic
-  issue: https://github.com/elastic/elasticsearch/issues/153347
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356

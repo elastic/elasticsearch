@@ -4858,7 +4858,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryRenameKeepOnMissingCounterFields() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
             FROM k8s, (FROM languages)
@@ -4948,7 +4948,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryRenameChainKeepStarOnMissingCounterField() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
             FROM k8s, (FROM languages)
@@ -5027,7 +5027,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryDoubleRenameKeepStarOnMissingCounterField() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
             FROM k8s, (FROM languages)
@@ -5088,7 +5088,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryRenameKeepOnMissingCounterFieldsWithNullifyAndSort() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""
@@ -5154,7 +5154,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryRenameChainKeepStarOnMissingCounterFieldWithNullifyAndSort() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""
@@ -5208,7 +5208,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     public void testSubqueryDoubleRenameDropStarOnMissingCounterFieldWithNullifyAndSort() {
         assumeTrue(
             "Require the fix to inconsistent counter type",
-            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""

@@ -1702,7 +1702,7 @@ x:integer
 
 subqueryInFromWithRenameMissingCounterField
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM k8s-downsampled, (from many_numbers)
 | KEEP network.total_bytes_in, network.eth0.tx
@@ -1718,7 +1718,7 @@ x:long | y:aggregate_metric_double
 
 subqueryInFromWithRenameMissingCounterFieldWithNullify
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
@@ -1736,7 +1736,7 @@ x:long | y:aggregate_metric_double
 
 subqueryInFromWithRenameChainMissingCounterField
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM k8s, (from many_numbers)
 | KEEP network.total_bytes_in
@@ -1753,7 +1753,7 @@ z:long
 
 subqueryInFromWithRenameChainMissingCounterFieldWithNullify
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
@@ -1772,7 +1772,7 @@ z:long
 
 subqueryInFromWithRenameOnMixedDateAndDateNanos
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_nanos)
 | KEEP @timestamp
@@ -1788,7 +1788,7 @@ x:date_nanos
 
 subqueryInFromWithRenameChainOnMixedDateAndDateNanos
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_nanos)
 | KEEP @timestamp
@@ -1804,7 +1804,7 @@ y:date_nanos
 
 subqueryInFromWithDoubleRenameOnMixedDateAndDateNanos
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_nanos)
 | KEEP @timestamp
@@ -1821,7 +1821,7 @@ y:date_nanos
 
 subqueryInFromWithRenameAndExplicitCastOnMixedDateAndLong
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_long)
 | EVAL @timestamp = @timestamp::long
@@ -1838,7 +1838,7 @@ x:long
 
 subqueryInFromWithRenameChainAndExplicitCastOnMixedDateAndLong
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_long)
 | EVAL @timestamp = @timestamp::long
@@ -1855,7 +1855,7 @@ y:long
 
 subqueryInFromWithDoubleRenameAndExplicitCastOnMixedDateAndLong
 required_capability: subquery_in_from_command
-required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
 FROM sample_data, (FROM sample_data_ts_long)
 | EVAL @timestamp = @timestamp::long

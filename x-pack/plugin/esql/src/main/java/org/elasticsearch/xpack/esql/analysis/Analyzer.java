@@ -3675,9 +3675,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a fork-output attribute),
          * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
          * <p>
-         * Before the expression walk, scan the plan for {@code Alias} nodes whose immediate child is an attribute that was just updated.
-         * For each such alias the cached output attribute has the old type, so add a {@code {alias.id → alias.withNewType}} entry to the
-         * update map. The subsequent {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
+         * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
+         * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
+         * {@code x AS y, y AS z} are picked up in order. We register the alias output unconditionally (i.e. without comparing the alias'
+         * current child type against the map entry), because the alias may have been re-resolved with the updated child type
+         * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
+         * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
+         * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -3690,11 +3694,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             plan.forEachExpressionUp(Alias.class, alias -> {
                 if (alias.child() instanceof Attribute childAttr) {
                     Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
-                    if (updatedChild != null && childAttr.dataType() != updatedChild.dataType()) {
+                    if (updatedChild != null) {
                         Attribute aliasOutput = alias.toAttribute();
-                        if (aliasOutput.dataType() != updatedChild.dataType()) {
-                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
-                        }
+                        idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
                     }
                 }
             });

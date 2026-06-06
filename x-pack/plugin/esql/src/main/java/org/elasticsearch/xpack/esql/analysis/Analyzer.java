@@ -125,7 +125,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -283,6 +286,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvedProjects(),
             new AddImplicitLimit(),
             new AddImplicitTimestampSort(),
+            new VerifyTimeSeries(),
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+            new TranslateTimeSeriesWithout(),
+            // translate metric aggregates early before they are converted to nested expressions
+            new TranslateTimeSeriesAggregate(),
+            new ApplyWindowFilter(),
             new UnionTypesCleanup()
         )
     );
@@ -727,6 +737,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class VerifyTimeSeries extends ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(TimeSeriesAggregate plan, AnalyzerContext context) {
+            if (plan.childrenResolved() == false) {
+                return plan;
+            }
+            Failures failures = new Failures();
+            plan.verify(failures);
+            if (failures.hasFailures()) {
+                throw new VerificationException(failures);
+            }
+            return plan;
+        }
+    }
+
     private static class ResolveAndVerifyPromqlRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
@@ -1161,9 +1192,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         context
                     );
                 } else {
-                    // resolve the using columns against the left and the right side then assemble the new join config
-                    leftKeys = resolveUsingColumns(join.config().leftFields(), join.left().output(), "left");
-                    rightKeys = resolveUsingColumns(join.config().rightFields(), join.right().output(), "right");
+                    // resolve each side independently — skip sides that are already resolved
+                    leftKeys = Resolvables.resolved(config.leftFields())
+                        ? config.leftFields()
+                        : resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+                    rightKeys = Resolvables.resolved(config.rightFields())
+                        ? config.rightFields()
+                        : resolveUsingColumns(config.rightFields(), join.right().output(), "right");
                 }
                 config = new JoinConfig(type, leftKeys, rightKeys, joinOnConditions);
 
@@ -1437,9 +1472,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     resolved.add(resolvedField);
                 } else {
-                    throw new IllegalStateException(
-                        "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
-                    );
+                    // Multi-key LOOKUP JOIN re-entry after ResolveUnmapped: prior-pass-resolved keys pass through.
+                    resolved.add(col);
                 }
             }
             return resolved;
@@ -3637,12 +3671,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Update the attributes referencing the updated UnionAll output.
+         * <p>
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a fork-output attribute),
+         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
+         * <p>
+         * Before the expression walk, scan the plan for {@link Alias} nodes whose immediate child is an attribute already in the update
+         * map and add a {@code {alias.id → alias.withNewType}} entry. Because the traversal is bottom-up, chained renames such as
+         * {@code x AS y, y AS z} are picked up in order. We register the alias output unconditionally (i.e. without comparing the alias'
+         * current child type against the map entry), because the alias may have been re-resolved with the updated child type
+         * (e.g. inside a {@code ResolvingProject}) while other places in the plan (e.g. an outer {@code OrderBy}) still hold a cached
+         * attribute reference, produced by {@link Alias#toAttribute()}, with the stale (pre-update) type. The subsequent
+         * {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput
         ) {
-            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
+            Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
+            updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
+
+            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            plan.forEachExpressionUp(Alias.class, alias -> {
+                if (alias.child() instanceof Attribute childAttr) {
+                    Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
+                    if (updatedChild != null) {
+                        Attribute aliasOutput = alias.toAttribute();
+                        idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                    }
+                }
+            });
+
             return plan.transformExpressionsUp(Attribute.class, expr -> {
                 Attribute updated = idToUpdatedAttr.get(expr.id());
                 return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;

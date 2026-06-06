@@ -27,6 +27,7 @@ public interface WhitelistAnnotationParser {
             new AbstractMap.SimpleEntry<>(DeprecatedAnnotation.NAME, DeprecatedAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(NonDeterministicAnnotation.NAME, NonDeterministicAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(InjectConstantAnnotation.NAME, InjectConstantAnnotationParser.INSTANCE),
+            new AbstractMap.SimpleEntry<>(ScriptAwareAnnotation.NAME, ScriptAwareAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(CompileTimeOnlyAnnotation.NAME, CompileTimeOnlyAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(AugmentedAnnotation.NAME, AugmentedAnnotationParser.INSTANCE),
             new AbstractMap.SimpleEntry<>(DynamicTypeAnnotation.NAME, DynamicTypeAnnotationParser.INSTANCE),

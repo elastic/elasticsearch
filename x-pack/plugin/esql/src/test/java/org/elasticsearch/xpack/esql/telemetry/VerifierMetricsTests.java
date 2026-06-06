@@ -275,7 +275,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Counters c = esql("""
             TS k8s
             | STATS sum(avg_over_time(network.cost))""");
-        assertMetrics(c, Map.of(STATS, 1L, TS, 1L), Map.of("sum", 1L, "avg_over_time", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, FROM, 1L), Map.of("sum", 1L, "avg", 1L));
     }
 
     public void testTimeSeriesNoAggregate() {
@@ -301,13 +301,8 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testPromql() {
         Counters c = esql("""
             PROMQL index=k8s step=5m sum(network.cost)""");
-        var expectedFeatures = Map.of(PROMQL, 1L, TS, 1L, EVAL, 1L, WHERE, 1L);
-        if (EsqlCapabilities.Cap.TSTEP.isEnabled()) {
-            // TSTEP is snapshot only
-            assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "tstep", 1L));
-        } else {
-            assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L));
-        }
+        var expectedFeatures = Map.of(PROMQL, 1L, FROM, 1L, EVAL, 1L, WHERE, 1L);
+        assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "bucket", 1L));
     }
 
     public void testInSubquery() {

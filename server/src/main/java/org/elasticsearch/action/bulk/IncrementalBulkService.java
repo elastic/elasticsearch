@@ -190,6 +190,10 @@ public class IncrementalBulkService {
             taskManager.cancel(bulkSessionTask, reason, listener);
         }
 
+        public boolean isCancelled() {
+            return bulkSessionTask.isCancelled();
+        }
+
         public IndexingPressure.Incremental getIncrementalOperation() {
             return incrementalOperation;
         }
@@ -201,7 +205,11 @@ public class IncrementalBulkService {
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
             assert closed == false;
             assert bulkInProgress == false;
-            if (bulkActionLevelFailure != null) {
+
+            if (bulkActionLevelFailure != null
+                || bulkSessionTask.notifyIfCancelled(
+                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
+                )) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
             } else {
@@ -216,7 +224,6 @@ public class IncrementalBulkService {
                         releasables.clear();
                         bulkInProgress = true;
                         client.bulk(bulkRequest, ActionListener.runAfter(new ActionListener<>() {
-
                             @Override
                             public void onResponse(BulkResponse bulkResponse) {
                                 handleBulkSuccess(bulkResponse);

@@ -82,6 +82,21 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         Predicate<BytesRef> predicate,
         float cost
     ) {
+        if (counts == null) {
+            // Single-valued binary doc values (multi_value=false): a plain BinaryDocValuesField is written with no .counts companion,
+            // so there is nothing to count and the binary value holds the single term verbatim. Drive the iterator off the values.
+            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+                @Override
+                public boolean matches() throws IOException {
+                    return predicate.test(values.binaryValue());
+                }
+
+                @Override
+                public float matchCost() {
+                    return cost;
+                }
+            });
+        }
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
             final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 

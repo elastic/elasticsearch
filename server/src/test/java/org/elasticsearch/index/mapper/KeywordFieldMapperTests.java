@@ -19,6 +19,8 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
@@ -41,8 +43,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.StringFieldScript;
@@ -1072,6 +1076,44 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 + "legacy index versions",
             doc.rootDoc().getFields("field.counts").isEmpty()
         );
+    }
+
+    /**
+     * A doc-values-only keyword with HIGH cardinality is queried through the binary doc values path. With {@code multi_value=false} the
+     * write path stores a plain {@code BinaryDocValuesField} with no companion {@code .counts} field, so
+     * {@link SlowCustomBinaryDocValuesTermQuery} must drive its {@code TwoPhaseIterator} off the binary values directly and match the
+     * single verbatim term rather than off an absent counts field.
+     */
+    public void testHighCardinalitySingleValuedBinaryDocValuesQueryMatches() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword").field("index", false);
+            b.startObject("doc_values").field("cardinality", "high").field("multi_value", false).endObject();
+        }));
+
+        String value = randomAlphanumericOfLength(10);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", value)));
+
+        // The binary value is written, but no companion .counts field is written for the single-valued multi_value=false doc.
+        assertFalse("expected a binary doc values field for the value", doc.rootDoc().getFields("field").isEmpty());
+        assertTrue(
+            "single-valued multi_value=false doc must not write a .counts companion",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+
+            Query query = mapperService.fieldType("field").termQuery(value, context);
+            assertThat(query, instanceOf(SlowCustomBinaryDocValuesTermQuery.class));
+            // The single-valued binary doc values path drives the TwoPhaseIterator off the binary values, matching the verbatim term.
+            assertThat(searcher.count(query), equalTo(1));
+
+            // A non-matching term must not match the single-valued document.
+            Query noMatch = mapperService.fieldType("field").termQuery(value + "_absent", context);
+            assertThat(searcher.count(noMatch), equalTo(0));
+        });
     }
 
     @Override

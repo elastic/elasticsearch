@@ -38,7 +38,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  */
 final class PrometheusPlanBuilderUtils {
 
-    /** Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.MetricsInfo} and {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} that lists the dimension field names. */
+    /**
+     * Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.MetricsInfo} and
+     * {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} that lists the dimension field names.
+     */
     static final String DIMENSION_FIELDS = "dimension_fields";
 
     private PrometheusPlanBuilderUtils() {}

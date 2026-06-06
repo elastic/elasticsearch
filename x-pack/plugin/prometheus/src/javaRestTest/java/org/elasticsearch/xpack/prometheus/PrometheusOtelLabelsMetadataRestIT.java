@@ -219,25 +219,21 @@ public class PrometheusOtelLabelsMetadataRestIT extends ESRestTestCase {
             privilegeArray.append(privileges[i]);
         }
         Request request = new Request("POST", "/_security/api_key");
-        request.setJsonEntity(
-            """
-                {
-                  "name": "$NAME",
-                  "role_descriptors": {
-                    "role": {
-                      "index": [
-                        {
-                          "names": ["$INDEX_PATTERN"],
-                          "privileges": ["$PRIVILEGES"]
-                        }
-                      ]
+        request.setJsonEntity("""
+            {
+              "name": "$NAME",
+              "role_descriptors": {
+                "role": {
+                  "index": [
+                    {
+                      "names": ["$INDEX_PATTERN"],
+                      "privileges": ["$PRIVILEGES"]
                     }
-                  }
+                  ]
                 }
-                """.replace("$NAME", name)
-                .replace("$INDEX_PATTERN", indexPattern)
-                .replace("$PRIVILEGES", privilegeArray)
-        );
+              }
+            }
+            """.replace("$NAME", name).replace("$INDEX_PATTERN", indexPattern).replace("$PRIVILEGES", privilegeArray));
         ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
         return response.evaluate("encoded");
     }

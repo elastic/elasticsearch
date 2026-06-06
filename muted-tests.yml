@@ -230,6 +230,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:tdigest.Top level date group with no other groups (timeseries index)}
   issue: https://github.com/elastic/elasticsearch/issues/150931
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:fork.forkBeforeCompletion}
+  issue: https://github.com/elastic/elasticsearch/issues/150932
 
 # Examples:
 #

@@ -32,8 +32,10 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.sts.StsAsyncClient;
 import software.amazon.awssdk.services.sts.StsAsyncClientBuilder;
+import software.amazon.awssdk.utils.SdkAutoCloseable;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.workload.identity.aws.AsyncWebIdentityCredentialsProvider;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Instant;
@@ -85,20 +88,39 @@ public final class S3StorageProvider implements StorageProvider {
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
         final IdentityProvider<? extends AwsCredentialsIdentity> credentials;
-        if (config != null && config.hasKeylessAuth()) {
-            // Resolve the issuer client (and assert it is enabled) before allocating the STS client, so a
-            // disabled-feature misconfiguration fails fast without leaking the STS client's Netty resources.
-            WorkloadIdentityIssuerClient issuerClient = enabledWorkloadIdentityIssuerClient();
-            // One STS async client and one credentials provider, shared by both S3 clients so a single token
-            // cache and a single single-flight refresh back every request.
-            this.stsAsyncClient = buildStsAsyncClient(config);
-            credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, stsAsyncClient);
-        } else {
-            this.stsAsyncClient = null;
-            credentials = credentialsProvider(config);
+        StsAsyncClient sts = null;
+        S3Client s3 = null;
+        boolean success = false;
+        try {
+            if (config != null && config.hasKeylessAuth()) {
+                // Resolve the issuer client (and assert it is enabled) before allocating the STS client, so a
+                // disabled-feature misconfiguration fails fast without leaking the STS client's Netty resources.
+                WorkloadIdentityIssuerClient issuerClient = enabledWorkloadIdentityIssuerClient();
+                // One STS async client and one credentials provider, shared by both S3 clients so a single token
+                // cache and a single single-flight refresh back every request.
+                sts = buildStsAsyncClient(config);
+                credentials = buildWorkloadIdentityCredentialsProvider(config, issuerClient, sts);
+            } else {
+                credentials = credentialsProvider(config);
+            }
+            s3 = buildS3Client(config, credentials);
+            this.stsAsyncClient = sts;
+            this.s3Client = s3;
+            this.s3AsyncClient = buildS3AsyncClient(config, credentials);
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(asCloseable(sts), asCloseable(s3));
+            }
         }
-        this.s3Client = buildS3Client(config, credentials);
-        this.s3AsyncClient = buildS3AsyncClient(config, credentials);
+    }
+
+    /**
+     * Adapts a (possibly {@code null}) AWS SDK {@link SdkAutoCloseable} client to a {@link Closeable} so it can be
+     * handed to {@link IOUtils}.
+     */
+    private static Closeable asCloseable(SdkAutoCloseable closeable) {
+        return closeable == null ? null : closeable::close;
     }
 
     /** Test-only constructor that accepts pre-built clients. */
@@ -338,17 +360,7 @@ public final class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        try {
-            s3Client.close();
-        } finally {
-            try {
-                s3AsyncClient.close();
-            } finally {
-                if (stsAsyncClient != null) {
-                    stsAsyncClient.close();
-                }
-            }
-        }
+        IOUtils.close(asCloseable(s3Client), asCloseable(s3AsyncClient), asCloseable(stsAsyncClient));
     }
 
     private String credentialHint() {

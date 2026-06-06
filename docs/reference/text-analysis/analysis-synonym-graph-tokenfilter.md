@@ -141,6 +141,10 @@ Additional settings are:
 * `expand` (defaults to `true`). Expands definitions for equivalent synonym rules. See [expand equivalent synonyms](#synonym-graph-tokenizer-expand-equivalent-synonyms).
 * `lenient` (defaults to the value of the `updateable` setting). If `true` ignores errors while parsing the synonym rules. It is important to note that only those synonym rules which cannot get parsed are ignored. See [synonyms and stop token filters](#synonym-graph-tokenizer-stop-token-filter) for an example of `lenient` behaviour for invalid synonym rules.
 
+::::{note}
+When node-level analyzer sharing is enabled, indices on the same node whose analysis configuration is identical share a single analyzer instance. Reloading the search analyzers of one such index therefore also refreshes the shared synonyms for every other index sharing that analyzer.
+::::
+
 
 ### `expand` equivalent synonym rules [synonym-graph-tokenizer-expand-equivalent-synonyms]
 

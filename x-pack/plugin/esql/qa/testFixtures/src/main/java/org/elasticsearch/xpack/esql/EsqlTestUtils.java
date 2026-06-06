@@ -1696,7 +1696,7 @@ public final class EsqlTestUtils {
             }
         }
         // rebuild source command from transformed index patterns and subqueries, prepending any SET statements
-        String transformedFrom = setStatements + " FROM " + String.join(", ", transformed) + metadata;
+        String transformedFrom = setStatements + "FROM " + String.join(", ", transformed) + metadata;
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
         testQuery = String.join(" | ", mainFromCommandAndTheRest);

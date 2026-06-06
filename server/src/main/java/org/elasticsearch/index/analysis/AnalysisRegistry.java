@@ -1040,6 +1040,12 @@ public final class AnalysisRegistry implements Closeable {
             }
         }
         NamedAnalyzer shared = interned.analyzer();
+        // Cache entries are re-tagged GLOBAL in lookupOrIntern so that the per-index wrapper handed out
+        // here (and on release) does not cascade-close the shared underlying analyzer. The thin re-wrap
+        // below copies the source scope, so an INDEX-scoped cache entry would reintroduce that cascade —
+        // guard the invariant rather than rely on every future caller preserving it.
+        assert shared.scope() != AnalyzerScope.INDEX
+            : "cached shared analyzer [" + shared.name() + "] must not be INDEX-scoped; its per-index wrapper would cascade-close it";
         return shared.name().equals(name) ? shared : new NamedAnalyzer(name, shared);
     }
 

@@ -261,6 +261,11 @@ public final class S3StorageProvider implements StorageProvider {
     /**
      * Builds the async STS client used for {@code AssumeRoleWithWebIdentity}. The exchange itself is unauthenticated
      * (the web-identity token is the credential), so anonymous credentials are configured.
+     * <p>
+     * The region is resolved independently of the bucket region: an explicit {@code sts_region} wins, otherwise the
+     * bucket {@code region} is used, otherwise {@code us-east-1}. STS uses regional endpoints
+     * ({@code sts.<region>.amazonaws.com}); inheriting the bucket region by default also keeps STS in the bucket's
+     * AWS partition (commercial vs. GovCloud/China), while {@code sts_region}/{@code sts_endpoint} allow overriding it.
      */
     private static StsAsyncClient buildStsAsyncClient(S3Configuration config) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config, which the
@@ -274,7 +279,8 @@ public final class S3StorageProvider implements StorageProvider {
                 c.defaultProfileFileSupplier(() -> emptyProfileFile);
                 c.retryStrategy(AwsRetryStrategy.standardRetryStrategy());
             });
-        builder.region(config != null && config.region() != null ? Region.of(config.region()) : Region.US_EAST_1);
+        String region = config != null ? (Strings.hasText(config.stsRegion()) ? config.stsRegion() : config.region()) : null;
+        builder.region(Strings.hasText(region) ? Region.of(region) : Region.US_EAST_1);
         if (config != null && Strings.hasText(config.stsEndpoint())) {
             builder.endpointOverride(URI.create(config.stsEndpoint()));
         }

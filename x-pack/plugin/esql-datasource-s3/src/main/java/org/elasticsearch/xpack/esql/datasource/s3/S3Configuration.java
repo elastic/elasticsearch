@@ -41,6 +41,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition ROLE_SESSION_NAME = plaintext("role_session_name").asKeylessAuth();
     private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
     private static final DataSourceConfigDefinition STS_ENDPOINT = plaintext("sts_endpoint").asKeylessAuth();
+    private static final DataSourceConfigDefinition STS_REGION = plaintext("sts_region").asKeylessAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         ACCESS_KEY,
@@ -52,6 +53,7 @@ public class S3Configuration extends FileDataSourceConfiguration {
         ROLE_SESSION_NAME,
         JWT_AUDIENCE,
         STS_ENDPOINT,
+        STS_REGION,
         AUTH
     );
 
@@ -119,12 +121,16 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return raw != null ? fromMap(raw) : null;
     }
 
-    /** Builds a keyless workload-identity configuration. {@code roleSessionName} and {@code stsEndpoint} are optional. */
+    /**
+     * Builds a keyless workload-identity configuration. {@code roleSessionName}, {@code stsEndpoint}, and
+     * {@code stsRegion} are optional.
+     */
     public static S3Configuration fromKeylessFields(
         String roleArn,
         String roleSessionName,
         String jwtAudience,
         String stsEndpoint,
+        String stsRegion,
         String endpoint,
         String region
     ) {
@@ -137,6 +143,8 @@ public class S3Configuration extends FileDataSourceConfiguration {
             jwtAudience,
             STS_ENDPOINT,
             stsEndpoint,
+            STS_REGION,
+            stsRegion,
             ENDPOINT,
             endpoint,
             REGION,
@@ -183,6 +191,15 @@ public class S3Configuration extends FileDataSourceConfiguration {
     /** Optional STS endpoint override (e.g. a regional endpoint or test fixture); defaults to the SDK resolution. */
     public String stsEndpoint() {
         return get(STS_ENDPOINT.name());
+    }
+
+    /**
+     * Optional region for the STS client, independent of the bucket {@link #region()}. STS uses regional endpoints
+     * ({@code sts.<region>.amazonaws.com}), so this allows assuming the role through a different region than the
+     * bucket. When unset, the bucket region is used (which also keeps STS in the bucket's AWS partition).
+     */
+    public String stsRegion() {
+        return get(STS_REGION.name());
     }
 
     public boolean hasCredentials() {

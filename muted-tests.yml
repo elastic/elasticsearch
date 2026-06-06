@@ -224,6 +224,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150865
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:stats.commonFilterExtractionWithAliasAndOriginalNeedingNormalizationAndSimplification}
+  issue: https://github.com/elastic/elasticsearch/issues/150930
 
 # Examples:
 #

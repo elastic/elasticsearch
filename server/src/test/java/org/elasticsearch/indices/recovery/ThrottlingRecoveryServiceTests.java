@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;

@@ -148,4 +148,37 @@ public class EsqlTestUtilsTests extends ESTestCase {
             equalTo("FROM *:sample_data_ts_nanos,sample_data_ts_nanos, *:sample_data,sample_data")
         );
     }
+
+    public void testConvertSubqueryToRemoteIndicesWithSetStatement() {
+        String in = """
+            SET unmapped_fields="nullify";
+            FROM k8s, (from many_numbers)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in as x, x as y
+            | RENAME y as z
+            | KEEP *
+            | SORT z
+            | LIMIT 1""";
+        String out = "SET unmapped_fields=\"nullify\";\n"
+            + "FROM *:k8s,k8s, (FROM *:many_numbers,many_numbers)"
+            + " | KEEP network.total_bytes_in"
+            + " | RENAME network.total_bytes_in as x, x as y"
+            + " | RENAME y as z"
+            + " | KEEP *"
+            + " | SORT z"
+            + " | LIMIT 1";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesWithMultipleSetStatements() {
+        String in = """
+            SET a=b;
+            SET c=d;
+            FROM employees, (FROM employees_incompatible | KEEP emp_no)
+            | SORT emp_no""";
+        String out = "SET a=b;\nSET c=d;\n"
+            + "FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible | KEEP emp_no)"
+            + " | SORT emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
 }

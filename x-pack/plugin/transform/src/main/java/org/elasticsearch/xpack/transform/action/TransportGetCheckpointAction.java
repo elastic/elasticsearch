@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
@@ -201,24 +202,27 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         boolean includeResolvedIndexExpressions,
         ActionListener<Response> listener
     ) {
-
         String[] concreteIndices;
         if (crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
             // For cross-project search, ResolvedIndexExpressions will have resolved our local indices already, and we will filter ones
             // that have successfully resolved before calling their shards. Any indices that did not successfully resolve are validated
             // when aggregated with all Response objects in validateAndMergeResponses().
-            concreteIndices = request.getResolvedIndexExpressions()
-                .expressions()
-                .stream()
-                .map(ResolvedIndexExpression::localExpressions)
-                .filter(
-                    localExpression -> localExpression
-                        .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
-                )
-                .map(ResolvedIndexExpression.LocalExpressions::indices)
-                .flatMap(Collection::stream)
-                .distinct()
-                .toArray(String[]::new);
+            ResolvedIndexExpressions resolvedIndexExpressions = request.getResolvedIndexExpressions();
+            if (resolvedIndexExpressions != null) {
+                concreteIndices = resolvedIndexExpressions.expressions()
+                    .stream()
+                    .map(ResolvedIndexExpression::localExpressions)
+                    .filter(
+                        localExpression -> localExpression
+                            .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                    )
+                    .map(ResolvedIndexExpression.LocalExpressions::indices)
+                    .flatMap(Collection::stream)
+                    .distinct()
+                    .toArray(String[]::new);
+            } else {
+                concreteIndices = Strings.EMPTY_ARRAY;
+            }
         } else {
             // note: when security is turned on, the indices are already resolved
             // TODO: do a quick check and only resolve if necessary??
@@ -353,6 +357,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             request.getCluster()
         );
         searchShardsRequest.setParentTask(parentTaskId);
+        searchShardsRequest.setIncludeSkippedShardsInIterators(true);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
@@ -418,28 +423,39 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     }
 
     /**
-     * Retains only (node, shard) pairs that appear in the search shards response.
+     * Removes (node, shard) pairs for shards flagged as skipped by the can-match phase, leaving
+     * all other shards intact. Shards absent from the response are kept so that index-resolution
+     * divergence between the routing table and {@code search_shards} (e.g. under cross-project or
+     * security re-resolution) cannot silently drop legitimate shards from the checkpoint.
      * <p>
-     * Here "skipped" means <em>not in the search shards response</em>: shards that would not be
-     * queried for the given request. This is unrelated to {@link SearchShardsGroup#skipped()},
-     * which indicates a different condition (e.g. pre-filtered or non-matching shards).
+     * Requires the {@code search_shards} request to have been issued with
+     * {@link SearchShardsRequest#setIncludeSkippedShardsInIterators(boolean)
+     * includeSkippedShardsInIterators=true} so that can-match-skipped shards are returned with
+     * {@link SearchShardsGroup#skipped()} set.
      *
-     * @param nodesAndShards      primary shards per node from the cluster state
+     * @param nodesAndShards       primary shards per node from the cluster state
      * @param searchShardsResponse result of the search_shards API for the same request
-     * @return map of node id to shard ids that are present in the search shards response
+     * @return map of node id to shard ids, with can-match-skipped shards removed
      */
     static Map<String, Set<ShardId>> filterOutSkippedShards(
         Map<String, Set<ShardId>> nodesAndShards,
         SearchShardsResponse searchShardsResponse
     ) {
         Map<String, Set<ShardId>> filteredNodesAndShards = new HashMap<>(nodesAndShards.size());
-        // Keep only (node, shard) pairs that appear in the search shards response.
+        // Start with a deep copy of all routing-table shards.
+        for (Map.Entry<String, Set<ShardId>> entry : nodesAndShards.entrySet()) {
+            filteredNodesAndShards.put(entry.getKey(), new HashSet<>(entry.getValue()));
+        }
+        // Remove (node, shard) pairs for shards the can-match phase flagged as skipped.
         for (SearchShardsGroup shardGroup : searchShardsResponse.getGroups()) {
-            for (String allocatedNode : shardGroup.allocatedNodes()) {
-                Set<ShardId> shards = nodesAndShards.get(allocatedNode);
-                if (shards != null) {
-                    if (shards.contains(shardGroup.shardId())) {
-                        filteredNodesAndShards.computeIfAbsent(allocatedNode, k -> new HashSet<>()).add(shardGroup.shardId());
+            if (shardGroup.skipped()) {
+                for (String allocatedNode : shardGroup.allocatedNodes()) {
+                    Set<ShardId> shards = filteredNodesAndShards.get(allocatedNode);
+                    if (shards != null) {
+                        shards.remove(shardGroup.shardId());
+                        if (shards.isEmpty()) {
+                            filteredNodesAndShards.remove(allocatedNode);
+                        }
                     }
                 }
             }

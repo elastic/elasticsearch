@@ -216,7 +216,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             String cluster,
             boolean includeResolvedIndexExpressions
         ) {
-            return new Request(
+            Request rewritten = new Request(
                 indices,
                 indicesOptions,
                 getQuery(),
@@ -225,6 +225,8 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
                 getProjectRouting(),
                 includeResolvedIndexExpressions
             );
+            rewritten.setResolvedIndexExpressions(getResolvedIndexExpressions());
+            return rewritten;
         }
     }
 

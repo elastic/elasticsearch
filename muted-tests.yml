@@ -319,9 +319,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
   method: testGetCheckpointTimeoutExceeded
   issue: https://github.com/elastic/elasticsearch/issues/150934
-- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
-  method: testBasic
-  issue: https://github.com/elastic/elasticsearch/issues/149338
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test16InstallSpecialCharactersInJdkPath
   issue: https://github.com/elastic/elasticsearch/issues/151142

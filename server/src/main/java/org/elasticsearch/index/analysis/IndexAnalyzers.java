@@ -230,6 +230,12 @@ public interface IndexAnalyzers extends Closeable {
                     }
                 }
 
+                // Report every matching analyzer as reloaded, including those whose rebuild was deduped
+                // because a sibling shard sharing the same instance rebuilt it first for this request.
+                // That is accurate, not over-reporting: reload mutates the shared instance in place, so a
+                // "coasting" sharer's analyzer reflects the refreshed state just the same. We deliberately
+                // do not distinguish "this shard did the I/O" — a coasted sharer is still reloaded, and a
+                // rebuilt=false flag would wrongly read as "your reload did not take effect".
                 return reloadableAnalyzers.stream().map(Map.Entry::getKey).toList();
             }
         };

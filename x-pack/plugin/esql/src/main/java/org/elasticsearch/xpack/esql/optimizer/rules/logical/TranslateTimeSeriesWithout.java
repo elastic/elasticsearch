@@ -57,6 +57,17 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         return changed ? relation.withAttributes(attributes) : relation;
     }
 
+    /**
+     * Injects the lowered {@code _timeseries} attributes into the time-series source relation(s) feeding this aggregate. Traversal scope
+     * (skipping the right-hand side of a {@code BinaryPlan}) is documented on {@code TranslateTimeSeriesUtils#transformTimeSeriesSource}.
+     */
+    private static LogicalPlan addLoweredAttributesToTimeSeriesSource(
+        LogicalPlan plan,
+        Iterable<TimeSeriesMetadataAttribute> loweredAttributes
+    ) {
+        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> addLoweredAttributes(relation, loweredAttributes));
+    }
+
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
@@ -88,9 +99,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         // Propagate the lowered attributes into aggregate expressions that reference the old grouping ids.
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> replaceReferences(agg, replacements)).toList();
         // Add the new _timeseries attribute to the EsRelation so field extraction can find it.
-        LogicalPlan newChild = aggregate.child()
-            .transformDown(EsRelation.class, relation -> addLoweredAttributes(relation, replacements.values()));
-
+        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), replacements.values());
         return aggregate.with(newChild, newGroupings, newAggregates);
     }
 }

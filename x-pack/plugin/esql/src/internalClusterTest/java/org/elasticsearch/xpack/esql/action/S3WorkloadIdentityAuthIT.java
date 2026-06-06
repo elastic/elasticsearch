@@ -328,9 +328,8 @@ public class S3WorkloadIdentityAuthIT extends AbstractEsqlIntegTestCase {
      * the cluster setting is disabled.
      */
     public void testWorkloadIdentityAuthRejectedWhenSettingDisabledAtValidation() {
-        var validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, java.util.Set.of("s3", "s3a", "s3n"));  // workloadIdentityEnabled
-                                                                                                                            // defaults to
-                                                                                                                            // () -> false
+        // workloadIdentityEnabled defaults to () -> false
+        var validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, java.util.Set.of("s3", "s3a", "s3n"));
         var e = expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))

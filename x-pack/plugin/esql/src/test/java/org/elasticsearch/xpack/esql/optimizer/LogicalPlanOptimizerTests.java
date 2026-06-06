@@ -11347,6 +11347,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertNotNull(plan);
     }
 
+    public void testInfoCommandsPreserveTimeSeriesIndexMode() {
+        for (String query : List.of("TS k8s | METRICS_INFO", "TS k8s | TS_INFO")) {
+            var plan = planMetrics(query);
+            var esRelations = plan.collect(EsRelation.class);
+            assertThat(esRelations, hasSize(1));
+            assertThat(esRelations.getFirst().indexMode(), equalTo(IndexMode.TIME_SERIES));
+        }
+    }
+
     public void testTsWildcardStatsWithOptionalIndex() {
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));

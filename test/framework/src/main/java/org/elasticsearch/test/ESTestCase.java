@@ -674,6 +674,12 @@ public abstract class ESTestCase extends LuceneTestCase {
             // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
             return;
         }
+        // Poll briefly to let any in-flight ref-count decrements (e.g. respondAndRelease finally blocks
+        // running on a search thread) finish before asserting, since those can race with the test thread.
+        long deadline = System.nanoTime() + 500_000_000L;
+        while (testLeakWindow.hasLeaks() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
         testLeakWindow.assertNoLeaks();
     }
 

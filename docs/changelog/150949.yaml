@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150949
+summary: Preserve TS mode for ES|QL info commands
+type: bug

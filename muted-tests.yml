@@ -227,6 +227,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.commonFilterExtractionWithAliasAndOriginalNeedingNormalizationAndSimplification}
   issue: https://github.com/elastic/elasticsearch/issues/150930
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:tdigest.Top level date group with no other groups (timeseries index)}
+  issue: https://github.com/elastic/elasticsearch/issues/150931
 
 # Examples:
 #

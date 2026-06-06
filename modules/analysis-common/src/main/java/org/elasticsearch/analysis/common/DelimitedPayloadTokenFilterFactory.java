@@ -30,6 +30,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
 
     private final char delimiter;
     private final PayloadEncoder encoder;
+    private final String encoding;
 
     private final Object sharingKey;
 
@@ -42,20 +43,25 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
             delimiter = DEFAULT_DELIMITER;
         }
 
-        if (settings.get(ENCODING) != null) {
-            if (settings.get(ENCODING).equals("float")) {
-                encoder = new FloatEncoder();
-            } else if (settings.get(ENCODING).equals("int")) {
-                encoder = new IntegerEncoder();
-            } else if (settings.get(ENCODING).equals("identity")) {
-                encoder = new IdentityEncoder();
-            } else {
-                encoder = DEFAULT_ENCODER;
-            }
+        String encodingConf = settings.get(ENCODING);
+        if ("int".equals(encodingConf)) {
+            encoder = new IntegerEncoder();
+            encoding = "int";
+        } else if ("identity".equals(encodingConf)) {
+            encoder = new IdentityEncoder();
+            encoding = "identity";
+        } else if ("float".equals(encodingConf)) {
+            encoder = new FloatEncoder();
+            encoding = "float";
         } else {
+            // unset or unrecognized: the default encoder is a FloatEncoder, so it keys as "float"
             encoder = DEFAULT_ENCODER;
+            encoding = "float";
         }
-        this.sharingKey = new Key(delimiter, encoder);
+        // Key on the encoding name, not the encoder instance: FloatEncoder / IntegerEncoder /
+        // IdentityEncoder are identity-compared (no equals/hashCode), so keying on the instance would
+        // give every factory a distinct key and sharing would never fire.
+        this.sharingKey = new Key(delimiter, encoding);
     }
 
     @Override
@@ -68,5 +74,5 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         return sharingKey;
     }
 
-    private record Key(char delimiter, PayloadEncoder encoder) {}
+    private record Key(char delimiter, String encoding) {}
 }

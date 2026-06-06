@@ -32,7 +32,9 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings);
-        this.sharingKey = new Key(minGram, maxGram, matcher);
+        // Key on the normalized token_chars settings, not the identity-compared CharMatcher (see
+        // NGramTokenizerFactory#buildTokenCharsKey), otherwise two identical configs never share.
+        this.sharingKey = new Key(minGram, maxGram, NGramTokenizerFactory.buildTokenCharsKey(settings));
     }
 
     @Override
@@ -54,5 +56,5 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         return sharingKey;
     }
 
-    private record Key(int minGram, int maxGram, CharMatcher matcher) {}
+    private record Key(int minGram, int maxGram, Object tokenChars) {}
 }

@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -94,6 +95,34 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         return builder.build();
     }
 
+    /**
+     * Canonical, value-equal representation of the {@code token_chars} (and {@code custom_token_chars})
+     * setting for use in {@link #sharingKey()}. The {@link CharMatcher} returned by {@link #parseTokenChars}
+     * is identity-compared — {@code CharMatcher.Builder#build} hands back a fresh lambda for the
+     * multi-class and {@code custom} cases — so keying on it would never let two identical configs share.
+     * The classes are OR-ed, so order and duplicates do not change matching; a sorted set captures that.
+     * Returns {@code null} when no {@code token_chars} are configured (matching {@link #parseTokenChars}).
+     */
+    static Object buildTokenCharsKey(Settings settings) {
+        List<String> characterClasses = settings.getAsList("token_chars");
+        if (characterClasses == null || characterClasses.isEmpty()) {
+            return null;
+        }
+        Set<String> classes = new TreeSet<>();
+        for (String characterClass : characterClasses) {
+            classes.add(characterClass.toLowerCase(Locale.ROOT).trim());
+        }
+        // custom_token_chars only affects matching when the "custom" class is requested
+        Set<Integer> customChars = new TreeSet<>();
+        if (classes.contains("custom")) {
+            String customCharacters = settings.get("custom_token_chars");
+            if (customCharacters != null) {
+                customCharacters.chars().forEach(customChars::add);
+            }
+        }
+        return new TokenCharsKey(classes, customChars);
+    }
+
     NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
@@ -112,7 +141,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             );
         }
         this.matcher = parseTokenChars(settings);
-        this.sharingKey = new Key(minGram, maxGram, matcher);
+        this.sharingKey = new Key(minGram, maxGram, buildTokenCharsKey(settings));
     }
 
     @Override
@@ -134,5 +163,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         return sharingKey;
     }
 
-    private record Key(int minGram, int maxGram, CharMatcher matcher) {}
+    private record Key(int minGram, int maxGram, Object tokenChars) {}
+
+    private record TokenCharsKey(Set<String> classes, Set<Integer> customChars) {}
 }

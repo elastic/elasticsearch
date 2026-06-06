@@ -103,7 +103,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("ignore_case", "true")
                 .affects("query_mode", "true")
         );
-        p.put("delimited_payload", settings().affects("delimiter", "/").affects("encoding", "identity"));
+        // Base uses a non-default encoding so the "two identical configs share" baseline check exercises
+        // a freshly-built encoder instance (FloatEncoder/IntegerEncoder/IdentityEncoder are identity-
+        // compared); a key built from the encoder instance rather than the encoding name would fail it.
+        p.put("delimited_payload", settings(Map.of("encoding", "identity")).affects("delimiter", "/").affects("encoding", "int"));
         p.put(
             "dictionary_decompounder",
             settings(Map.of("word_list", List.of("quick", "brown"))).affects("word_list", List.of("quick", "fox"))
@@ -182,14 +185,21 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("max_token_length", "5")
         );
         p.put("classic", settings().affects("max_token_length", "5"));
+        // Base uses multi-value token_chars (incl. "custom") so the "two identical configs share"
+        // baseline check exercises a freshly-built CharMatcher lambda; a key built from the matcher
+        // instead of the normalized token_chars settings would fail it.
         p.put(
             "edge_ngram",
-            settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("token_chars", List.of("letter"))
+            settings(
+                Map.of("min_gram", "1", "max_gram", "2", "token_chars", List.of("letter", "digit", "custom"), "custom_token_chars", "+-")
+            ).affects("max_gram", "3").affects("token_chars", List.of("letter")).affects("custom_token_chars", "+_")
         );
         p.put("keyword", settings().affects("buffer_size", "128"));
         p.put(
             "ngram",
-            settings(Map.of("min_gram", "1", "max_gram", "2")).affects("max_gram", "3").affects("token_chars", List.of("letter"))
+            settings(
+                Map.of("min_gram", "1", "max_gram", "2", "token_chars", List.of("letter", "digit", "custom"), "custom_token_chars", "+-")
+            ).affects("max_gram", "3").affects("token_chars", List.of("letter")).affects("custom_token_chars", "+_")
         );
         p.put(
             "path_hierarchy",

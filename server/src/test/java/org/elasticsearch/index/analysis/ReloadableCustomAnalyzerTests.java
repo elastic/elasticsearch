@@ -201,6 +201,88 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     }
 
     /**
+     * The mid-build close re-check: if close() lands while a reload is already building (parked in the
+     * heavy createComponents), reload must drop its freshly built components rather than publish them onto
+     * the torn-down instance — and close() must not block waiting for the build. A probe parks the
+     * builder; the test closes the analyzer while it is parked, releases it, and asserts the components
+     * were not swapped in.
+     */
+    public void testReloadDiscardsResultWhenClosedMidBuild() throws Exception {
+        CountDownLatch buildEntered = new CountDownLatch(1);
+        CountDownLatch releaseBuild = new CountDownLatch(1);
+        TokenFilterFactory parkingProbe = new AbstractTokenFilterFactory("my_filter") {
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return AnalysisMode.SEARCH_TIME;
+            }
+
+            @Override
+            public TokenFilterFactory getChainAwareTokenFilterFactory(
+                IndexCreationContext context,
+                TokenizerFactory tokenizer,
+                List<CharFilterFactory> charFilters,
+                List<TokenFilterFactory> previousTokenFilters,
+                Function<String, TokenFilterFactory> allFilters
+            ) {
+                buildEntered.countDown();
+                try {
+                    releaseBuild.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return this;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return tokenStream;
+            }
+
+            @Override
+            public Object sharingKey() {
+                return this;
+            }
+        };
+
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents initial = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            noOp()
+        );
+        ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(initial, 0, 0);
+        AnalyzerComponents before = analyzer.getComponents();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        Thread builder = new Thread(() -> {
+            try {
+                analyzer.reload(
+                    new Object(),
+                    "my_analyzer",
+                    analyzerSettings,
+                    testAnalysis.tokenizer,
+                    testAnalysis.charFilter,
+                    Collections.singletonMap("my_filter", parkingProbe)
+                );
+            } catch (Exception e) {
+                failure.compareAndSet(null, e);
+            }
+        });
+        builder.start();
+        assertTrue("builder did not enter the build", buildEntered.await(10, TimeUnit.SECONDS));
+        // close() while the reload is parked mid-build. It must not block (it is not synchronized).
+        analyzer.close();
+        releaseBuild.countDown();
+        builder.join(30_000);
+
+        assertFalse("builder thread did not finish", builder.isAlive());
+        assertNull("reload threw: " + failure.get(), failure.get());
+        assertSame("a reload that finishes building after close() must discard its result", before, analyzer.getComponents());
+    }
+
+    /**
      * Two concurrent {@link ReloadableCustomAnalyzer#reload} calls on the same instance must not build
      * the (potentially expensive) analyzer in parallel; the rebuilds serialize so only one runs at a
      * time. The probe filter holds the first builder inside the build (no timing — a latch), then the
@@ -318,6 +400,54 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0);
         analyzer.close();
         expectThrows(AlreadyClosedException.class, () -> analyzer.tokenStream("f", "foo"));
+    }
+
+    /**
+     * Hardening for the close()/tokenStream() race: a query tokenizing through a shared analyzer while it
+     * is closed (its last sharer released) must never observe a raw {@link NullPointerException} from the
+     * torn-down {@link org.apache.lucene.util.CloseableThreadLocal} — only a graceful
+     * {@link AlreadyClosedException}, or success if it got in first. A reader thread opens streams in a
+     * tight loop while the main thread closes the analyzer mid-flight; any non-{@code AlreadyClosedException}
+     * failure fails the test. (Either outcome — success or {@code AlreadyClosedException} — is acceptable,
+     * so the assertion is not timing-dependent.)
+     */
+    public void testTokenStreamRacingCloseNeverNpes() throws Exception {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
+        AnalyzerComponents components = createComponents(
+            IndexCreationContext.RELOAD_ANALYZERS,
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            noOp()
+        );
+
+        ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, 0, 0);
+        AtomicReference<Throwable> unexpected = new AtomicReference<>();
+        CountDownLatch tokenizedAtLeastOnce = new CountDownLatch(1);
+        Thread reader = new Thread(() -> {
+            while (true) {
+                try (TokenStream ts = analyzer.tokenStream("f", "foo bar baz")) {
+                    ts.reset();
+                    while (ts.incrementToken()) {
+                    }
+                    ts.end();
+                    tokenizedAtLeastOnce.countDown();
+                } catch (AlreadyClosedException expected) {
+                    return; // analyzer closed — the graceful, expected outcome
+                } catch (Throwable t) {
+                    unexpected.compareAndSet(null, t);
+                    return;
+                }
+            }
+        });
+        reader.start();
+        assertTrue("reader did not tokenize before close", tokenizedAtLeastOnce.await(10, TimeUnit.SECONDS));
+        analyzer.close();
+        reader.join(30_000);
+
+        assertFalse("reader thread did not finish", reader.isAlive());
+        assertNull("a tokenStream racing close must fail with AlreadyClosedException, never NPE: " + unexpected.get(), unexpected.get());
     }
 
     /**

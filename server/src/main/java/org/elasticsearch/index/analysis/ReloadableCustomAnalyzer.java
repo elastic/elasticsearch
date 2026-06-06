@@ -50,14 +50,24 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
                 custom.setStoredComponents(components);
                 return null;
             }
-            TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
-            assert tokenStream != null;
-            return tokenStream;
+            try {
+                TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
+                assert tokenStream != null;
+                return tokenStream;
+            } catch (NullPointerException e) {
+                // close() nulled the analyzer's reuse thread-local between getStoredComponents() and here.
+                throw alreadyClosed();
+            }
         }
 
         @Override
         public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
-            setStoredValue(analyzer, tokenStream);
+            try {
+                setStoredValue(analyzer, tokenStream);
+            } catch (NullPointerException e) {
+                // close() nulled the analyzer's reuse thread-local while this stream was being created.
+                throw alreadyClosed();
+            }
         }
     };
 
@@ -235,16 +245,38 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     }
 
     private void setStoredComponents(AnalyzerComponents components) {
-        storedComponents.set(components);
+        if (closed) {
+            throw alreadyClosed();
+        }
+        try {
+            storedComponents.set(components);
+        } catch (NullPointerException e) {
+            // close() raced this access and tore down the CloseableThreadLocal between the check and here.
+            throw alreadyClosed();
+        }
     }
 
     private AnalyzerComponents getStoredComponents() {
         if (closed) {
-            // The instance was released and closed (its CloseableThreadLocal is torn down). Behave like
-            // any other closed Lucene analyzer rather than NPE on the nulled thread-local.
-            throw new AlreadyClosedException("analyzer is closed");
+            throw alreadyClosed();
         }
-        return storedComponents.get();
+        try {
+            return storedComponents.get();
+        } catch (NullPointerException e) {
+            // close() raced this access and tore down the CloseableThreadLocal between the check and here.
+            throw alreadyClosed();
+        }
+    }
+
+    /**
+     * close() runs at refcount 0 (the last sharer released this instance) and tears down the
+     * {@link CloseableThreadLocal}. A query that was already tokenizing when that happened must fail like
+     * any other closed Lucene analyzer rather than NPE on the now-null thread-local. The {@link #closed}
+     * flag handles the common case; the {@code NullPointerException} catch above closes the tiny
+     * check-then-act window where close() lands mid-access.
+     */
+    private static AlreadyClosedException alreadyClosed() {
+        return new AlreadyClosedException("analyzer is closed");
     }
 
     @Override

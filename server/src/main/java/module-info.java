@@ -452,6 +452,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;
+    uses org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

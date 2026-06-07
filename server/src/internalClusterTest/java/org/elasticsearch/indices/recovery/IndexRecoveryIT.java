@@ -2209,28 +2209,34 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testQueuedRecoveryCancelledWhenSourceShardClosed() throws Exception {
+    public void testQueuedRecoveryCancelledWhenSourceShardClosed() {
         internalCluster().startMasterOnlyNode();
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
         final var sourceNode = internalCluster().startDataOnlyNode(
             Settings.builder()
                 .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
-        final int numShards = 2;
-        final var indexName = randomIndexName();
-        createIndex(indexName, indexSettings(numShards, 0).build());
+        final var index1 = randomIndexName();
+        final var index2 = randomIndexName();
+        createIndex(index1, indexSettings(1, 0).build());
+        createIndex(index2, indexSettings(1, 0).build());
 
         // Ensure committed segments exist, so FILE_CHUNK actions are issued
         for (int i = 0; i < 50; i++) {
-            indexDoc(indexName, Integer.toString(i), "f", randomAlphaOfLength(10));
-            refresh(indexName);
+            indexDoc(index1, Integer.toString(i), "f", randomAlphaOfLength(10));
+            indexDoc(index2, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(index1, index2);
         }
-        flush(indexName);
-        ensureGreen(indexName);
+        flush(index1, index2);
+        ensureGreen(index1, index2);
 
         final var fileChunkReceivedLatch = new CountDownLatch(1);
         final var proceedRecoveryLatch = new CountDownLatch(1);
-        final Set<Integer> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
+        final Set<ShardId> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
         final var transportService = MockTransportService.getInstance(sourceNode);
 
         // Stall the recovery and keeps its source slot occupied.
@@ -2238,7 +2244,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
                     fileChunkReceivedLatch.countDown();
-                    shardsThatStartedRecovery.add(fileChunkRequest.shardId().id());
+                    shardsThatStartedRecovery.add(fileChunkRequest.shardId());
                 }
                 safeAwait(proceedRecoveryLatch);
             }
@@ -2247,13 +2253,20 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         internalCluster().startDataOnlyNodes(1);
         assertAcked(
-            indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            indicesAdmin().prepareUpdateSettings(index1).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
         safeAwait(fileChunkReceivedLatch);
-        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 1 && stats.currentAsSource() == 1));
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1));
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(index2).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSource() == 1 && stats.currentAsSourceQueued() == 1));
 
-        assertAcked(indicesAdmin().prepareDelete(indexName));
+        assertThat(shardsThatStartedRecovery, hasSize(1));
+        assertThat(shardsThatStartedRecovery.stream().findFirst().get().getIndex().getName(), equalTo(index1));
+
+        assertAcked(indicesAdmin().prepareDelete(index2));
         final var updatedStats = clusterAdmin().prepareNodesStats(sourceNode)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))

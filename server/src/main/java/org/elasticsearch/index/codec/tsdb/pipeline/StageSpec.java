@@ -67,7 +67,12 @@ public sealed interface StageSpec {
      */
     record SplitDeltaStage(int kMax) implements TransformSpec {
 
-        /** Default cap on direction flips per block. */
+        /**
+         * Default cap on direction flips per block. Suits dense fields like
+         * {@code @timestamp}, where many samples per {@code _tsid} produce narrow
+         * within-sub-run delta ranges that amortize the per-sub-run metadata at any
+         * {@code k} up to the cap. Sparser fields need a more conservative cap.
+         */
         public static final int DEFAULT_K_MAX = 16;
 
         public SplitDeltaStage {

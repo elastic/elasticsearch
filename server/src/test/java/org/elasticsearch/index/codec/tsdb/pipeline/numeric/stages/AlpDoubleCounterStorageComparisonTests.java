@@ -31,7 +31,7 @@ public class AlpDoubleCounterStorageComparisonTests extends ESTestCase {
         assertSizes(
             AlpDoubleCounterStorageComparisonTests::counterAscendingWithResetsBlock,
             new long[] { 265, 1033, 2057, 4105 },
-            new long[] { 10, 28, 52, 100 }
+            new long[] { 10, 453, 901, 1797 }
         );
     }
 
@@ -39,7 +39,7 @@ public class AlpDoubleCounterStorageComparisonTests extends ESTestCase {
         assertSizes(
             AlpDoubleCounterStorageComparisonTests::counterDescendingWithSpikesBlock,
             new long[] { 131, 467, 915, 1811 },
-            new long[] { 12, 36, 68, 132 }
+            new long[] { 12, 455, 903, 1799 }
         );
     }
 
@@ -69,7 +69,7 @@ public class AlpDoubleCounterStorageComparisonTests extends ESTestCase {
     }
 
     private static PipelineConfig alpCounterPipeline(int blockSize) {
-        final int kMax = Math.clamp((long) blockSize / 32, 4, 64);
+        final int kMax = Math.clamp((long) blockSize / 128, 1, 8);
         return PipelineConfig.forDoubles(blockSize).alpDoubleStage().splitDelta(kMax).delta().offset().gcd().bitPack();
     }
 

@@ -87,6 +87,22 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         );
     }
 
+    public void testCounterAscendingWithResetsBlock() throws IOException {
+        assertSizes(
+            AlpDoubleStorageComparisonTests::counterAscendingWithResetsBlock,
+            new long[] { 265, 1033, 2057, 4105 },
+            new long[] { 117, 453, 901, 1797 }
+        );
+    }
+
+    public void testCounterDescendingWithSpikesBlock() throws IOException {
+        assertSizes(
+            AlpDoubleStorageComparisonTests::counterDescendingWithSpikesBlock,
+            new long[] { 131, 467, 915, 1811 },
+            new long[] { 119, 455, 903, 1799 }
+        );
+    }
+
     public void testAggregateAcrossPatterns() throws IOException {
         // Five-block aggregate sums per blockSize. ALP totals reflect the cross-block
         // (e, f) cache carrying state between consecutive blocks; the baseline pipeline
@@ -236,4 +252,36 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         return values;
     }
 
+    private static long[] counterAscendingWithResetsBlock(int size) {
+        // NOTE: monotonic ascending integer counter that resets to zero every 64 values,
+        // mirroring a byte-count metric that wraps on service restart or overflow.
+        final long[] values = new long[size];
+        double accumulator = 0.0;
+        for (int i = 0; i < size; i++) {
+            if (i > 0 && i % 64 == 0) {
+                accumulator = 0.0;
+            } else {
+                accumulator += 1.0;
+            }
+            values[i] = NumericUtils.doubleToSortableLong(accumulator);
+        }
+        return values;
+    }
+
+    private static long[] counterDescendingWithSpikesBlock(int size) {
+        // NOTE: monotonic descending counter (e.g. queue depth draining) that spikes back to
+        // the base value every 64 values, mirroring a drain-and-refill metric shape.
+        final long[] values = new long[size];
+        final double base = 1000.0;
+        double accumulator = base;
+        for (int i = 0; i < size; i++) {
+            if (i > 0 && i % 64 == 0) {
+                accumulator = base;
+            } else {
+                accumulator -= 1.0;
+            }
+            values[i] = NumericUtils.doubleToSortableLong(accumulator);
+        }
+        return values;
+    }
 }

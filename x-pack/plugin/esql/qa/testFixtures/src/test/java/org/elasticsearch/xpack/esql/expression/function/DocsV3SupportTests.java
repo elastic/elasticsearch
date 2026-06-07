@@ -81,6 +81,29 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
+    /**
+     * Verify that {@code {@link SpatialIntersects}} resolves to the correct {@code ST_INTERSECTS} link
+     * even though {@code camelToSnake("SpatialIntersects")} yields {@code spatial_intersects} rather than
+     * the registered function name {@code st_intersects}.
+     */
+    public void testJavadocLinkSpatialIntersects() {
+        String text = "This is the inverse of the {@link SpatialIntersects} function.";
+        String expected = "This is the inverse of the [`ST_INTERSECTS`]("
+            + ESQL
+            + "/functions-operators/spatial-functions/st_intersects.md) function.";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    /**
+     * Verify that {@code {@link CIDRMatch}} resolves correctly.
+     * {@code camelToSnake("CIDRMatch")} yields {@code c_i_d_r_match} which does not match.
+     */
+    public void testJavadocLinkCIDRMatch() {
+        String text = "see also {@link CIDRMatch}";
+        String expected = "see also [`CIDR_MATCH`](" + ESQL + "/functions-operators/ip-functions/cidr_match.md)";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
     public void testOperatorLink() {
         String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
         String expected = """

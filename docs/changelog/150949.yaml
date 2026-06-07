@@ -1,5 +1,5 @@
 area: PromQL
 issues: []
 pr: 150949
-summary: Preserve TS mode for ES|QL info commands
+summary: Preserve _doc metadata for Prometheus info-command plans
 type: bug

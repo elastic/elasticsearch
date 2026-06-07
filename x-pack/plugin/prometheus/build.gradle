@@ -33,28 +33,6 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:data-streams')
-  clusterModules project(xpackModule('otel-data'))
-  clusterModules project(':modules:ip-location')
-  clusterModules project(':modules:ingest-ip-location')
-  clusterModules project(':modules:user-agent')
-  clusterModules project(':modules:lang-mustache')
-  clusterModules project(xpackModule('analytics'))
-  clusterModules project(xpackModule('mapper-aggregate-metric'))
-  clusterModules project(xpackModule('mapper-counted-keyword'))
-  clusterModules project(xpackModule('mapper-version'))
-
-  def otelVersion = "1.57.0"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
-  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
 
   api "com.google.protobuf:protobuf-java:${protobufVersion}"
   javaRestTestImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"

@@ -43,10 +43,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 
 /**
- * This is the primary class for supporting the function ST_WITHIN.
- * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
- * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_WITHIN and QueryRelation.WITHIN.
+ * Returns whether the first geometry is within the second geometry.
+ * This is the inverse of the {@link SpatialContains ST_CONTAINS} function.
  */
 public class SpatialWithin extends SpatialRelatesFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

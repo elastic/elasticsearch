@@ -678,8 +678,8 @@ public abstract class DocsV3Support {
             case "user", "version" -> "system-functions";
 
             // Aggregation (The big bucket)
-            case "avg", "count", "count_distinct", "max", "median", "median_absolute_deviation", "min", "percentile", "sum", "top",
-                "values", "weighted_avg", "sparkline", "first", "last", "earliest", "latest" -> "aggregation-functions";
+            case "avg", "count", "count_distinct", "max", "median", "median_absolute_deviation", "min", "percentile", "std_dev", "sum",
+                "top", "values", "variance", "weighted_avg", "sparkline", "first", "last", "earliest", "latest" -> "aggregation-functions";
 
             // FAIL FAST: Don't guess. Force the developer to categorize new generic functions.
             default -> throw new IllegalArgumentException(

@@ -2,5 +2,6 @@
 
 ## Description
 
-Full text function that performs a QueryStringQuery .
+Performs a [query string query](/reference/query-languages/query-dsl/query-dsl-query-string-query.md).
+Returns true if the provided query string matches the row.
 

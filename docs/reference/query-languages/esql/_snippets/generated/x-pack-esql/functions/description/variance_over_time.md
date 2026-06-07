@@ -2,5 +2,5 @@
 
 ## Description
 
-Similar to Variance, but it is used to calculate the variance over a time series of values from the given field.
+Similar to [`VARIANCE`](/reference/query-languages/esql/functions-operators/aggregation-functions/variance.md), but it is used to calculate the variance over a time series of values from the given field.
 

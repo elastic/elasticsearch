@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.expression.function.grouping.Bucket.i
  * Creates groups of values - buckets - out of a {@code @timestamp} attribute.
  * The size of the buckets can be provided directly as a duration or period.
  * Alternatively, the bucket size can be chosen based on a recommended count
- * and a range.
+ * and a range {applies_to}`stack: ga 9.4`.
  *
  * When using ES|QL in Kibana, the range can be derived automatically from the
  * <a href="docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter">{@code @timestamp} filter</a>

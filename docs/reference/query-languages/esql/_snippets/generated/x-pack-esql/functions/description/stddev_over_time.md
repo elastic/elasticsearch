@@ -2,5 +2,5 @@
 
 ## Description
 
-Similar to StdDev, but it is used to calculate the standard deviation over a time series of values from the given field.
+Similar to [`STD_DEV`](/reference/query-languages/esql/functions-operators/aggregation-functions/std_dev.md), but it is used to calculate the standard deviation over a time series of values from the given field.
 

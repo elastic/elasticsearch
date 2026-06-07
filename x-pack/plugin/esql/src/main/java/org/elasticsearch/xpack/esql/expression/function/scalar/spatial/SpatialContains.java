@@ -50,10 +50,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
- * This is the primary class for supporting the function ST_CONTAINS.
- * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
- * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
+ * Returns whether the first geometry contains the second geometry.
+ * This is the inverse of the {@link SpatialWithin ST_WITHIN} function.
  */
 public class SpatialContains extends SpatialRelatesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

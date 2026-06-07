@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
- * Calculate spatial extent of all values of a field in matching documents.
+ * Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.
  */
 public final class SpatialExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

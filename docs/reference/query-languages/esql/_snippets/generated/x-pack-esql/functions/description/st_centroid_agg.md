@@ -2,5 +2,7 @@
 
 ## Description
 
-Calculate spatial centroid of all geo_point, cartesian_point, geo_shape, or cartesian_shape values of a field in matching documents.
+Calculate the spatial centroid over a field with spatial geometry type.
+Supports `geo_point` and `cartesian_point`, as well as `geo_shape` and
+`cartesian_shape` {applies_to}`stack: preview 9.4`.
 

@@ -2,5 +2,19 @@
 
 ## Description
 
-Calculates the geotile of geo_point geometries.
+Calculates the `geotile` of the supplied geo_point at the specified precision.
+The result is long encoded.
+Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+to convert the result to a string,
+[`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+to convert it to a `long`, or
+[`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+to calculate the `geo_shape` bounding geometry.
+
+
+
+These functions are related to the
+[`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
+and the
+[`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).
 

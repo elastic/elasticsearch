@@ -3,7 +3,7 @@
   "type" : "scalar",
   "name" : "st_geohex",
   "license" : "PLATINUM",
-  "description" : "Calculates the geohex of geo_point geometries.",
+  "description" : "Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.\nThe result is long encoded.\nUse `TO_STRING`\nto convert the result to a string,\n`TO_LONG`\nto convert it to a `long`, or\n`TO_GEOSHAPE`\nto calculate the `geo_shape` bounding geometry.\n\n\n\nThese functions are related to the\n`geo_grid` query\nand the\n`geohex_grid` aggregation.",
   "signatures" : [
     {
       "params" : [

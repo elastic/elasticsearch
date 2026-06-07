@@ -151,11 +151,22 @@ public class FunctionInfoProcessor implements Processor {
      * If you want non-ascii characters in the rendered output and are sure they
      * are ok, make an allowlist here.
      */
+    /**
+     * Unicode math symbols explicitly allowed in user-facing descriptions.
+     * We allow these because they appear in mathematical definitions (e.g. ST_INTERSECTS).
+     */
+    private static final Set<Character> ALLOWED_NON_ASCII = Set.of(
+        '\u21D4', // ⇔ DOUBLE LEFT RIGHT ARROW (iff)
+        '\u22C2', // ⋂ N-ARY INTERSECTION
+        '\u2205', // ∅ EMPTY SET
+        '\u2260'  // ≠ NOT EQUAL TO
+    );
+
     private static void checkForNonAscii(String markdown) {
         StringBuilder found = new StringBuilder();
         for (int i = 0; i < markdown.length(); i++) {
             char c = markdown.charAt(i);
-            if (c > 127) {
+            if (c > 127 && ALLOWED_NON_ASCII.contains(c) == false) {
                 if (found.isEmpty() == false) {
                     found.append(", ");
                 }

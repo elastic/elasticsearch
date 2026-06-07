@@ -647,3 +647,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterFieldWithNullify}
   issue: https://github.com/elastic/elasticsearch/issues/150943
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterFieldWithNullify}
+  issue: https://github.com/elastic/elasticsearch/issues/150963

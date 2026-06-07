@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150845
+summary: Add keyless workload-identity auth to S3 datasource
+type: enhancement

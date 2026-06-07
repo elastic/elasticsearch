@@ -1249,7 +1249,7 @@ public class LocalExecutionPlanner {
             var maybeEntry = esRelation.indexNameWithModes()
                 .entrySet()
                 .stream()
-                .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
+                .filter(e -> RemoteClusterAware.splitIndexName(e.getKey()).getClusterGroupingKey().equals(clusterAlias))
                 .findFirst();
             entry = maybeEntry.orElseThrow(
                 () -> new IllegalStateException(
@@ -1261,14 +1261,14 @@ public class LocalExecutionPlanner {
         if (entry.getValue() != IndexMode.LOOKUP) {
             throw new IllegalStateException("can't plan [" + join + "], found index with mode [" + entry.getValue() + "]");
         }
-        String[] indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
+        var indexSplit = RemoteClusterAware.splitIndexName(entry.getKey());
         // No prefix is ok, prefix with this cluster is ok, something else is not
-        if (indexSplit[0] != null && clusterAlias.equals(indexSplit[0]) == false) {
+        if (indexSplit.clusterAlias() != null && clusterAlias.equals(indexSplit.clusterAlias()) == false) {
             throw new IllegalStateException(
                 "can't plan [" + join + "]: no matching index found " + EsqlCCSUtils.inClusterName(clusterAlias)
             );
         }
-        String indexName = indexSplit[1];
+        String indexName = indexSplit.indexExpression();
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }
@@ -1617,7 +1617,7 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            String localIndexName = RemoteClusterAware.splitIndexName(indexName).indexExpression();
             MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;

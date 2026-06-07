@@ -79,7 +79,7 @@ describe("transformTaskStatus", () => {
   test("empty report produces empty result", () => {
     const result = transformTaskStatus(makeReport(), "");
 
-    expect(result).toEqual({ successfulTasks: [], successfulTests: {}, testseed: "" });
+    expect(result).toEqual({ successfulTasks: [], successfulSuites: {}, successfulTests: {}, testseed: "" });
   });
 
   test("preserves testseed", () => {

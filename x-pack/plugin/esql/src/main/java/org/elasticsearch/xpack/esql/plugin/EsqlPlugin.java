@@ -311,7 +311,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             settings,
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
-            dataSourceCredentials
+            dataSourceCredentials,
+            services.threadPool()
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

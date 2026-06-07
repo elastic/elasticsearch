@@ -582,7 +582,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 listener.onFailure(
                     new RetentionPolicyException(
                         "found [{}] version conflicts when deleting documents as part of the retention policy.",
-                        bulkByPaginatedSearchResponse.getDeleted()
+                        bulkByPaginatedSearchResponse.getVersionConflicts()
                     )
                 );
                 return;

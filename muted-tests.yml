@@ -86,9 +86,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145884
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/145886

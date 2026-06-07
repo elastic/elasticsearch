@@ -46,7 +46,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 /**
  * Converts an input value to a date value. A string will only be successfully converted if it's
  * respecting the format {@code yyyy-MM-dd'T'HH:mm:ss.SSS'Z'}. To convert dates in other formats,
- * use {@code DATE_PARSE}.
+ * use {@link org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse}.
  */
 public class ToDatetime extends AbstractConvertFunction implements ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

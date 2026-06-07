@@ -2,8 +2,7 @@
 
 ## Description
 
-This is the primary class for supporting the function ST_DISJOINT.
-The bulk of the capabilities are within the parent class SpatialRelatesFunction,
-which supports all the relations in the ShapeField.QueryRelation enum.
-Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
+Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the
+[`ST_INTERSECTS`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects)
+function. In mathematical terms: ST_Disjoint(A, B) iff A and B share no points.
 

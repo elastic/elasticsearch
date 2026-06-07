@@ -35,7 +35,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Converts a multivalue expression into a single valued column containing the last value. This is
+ * most useful when reading from a function that emits multivalued columns in a known order like
+ * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.Split}.
  */
 public class MvLast extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);

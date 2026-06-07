@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.DEFAULT_FIELD_FI
 import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
 
 /**
- * Full text function that performs a {@link KqlQuery} .
+ * Performs a KQL query. Returns true if the provided KQL query string matches the row.
  */
 public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);

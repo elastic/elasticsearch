@@ -24,7 +24,8 @@ import java.util.Map;
 
 /**
  * Check if one field is less than another. If either field is
- * <a href="/reference/query-languages/esql/esql-multivalued-fields.md">multivalued</a> then the result is {@code null}.
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}.
  */
 public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

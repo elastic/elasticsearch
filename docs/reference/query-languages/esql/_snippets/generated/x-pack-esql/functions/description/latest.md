@@ -2,5 +2,6 @@
 
 ## Description
 
-An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where the sort field (second parameter) is set to `@timestamp`. This is not a time series function.
+An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where the sort field (the second parameter) is implicit and is set to
+`@timestamp`.
 

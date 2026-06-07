@@ -34,8 +34,9 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * URL-encodes the input. All characters are percent-encoded except for alphanumerics, {@code .},
- * {@code -}, {@code _}, and {@code ~}. Spaces are encoded as {@code %20}.
+ * URL-encodes the input. All characters are
+ * <a href="https://en.wikipedia.org/wiki/Percent-encoding">percent-encoded</a> except for
+ * alphanumerics, {@code .}, {@code -}, {@code _}, and {@code ~}. Spaces are encoded as {@code %20}.
  */
 public class UrlEncodeComponent extends UnaryScalarFunction {
 

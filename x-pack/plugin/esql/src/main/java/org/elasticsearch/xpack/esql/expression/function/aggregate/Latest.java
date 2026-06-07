@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * An alias for {@link Last} where the sort field (second parameter) is set to {@code @timestamp}. This is not a time series function.
+ * An alias for {@link Last} where the sort field (the second parameter) is implicit and is set to
+ * {@code @timestamp}.
  */
 public class Latest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Latest";

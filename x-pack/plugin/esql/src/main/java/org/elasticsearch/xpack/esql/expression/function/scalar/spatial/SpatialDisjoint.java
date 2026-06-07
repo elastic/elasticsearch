@@ -45,6 +45,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 
 /**
+ * Returns whether the two geometries or geometry columns are disjoint. This is the inverse of the
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects">{@code ST_INTERSECTS}</a>
+ * function. In mathematical terms: ST_Disjoint(A, B) iff A and B share no points.
+ *
+ * <h2>Implementation</h2>
  * This is the primary class for supporting the function ST_DISJOINT.
  * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
  * which supports all the relations in the ShapeField.QueryRelation enum.

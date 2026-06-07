@@ -23,8 +23,9 @@ import java.time.ZoneId;
 import java.util.Map;
 
 /**
- * Check if one field is greater than or equal to another. If either field is multivalued then the
- * result is {@code null}.
+ * Check if one field is greater than or equal to another. If either field is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}.
  */
 public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -22,12 +22,16 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.List;
 
 /**
- * Use the match operator ({@code :}) to perform a match query on the specified field.
- * Using {@code :} is equivalent to using the {@code match} query in the Elasticsearch Query DSL.
+ * Use the match operator ({@code :}) to perform a
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/match-query">match query</a>
+ * on the specified field. Using {@code :} is equivalent to using the {@code match} query in the
+ * Elasticsearch Query DSL.
  *
- * The match operator is equivalent to the match function.
+ * The match operator is equivalent to the {@link Match} function.
  *
- * For using the function syntax, or adding match query parameters, you can use the match function.
+ * For using the function syntax, or adding
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/match-query#match-field-params">match query parameters</a>,
+ * you can use the {@link Match} function.
  *
  * {@code :} returns true if the provided query matches the row.
  */

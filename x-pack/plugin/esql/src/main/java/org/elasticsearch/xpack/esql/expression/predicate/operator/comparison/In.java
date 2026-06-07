@@ -75,13 +75,14 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
- * The {@code IN} operator.
- * <p>
- *     This function has quite "unique" null handling rules around {@code null} and multivalued
+ * The {@code IN} operator allows testing whether a field or expression equals an element in a list
+ * of literals, fields or expressions.
+ *
+ * <h2>Implementation</h2>
+ * This function has quite "unique" null handling rules around {@code null} and multivalued
  *     fields. The {@code null} rules are inspired by PostgreSQL, and, presumably, every other
  *     SQL implementation. The multivalue rules are pretty much an extension of the "multivalued
  *     fields are like null in scalars" rule. Here's some examples:
- * </p>
  * <ul>
  *     <li>{@code 'x' IN ('a', 'b', 'c')} => @{code false}</li>
  *     <li>{@code 'x' IN ('a', 'x', 'c')} => @{code true}</li>

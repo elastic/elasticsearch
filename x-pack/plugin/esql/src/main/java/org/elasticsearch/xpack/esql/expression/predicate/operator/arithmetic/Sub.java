@@ -38,8 +38,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSu
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.SUB;
 
 /**
- * Subtract one value from another. In case of numeric fields, if either field is multivalued then
- * the result is {@code null}. For dense_vector fields, both arguments should be dense_vectors.
+ * Subtract one value from another. In case of numeric fields, if either field is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}. For dense_vector fields, both arguments should be dense_vectors.
  * Inequal vector dimensions generate null result.
  */
 public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {

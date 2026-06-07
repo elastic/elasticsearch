@@ -4,7 +4,7 @@
   "operator" : "-",
   "name" : "sub",
   "titleName" : "subtract",
-  "description" : "Subtract one value from another. In case of numeric fields, if either field is multivalued then\nthe result is `null`. For dense_vector fields, both arguments should be dense_vectors.\nInequal vector dimensions generate null result.",
+  "description" : "Subtract one value from another. In case of numeric fields, if either field is\nmultivalued\nthen the result is `null`. For dense_vector fields, both arguments should be dense_vectors.\nInequal vector dimensions generate null result.",
   "signatures" : [
     {
       "params" : [

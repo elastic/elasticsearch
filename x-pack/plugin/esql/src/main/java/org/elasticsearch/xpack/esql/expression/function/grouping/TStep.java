@@ -49,11 +49,21 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
- * Groups {@code @timestamp} into fixed-width time buckets for aggregation, labeling each bucket by its end instant.
- * <p>
+ * Creates groups of values - buckets - out of a {@code @timestamp} attribute using either a fixed
+ * step width or a target bucket count.
+ * Unlike <a href="https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/grouping-functions/tbucket">{@code TBUCKET}</a>,
+ * which aligns buckets to calendar boundaries, TSTEP uses a fixed-width UTC grid anchored at the
+ * start of the query range. Each bucket is labeled by its right boundary.
+ * When a target bucket count is provided, TSTEP derives a fixed step width from the query range.
+ * The derived step is rounded up so that the result uses no more than the target number of buckets.
+ *
+ * When using ES|QL in Kibana, the range can be derived automatically from the
+ * <a href="docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter">{@code @timestamp} filter</a>
+ * that Kibana adds to the query.
+ *
+ * <h2>Implementation</h2>
  * The grid is anchored using the <strong>start</strong> of the {@code @timestamp} range from the request query filter
  * (see {@link TimestampBoundsAware}). {@code TSTEP} is not compatible with {@code TRANGE} in the same query at the moment.
- * <p>
  * {@link TBucket} aligns buckets to calendar boundaries or an epoch-based grid in the configured time zone.
  * {@code TSTEP} uses a contiguous {@code step}-wide grid in UTC and returns end-labeled bucket timestamps.
  */

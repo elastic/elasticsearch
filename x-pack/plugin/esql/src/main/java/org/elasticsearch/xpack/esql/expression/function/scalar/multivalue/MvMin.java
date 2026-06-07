@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Converts a multivalued expression into a single valued column containing the minimum value.
  */
 public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);

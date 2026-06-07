@@ -26,8 +26,9 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 /**
- * Divide one value by another. For numeric operands, if either field is multivalued then the
- * result is {@code null}.
+ * Divide one value by another. For numeric operands, if either field is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}.
  */
 public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);

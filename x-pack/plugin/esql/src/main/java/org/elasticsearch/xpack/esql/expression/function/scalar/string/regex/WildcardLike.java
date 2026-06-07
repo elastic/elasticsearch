@@ -40,11 +40,10 @@ import java.util.function.Predicate;
  * acts on a field placed on the left-hand side of the operator, but it can also act on a constant
  * (literal) expression. The right-hand side of the operator represents the pattern.
  *
- * <p>The following wildcard characters are supported:
- * <ul>
- *   <li>{@code *} matches zero or more characters.</li>
- *   <li>{@code ?} matches one character.</li>
- * </ul>
+ * The following wildcard characters are supported:
+ *
+ * * {@code *} matches zero or more characters.
+ * * {@code ?} matches one character.
  */
 public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

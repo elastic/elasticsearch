@@ -28,7 +28,8 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 /**
- * Use {@code RLIKE} to filter data based on string patterns using regular expressions.
+ * Use {@code RLIKE} to filter data based on string patterns using
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/regexp-syntax">regular expressions</a>.
  * {@code RLIKE} usually acts on a field placed on the left-hand side of the operator, but it can
  * also act on a constant (literal) expression. The right-hand side of the operator represents the
  * pattern.

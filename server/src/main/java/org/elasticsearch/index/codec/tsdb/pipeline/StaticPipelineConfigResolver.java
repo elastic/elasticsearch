@@ -32,9 +32,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *       mantissa stream preserves the original counter shape (ALP is order-preserving),
  *       so {@code splitDelta} sees the same {@code _tsid} boundary flips it would on raw
  *       longs and produces the same compaction. {@code kMax} is sized from
- *       {@code blockSize} as {@code clamp(blockSize / 128, 1, 8)}, conservative enough
- *       that variable-delta counter shapes (e.g. {@code system.cpu.time}) do not regress
- *       when many blocks fall above the cap and {@code splitDelta} declines.</li>
+ *       {@code blockSize} as {@code clamp(blockSize / 32, 4, 64)} so large blocks with
+ *       many resets do not bow out under the default cap.</li>
  *   <li>All other fields use the ES819 baseline {@code delta > offset > gcd > bitPack}.</li>
  * </ul>
  *
@@ -151,6 +150,6 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static int splitDeltaKMax(final int blockSize) {
-        return Math.clamp((long) blockSize / 128, 1, 8);
+        return Math.clamp((long) blockSize / 32, 4, 64);
     }
 }

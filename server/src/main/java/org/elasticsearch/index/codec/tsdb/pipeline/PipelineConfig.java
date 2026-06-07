@@ -143,12 +143,6 @@ public record PipelineConfig(
          * Adds a split delta encoding stage using the default flip cap
          * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
          *
-         * <p>The default suits dense fields like {@code @timestamp}, where many samples
-         * per {@code _tsid} produce narrow within-sub-run delta ranges that amortize the
-         * per-sub-run metadata at any {@code k} up to the cap. Sparser fields, where
-         * fewer samples per {@code _tsid} widen the within-sub-run delta range, need a
-         * more conservative cap via {@link #splitDelta(int)}.
-         *
          * @return this builder
          */
         public LongBuilder splitDelta() {
@@ -159,11 +153,6 @@ public record PipelineConfig(
         /**
          * Adds a split delta encoding stage that accepts up to {@code kMax} direction
          * flips per block. Blocks with more flips fall through to the rest of the pipeline.
-         *
-         * <p>Use this overload for sparser fields where the default cap is too loose,
-         * sizing {@code kMax} so accepted sub-runs are long enough for the within-sub-run
-         * bit-pack savings to clear the per-sub-run metadata. Dense fields are well served
-         * by {@link #splitDelta()}.
          *
          * @param kMax the maximum number of flips accepted per block; must be at least one
          * @return this builder
@@ -220,12 +209,6 @@ public record PipelineConfig(
          * Adds a split delta encoding stage using the default flip cap
          * ({@link StageSpec.SplitDeltaStage#DEFAULT_K_MAX}).
          *
-         * <p>The default suits dense fields like {@code @timestamp}, where many samples
-         * per {@code _tsid} produce narrow within-sub-run delta ranges that amortize the
-         * per-sub-run metadata at any {@code k} up to the cap. Sparser fields, where
-         * fewer samples per {@code _tsid} widen the within-sub-run delta range, need a
-         * more conservative cap via {@link #splitDelta(int)}.
-         *
          * @return this builder
          */
         public DoubleBuilder splitDelta() {
@@ -236,11 +219,6 @@ public record PipelineConfig(
         /**
          * Adds a split delta encoding stage that accepts up to {@code kMax} direction
          * flips per block. Blocks with more flips fall through to the rest of the pipeline.
-         *
-         * <p>Use this overload for sparser fields where the default cap is too loose,
-         * sizing {@code kMax} so accepted sub-runs are long enough for the within-sub-run
-         * bit-pack savings to clear the per-sub-run metadata. Dense fields are well served
-         * by {@link #splitDelta()}.
          *
          * @param kMax the maximum number of flips accepted per block; must be at least one
          * @return this builder

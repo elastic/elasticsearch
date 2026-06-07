@@ -48,6 +48,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SliceIndexing;
@@ -361,12 +362,21 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.
+            // PRTODO: Do we need to resolve any date math here? Should this be something that is resolved?
             DataStream dataStream = projectState.metadata().dataStreams().get(request.index());
             if (dataStream != null) {
                 if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
                     dataStreamsToBeRolledOver.add(request.index());
                 } else if (writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
                     failureStoresToBeRolledOver.add(request.index());
+                }
+                if (IndexMode.TIME_SERIES == dataStream.getIndexMode()) {
+                    // PRTODO: Obtain document timestamp, which means externalizing how data streams do it
+                    // PRTODO: We need to check if a tsds is able to accept a document based on its date.
+                    // PRTODO: if it can't then check if the date can be supported by the tsds create index window
+                    var windowStart = null; // lifecycleWindowService.windowStart(projectState, dataStream);
+                    // PRTODO: We should memoize this window start for all data streams in the bulk request
+                    // PRTODO: Check document timestamp against window start, and if document is before window start
                 }
             }
         }
@@ -409,6 +419,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
+            // PRTODO: We'd execute the new backfill tsds action here
             createIndices(indicesToAutoCreate, refs, indicesExceptions);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, refs, dataStreamExceptions);
             rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, refs, failureStoreExceptions);

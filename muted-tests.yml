@@ -354,6 +354,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGaugeGroupByRandomAndRandomAgg
   issue: https://github.com/elastic/elasticsearch/issues/150716
+- class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
+  method: testGetCheckpointTimeoutExceeded
+  issue: https://github.com/elastic/elasticsearch/issues/150934
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testBasic
+  issue: https://github.com/elastic/elasticsearch/issues/149338
 
 # Examples:
 #

@@ -364,16 +364,16 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         return new QueryPragmas(Settings.builder().put("in_subquery_hash_join_threshold", 0).build());
     }
 
-    // ---- multi-valued left-hand-side of disjunctive IN subquery (LeftSemiJoin) ----
+    // ---- multi-valued left-hand-side of disjunctive IN subquery (MarkJoin) ----
     //
     // For an {@code IN (subquery)} that is nested under {@code OR} (so the rewrite produces a
-    // {@link org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin LeftSemiJoin}), the
+    // {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin MarkJoin}), the
     // operator must produce a boolean <em>mark</em> attribute that captures the three-valued
     // result of {@code leftField IN (subquery)} for every left row.
     //
     // For a multi-valued left key, the SQL/ES|QL convention used by the {@code In} operator is to
     // emit {@code NULL} and a "single-value function encountered multi-value" warning. The
-    // {@code LeftSemiJoin} filter-path inherits that semantics because it materializes the mark
+    // {@code MarkJoin} filter-path inherits that semantics because it materializes the mark
     // through the same {@code In} evaluator. The hash-join path, however, builds the mark from a
     // sentinel attribute populated by a LEFT join and an {@code IsNull(leftField)} check — neither
     // of which models the single-value-function/MV warning. As a result the two paths can disagree
@@ -381,7 +381,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     // exercise both paths so the divergence is observable from the integration layer.
 
     /**
-     * Disjunctive IN subquery (LeftSemiJoin) over a multi-valued left key on the filter path.
+     * Disjunctive IN subquery (MarkJoin) over a multi-valued left key on the filter path.
      * Indexes a row with {@code color=["red","green"]} alongside the existing single-valued rows,
      * then runs {@code color IN (subq) OR id > N} for two values of {@code N} so the OR's
      * non-IN side is, respectively, {@code FALSE} and {@code TRUE} for the multi-valued row.
@@ -419,7 +419,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
      * Same query as {@link #testDisjunctiveInSubqueryMultiValueLeftKeyFilterPath} but with the
      * hash-join threshold pinned to 0 so the rewrite always takes the hash-join path. Both paths
      * must agree on the set of surviving rows; any divergence indicates that the hash-join
-     * implementation of {@code LeftSemiJoin} fails to honor the {@code In} operator's MV
+     * implementation of {@code MarkJoin} fails to honor the {@code In} operator's MV
      * NULL-with-warning semantics.
      * <p>
      * Currently fails because the hash-join path's mark expression (CASE based on
@@ -470,7 +470,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Top-level conjunctive IN / NOT IN (SEMI / ANTI {@code SemiJoin}, not {@code LeftSemiJoin})
+     * Top-level conjunctive IN / NOT IN (SEMI / ANTI {@code SemiJoin}, not {@code MarkJoin})
      * over a multi-valued left key. The filter path materializes {@code Filter(In(...))} /
      * {@code Filter(Not(In(...)))} which, by {@code In}'s three-valued semantics, drops MV-LHS
      * rows (mark=NULL → treated as FALSE under WHERE). The hash-join path is forced via
@@ -563,7 +563,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     // MV-derived) into its reserved group 0, surfacing as a single NULL position at index 0 of
     // the dedup output. The post-dedup logic derives {@code rightHadNulls} from that position
     // and the short-circuit decisions (ANTI: any NULL → empty; SEMI: only all-NULL → empty;
-    // LEFT_SEMI: all-NULL → mark=NULL). The tests below pin that contract end-to-end and
+    // MARK: all-NULL → mark=NULL). The tests below pin that contract end-to-end and
     // ensure filter and hash-join paths agree.
 
     /**
@@ -677,8 +677,8 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Disjunctive IN subquery ({@link org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin
-     * LeftSemiJoin}) with a multi-valued row in the subquery output. The MV row canonicalizes to
+     * Disjunctive IN subquery ({@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin
+     * MarkJoin}) with a multi-valued row in the subquery output. The MV row canonicalizes to
      * NULL on the right, so {@code In}'s three-valued mark is {@code NULL} for left rows whose
      * key doesn't match any SV right value. Combined with the outer OR clause, this surfaces
      * the {@code NULL OR TRUE = TRUE} vs {@code NULL OR FALSE = NULL} distinction — and both
@@ -722,7 +722,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
                 var forcedResp = run(syncEsqlQueryRequest(query).pragmas(forceHashJoin()))
             ) {
                 assertEquals(
-                    "LeftSemiJoin filter and hash-join paths disagree on MV-on-right for query:\n" + query,
+                    "MarkJoin filter and hash-join paths disagree on MV-on-right for query:\n" + query,
                     getValuesList(defaultResp),
                     getValuesList(forcedResp)
                 );

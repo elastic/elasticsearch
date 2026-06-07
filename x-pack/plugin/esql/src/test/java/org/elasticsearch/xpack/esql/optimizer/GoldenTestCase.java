@@ -293,7 +293,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/LeftSemiJoin before
+            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
             // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
             // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
             // view/IN-subquery resolution; otherwise resolve IN subqueries only.

@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -317,10 +318,10 @@ public class EsqlSession {
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // Collect IN_SUBQUERY telemetry from the plan produced by each view-resolution pass, before the resolver rewrites the originating
-        // InSubquery expressions into SemiJoin/AntiJoin/LeftSemiJoin — mirroring how view telemetry is collected before view resolution
+        // InSubquery expressions into SemiJoin/AntiJoin/MarkJoin — mirroring how view telemetry is collected before view resolution
         // discards the view-specific plan nodes. Inspecting every pass also catches IN subqueries revealed only after a view nested in an
         // IN subquery is expanded; this flag keeps the counter to once per query. The WHERE counter is set by the analyzer/verifier plan
-        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/LeftSemiJoin too.
+        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         AtomicBoolean inSubqueryMetricCounted = new AtomicBoolean();
         viewAndSubqueryResolver.resolve(
             statement.plan(),
@@ -553,7 +554,7 @@ public class EsqlSession {
             // Only log on internal server errors. User-facing failures (verification errors, parse
             // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
             if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
-                logAnonymizedPlans(planSnapshot);
+                logAnonymizedPlans(planSnapshot, err);
             }
             next.onFailure(err);
         });
@@ -726,11 +727,36 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
+            // source stats into ExternalSourceCacheService before delivering Result.
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                reconcileCapturedSourceStats(result.completionInfo());
+                next.onResponse(result);
+            }));
         }
     }
 
-    private void logAnonymizedPlans(PlanSnapshot snap) {
+    /**
+     * Pushes data-node-captured per-file source stats (carried by {@link DriverCompletionInfo#capturedSourceMetadata})
+     * into the coordinator's {@code ExternalSourceCacheService}, so the next query's planning-time
+     * lookup finds the {@code _stats.*} keys embedded in the matching {@code SchemaCacheEntry}'s
+     * {@code safeMetadata} — same shape Parquet's footer-derived stats already use.
+     */
+    private void reconcileCapturedSourceStats(DriverCompletionInfo info) {
+        if (info == null) {
+            return;
+        }
+        Map<String, List<Map<String, Object>>> captured = info.capturedSourceMetadata();
+        if (captured == null || captured.isEmpty()) {
+            return;
+        }
+        ExternalSourceCacheService cache = externalSourceResolver.cacheService();
+        if (cache != null) {
+            cache.reconcileSourceStatsFromContributions(captured);
+        }
+    }
+
+    private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
         if (LOGGER.isErrorEnabled() == false) {
             return;
         }
@@ -743,18 +769,28 @@ public class EsqlSession {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
                 .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
             LOGGER.error(
-                "ESQL anonymized plans for failed session [{}]\n"
-                    + "schema:\n{}\n"
-                    + "parsed:\n{}\n"
-                    + "analyzed:\n{}\n"
-                    + "optimized:\n{}\n"
-                    + "physical:\n{}",
+                """
+                    ES|QL query failed in session [{}]
+                    failure:
+                    {}
+                    parsed:
+                    {}
+                    analyzed:
+                    {}
+                    optimized:
+                    {}
+                    physical:
+                    {}
+                    schema:
+                    {}""".stripIndent(),
                 sessionId,
-                anonymized.schema(),
+                err.getMessage(),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),
-                anonymized.physical()
+                anonymized.physical(),
+                anonymized.schema(),
+                err
             );
         } catch (Exception e) {
             LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
@@ -918,15 +954,10 @@ public class EsqlSession {
                         planTimeProfile,
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            reconcileCapturedSourceStats(merged);
                             finalListener.onResponse(
-                                new Result(
-                                    finalResult.schema(),
-                                    finalResult.pages(),
-                                    null,
-                                    configuration,
-                                    completionInfoAccumulator.finish(),
-                                    executionInfo
-                                )
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
                         })
                     );
@@ -1053,12 +1084,12 @@ public class EsqlSession {
      * <p>
      * {@link ViewAndSubqueryResolver} calls this after every view-resolution pass (each pass sees the originating
      * {@code InSubquery} expressions still in place, before they are rewritten into
-     * {@code SemiJoin}/{@code AntiJoin}/{@code LeftSemiJoin}), so we also catch IN subqueries that only surface once a
+     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}), so we also catch IN subqueries that only surface once a
      * view referenced from inside another IN subquery is expanded in a later iteration. {@code alreadyCounted} keeps
      * the increment to once per query no matter how many passes (or how many expressions) match; it is an
      * {@link AtomicBoolean} because successive passes may run on different threads. Mirrors {@link #gatherViewMetrics}:
      * direct increment, once per query. The {@code WHERE} counter is handled by the analyzer/verifier plan walk via
-     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/LeftSemiJoin (which only originate from a {@code WHERE x IN (sub)}).
+     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin (which only originate from a {@code WHERE x IN (sub)}).
      */
     private void gatherInSubqueryMetrics(LogicalPlan plan, AtomicBoolean alreadyCounted) {
         if (metrics == null) {
@@ -1453,7 +1484,7 @@ public class EsqlSession {
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
-            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
                 skipClusterOrError(
@@ -1527,7 +1558,7 @@ public class EsqlSession {
     ) {
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n).indexExpression()).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(

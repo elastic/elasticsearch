@@ -19,6 +19,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
@@ -74,6 +75,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "FORK is not supported with unmapped_fields=\"load\"",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
+                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
         );
 
         assumeFalse(

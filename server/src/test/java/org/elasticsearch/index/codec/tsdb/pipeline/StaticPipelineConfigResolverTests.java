@@ -123,7 +123,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
     }
 
-    public void testResolvesAlpDoublePipelineForDoubleCounter() {
+    public void testResolvesAlpDoubleCounterPipelineForDoubleCounter() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final FieldContext context = new FieldContext(
             randomBlockSize(),
@@ -134,9 +134,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
         final PipelineConfig config = resolver.resolve(context);
 
-        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
+        assertEquals("alpDouble>splitDelta>delta>offset>gcd>bitPack", config.describeStages());
         assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertEquals(4, config.transforms().size());
+        assertEquals(5, config.transforms().size());
     }
 
     public void testResolvesAlpDoublePipelineForDoubleGauge() {

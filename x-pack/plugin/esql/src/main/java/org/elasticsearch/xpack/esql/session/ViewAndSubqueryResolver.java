@@ -42,7 +42,7 @@ public final class ViewAndSubqueryResolver {
     public static final Setting<Integer> MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING = Setting.intSetting(
         "esql.planning.max_view_subquery_resolution_iterations",
         10,
-        0,
+        1,
         100,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
@@ -85,7 +85,7 @@ public final class ViewAndSubqueryResolver {
         int iteration,
         ActionListener<ViewResolver.ViewResolutionResult> listener
     ) {
-        if (iteration >= maxViewSubqueryResolutionIterations) {
+        if (iteration > maxViewSubqueryResolutionIterations) {
             listener.onFailure(
                 new VerificationException(
                     "Too many view/subquery resolution iterations: "

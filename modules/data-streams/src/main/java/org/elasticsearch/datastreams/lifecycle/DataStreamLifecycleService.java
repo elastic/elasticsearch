@@ -1650,6 +1650,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.nowSupplier = nowSupplier;
     }
 
+    public Instant timeseriesStartWindow(DataStream dataStream, ProjectMetadata projectMetadata) {
+        // PRTODO Implement
+        return null;
+    }
+
     /**
      * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
      * STATE_UPDATE_TASK_EXECUTOR.

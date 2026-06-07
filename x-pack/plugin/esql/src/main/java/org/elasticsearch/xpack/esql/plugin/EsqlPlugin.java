@@ -412,7 +412,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider,
             dataSourceModule,
             dataSourceCredentials,
-            new ViewAndSubqueryResolver(viewResolver, services.clusterService()),
+            new ViewAndSubqueryResolver(services.clusterService(), viewResolver),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators),
             new DatasetService(services.clusterService(), crudValidators)

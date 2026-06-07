@@ -181,7 +181,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     private ViewResolver.ViewResolutionResult resolve(String query, Consumer<LogicalPlan> viewResolvedListener) {
-        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewResolver, viewService.getClusterService());
+        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewService.getClusterService(), viewResolver);
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.resolve(query(query), null, this::parse, viewResolvedListener, future);
         return future.actionGet();

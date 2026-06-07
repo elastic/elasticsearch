@@ -183,7 +183,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public ViewAndSubqueryResolver getViewAndSubqueryResolver() {
-        return new ViewAndSubqueryResolver(getViewResolver(), clusterService);
+        return new ViewAndSubqueryResolver(clusterService, getViewResolver());
     }
 
     public ClusterService getClusterService() {

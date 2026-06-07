@@ -51,7 +51,7 @@ public final class ViewAndSubqueryResolver {
     private final ViewResolver viewResolver;
     private volatile int maxViewSubqueryResolutionIterations;
 
-    public ViewAndSubqueryResolver(ViewResolver viewResolver, ClusterService clusterService) {
+    public ViewAndSubqueryResolver(ClusterService clusterService, ViewResolver viewResolver) {
         this.viewResolver = viewResolver;
         clusterService.getClusterSettings()
             .initializeAndWatch(MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING, v -> this.maxViewSubqueryResolutionIterations = v);
@@ -85,7 +85,7 @@ public final class ViewAndSubqueryResolver {
         int iteration,
         ActionListener<ViewResolver.ViewResolutionResult> listener
     ) {
-        if (iteration > maxViewSubqueryResolutionIterations) {
+        if (iteration >= maxViewSubqueryResolutionIterations) {
             listener.onFailure(
                 new VerificationException(
                     "Too many view/subquery resolution iterations: "

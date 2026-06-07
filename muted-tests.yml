@@ -260,6 +260,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:stats.sumWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/150958
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:bucket.bucketWithFilteredCountRefingBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/150959
 
 # Examples:
 #

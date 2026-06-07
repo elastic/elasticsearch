@@ -36,7 +36,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongSubtractExact;
 
 /**
- * Reduce a multivalued field to a single valued field containing the median absolute deviation of the values.
+ * Converts a multivalued field into a single valued field containing the median absolute deviation.
+ * It is calculated as the median of each data point's deviation from the median of the entire sample.
+ * That is, for a random variable {@code X}, the median absolute deviation is {@code median(|median(X) - X|)}.
  */
 public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

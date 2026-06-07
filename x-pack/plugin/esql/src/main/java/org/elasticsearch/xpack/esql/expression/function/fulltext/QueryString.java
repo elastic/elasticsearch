@@ -77,7 +77,8 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
 /**
- * Full text function that performs a {@link QueryStringQuery} .
+ * Performs a <a href="/reference/query-languages/query-dsl/query-dsl-query-string-query.md">query string query</a>.
+ * Returns true if the provided query string matches the row.
  */
 public class QueryString extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
 

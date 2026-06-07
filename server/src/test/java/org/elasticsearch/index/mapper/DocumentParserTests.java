@@ -2910,6 +2910,48 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
+    public void testSubobjectsFalseWithStrictDynamicSkipsDynamicForMappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that DocumentParser#parseObjectDynamic(...) isn't invoked.
+        // DocumentParser#parseObjectDynamic(...) fails because dynamic=strict.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // Object notation for a pre-mapped prefix must succeed. If parseObjectDynamic were
+        // called for "host", strict mode would throw "dynamic introduction of [host]".
+        ParsedDocument doc = mapper.parse(source("""
+            { "host": { "name": "localhost" } }
+            """));
+        assertThat(doc.rootDoc().getField("host.name"), instanceOf(KeywordFieldMapper.KeywordField.class));
+    }
+
+    public void testSubobjectsFalseWithStrictDynamicRejectsUnmappedPrefix() throws Exception {
+        // Usage of dynamic=strict is important here, to test that invoking DocumentParser#parseObjectDynamic(...) fails.
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("subobjects", false).field("dynamic", "strict");
+            b.startObject("properties");
+            {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // "env" has no mapped fields with it as a prefix, so the dynamic path is taken and strict rejects it.
+        DocumentParsingException ex = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
+            { "env": { "name": "prod" } }
+            """)));
+        assertThat(ex.getMessage(), containsString("dynamic introduction of [env]"));
+    }
+
     public void testSubobjectsFalseDocWithInnerObjectsNullValues() throws Exception {
         // null values are handled separately while parsing hence we want to make sure that the field paths are propagated correctly
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {

@@ -45,6 +45,16 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private final Page originalPage;
     private final BlockOptimization blockOptimization;
     private Page optimizedPage;
+    /**
+     * In {@link BlockOptimization#DICTIONARY} mode, marks dictionary entries actually referenced by an
+     * ordinal in {@link #originalPage}. Phantom dict entries (left over by upstream {@code filter()}/
+     * {@code slice()}/{@code keepMask()}) sit at unreferenced positions and we skip Lucene queries for
+     * them in {@link #nextQuery()} / {@link #processBulkQueries}. {@code null} when phantoms are
+     * impossible (non-DICTIONARY mode, or source block has {@code needsCompaction() == false}).
+     */
+    private boolean[] referencedDictionaryEntries;
+    /** True once {@link #referencedDictionaryEntries()} has run; allows caching the {@code null} result. */
+    private boolean referencedDictionaryEntriesComputed;
     private int queryPosition = -1;
     private final IndexedByShardId<? extends ShardContext> shardContexts;
     private final ShardContext shardContext;
@@ -122,6 +132,30 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
      */
     public Page getInputPage() {
         return getInputPageInternal();
+    }
+
+    /**
+     * Lazily computes (and caches) which dictionary positions are actually referenced by some ordinal
+     * in {@link #originalPage}. Returns {@code null} when phantoms cannot exist — either because we
+     * are not in DICTIONARY mode, or because the source ordinal block has {@code needsCompaction()
+     * == false}, meaning every dictionary entry is referenced by construction. Avoiding the scan in
+     * the no-phantoms case is the whole point: it would walk every ordinal only to produce an
+     * all-true array.
+     */
+    private boolean[] referencedDictionaryEntries() {
+        if (referencedDictionaryEntriesComputed) {
+            return referencedDictionaryEntries;
+        }
+        referencedDictionaryEntriesComputed = true;
+        if (blockOptimization != BlockOptimization.DICTIONARY) {
+            return null;
+        }
+        OrdinalBytesRefBlock ordinalBlock = BlockOptimization.extractOrdinalBlock(originalPage);
+        if (ordinalBlock.needsCompaction() == false) {
+            return null;
+        }
+        referencedDictionaryEntries = ordinalBlock.referencedDictionaryEntries();
+        return referencedDictionaryEntries;
     }
 
     @Override
@@ -209,9 +243,14 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             bulkKeywordLookup.initializeCaches(indexReader);
         }
 
+        boolean[] referenced = referencedDictionaryEntries();
         int totalMatches = 0;
         do {
             if (queryPosition >= queryList.getPositionCount(inputPage)) break;
+            if (referenced != null && referenced[queryPosition] == false) {
+                queryPosition++;
+                continue;
+            }
 
             final int matches = bulkKeywordLookup.processQuery(
                 inputPage,
@@ -260,7 +299,12 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
     private Query nextQuery() {
         ++queryPosition;
         Page inputPage = getInputPageInternal();
+        boolean[] referenced = referencedDictionaryEntries();
         while (isFinished() == false) {
+            if (referenced != null && referenced[queryPosition] == false) {
+                ++queryPosition;
+                continue;
+            }
             Query query = queryList.getQuery(queryPosition, inputPage, searchExecutionContext);
             if (query != null) {
                 return query;

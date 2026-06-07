@@ -26,10 +26,19 @@ import java.io.IOException;
 public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted implements BytesRefVector {
     private final IntVector ordinals;
     private final BytesRefVector bytes;
+    /**
+     * See {@link OrdinalBytesRefBlock#needsCompaction()}.
+     */
+    private final boolean needsCompaction;
 
     public OrdinalBytesRefVector(IntVector ordinals, BytesRefVector bytes) {
+        this(ordinals, bytes, false);
+    }
+
+    public OrdinalBytesRefVector(IntVector ordinals, BytesRefVector bytes, boolean needsCompaction) {
         this.ordinals = ordinals;
         this.bytes = bytes;
+        this.needsCompaction = needsCompaction;
     }
 
     static OrdinalBytesRefVector readOrdinalVector(BlockFactory blockFactory, StreamInput in) throws IOException {
@@ -48,8 +57,80 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     void writeOrdinalVector(StreamOutput out) throws IOException {
-        ordinals.writeTo(out);
-        bytes.writeTo(out);
+        // Always serialize a phantom-free dictionary; see OrdinalBytesRefBlock#writeOrdinalBlock.
+        try (OrdinalBytesRefVector c = compact()) {
+            c.ordinals.writeTo(out);
+            c.bytes.writeTo(out);
+        }
+    }
+
+    /**
+     * See {@link OrdinalBytesRefBlock#needsCompaction()}.
+     */
+    public boolean needsCompaction() {
+        return needsCompaction;
+    }
+
+    /**
+     * Vector counterpart of {@link OrdinalBytesRefBlock#referencedDictionaryEntries()}.
+     */
+    public boolean[] referencedDictionaryEntries() {
+        boolean[] referenced = new boolean[bytes.getPositionCount()];
+        int positionCount = ordinals.getPositionCount();
+        for (int p = 0; p < positionCount; p++) {
+            referenced[ordinals.getInt(p)] = true;
+        }
+        return referenced;
+    }
+
+    /**
+     * Vector counterpart of {@link OrdinalBytesRefBlock#compact()}. Returns {@code this} (with an extra
+     * ref) when no compaction is needed; otherwise returns a new vector with a phantom-free dictionary
+     * and remapped ordinals. The returned vector must be closed by the caller.
+     */
+    public OrdinalBytesRefVector compact() {
+        if (needsCompaction == false) {
+            incRef();
+            return this;
+        }
+        int dictSize = bytes.getPositionCount();
+        boolean[] referenced = referencedDictionaryEntries();
+        int positionCount = ordinals.getPositionCount();
+        int[] remap = new int[dictSize];
+        BytesRefVector compactBytes = null;
+        IntVector remappedOrds = null;
+        // See OrdinalBytesRefBlock#compact for why this single-pass build + post-check is preferred
+        // over a separate counting pass.
+        try (BytesRefVector.Builder dictBuilder = blockFactory().newBytesRefVectorBuilder(dictSize)) {
+            BytesRef scratch = new BytesRef();
+            int newOrd = 0;
+            for (int oldOrd = 0; oldOrd < dictSize; oldOrd++) {
+                if (referenced[oldOrd]) {
+                    dictBuilder.appendBytesRef(bytes.getBytesRef(oldOrd, scratch));
+                    remap[oldOrd] = newOrd++;
+                } else {
+                    remap[oldOrd] = -1;
+                }
+            }
+            if (newOrd == dictSize) {
+                ordinals.incRef();
+                bytes.incRef();
+                return new OrdinalBytesRefVector(ordinals, bytes, false);
+            }
+            compactBytes = dictBuilder.build();
+            try (IntVector.Builder ordsBuilder = blockFactory().newIntVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    ordsBuilder.appendInt(remap[ordinals.getInt(p)]);
+                }
+                remappedOrds = ordsBuilder.build();
+            }
+            OrdinalBytesRefVector result = new OrdinalBytesRefVector(remappedOrds, compactBytes, false);
+            remappedOrds = null;
+            compactBytes = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(remappedOrds, compactBytes);
+        }
     }
 
     /**
@@ -87,7 +168,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public OrdinalBytesRefBlock asBlock() {
-        return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+        return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes, needsCompaction);
     }
 
     @Override
@@ -99,21 +180,32 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
         return ordinals;
     }
 
+    /**
+     * See {@link OrdinalBytesRefBlock#getDictionaryVector()} for the phantom-entries contract.
+     */
     public BytesRefVector getDictionaryVector() {
         return bytes;
     }
 
     @Override
     public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
-        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
-        // may reappear when hashing the dictionary in BlockHash.
-        final BytesRef scratch = new BytesRef();
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
-            for (int p : positions) {
-                builder.appendBytesRef(getBytesRef(p, scratch));
+        // See OrdinalBytesRefBlock#filter: a no-duplicates filter whose length matches the source is a
+        // permutation, so no rows are dropped and we can propagate the source's flag rather than
+        // forcing true.
+        boolean filteredNeedsCompaction = (mayContainDuplicates == false && positions.length == ordinals.getPositionCount())
+            ? needsCompaction
+            : true;
+        OrdinalBytesRefVector result = null;
+        IntVector filteredOrdinals = ordinals.filter(mayContainDuplicates, positions);
+        try {
+            result = new OrdinalBytesRefVector(filteredOrdinals, bytes, filteredNeedsCompaction);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
             }
-            return builder.build();
         }
+        return result;
     }
 
     @Override
@@ -133,7 +225,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
         }
         IntVector slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
         bytes.incRef();
-        return new OrdinalBytesRefVector(slicedOrdinals, bytes);
+        return new OrdinalBytesRefVector(slicedOrdinals, bytes, true);
     }
 
     @Override
@@ -143,7 +235,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
         try {
             copiedOrdinals = ordinals.deepCopy(blockFactory);
             copiedBytes = bytes.deepCopy(blockFactory);
-            OrdinalBytesRefVector result = new OrdinalBytesRefVector(copiedOrdinals, copiedBytes);
+            OrdinalBytesRefVector result = new OrdinalBytesRefVector(copiedOrdinals, copiedBytes, needsCompaction);
             copiedOrdinals = null;
             copiedBytes = null;
             return result;

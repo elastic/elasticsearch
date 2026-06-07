@@ -31,6 +31,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -775,6 +777,42 @@ final class ParquetPushedExpressions {
      * and the multi-stage single-expression path).
      */
     WordMask evaluateFilter(
+        Map<String, Block> predicateBlocks,
+        int rowCount,
+        WordMask reusable,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        // The dictionary fast paths in evaluateExpression walk getDictionaryVector() directly.
+        // OrdinalBytesRefBlocks produced by filter()/slice()/keepMask() share the source dictionary
+        // and may carry phantom entries (not referenced by any ord); compact those once up front so
+        // the per-expression evaluators stay phantom-agnostic. The Parquet column reader produces
+        // blocks with needsCompaction()==false today, so this loop is a no-op on the hot path.
+        // dictCache is bypassed whenever we compact: a given Expression's match bitmap is indexed by
+        // dict ord, and per-batch compaction in the same row group can produce different ord layouts.
+        Map<String, Block> effectiveBlocks = predicateBlocks;
+        List<Releasable> toClose = null;
+        for (Map.Entry<String, Block> entry : predicateBlocks.entrySet()) {
+            if (entry.getValue() instanceof OrdinalBytesRefBlock obb && obb.needsCompaction()) {
+                if (toClose == null) {
+                    effectiveBlocks = new HashMap<>(predicateBlocks);
+                    toClose = new ArrayList<>(2);
+                }
+                OrdinalBytesRefBlock compacted = obb.compact();
+                effectiveBlocks.put(entry.getKey(), compacted);
+                toClose.add(compacted);
+            }
+        }
+        Map<Expression, boolean[]> effectiveCache = toClose == null ? dictCache : null;
+        try {
+            return doEvaluateFilter(effectiveBlocks, rowCount, reusable, effectiveCache);
+        } finally {
+            if (toClose != null) {
+                Releasables.close(toClose);
+            }
+        }
+    }
+
+    private WordMask doEvaluateFilter(
         Map<String, Block> predicateBlocks,
         int rowCount,
         WordMask reusable,

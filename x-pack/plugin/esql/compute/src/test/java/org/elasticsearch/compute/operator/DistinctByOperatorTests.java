@@ -10,7 +10,12 @@ package org.elasticsearch.compute.operator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
@@ -354,6 +359,121 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 assertThat(outputValues.getLong(0), equalTo(0L));
 
                 output.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Regression coverage for the shared-dictionary contract: a value that is present in page A's
+     * dictionary but is not referenced by any row of page A must NOT poison the cross-page hash.
+     * In page B, a row that legitimately references that value must still be emitted.
+     */
+    public void testOrdinalUnreferencedDictionaryEntryAcrossPagesVector() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+            // Page 1: dictionary has [a, phantom], but rows reference only ord 0 ("a").
+            BytesRefVector dict1;
+            try (BytesRefVector.Builder b = blockFactory.newBytesRefVectorBuilder(2)) {
+                b.appendBytesRef(new BytesRef("a"));
+                b.appendBytesRef(new BytesRef("phantom"));
+                dict1 = b.build();
+            }
+            IntVector ords1;
+            try (IntVector.Builder o = blockFactory.newIntVectorFixedBuilder(3)) {
+                o.appendInt(0);
+                o.appendInt(0);
+                o.appendInt(0);
+                ords1 = o.build();
+            }
+            Page output1 = null;
+            try {
+                op.addInput(new Page(new OrdinalBytesRefVector(ords1, dict1).asBlock()));
+                output1 = op.getOutput();
+                assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(1));
+                BytesRefBlock keyBlock = output1.getBlock(0);
+                assertThat(keyBlock.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("a"));
+            } finally {
+                if (output1 != null) {
+                    output1.releaseBlocks();
+                }
+            }
+
+            // Page 2: row references "phantom". Must be emitted (phantom was never inserted into seenKeys).
+            BytesRefVector dict2;
+            try (BytesRefVector.Builder b = blockFactory.newBytesRefVectorBuilder(1)) {
+                b.appendBytesRef(new BytesRef("phantom"));
+                dict2 = b.build();
+            }
+            IntVector ords2;
+            try (IntVector.Builder o = blockFactory.newIntVectorFixedBuilder(1)) {
+                o.appendInt(0);
+                ords2 = o.build();
+            }
+            Page output2 = null;
+            try {
+                op.addInput(new Page(new OrdinalBytesRefVector(ords2, dict2).asBlock()));
+                output2 = op.getOutput();
+                assertThat(Objects.requireNonNull(output2).getPositionCount(), equalTo(1));
+                BytesRefBlock keyBlock = output2.getBlock(0);
+                assertThat(keyBlock.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("phantom"));
+            } finally {
+                if (output2 != null) {
+                    output2.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    public void testOrdinalUnreferencedDictionaryEntryAcrossPagesBlock() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
+            // Page 1: dictionary has [a, phantom], block has a null + two refs to ord 0.
+            BytesRefVector dict1;
+            try (BytesRefVector.Builder b = blockFactory.newBytesRefVectorBuilder(2)) {
+                b.appendBytesRef(new BytesRef("a"));
+                b.appendBytesRef(new BytesRef("phantom"));
+                dict1 = b.build();
+            }
+            IntBlock ords1;
+            try (IntBlock.Builder o = blockFactory.newIntBlockBuilder(3)) {
+                o.appendInt(0);
+                o.appendNull();
+                o.appendInt(0);
+                ords1 = o.build();
+            }
+            Page output1 = null;
+            try {
+                op.addInput(new Page(new OrdinalBytesRefBlock(ords1, dict1)));
+                output1 = op.getOutput();
+                assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(1));
+            } finally {
+                if (output1 != null) {
+                    output1.releaseBlocks();
+                }
+            }
+
+            // Page 2: legitimate "phantom" row must be emitted.
+            BytesRefVector dict2;
+            try (BytesRefVector.Builder b = blockFactory.newBytesRefVectorBuilder(1)) {
+                b.appendBytesRef(new BytesRef("phantom"));
+                dict2 = b.build();
+            }
+            IntBlock ords2;
+            try (IntBlock.Builder o = blockFactory.newIntBlockBuilder(1)) {
+                o.appendInt(0);
+                ords2 = o.build();
+            }
+            Page output2 = null;
+            try {
+                op.addInput(new Page(new OrdinalBytesRefBlock(ords2, dict2)));
+                output2 = op.getOutput();
+                assertThat(Objects.requireNonNull(output2).getPositionCount(), equalTo(1));
+                BytesRefBlock keyBlock = output2.getBlock(0);
+                assertThat(keyBlock.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("phantom"));
+            } finally {
+                if (output2 != null) {
+                    output2.releaseBlocks();
+                }
             }
         }
     }

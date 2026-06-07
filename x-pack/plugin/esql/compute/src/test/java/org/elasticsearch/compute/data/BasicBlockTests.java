@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -1729,7 +1728,27 @@ public class BasicBlockTests extends ESTestCase {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
                 try (var filtered = block.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                    assertThat(filtered, instanceOf(OrdinalBytesRefBlock.class));
+                    OrdinalBytesRefBlock filteredOrdinal = (OrdinalBytesRefBlock) filtered;
+                    assertThat(filteredOrdinal.needsCompaction(), is(true));
+                    BytesRef expected = new BytesRef();
+                    BytesRef actual = new BytesRef();
+                    for (int i = 0; i < masks.length; i++) {
+                        if (block.isNull(masks[i])) {
+                            assertThat(filteredOrdinal.isNull(i), is(true));
+                            continue;
+                        }
+                        assertThat(filteredOrdinal.isNull(i), is(false));
+                        assertThat(filteredOrdinal.getValueCount(i), equalTo(block.getValueCount(masks[i])));
+                        int srcStart = block.getFirstValueIndex(masks[i]);
+                        int dstStart = filteredOrdinal.getFirstValueIndex(i);
+                        for (int v = 0; v < block.getValueCount(masks[i]); v++) {
+                            assertThat(
+                                filteredOrdinal.getBytesRef(dstStart + v, actual),
+                                equalTo(block.getBytesRef(srcStart + v, expected))
+                            );
+                        }
+                    }
                 }
                 assertSliceFullRange(block);
                 assertSliceOrdinalBytesRefBlock(block, 0, 0);
@@ -1767,7 +1786,14 @@ public class BasicBlockTests extends ESTestCase {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
                 try (var filtered = vector.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                    assertThat(filtered, instanceOf(OrdinalBytesRefVector.class));
+                    OrdinalBytesRefVector filteredOrdinal = (OrdinalBytesRefVector) filtered;
+                    assertThat(filteredOrdinal.needsCompaction(), is(true));
+                    BytesRef expected = new BytesRef();
+                    BytesRef actual = new BytesRef();
+                    for (int i = 0; i < masks.length; i++) {
+                        assertThat(filteredOrdinal.getBytesRef(i, actual), equalTo(vector.getBytesRef(masks[i], expected)));
+                    }
                 }
                 assertSliceFullRange(vector);
                 assertSliceOrdinalBytesRefVector(vector, 0, 0);

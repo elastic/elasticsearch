@@ -571,6 +571,75 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    public void testOrdinalsWithUnreferencedDictionaryEntriesVector() {
+        // Dictionary entries 1 and 3 are intentionally never referenced. With shared dictionaries on
+        // filter()/slice()/keepMask(), these can leak in to BytesRefBlockHash and must not become groups.
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(5);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.appendInt(2);
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("phantom-1"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("phantom-2"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=2, size="));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 1);
+                    assertKeys(ordsAndKeys.keys(), "a", "b");
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 2, 2);
+                    assertKeys(ordsAndKeys.keys(), "a", "b");
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+                }
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build(), true).asBlock());
+        }
+    }
+
+    public void testOrdinalsWithUnreferencedDictionaryEntriesBlock() {
+        // As above, but with nulls and multi-value positions exercising addOrdinalsBlock.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(5);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            ords.appendInt(0);
+            ords.appendNull();
+            ords.beginPositionEntry();
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.endPositionEntry();
+            ords.appendInt(2);
+            bytes.appendBytesRef(new BytesRef("a"));
+            bytes.appendBytesRef(new BytesRef("phantom-1"));
+            bytes.appendBytesRef(new BytesRef("b"));
+            bytes.appendBytesRef(new BytesRef("phantom-2"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 0 }, new int[] { 1 }, new int[] { 0, 2 }, new int[] { 2 });
+                    assertKeys(ordsAndKeys.keys(), "a", null, "b");
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description(), endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 1 }, new int[] { 0 }, new int[] { 1, 2 }, new int[] { 2 });
+                    assertKeys(ordsAndKeys.keys(), null, "a", "b");
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                }
+            }, new OrdinalBytesRefBlock(ords.build(), bytes.build(), true));
+        }
+    }
+
     public void testBooleanHashFalseFirst() {
         boolean[] values = new boolean[] { false, true, true, true, true };
         hash(ordsAndKeys -> {

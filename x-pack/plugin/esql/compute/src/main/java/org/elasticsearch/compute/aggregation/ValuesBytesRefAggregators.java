@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -16,9 +17,9 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
-import org.elasticsearch.core.Releasables;
 
 final class ValuesBytesRefAggregators {
+
     static GroupingAggregatorFunction.AddInput wrapAddInput(
         GroupingAggregatorFunction.AddInput delegate,
         ValuesBytesRefAggregator.GroupingState state,
@@ -28,63 +29,85 @@ final class ValuesBytesRefAggregators {
         if (valuesOrdinal == null) {
             return delegate;
         }
-        final IntVector hashIds = hashDict(state, valuesOrdinal.getDictionaryVector());
-        IntBlock ordinalIds = valuesOrdinal.getOrdinalsBlock();
-        return new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-                    if (groupIds.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groupIds.getInt(g);
-                        if (ordinalIds.isNull(groupPosition + positionOffset)) {
+        final BytesRefVector dict = valuesOrdinal.getDictionaryVector();
+        final BlockFactory blockFactory = dict.blockFactory();
+        final long acquiredBytes = (long) Integer.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "ValuesBytesRefAggregator");
+        boolean success = false;
+        try {
+            // Ord-to-hashId cache. Entries store {@code hashId + 1}, so the zero-initialized array
+            // doubles as the "unseen" sentinel. When phantoms are possible (needsCompaction()==true)
+            // we leave the array zeroed and let lazyHashId fill entries on first reference, so
+            // phantom dict entries never enter state.bytes. When no phantoms are possible (the dense
+            // Parquet path) we pre-hash the whole dictionary up front, so the per-row zero-check in
+            // lazyHashId is always predicted not-taken — restoring the old eager fast path for
+            // clickbench-style dense aggregations.
+            final int[] hashIds = valuesOrdinal.needsCompaction() ? newLazyHashIds(dict.getPositionCount()) : eagerHashIds(state, dict);
+            final BytesRef scratch = new BytesRef();
+            final IntBlock ordinalIds = valuesOrdinal.getOrdinalsBlock();
+            GroupingAggregatorFunction.AddInput result = new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                        if (groupIds.isNull(groupPosition)) {
                             continue;
                         }
-                        int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
-                        int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
-                        for (int v = valuesStart; v < valuesEnd; v++) {
-                            state.addValueOrdinal(groupId, hashIds.getInt(ordinalIds.getInt(v)));
+                        int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                        int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                        for (int g = groupStart; g < groupEnd; g++) {
+                            int groupId = groupIds.getInt(g);
+                            if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                                continue;
+                            }
+                            int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
+                            int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
+                            for (int v = valuesStart; v < valuesEnd; v++) {
+                                state.addValueOrdinal(groupId, lazyHashId(ordinalIds.getInt(v), dict, hashIds, scratch, state));
+                            }
                         }
                     }
                 }
-            }
 
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-                    if (groupIds.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groupIds.getInt(g);
-                        if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                        if (groupIds.isNull(groupPosition)) {
                             continue;
                         }
-                        int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
-                        int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
-                        for (int v = valuesStart; v < valuesEnd; v++) {
-                            state.addValueOrdinal(groupId, hashIds.getInt(ordinalIds.getInt(v)));
+                        int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                        int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                        for (int g = groupStart; g < groupEnd; g++) {
+                            int groupId = groupIds.getInt(g);
+                            if (ordinalIds.isNull(groupPosition + positionOffset)) {
+                                continue;
+                            }
+                            int valuesStart = ordinalIds.getFirstValueIndex(groupPosition + positionOffset);
+                            int valuesEnd = valuesStart + ordinalIds.getValueCount(groupPosition + positionOffset);
+                            for (int v = valuesStart; v < valuesEnd; v++) {
+                                state.addValueOrdinal(groupId, lazyHashId(ordinalIds.getInt(v), dict, hashIds, scratch, state));
+                            }
                         }
                     }
                 }
-            }
 
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                addOrdinalInputBlock(state, positionOffset, groupIds, ordinalIds, hashIds);
-            }
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {
+                    addOrdinalInputBlock(state, positionOffset, groupIds, ordinalIds, dict, hashIds, scratch);
+                }
 
-            @Override
-            public void close() {
-                Releasables.close(hashIds, delegate);
+                @Override
+                public void close() {
+                    blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
+                    delegate.close();
+                }
+            };
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
             }
-        };
+        }
     }
 
     static GroupingAggregatorFunction.AddInput wrapAddInput(
@@ -96,60 +119,101 @@ final class ValuesBytesRefAggregators {
         if (valuesOrdinal == null) {
             return delegate;
         }
-        final IntVector hashIds = hashDict(state, valuesOrdinal.getDictionaryVector());
-        var ordinalIds = valuesOrdinal.getOrdinalsVector();
-        return new GroupingAggregatorFunction.AddInput() {
-            @Override
-            public void add(int positionOffset, IntArrayBlock groupIds) {
-                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-                    if (groupIds.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groupIds.getInt(g);
-                        state.addValueOrdinal(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
-                    }
-                }
-            }
-
-            @Override
-            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
-                    if (groupIds.isNull(groupPosition)) {
-                        continue;
-                    }
-                    int groupStart = groupIds.getFirstValueIndex(groupPosition);
-                    int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
-                    for (int g = groupStart; g < groupEnd; g++) {
-                        int groupId = groupIds.getInt(g);
-                        state.addValueOrdinal(groupId, hashIds.getInt(ordinalIds.getInt(groupPosition + positionOffset)));
+        final BytesRefVector dict = valuesOrdinal.getDictionaryVector();
+        final BlockFactory blockFactory = dict.blockFactory();
+        final long acquiredBytes = (long) Integer.BYTES * dict.getPositionCount();
+        blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "ValuesBytesRefAggregator");
+        boolean success = false;
+        try {
+            // See the BytesRefBlock overload for the rationale behind this conditional.
+            final int[] hashIds = valuesOrdinal.needsCompaction() ? newLazyHashIds(dict.getPositionCount()) : eagerHashIds(state, dict);
+            final BytesRef scratch = new BytesRef();
+            final IntVector ordinalIds = valuesOrdinal.getOrdinalsVector();
+            GroupingAggregatorFunction.AddInput result = new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                        if (groupIds.isNull(groupPosition)) {
+                            continue;
+                        }
+                        int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                        int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                        for (int g = groupStart; g < groupEnd; g++) {
+                            int groupId = groupIds.getInt(g);
+                            int ord = ordinalIds.getInt(groupPosition + positionOffset);
+                            state.addValueOrdinal(groupId, lazyHashId(ord, dict, hashIds, scratch, state));
+                        }
                     }
                 }
-            }
 
-            @Override
-            public void add(int positionOffset, IntVector groupIds) {
-                addOrdinalInputVector(state, positionOffset, groupIds, ordinalIds, hashIds);
-            }
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    for (int groupPosition = 0; groupPosition < groupIds.getPositionCount(); groupPosition++) {
+                        if (groupIds.isNull(groupPosition)) {
+                            continue;
+                        }
+                        int groupStart = groupIds.getFirstValueIndex(groupPosition);
+                        int groupEnd = groupStart + groupIds.getValueCount(groupPosition);
+                        for (int g = groupStart; g < groupEnd; g++) {
+                            int groupId = groupIds.getInt(g);
+                            int ord = ordinalIds.getInt(groupPosition + positionOffset);
+                            state.addValueOrdinal(groupId, lazyHashId(ord, dict, hashIds, scratch, state));
+                        }
+                    }
+                }
 
-            @Override
-            public void close() {
-                Releasables.close(hashIds, delegate);
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {
+                    addOrdinalInputVector(state, positionOffset, groupIds, ordinalIds, dict, hashIds, scratch);
+                }
+
+                @Override
+                public void close() {
+                    blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
+                    delegate.close();
+                }
+            };
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
             }
-        };
+        }
     }
 
-    static IntVector hashDict(ValuesBytesRefAggregator.GroupingState state, BytesRefVector dict) {
+    /**
+     * Returns a per-page lazy ord-to-hashId cache, sized by the dictionary. Entries are populated by
+     * {@link #lazyHashId} on first reference, so phantom dictionary entries that no row touches never
+     * enter {@code state.bytes}. The cache stores {@code hashId + 1}; the JVM's zero-init makes
+     * {@code 0} the implicit "unseen" sentinel without an explicit fill.
+     */
+    static int[] newLazyHashIds(int dictSize) {
+        return new int[dictSize];
+    }
+
+    /**
+     * Eager counterpart used when the input block guarantees no phantom dictionary entries: every
+     * dict entry is hashed up front (storing {@code hashId + 1}), so subsequent {@link #lazyHashId}
+     * calls hit on the first cache load and the {@code v == 0} branch becomes a predicted-not-taken
+     * no-op.
+     */
+    static int[] eagerHashIds(ValuesBytesRefAggregator.GroupingState state, BytesRefVector dict) {
+        int[] cache = new int[dict.getPositionCount()];
         BytesRef scratch = new BytesRef();
-        try (var hashIdsBuilder = dict.blockFactory().newIntVectorFixedBuilder(dict.getPositionCount())) {
-            for (int p = 0; p < dict.getPositionCount(); p++) {
-                final long hashId = BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, scratch)));
-                hashIdsBuilder.appendInt(Math.toIntExact(hashId));
-            }
-            return hashIdsBuilder.build();
+        for (int p = 0; p < dict.getPositionCount(); p++) {
+            cache[p] = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(p, scratch)))) + 1;
         }
+        return cache;
+    }
+
+    static int lazyHashId(int ord, BytesRefVector dict, int[] cache, BytesRef scratch, ValuesBytesRefAggregator.GroupingState state) {
+        int v = cache[ord];
+        if (v == 0) {
+            v = Math.toIntExact(BlockHash.hashOrdToGroup(state.bytes.add(dict.getBytesRef(ord, scratch)))) + 1;
+            cache[ord] = v;
+        }
+        return v - 1;
     }
 
     static void addOrdinalInputBlock(
@@ -157,7 +221,9 @@ final class ValuesBytesRefAggregators {
         int positionOffset,
         IntVector groupIds,
         IntBlock ordinalIds,
-        IntVector hashIds
+        BytesRefVector dict,
+        int[] hashIds,
+        BytesRef scratch
     ) {
         for (int p = 0; p < groupIds.getPositionCount(); p++) {
             final int groupId = groupIds.getInt(p);
@@ -166,7 +232,7 @@ final class ValuesBytesRefAggregators {
             final int end = start + ordinalIds.getValueCount(valuePosition);
             for (int i = start; i < end; i++) {
                 int ord = ordinalIds.getInt(i);
-                state.addValueOrdinal(groupId, hashIds.getInt(ord));
+                state.addValueOrdinal(groupId, lazyHashId(ord, dict, hashIds, scratch, state));
             }
         }
     }
@@ -176,22 +242,25 @@ final class ValuesBytesRefAggregators {
         int positionOffset,
         IntVector groupIds,
         IntVector ordinalIds,
-        IntVector hashIds
+        BytesRefVector dict,
+        int[] hashIds,
+        BytesRef scratch
     ) {
-        if (groupIds.isConstant() && hashIds.isConstant()) {
-            state.addValueOrdinal(groupIds.getInt(0), hashIds.getInt(0));
+        if (groupIds.isConstant() && ordinalIds.isConstant()) {
+            int ord = ordinalIds.getInt(0);
+            state.addValueOrdinal(groupIds.getInt(0), lazyHashId(ord, dict, hashIds, scratch, state));
             return;
         }
         int lastGroup = groupIds.getInt(0);
         int lastOrd = ordinalIds.getInt(positionOffset);
-        state.addValueOrdinal(lastGroup, hashIds.getInt(lastOrd));
+        state.addValueOrdinal(lastGroup, lazyHashId(lastOrd, dict, hashIds, scratch, state));
         for (int p = 1; p < groupIds.getPositionCount(); p++) {
             final int nextGroup = groupIds.getInt(p);
             final int nextOrd = ordinalIds.getInt(p + positionOffset);
             if (nextGroup != lastGroup || nextOrd != lastOrd) {
                 lastGroup = nextGroup;
                 lastOrd = nextOrd;
-                state.addValueOrdinal(lastGroup, hashIds.getInt(lastOrd));
+                state.addValueOrdinal(lastGroup, lazyHashId(lastOrd, dict, hashIds, scratch, state));
             }
         }
     }
@@ -204,21 +273,31 @@ final class ValuesBytesRefAggregators {
     ) {
         BytesRefVector dict = null;
         IntBlock ordinals = null;
+        boolean needsCompaction = false;
         {
             final OrdinalBytesRefBlock asOrdinals = values.asOrdinals();
             if (asOrdinals != null) {
                 dict = asOrdinals.getDictionaryVector();
                 ordinals = asOrdinals.getOrdinalsBlock();
+                needsCompaction = asOrdinals.needsCompaction();
             }
         }
         if (dict != null && dict.getPositionCount() < groupIds.getPositionCount()) {
-            try (var hashIds = hashDict(state, dict)) {
+            final BlockFactory blockFactory = dict.blockFactory();
+            final long acquiredBytes = (long) Integer.BYTES * dict.getPositionCount();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(acquiredBytes, "ValuesBytesRefAggregator");
+            try {
+                // See wrapAddInput for the rationale behind the eager/lazy split.
+                final int[] hashIds = needsCompaction ? newLazyHashIds(dict.getPositionCount()) : eagerHashIds(state, dict);
+                final BytesRef scratch = new BytesRef();
                 IntVector ordinalsVector = ordinals.asVector();
                 if (ordinalsVector != null) {
-                    addOrdinalInputVector(state, positionOffset, groupIds, ordinalsVector, hashIds);
+                    addOrdinalInputVector(state, positionOffset, groupIds, ordinalsVector, dict, hashIds, scratch);
                 } else {
-                    addOrdinalInputBlock(state, positionOffset, groupIds, ordinals, hashIds);
+                    addOrdinalInputBlock(state, positionOffset, groupIds, ordinals, dict, hashIds, scratch);
                 }
+            } finally {
+                blockFactory.breaker().addWithoutBreaking(-acquiredBytes);
             }
         } else {
             final BytesRef scratch = new BytesRef();

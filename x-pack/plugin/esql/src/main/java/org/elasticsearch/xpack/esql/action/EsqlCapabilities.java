@@ -1257,6 +1257,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_IMPLICIT_CASTING_INCONSISTENT_AFTER_RENAME,
+
+        /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
          * (from a subquery in FROM) or a {@code Fork}.
          */
@@ -2065,6 +2070,12 @@ public class EsqlCapabilities {
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */
         PROMQL_ABSENT_LABEL_MATCHING,
+
+        /**
+         * Fix for PromQL label matching on numeric fields, because PromQL treats all labels like strings, even numerics
+         * This capability only exists on 9.4
+         */
+        PROMQL_NUMERIC_LABEL_MATCHING_9_4,
 
         /**
          * Support for`WITHOUT` grouping function

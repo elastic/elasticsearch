@@ -169,8 +169,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -1262,8 +1262,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             JoinConfig joinConfig = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
 
-            if (semiJoin instanceof LeftSemiJoin leftSemiJoin) {
-                return new LeftSemiJoin(leftSemiJoin.source(), leftSemiJoin.left(), right, joinConfig, leftSemiJoin.markAttribute());
+            if (semiJoin instanceof MarkJoin markJoin) {
+                return new MarkJoin(markJoin.source(), markJoin.left(), right, joinConfig, markJoin.markAttribute());
             }
             return semiJoin instanceof AntiJoin
                 ? new AntiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig)

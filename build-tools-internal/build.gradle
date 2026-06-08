@@ -40,10 +40,6 @@ gradlePlugin {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
-    taskStatusTracker {
-      id = 'elasticsearch.task-status-tracker'
-      implementationClass = 'org.elasticsearch.gradle.internal.ci.TaskStatusTrackerPlugin'
-    }
     componentMetadataRules {
       id = 'elasticsearch.component-metadata-rules'
       implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'

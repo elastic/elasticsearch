@@ -36,6 +36,9 @@ export $(cat .ci/java-versions.properties | grep '=' | xargs)
 JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
 export JAVA_HOME
 
+PATH="$JAVA_HOME/bin:$PATH"
+export PATH
+
 JAVA11_HOME="$HOME/.java/java11"
 export JAVA11_HOME
 

@@ -37,4 +37,15 @@ if [[ "$MAX_WORKERS" == "0" ]]; then
 fi
 
 set -e
-$GRADLEW -S --no-daemon --max-workers=$MAX_WORKERS $@
+
+RUNNER_JAR="build-tools/gradle-runner/build/libs/gradle-runner.jar"
+if [[ ! -f "$RUNNER_JAR" ]]; then
+  echo "--- Building gradle-runner"
+  ./gradlew --no-scan --no-daemon --console=plain :build-tools:gradle-runner:jar
+fi
+
+# Strip "./gradlew" from GRADLEW to get the default flags
+GRADLEW_ARGS="${GRADLEW#./gradlew }"
+
+echo "--- Running gradle tasks"
+java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $@

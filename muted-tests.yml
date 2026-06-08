@@ -674,3 +674,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/150977
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:union_types.singleIndexIpStats}
+  issue: https://github.com/elastic/elasticsearch/issues/150982
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150986
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:string.in3VLWithComputedNullAsValue}
+  issue: https://github.com/elastic/elasticsearch/issues/150987
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:dense_vector-arithmetic.mulDenseVectorWithLiteral}
+  issue: https://github.com/elastic/elasticsearch/issues/150988

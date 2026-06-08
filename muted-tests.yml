@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
   method: yamlRestTest does nothing when there are no tests
   issue: https://github.com/elastic/elasticsearch/issues/150983
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: module projects are wired into test cluster setup
+  issue: https://github.com/elastic/elasticsearch/issues/150984
 
 # Examples:
 #

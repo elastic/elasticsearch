@@ -647,3 +647,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterFieldWithNullify}
   issue: https://github.com/elastic/elasticsearch/issues/150963
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBufferTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with distance[double]. #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150965
+- class: org.elasticsearch.reindex.management.ReindexRelocationIT
+  method: testNonSlicedRemoteReindexRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/150966
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150968
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats.sumExpressionWithConstantThreeClausesShareOneSvPair}
+  issue: https://github.com/elastic/elasticsearch/issues/150969
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:date.dateMinusNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150970
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:fuse.fuseWithLinearAndMinMax}
+  issue: https://github.com/elastic/elasticsearch/issues/150971
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testInferenceFailure
+  issue: https://github.com/elastic/elasticsearch/issues/150976
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors
+  issue: https://github.com/elastic/elasticsearch/issues/150977

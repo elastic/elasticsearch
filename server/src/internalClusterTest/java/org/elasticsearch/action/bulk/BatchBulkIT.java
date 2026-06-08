@@ -41,12 +41,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class BatchBulkIT extends ESIntegTestCase {
 
     @Before
-    public void requireSnapshotBuild() throws Exception {
+    public void requireSnapshotBuild() {
         assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        if (Build.current().isSnapshot() == false) {
+            return super.nodeSettings(nodeOrdinal, otherSettings);
+        }
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ShardBatchIndexer.BATCH_INDEXING.getKey(), true)

@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalExpressions.NONE;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -66,5 +68,51 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         assertThat(expressions.get(0).original(), equalTo("index-*"));
         assertThat(expressions.get(0).localExpressions().indices(), contains("index-1"));
         assertThat(expressions.get(0).remoteExpressions(), contains("remote:index-*"));
+    }
+
+    public void testExclusionMatchingOriginalPreservesNotVisibleEntry() {
+        ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
+        builder.addExpressions("missing-index", new HashSet<>(Set.of("missing-index")), CONCRETE_RESOURCE_NOT_VISIBLE, Set.of());
+
+        builder.excludeFromExpressions(Set.of("missing-index"), randomBoolean());
+
+        List<ResolvedIndexExpression> expressions = builder.build().expressions();
+        assertThat(expressions, hasSize(1));
+        assertThat(expressions.get(0).original(), equalTo("missing-index"));
+        assertThat(expressions.get(0).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_NOT_VISIBLE));
+        assertThat(expressions.get(0).localExpressions().indices(), contains("missing-index"));
+        assertThat(expressions.get(0).remoteExpressions(), empty());
+    }
+
+    public void testExclusionMatchingOriginalPreservesNotVisibleEntryWithRemoteExpressions() {
+        ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
+        builder.addExpressions(
+            "missing-index",
+            new HashSet<>(Set.of("missing-index")),
+            CONCRETE_RESOURCE_NOT_VISIBLE,
+            Set.of("remote:missing-index")
+        );
+
+        builder.excludeFromExpressions(Set.of("missing-index"), randomBoolean());
+
+        List<ResolvedIndexExpression> expressions = builder.build().expressions();
+        assertThat(expressions, hasSize(1));
+        assertThat(expressions.get(0).original(), equalTo("missing-index"));
+        assertThat(expressions.get(0).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_NOT_VISIBLE));
+        assertThat(expressions.get(0).localExpressions().indices(), contains("missing-index"));
+        assertThat(expressions.get(0).remoteExpressions(), contains("remote:missing-index"));
+    }
+
+    public void testExclusionMatchingOriginalPreservesUnauthorizedEntry() {
+        ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
+        builder.addExpressions("forbidden-index", new HashSet<>(Set.of("forbidden-index")), CONCRETE_RESOURCE_UNAUTHORIZED, Set.of());
+
+        builder.excludeFromExpressions(Set.of("forbidden-index"), randomBoolean());
+
+        List<ResolvedIndexExpression> expressions = builder.build().expressions();
+        assertThat(expressions, hasSize(1));
+        assertThat(expressions.get(0).original(), equalTo("forbidden-index"));
+        assertThat(expressions.get(0).localExpressions().localIndexResolutionResult(), equalTo(CONCRETE_RESOURCE_UNAUTHORIZED));
+        assertThat(expressions.get(0).localExpressions().indices(), contains("forbidden-index"));
     }
 }

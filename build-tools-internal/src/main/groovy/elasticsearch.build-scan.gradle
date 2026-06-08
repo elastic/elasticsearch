@@ -15,32 +15,21 @@ import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
-import org.elasticsearch.gradle.internal.ci.GcpPreemptionWatchdog
-import org.elasticsearch.gradle.internal.ci.PreemptionBuildCanceller
-
 import static org.elasticsearch.gradle.internal.util.CiUtils.runBuildkiteAgent
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
 
-// Start the GCP Spot VM preemption watchdog as early as possible so we have the full ~30s
-// window to react before the instance is killed. The watchdog is a no-op unless
-// GCP_PREEMPTION_WATCHDOG=true is set in the environment. The poll thread is a daemon, so
-// it dies with the JVM; CI VMs don't reuse Gradle daemons across jobs, so no explicit stop
-// is needed for the prototype.
-GcpPreemptionWatchdog.start()
-PreemptionBuildCanceller.install(gradle)
-pluginManager.apply('elasticsearch.task-status-tracker')
-
 develocity {
 
   buildScan {
 
     def onCI = System.getenv('CI') ? Boolean.parseBoolean(System.getenv('CI')) : false
+    def watchingForPreemption = System.getenv('GCP_PREEMPTION_WATCHDOG') ? Boolean.parseBoolean(System.getenv('GCP_PREEMPTION_WATCHDOG')) : false
 
-    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-    uploadInBackground = onCI == false
+    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated, or any time we are watching for preemption
+    uploadInBackground = onCI == false && watchingForPreemption == false
 
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
@@ -142,10 +131,58 @@ develocity {
           value 'Git Commit ID', gitRevision.get()
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
+      } else {
+        tag 'LOCAL'
+        if (System.getProperty('idea.active') == 'true') {
+          tag 'IDEA'
+        }
+      }
 
-        def jobId = System.getenv('BUILDKITE_JOB_ID')
+      buildFinished { result ->
+        def wasPreempted = false
+        def failedBeforePreemption = false
 
-        buildFinished { result ->
+        // Check whether the GradleRunner detected GCP preemption by reading
+        // the marker file it writes before cancelling the build.
+        if (watchingForPreemption) {
+          def preemptionMarker = new File(projectDir, 'build/.preemption-marker.json')
+          def preemptionTime = null
+          if (preemptionMarker.exists()) {
+            try {
+              def markerText = preemptionMarker.text
+              wasPreempted = markerText.contains('"preempted" : true') || markerText.contains('"preempted": true')
+              def timeMatcher = markerText =~ /"preemptedAt"\s*:\s*"([^"]+)"/
+              if (timeMatcher.find()) {
+                preemptionTime = timeMatcher.group(1)
+              }
+            } catch (Exception e) {
+              logger.warn("Could not read preemption marker file", e)
+            }
+          }
+
+          if (wasPreempted) {
+            tag 'PREEMPTED'
+            if (preemptionTime != null) {
+              value 'Preemption Time', preemptionTime
+            }
+            // Check task-status.json for failures that occurred before preemption
+            try {
+              def taskStatusFile = new File(projectDir, 'build/task-status.json')
+              if (taskStatusFile.exists()) {
+                def statusText = taskStatusFile.text
+                if (statusText.contains('"outcome" : "FAILED"') || statusText.contains('"result" : "FAILURE"')) {
+                  tag 'FAILED_BEFORE_PREEMPTION'
+                  failedBeforePreemption = true
+                }
+              }
+            } catch (Exception e) {
+              logger.warn("Could not check for pre-preemption failures", e)
+            }
+          }
+        }
+
+        if (onCI) {
+          def jobId = System.getenv('BUILDKITE_JOB_ID')
           def resolvedTestSeed = testSeed.get()
           value 'tests.seed', resolvedTestSeed
 
@@ -159,79 +196,45 @@ develocity {
               "storing test seed in Buildkite metadata"
             )
           }
-
-          def failedBeforePreemption = false
-          if (GcpPreemptionWatchdog.isPreempted()) {
-            tag 'PREEMPTED'
-            def preemptedAt = GcpPreemptionWatchdog.preemptedAt()
-            if (preemptedAt != null) {
-              value 'Preemption Time', preemptedAt.toString()
-            }
-            try {
-              def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
-              if (taskStatusService?.hadFailuresBeforePreemption()) {
-                tag 'FAILED_BEFORE_PREEMPTION'
-                failedBeforePreemption = true
-              }
-            } catch (Exception e) {
-              logger.warn("Could not check for pre-preemption failures", e)
-            }
-          }
-
-          // A build is a "real" failure if Gradle reported failures AND either
-          // the build was not preempted or there were genuine failures before
-          // preemption cancelled the remaining work.
-          def isRealFailure = result.failures && (!GcpPreemptionWatchdog.isPreempted() || failedBeforePreemption)
-
-          buildScanPublished { scan ->
-
-            try {
-              // Attach build scan link as build metadata
-              // See: https://buildkite.com/docs/pipelines/build-meta-data
-              runBuildkiteAgent(
-                ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
-                "storing build scan link in Buildkite metadata"
-              )
-
-              // Attach build scan ID as build metadata
-              runBuildkiteAgent(
-                ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
-                "storing build scan ID in Buildkite metadata"
-              )
-
-              // Add a build annotation
-              // See: https://buildkite.com/docs/agent/v3/cli-annotate
-              def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
-                0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : GcpPreemptionWatchdog.isPreempted() ? 'preempted' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
-              // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
-              runBuildkiteAgent(
-                ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
-                "adding build annotation",
-                { it.write(body) }
-              )
-            } finally {
-              if (GcpPreemptionWatchdog.isPreempted()) {
-                def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 47
-                // In Gradle 9 the daemon and client are always separate JVMs (even with
-                // --no-daemon). halt() in the daemon does not propagate the exit code to
-                // the client. Write it to a file instead; the wrapper scripts
-                // (run-gradle.sh, post-command hook) re-exit with it after the client
-                // returns normally.
-                // jobId is captured from the enclosing background{} scope (line ~150).
-                java.nio.file.Files.write(
-                  java.nio.file.Paths.get('/tmp', 'gradle-preemption-exit-' + (jobId ?: 'local')),
-                  exitCode.toString().getBytes()
-                )
-                logger.lifecycle("[gcp-preemption-watchdog] scan published; preemption exit code {} written for wrapper scripts", exitCode)
-              }
-            }
-          }
         }
-      } else {
-        tag 'LOCAL'
-        if (System.getProperty('idea.active') == 'true') {
-          tag 'IDEA'
+
+        buildScanPublished { scan ->
+          // Write build scan ID to a file for the GradleRunner to pick up
+          try {
+            def scanIdFile = new File(projectDir, 'build/.buildscan-id')
+            scanIdFile.text = scan.buildScanId
+          } catch (Exception e) {
+            logger.warn("Could not write build scan ID file", e)
+          }
+
+          if (onCI) {
+            def isRealFailure = result.failures && (!wasPreempted || failedBeforePreemption)
+
+            // Attach build scan link as build metadata
+            // See: https://buildkite.com/docs/pipelines/build-meta-data
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
+              "storing build scan link in Buildkite metadata"
+            )
+
+            // Attach build scan ID as build metadata
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
+              "storing build scan ID in Buildkite metadata"
+            )
+
+            // Add a build annotation
+            // See: https://buildkite.com/docs/agent/v3/cli-annotate
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
+              0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+            runBuildkiteAgent(
+              ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
+              "adding build annotation",
+              { it.write(body) }
+            )
+          }
         }
       }
     }

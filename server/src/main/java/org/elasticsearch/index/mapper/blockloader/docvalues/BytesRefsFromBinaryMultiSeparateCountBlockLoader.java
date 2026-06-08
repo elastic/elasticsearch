@@ -46,6 +46,32 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         return factory.bytesRefs(expectedCount);
     }
 
+    // For ConditionalBlockLoader:
+    @Override
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        if (context.reader().getFieldInfos().fieldInfo(fieldName) == null) {
+            return ConstantNull.ROW_READER;
+        }
+
+        AbstractBytesRefsFromBinaryReader columnAtATimeReader = (AbstractBytesRefsFromBinaryReader) reader(breaker, context);
+        return new RowStrideReader() {
+            @Override
+            public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                columnAtATimeReader.read(docId, storedFields, builder);
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return columnAtATimeReader.canReuse(startingDocID);
+            }
+
+            @Override
+            public void close() {
+                columnAtATimeReader.close();
+            }
+        };
+    }
+
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);

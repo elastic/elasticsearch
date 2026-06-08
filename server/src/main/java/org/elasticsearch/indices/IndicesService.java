@@ -2039,6 +2039,14 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Cumulative bytes read from the store directory on the current thread, as tracked by store metrics
+     * when the {@code directory_metrics} feature flag is enabled.
+     */
+    public long currentStoreBytesRead() {
+        return storeMetricHolder.instance().getBytesRead();
+    }
+
+    /**
      * Start measuring directory level metrics in the current thread, returning the delta when the supplier is invoked.
      * This will be the amount consumed between calling this method and the supplier.
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.

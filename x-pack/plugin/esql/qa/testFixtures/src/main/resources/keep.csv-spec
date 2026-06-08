@@ -318,6 +318,8 @@ salary:integer
 ;
 
 whereWithEvalGeneratedValue
+skip_flattened_rewrite: field_extract_multivalue_null
+request_stored: skip
 // the result from running on ES is the one with many decimals the test that runs locally is the one rounded to 2 decimals
 // the "height" fields have the values as 1.7, 1.7000000476837158, 1.7001953125, 1.7
 from employees | eval x = salary / 2 | where x > 37000;

@@ -348,14 +348,25 @@ public class IpFieldMapperTests extends MapperTestCase {
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
+        // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
+        private final boolean extendedDocValues = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+            && randomBoolean();
+        private final String cardinality = ESTestCase.randomFrom("low", "high");
+        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxValues) {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
@@ -415,9 +426,12 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() && randomBoolean()) {
+            if (extendedDocValues) {
                 b.startObject("doc_values");
-                b.field("cardinality", ESTestCase.randomFrom("low", "high"));
+                b.field("cardinality", cardinality);
+                if (enforceSingleValue) {
+                    b.field("multi_value", false);
+                }
                 b.endObject();
             }
         }
@@ -603,6 +617,25 @@ public class IpFieldMapperTests extends MapperTestCase {
                     + " index sort field, which requires sortable doc values"
             )
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
+            .documentMapper();
+
+        // Arrival order differs from the binary-sorted order (10.0.0.1 < 172.16.5.4 < 192.168.1.10); duplicate and null must survive.
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.value("192.168.1.10");
+            b.value("10.0.0.1");
+            b.nullValue();
+            b.value("172.16.5.4");
+            b.value("192.168.1.10");
+            b.endArray();
+        });
+        assertThat(result, containsString("\"field\":[\"192.168.1.10\",\"10.0.0.1\",null,\"172.16.5.4\",\"192.168.1.10\"]"));
     }
 
     @Override

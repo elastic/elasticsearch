@@ -107,6 +107,14 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
         assertEquals(0, addresses.size());
     }
 
+    public void testHostEntriesAreTrimmed() throws Exception {
+        final List<String> hostEntries = Arrays.asList("  # comment, should be ignored", "", " 192.168.0.1:9301 ");
+        final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
+        assertEquals(1, addresses.size());
+        assertEquals("192.168.0.1", addresses.get(0).getAddress());
+        assertEquals(9301, addresses.get(0).getPort());
+    }
+
     public void testUnicastHostsDoesNotExist() {
         final FileBasedSeedHostsProvider fileBasedSeedHostsProvider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
         SeedHostsResolver seedHostsResolver = new SeedHostsResolver("test", Settings.EMPTY, transportService, fileBasedSeedHostsProvider);

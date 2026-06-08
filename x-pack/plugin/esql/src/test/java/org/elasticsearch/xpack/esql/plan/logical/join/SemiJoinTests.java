@@ -556,7 +556,7 @@ public class SemiJoinTests extends ESTestCase {
      * built from the dedup output contains a NULL literal alongside the distinct values. We
      * keep the NULL even though {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE
      * (in case the surrounding rewrite ever wants the unfiltered three-valued result, e.g. via
-     * LEFT_SEMI's mark expression).
+     * MARK's mark expression).
      */
     public void testInlineDataFilterPathKeepsNullLiteralWhenRightHasNulls() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
@@ -725,9 +725,9 @@ public class SemiJoinTests extends ESTestCase {
         assertSentinelAllTrue(dedup);
     }
 
-    // -- LeftSemiJoin terminal-plan hook tests --
+    // -- MarkJoin terminal-plan hook tests --
     //
-    // LeftSemiJoin overrides every terminal-plan hook on {@link SemiJoin} so the produced plan
+    // MarkJoin overrides every terminal-plan hook on {@link SemiJoin} so the produced plan
     // materializes the mark attribute (via {@link Alias} sharing the markAttribute's NameId)
     // instead of dropping rows. Six tests, one per scenario:
     // - {@code buildEmptyRightSidePlan} -> {@code Eval(mark = FALSE)}
@@ -742,15 +742,15 @@ public class SemiJoinTests extends ESTestCase {
      * Empty subquery: x IN () is FALSE for every non-NULL row, NULL for NULL rows. With no NULLs
      * on the right side, the mark collapses to a constant FALSE — preserving every left row.
      */
-    public void testInlineDataLeftSemiJoinEmptyResultProducesMarkFalseEval() {
+    public void testInlineDataMarkJoinEmptyResultProducesMarkFalseEval() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
         LocalRelation emptyResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(0)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(lsj, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = SemiJoin.inlineData(mj, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         Eval eval = as(inlined, Eval.class);
-        Alias markAlias = singleMarkAlias(eval, lsj);
+        Alias markAlias = singleMarkAlias(eval, mj);
         assertThat("mark is FALSE for empty subquery", markAlias.child(), equalTo(Literal.FALSE));
     }
 
@@ -758,20 +758,20 @@ public class SemiJoinTests extends ESTestCase {
      * All-NULL right side: no candidate match key exists and the subquery contains NULL, so the
      * mark is NULL for every row. Reaches {@link SemiJoin#buildShortCircuitPlan} with
      * {@code allRightNull = true}; the mixed-NULL case lives in
-     * {@link #testInlineDataLeftSemiJoinFilterPathWithNullRight} to also pin
+     * {@link #testInlineDataMarkJoinFilterPathWithNullRight} to also pin
      * {@link SemiJoin#shortCircuitOnAnyRightNull()} {@code == false}.
      */
-    public void testInlineDataLeftSemiJoinAllNullRightProducesMarkNullEval() {
+    public void testInlineDataMarkJoinAllNullRightProducesMarkNullEval() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
 
         Block keyBlock = intBlockWithNulls(new int[] { 0, 0 }, new boolean[] { true, true });
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = SemiJoin.inlineData(mj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         Eval eval = as(inlined, Eval.class);
-        Alias markAlias = singleMarkAlias(eval, lsj);
+        Alias markAlias = singleMarkAlias(eval, mj);
         Literal nullLit = as(markAlias.child(), Literal.class);
         assertThat("mark is the NULL boolean literal", nullLit.value(), nullValue());
         assertThat(nullLit.dataType(), equalTo(DataType.BOOLEAN));
@@ -780,34 +780,34 @@ public class SemiJoinTests extends ESTestCase {
     /**
      * Below the hash-join threshold, no NULLs on the right: build {@code Eval(mark = In(leftField, [literals]))}.
      * {@link In}'s three-valued semantics produce the correct mark — TRUE / FALSE / NULL —
-     * without any extra wrapping. The alias's NameId matches {@link LeftSemiJoin#markAttribute()}
+     * without any extra wrapping. The alias's NameId matches {@link MarkJoin#markAttribute()}
      * so existing references in the surrounding boolean expression keep resolving, and the Eval
      * sits directly atop {@code left()} (no SV-guard, no IsNotNull filter) — the filter path
      * relies on {@link In}'s NULL handling for MV / NULL left keys.
      */
-    public void testInlineDataLeftSemiJoinFilterPathWithoutNullRight() {
+    public void testInlineDataMarkJoinFilterPathWithoutNullRight() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
 
         Block keyBlock = intBlock(1, 2, 3);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = SemiJoin.inlineData(mj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         Eval eval = as(inlined, Eval.class);
-        In in = as(singleMarkAlias(eval, lsj).child(), In.class);
+        In in = as(singleMarkAlias(eval, mj).child(), In.class);
         assertThat(in.value(), equalTo(leftField));
         assertThat(in.list(), hasSize(3));
         for (Expression e : in.list()) {
             assertThat("no-null filter path must contain only non-null literals", ((Literal) e).value(), notNullValue());
         }
-        assertThat(eval.child(), sameInstance(lsj.left()));
+        assertThat(eval.child(), sameInstance(mj.left()));
     }
 
     /**
      * Filter path with mixed NULL right side. Two things to pin:
      * <ol>
-     *   <li>{@link SemiJoin#shortCircuitOnAnyRightNull()} returns false for LeftSemiJoin, so a
+     *   <li>{@link SemiJoin#shortCircuitOnAnyRightNull()} returns false for MarkJoin, so a
      *       NULL on the right alongside non-NULL values does NOT collapse to {@code Eval(mark = NULL)} —
      *       that would lose the TRUE mark for matching rows. We still take the filter path
      *       (proved by the {@link In} below — a short-circuit would have produced a constant).</li>
@@ -816,17 +816,17 @@ public class SemiJoinTests extends ESTestCase {
      *       literal — required for the three-valued mark when the right side has any NULL.</li>
      * </ol>
      */
-    public void testInlineDataLeftSemiJoinFilterPathWithNullRight() {
+    public void testInlineDataMarkJoinFilterPathWithNullRight() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
 
         Block keyBlock = intBlockWithNulls(new int[] { 10, 0, 20 }, new boolean[] { false, true, false });
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = SemiJoin.inlineData(mj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         Eval eval = as(inlined, Eval.class);
-        In in = as(singleMarkAlias(eval, lsj).child(), In.class);
+        In in = as(singleMarkAlias(eval, mj).child(), In.class);
         assertThat(in.value(), equalTo(leftField));
         assertThat("two distinct non-null values + one NULL literal", in.list(), hasSize(3));
 
@@ -842,7 +842,7 @@ public class SemiJoinTests extends ESTestCase {
         }
         assertTrue("IN list must carry the BlockHash NULL group as a NULL literal", hasNullLiteral);
         assertThat(nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 20))));
-        assertThat(eval.child(), sameInstance(lsj.left()));
+        assertThat(eval.child(), sameInstance(mj.left()));
     }
 
     /**
@@ -854,15 +854,15 @@ public class SemiJoinTests extends ESTestCase {
      * is needed because the dedup right has no NULL group for the LEFT join to route NULL-keyed
      * left rows to.
      */
-    public void testInlineDataLeftSemiJoinHashJoinPathWithoutNullRight() {
+    public void testInlineDataMarkJoinHashJoinPathWithoutNullRight() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
 
         Block keyBlock = distinctIntBlock(HASH_JOIN_THRESHOLD + 1);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        Case caseExpr = assertHashJoinPathShape(lsj, result);
+        Case caseExpr = assertHashJoinPathShape(mj, result);
 
         // WHEN keyIsNull THEN NULL WHEN matched THEN TRUE ELSE FALSE
         assertThat(caseExpr.children(), hasSize(5));
@@ -878,15 +878,15 @@ public class SemiJoinTests extends ESTestCase {
     /**
      * Hash-join path with NULL on the right side. Same surrounding shape and
      * {@code filterNullLeftKeysBeforeHashJoin == false} contract as
-     * {@link #testInlineDataLeftSemiJoinHashJoinPathWithoutNullRight} (pinned again via
+     * {@link #testInlineDataMarkJoinHashJoinPathWithoutNullRight} (pinned again via
      * {@link #assertHashJoinPathShape}); the CASE collapses to the 2-child form
      * {@code [matched, TRUE]} because the absent ELSE clause already yields the implicit NULL
      * mark for both non-matches and NULL-keyed left rows (their sentinel is NULL too).
      */
-    public void testInlineDataLeftSemiJoinHashJoinPathWithNullRight() {
+    public void testInlineDataMarkJoinHashJoinPathWithNullRight() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        MarkJoin mj = makeMarkJoin(leftField, rightField);
 
         // One NULL plus enough distinct non-null values to exceed the threshold so we take the
         // hash-join path with rightHadNulls = true.
@@ -902,7 +902,7 @@ public class SemiJoinTests extends ESTestCase {
         Block keyBlock = intBlockWithNulls(values, nulls);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        Case caseExpr = assertHashJoinPathShape(lsj, result);
+        Case caseExpr = assertHashJoinPathShape(mj, result);
 
         // WHEN matched THEN TRUE (no else — implicit NULL on no-match)
         assertThat(caseExpr.children(), hasSize(2));
@@ -996,12 +996,12 @@ public class SemiJoinTests extends ESTestCase {
     }
 
     /**
-     * Constructs a {@link LeftSemiJoin} wrapping empty left/right local relations on the given
+     * Constructs a {@link MarkJoin} wrapping empty left/right local relations on the given
      * fields, with a freshly-allocated synthetic mark attribute (matching what
      * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver InSubqueryResolver}
      * produces in the analyzer's rewrite).
      */
-    private static LeftSemiJoin makeLeftSemiJoin(FieldAttribute leftField, FieldAttribute rightField) {
+    private static MarkJoin makeMarkJoin(FieldAttribute leftField, FieldAttribute rightField) {
         Attribute markAttribute = new ReferenceAttribute(
             Source.EMPTY,
             null,
@@ -1011,7 +1011,7 @@ public class SemiJoinTests extends ESTestCase {
             new NameId(),
             true
         );
-        return new LeftSemiJoin(
+        return new MarkJoin(
             Source.EMPTY,
             emptyLocalRelation(List.of(leftField)),
             emptyLocalRelation(List.of(rightField)),
@@ -1022,41 +1022,41 @@ public class SemiJoinTests extends ESTestCase {
     }
 
     /**
-     * Reads the single {@link Alias} produced by a LeftSemiJoin terminal Eval and asserts that
-     * its NameId matches {@link LeftSemiJoin#markAttribute()}'s — the contract that lets the
+     * Reads the single {@link Alias} produced by a MarkJoin terminal Eval and asserts that
+     * its NameId matches {@link MarkJoin#markAttribute()}'s — the contract that lets the
      * surrounding boolean expression keep resolving against the mark.
      */
-    private static Alias singleMarkAlias(Eval eval, LeftSemiJoin lsj) {
+    private static Alias singleMarkAlias(Eval eval, MarkJoin mj) {
         assertThat(eval.fields(), hasSize(1));
         Alias markAlias = eval.fields().get(0);
-        assertThat("mark alias must share markAttribute's NameId", markAlias.id(), equalTo(lsj.markAttribute().id()));
+        assertThat("mark alias must share markAttribute's NameId", markAlias.id(), equalTo(mj.markAttribute().id()));
         return markAlias;
     }
 
     /**
-     * Walks a LeftSemiJoin hash-join plan and pins every invariant that does not depend on the
+     * Walks a MarkJoin hash-join plan and pins every invariant that does not depend on the
      * specific CASE shape, then returns the {@link Case} for the caller to assert on:
      * <ul>
-     *   <li>top-level {@link Project} whose projections include {@link LeftSemiJoin#markAttribute()}'s NameId
+     *   <li>top-level {@link Project} whose projections include {@link MarkJoin#markAttribute()}'s NameId
      *       (so the mark is in scope for downstream Filter/Project nodes);</li>
      *   <li>{@link Eval} with a single mark alias under {@link #singleMarkAlias};</li>
      *   <li>{@link Join} with {@link JoinTypes#LEFT};</li>
      *   <li>{@code join.right()} is the dedup {@link LocalRelation};</li>
      *   <li>{@code join.left()} is the SV-guard {@link Eval} directly — NOT wrapped in
-     *       {@code Filter(IsNotNull(svKey))} (this is the {@link LeftSemiJoin#filterNullLeftKeysBeforeHashJoin}
+     *       {@code Filter(IsNotNull(svKey))} (this is the {@link MarkJoin#filterNullLeftKeysBeforeHashJoin}
      *       {@code == false} contract; SEMI / ANTI would have wrapped it via that hook).</li>
      * </ul>
      * Forces the hash-join path via {@code hashJoinThreshold = 0} — callers can use a small dedup
      * block and don't need to construct above-threshold data themselves.
      */
-    private static Case assertHashJoinPathShape(LeftSemiJoin lsj, LocalRelation result) {
-        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+    private static Case assertHashJoinPathShape(MarkJoin mj, LocalRelation result) {
+        LogicalPlan inlined = SemiJoin.inlineData(mj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         Project project = as(inlined, Project.class);
-        boolean hasMarkAttr = project.projections().stream().anyMatch(ne -> ne.id().equals(lsj.markAttribute().id()));
+        boolean hasMarkAttr = project.projections().stream().anyMatch(ne -> ne.id().equals(mj.markAttribute().id()));
         assertTrue("projection must include the mark attribute", hasMarkAttr);
 
         Eval eval = as(project.child(), Eval.class);
-        Alias markAlias = singleMarkAlias(eval, lsj);
+        Alias markAlias = singleMarkAlias(eval, mj);
         Case caseExpr = as(markAlias.child(), Case.class);
 
         Join join = as(eval.child(), Join.class);
@@ -1105,7 +1105,7 @@ public class SemiJoinTests extends ESTestCase {
      * the dedup-correctness tests stay focused on data.
      * <p>
      * The expected sentinel-filter class is derived from {@link SemiJoin#isAntiJoin()}:
-     * {@link IsNotNull} for SEMI / LEFT_SEMI, {@link IsNull} for ANTI.
+     * {@link IsNotNull} for SEMI / MARK, {@link IsNull} for ANTI.
      */
     private static Page extractHashJoinDedupPage(SemiJoin semiJoin, LocalRelation result, DataType expectedKeyType) {
         Class<? extends Expression> expectedSentinelCondition = semiJoin.isAntiJoin() ? IsNull.class : IsNotNull.class;

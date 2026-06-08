@@ -49,7 +49,10 @@ final class PrometheusPlanBuilderUtils {
      */
     static final String DIMENSION_FIELDS = "dimension_fields";
 
-    /** Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} and {@link org.elasticsearch.xpack.esql.plan.logical.MetricsInfo}. */
+    /**
+     * Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} and
+     * {@link org.elasticsearch.xpack.esql.plan.logical.MetricsInfo}.
+     */
     static final String METRIC_NAME_FIELD = "metric_name";
 
     private static final String METRICS_PREFIX = "metrics.";

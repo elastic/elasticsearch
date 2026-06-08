@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
@@ -21,7 +22,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
     public void testStorageProvidersRegistersWasbsAndWasbSchemes() {
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         assertTrue("Should register wasbs scheme", providers.containsKey("wasbs"));
         assertTrue("Should register wasb scheme", providers.containsKey("wasb"));
@@ -37,7 +38,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
     public void testStorageProviderFactoryCreateWithNullConfigDelegatesToDefault() {
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory factory = providers.get("wasbs");
         assertNotNull("wasbs factory should not be null", factory);
@@ -48,7 +49,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
     public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory factory = providers.get("wasbs");
         assertNotNull("wasbs factory should not be null", factory);
@@ -59,7 +60,7 @@ public class AzureDataSourcePluginTests extends ESTestCase {
 
     public void testWasbsAndWasbShareSameFactory() {
         AzureDataSourcePlugin plugin = new AzureDataSourcePlugin();
-        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY);
+        Map<String, StorageProviderFactory> providers = plugin.storageProviders(Settings.EMPTY, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         StorageProviderFactory wasbsFactory = providers.get("wasbs");
         StorageProviderFactory wasbFactory = providers.get("wasb");

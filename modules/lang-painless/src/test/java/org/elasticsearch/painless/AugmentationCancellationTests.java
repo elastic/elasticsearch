@@ -72,14 +72,16 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     private ScriptedMetricAggContexts.InitScript compileInit(String source) {
+        return compileInit(source, new HashMap<>(), new HashMap<>());
+    }
+
+    private ScriptedMetricAggContexts.InitScript compileInit(String source, Map<String, Object> params, Map<String, Object> state) {
         ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile(
             "test",
             source,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             Collections.emptyMap()
         );
-        Map<String, Object> params = new HashMap<>();
-        Map<String, Object> state = new HashMap<>();
         return factory.newInstance(params, state);
     }
 
@@ -115,6 +117,118 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         ScriptedMetricAggContexts.InitScript script = compileInit(buildPopulateThenEach(1500, "l.each(x -> x.toString())"));
         // No runnable set — _getCancellationCheck() returns null.
         script.execute();  // must not throw
+    }
+
+    /**
+     * {@code String.replace} is an opaque JDK call whose O(length) cost is invisible to the loop/cancellation
+     * budget, so a single replace over a large string can run unbounded.  The script-aware augmentation reimplements
+     * it as a scan that polls per match.  Here a single replace over a string with >
+     * {@code CANCELLATION_POLL_INTERVAL} literal matches — with no painless loop in the body — fires the runnable
+     * purely from replace()'s own internal poll, proving the augmentation (not a loop back-edge) does the polling.
+     */
+    public void testReplaceAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; s.replace('A', 'AB');",
+            params,
+            new HashMap<>()
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-replace");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-replace", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from inside replace(), was: " + callCount.get(), callCount.get() >= 1);
+    }
+
+    /**
+     * Same as {@link #testReplaceAugmentationFiresCancelRunnable} but the receiver is {@code def}-typed, so
+     * dispatch goes through {@code DefBootstrap}/{@code Def.lookupMethod} (recipe prefixed with 'S') rather than a
+     * static invokedynamic.  Verifies the def call-site threads the script into the script-aware replace overload.
+     */
+    public void testDefReplaceAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("def s = params['big']; s.replace('A', 'AB');", params, new HashMap<>());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-replace");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-replace", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from inside def-dispatched replace(), was: " + callCount.get(), callCount.get() >= 1);
+    }
+
+    /**
+     * When no cancellation runnable is set, replace takes the fast path and delegates straight to
+     * {@link String#replace(CharSequence, CharSequence)}.  Verifies the null-fast-path branch and its result.
+     */
+    public void testReplaceAugmentationNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        Map<String, Object> state = new HashMap<>();
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; state['out'] = s.replace('A', 'AB');",
+            params,
+            state
+        );
+        // No runnable set — _getCancellationCheck() returns null.
+        script.execute();
+        assertEquals("A".repeat(1500).replace("A", "AB"), state.get("out"));
+    }
+
+    /**
+     * With a non-throwing runnable set, replace takes the reimplemented poll-during path rather than delegating to
+     * the JDK.  Verify it produces byte-for-byte the same result as {@link String#replace(CharSequence, CharSequence)}
+     * across edge cases: empty target (insert around every char), empty receiver, empty replacement, no match,
+     * multi-char and overlapping-candidate targets, and the growth case from the threat model.
+     */
+    public void testReplaceCancellationAwarePathMatchesJdk() {
+        String[][] cases = {
+            { "AAAAAAA", "A", "AB" },
+            { "hello world", "o", "0" },
+            { "abc", "", "X" },
+            { "", "", "X" },
+            { "abcabcabc", "abc", "" },
+            { "xyz", "q", "Q" },
+            { "banana", "ana", "X" },
+            { "mississippi", "ss", "S" }, };
+        for (String[] testCase : cases) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("s", testCase[0]);
+            params.put("t", testCase[1]);
+            params.put("r", testCase[2]);
+            Map<String, Object> state = new HashMap<>();
+            ScriptedMetricAggContexts.InitScript script = compileInit(
+                "String s = params['s']; String t = params['t']; String r = params['r']; state['out'] = s.replace(t, r);",
+                params,
+                state
+            );
+            script._setCancellationCheck(() -> {}); // non-throwing: force the reimplemented path without aborting
+            script.execute();
+            assertEquals(
+                "replace([" + testCase[0] + "],[" + testCase[1] + "],[" + testCase[2] + "])",
+                testCase[0].replace(testCase[1], testCase[2]),
+                state.get("out")
+            );
+        }
+    }
+
+    /**
+     * In a context whose base class does not support cancellation, replace still resolves to the script-aware
+     * augmentation (the lookup always binds it), finds a {@code null} runnable, and delegates to the JDK method.
+     */
+    public void testReplaceInNonCancellationContextRunsCorrectly() {
+        Object result = exec("String s = 'AAAAAAA'; return s.replace('A', 'AB');");
+        assertEquals("ABABABABABABAB", result);
     }
 
     /**

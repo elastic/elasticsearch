@@ -50,7 +50,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         // no native implementation, just use the panama one
-        return new Panama22VectorScorerFactory().newES91OSQVectorsScorer(input, dimension, bulkSize);
+        return new PanamaVectorScorerFactory().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
     @Override

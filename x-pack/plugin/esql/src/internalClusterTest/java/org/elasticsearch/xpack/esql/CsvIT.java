@@ -320,11 +320,16 @@ public class CsvIT extends ESTestCase {
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
+
+        Settings.Builder pragmaSettings = Settings.builder();
         if (randomBoolean()) {
-            Settings.Builder pragmaSettings = Settings.builder();
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
+        }
+        testCase.pragmas.forEach(pragmaSettings::put);
+        if (pragmaSettings.build().isEmpty() == false) {
             request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
         }
+
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.

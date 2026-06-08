@@ -668,3 +668,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:fuse.fuseWithLinearAndMinMax}
   issue: https://github.com/elastic/elasticsearch/issues/150971
+- class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
+  method: testInferenceFailure
+  issue: https://github.com/elastic/elasticsearch/issues/150976

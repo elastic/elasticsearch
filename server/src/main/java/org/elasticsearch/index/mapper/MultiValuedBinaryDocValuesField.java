@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexVersions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -164,11 +165,11 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
-            var field = (IntegratedCount) doc.getByKey(fieldName);
-            if (field == null) {
-                field = new IntegratedCount(fieldName, ordering);
-                doc.addWithKey(fieldName, field);
-            }
+            var field = (IntegratedCount) doc.getOrAddWithKey(fieldName, key -> {
+                var newField = new IntegratedCount(fieldName, ordering);
+                doc.add(newField);
+                return newField;
+            });
             field.add(value);
         }
 
@@ -233,13 +234,14 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
-            var field = (SeparateCount) doc.getByKey(fieldName);
-            if (field == null) {
-                field = new SeparateCount(fieldName, ordering);
-                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), -1);
-                doc.addWithKey(fieldName, field);
-                doc.add(field.countField);
-            }
+            var field = (SeparateCount) doc.getOrAddWithKey(fieldName, key -> {
+                var newField = new SeparateCount(fieldName, ordering);
+                newField.countField = NumericDocValuesField.indexedField(newField.countFieldName(), -1);
+                // use doc.addAll() instead of doc.add(), because later is backed by ArrayList and invoking doc.add() twice can trigger
+                // growing the array twice. ArrayLists grows with length + 1.
+                doc.addAll(List.of(newField, newField.countField));
+                return newField;
+            });
             field.add(value);
             field.countField.setLongValue(field.count());
         }

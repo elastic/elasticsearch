@@ -90,7 +90,16 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        return new ESKnnFloatVectorQuery(field, target, remainingK, numCandsParam, filter, searchStrategy, earlyTermination, seedDocs);
+        return new ESKnnFloatVectorQuery(
+            field,
+            getTargetCopy(),
+            remainingK,
+            numCandsParam,
+            filter,
+            searchStrategy,
+            earlyTermination,
+            seedDocs
+        );
     }
 
     @Override
@@ -103,7 +112,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
         // todo: do we actually need scaling numCands?
-        return new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
+        return new ESKnnFloatVectorQuery(field, getTargetCopy(), scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null);
     }
 
     @Override

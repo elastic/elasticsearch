@@ -149,7 +149,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         return numCandsParam;
     }
 
-    public Integer kParam() {
+    public int kParam() {
         return kParam;
     }
 

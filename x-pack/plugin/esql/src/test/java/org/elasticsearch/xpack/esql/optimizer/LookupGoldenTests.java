@@ -96,8 +96,10 @@ public class LookupGoldenTests extends GoldenTestCase {
      *  A. if we use the bulk lookup optimization, we can't push to lucene because that optimization doesn't run lucene queries
      *  B. if we push to lucene, we can't use the bulk lookup optimization
      *
-     * We believe in the common case we will have few matches on the right so the order of rules in LookupPhysicalPlanOptimizer
-     * prioritizes bulk lookup over lucene pushdown.  The output should show the bulk lookup optimization is applied.
+     * We believe in the common case we will have few matches on the right but benchmarks show
+     * when the right has many matches it's better to push the predicate to Lucene so the order
+     * of rules in LookupPhysicalPlanOptimizer prioritizes lucene pushdown over bulk lookup.
+     * The output should show the bulk lookup optimization does not apply.
      */
     public void testKeywordLookupWithPushableFilter() {
         runGoldenTest("""
@@ -109,7 +111,7 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * Variation of above with filter in the LOOKUP JOIN condition
-     * The bulk lookup optimization applies here as well.
+     * The output should show the bulk lookup optimization does not apply.
      */
     public void testKeywordLookupWithFilterInJoinCondition() {
         assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());

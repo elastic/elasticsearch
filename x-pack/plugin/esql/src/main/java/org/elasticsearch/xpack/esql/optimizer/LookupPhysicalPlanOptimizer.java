@@ -33,13 +33,15 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
      * Note that some queries can use LuceneBulkLookup or use PushFiltersToSource but not both
      * because bulk lookup avoids running lucene queries whereas push filters must run lucene queries.
      *
-     * The following order of RULES reflects our belief that in the common case each row on the left
-     * side of the join will have few matches from the right side and bulk lookup should perform better
-     * so we try to use the bulk lookup optimization first.
+     * The following order of RULES reflects that although bulk lookup does well when each row
+     * on the left side of the join has few matches from the right side, our benchmarks show a
+     * regression when there are many matches.  So we first attempt to push the filter to lucene
+     * before considering the bulk lookup optimization.
      */
     private static final List<Batch<PhysicalPlan>> RULES = List.of(
+        new Batch<>("Push to source", new PushFiltersToSource()),
         new Batch<>("Lucene bulk keyword lookup", new LuceneBulkLookup()),
-        new Batch<>("Push to source", new ReplaceSourceAttributes(), new PushFiltersToSource()),
+        new Batch<>("Replace Source Attributes", new ReplaceSourceAttributes()),
         new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction())
     );
 

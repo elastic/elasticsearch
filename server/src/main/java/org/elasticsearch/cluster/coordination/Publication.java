@@ -390,11 +390,25 @@ public abstract class Publication {
             public void onFailure(Exception e) {
                 // https://github.com/elastic/elasticsearch/issues/125291
                 if (e instanceof ConnectTransportException
-                    || (e instanceof final RemoteTransportException remoteTransportException
-                        && ExceptionsHelper.unwrap(remoteTransportException, CoordinationStateRejectedException.class) != null)) {
-                    logger.debug(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                    || (e instanceof RemoteTransportException
+                        && ExceptionsHelper.unwrap(e, CoordinationStateRejectedException.class) != null)) {
+                    logger.debug(
+                        () -> "Cluster state: ["
+                            + Publication.this
+                            + "] publication failed for node: ["
+                            + discoveryNode.descriptionWithoutAttributes()
+                            + "]",
+                        e
+                    );
                 } else {
-                    logger.warn(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                    logger.warn(
+                        () -> "Cluster state: ["
+                            + Publication.this
+                            + "] publication unexpectedly failed for node: ["
+                            + discoveryNode.descriptionWithoutAttributes()
+                            + "]",
+                        e
+                    );
                 }
                 setFailed(getRootCause(e));
                 onPossibleCommitFailure();

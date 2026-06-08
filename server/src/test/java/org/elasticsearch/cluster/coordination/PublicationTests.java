@@ -544,7 +544,7 @@ public class PublicationTests extends ESTestCase {
                     "ConnectTransportException should be logged at DEBUG",
                     loggerName,
                     Level.DEBUG,
-                    "PublishResponseHandler"
+                    "publication failed for node"
                 )
             );
             mockLog.addExpectation(
@@ -552,7 +552,7 @@ public class PublicationTests extends ESTestCase {
                     "ConnectTransportException should not be logged at WARN",
                     loggerName,
                     Level.WARN,
-                    "PublishResponseHandler"
+                    "publication failed for node"
                 )
             );
             publication.pendingPublications.get(n1).onFailure(new ConnectTransportException(n1, "disconnected"));
@@ -581,7 +581,7 @@ public class PublicationTests extends ESTestCase {
                     "CoordinationStateRejectedException should be logged at DEBUG",
                     loggerName,
                     Level.DEBUG,
-                    "PublishResponseHandler"
+                    "publication failed for node"
                 )
             );
             mockLog.addExpectation(
@@ -589,7 +589,7 @@ public class PublicationTests extends ESTestCase {
                     "CoordinationStateRejectedException should not be logged at WARN",
                     loggerName,
                     Level.WARN,
-                    "PublishResponseHandler"
+                    "publication failed for node"
                 )
             );
             publication.pendingPublications.get(n1)
@@ -615,7 +615,7 @@ public class PublicationTests extends ESTestCase {
                     "unexpected exception should be logged at WARN",
                     loggerName,
                     Level.WARN,
-                    "PublishResponseHandler"
+                    "publication unexpectedly failed for node"
                 )
             );
             publication.pendingPublications.get(n1).onFailure(new RuntimeException("unexpected failure"));

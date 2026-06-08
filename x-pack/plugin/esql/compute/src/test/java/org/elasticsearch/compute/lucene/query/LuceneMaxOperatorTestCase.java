@@ -125,7 +125,8 @@ public abstract class LuceneMaxOperatorTestCase extends SourceOperatorTestCase {
             between(1, 8),
             FIELD_NAME,
             getNumberType(),
-            limit
+            limit,
+            () -> 0L
         );
     }
 

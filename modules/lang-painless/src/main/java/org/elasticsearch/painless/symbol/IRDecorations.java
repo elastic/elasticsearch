@@ -346,6 +346,14 @@ public class IRDecorations {
         }
     }
 
+    /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
+    public static class IRCScriptAware implements IRCondition {
+
+        private IRCScriptAware() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
@@ -354,25 +362,17 @@ public class IRDecorations {
         }
     }
 
-    /**
-     * Marker that opts a function into the cancellation-aware loop guard (vs. the legacy
-     * {@link IRDMaxLoopCounter}). Attached when the script base class overrides
-     * {@code _getCancellationCheck()}.
-     */
-    public static class IRCCancellationCheck implements IRCondition {
+    /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
+    public static class IRCInstanceCancellationCheck implements IRCondition {
 
-        private IRCCancellationCheck() {
+        private IRCInstanceCancellationCheck() {
 
         }
     }
 
     /**
-     * Marker for static synthetic lambda functions in cancellation-aware scripts.
-     * Static lambdas have no implicit receiver, so the script instance is injected as a
-     * synthetic first parameter ({@code #scriptThis}) captured from the enclosing scope.
-     * The lambda body uses it to fetch the cancel {@code Runnable} via
-     * {@code _getCancellationCheck()} and to share the script's persistent
-     * {@code $cancelPoll} counter, identical to the {@link IRCCancellationCheck} path.
+     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
+     * {@code #scriptThis} parameter
      */
     public static class IRCStaticCancellationCheck implements IRCondition {
 

@@ -155,16 +155,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
             .orElse(false);
 
-        if (sliceEnabled == false && request.isRoutingFromSlice()) {
-            throw new IllegalArgumentException(
-                "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
-            );
-        }
-        if (sliceEnabled && request.routing() == null) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
-            );
-        }
+        SliceIndexing.validateSliceRoutingRequirement(
+            sliceEnabled,
+            request.isRoutingFromSlice(),
+            request.routing(),
+            "get request",
+            request.index()
+        );
     }
 
     @Override

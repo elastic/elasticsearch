@@ -659,3 +659,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterField}
   issue: https://github.com/elastic/elasticsearch/issues/150968
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:stats.sumExpressionWithConstantThreeClausesShareOneSvPair}
+  issue: https://github.com/elastic/elasticsearch/issues/150969

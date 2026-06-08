@@ -83,6 +83,11 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "kql-function", tag = "kql-with-field", description = "Use KQL to filter by a specific field value"),
             @Example(

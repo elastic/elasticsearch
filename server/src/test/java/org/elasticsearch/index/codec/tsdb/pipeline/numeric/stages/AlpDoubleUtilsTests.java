@@ -189,7 +189,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         assertEquals("integers should select identity (e=0)", 0, efOut[0]);
     }
 
-    public void testAlpTransformBlockReplacesExceptionWithPredecessor() {
+    public void testAlpTransformBlockStoresRoundedMantissaForException() {
         // Integer doubles round-trip exactly through identity (e=0, f=0); inject one
         // irrational to force a single exception at a known position.
         final int blockSize = 16;
@@ -208,10 +208,15 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         assertEquals(1, excCount);
         assertEquals(7, excPositions[0]);
         assertEquals(original[7], excValues[0]);
-        assertEquals("exception slot must carry the predecessor mantissa", values[6], values[7]);
+        // NOTE: the exception slot now carries the rounded mantissa (round(PI)=3 at e=0)
+        // rather than the predecessor mantissa. The decoder patches the slot back to
+        // the original sortable long from the exception list, so the in-array value
+        // only matters for downstream stages, where a rounded mantissa keeps the
+        // block's natural shape better than a copy of the predecessor.
+        assertEquals("exception slot carries the rounded mantissa", 3L, values[7]);
     }
 
-    public void testAlpTransformBlockExceptionAtPositionZeroFillsWithZero() {
+    public void testAlpTransformBlockStoresRoundedMantissaForLeadingException() {
         final int blockSize = 8;
         final long[] values = new long[blockSize];
         values[0] = NumericUtils.doubleToSortableLong(Math.PI);
@@ -225,6 +230,9 @@ public class AlpDoubleUtilsTests extends ESTestCase {
 
         assertEquals(1, excCount);
         assertEquals(0, excPositions[0]);
-        assertEquals(0L, values[0]);
+        // NOTE: leading exception at position 0 used to fall back to 0, which created
+        // an artificial spike below the block's actual scale. The rounded mantissa
+        // (round(PI)=3 at e=0) keeps the slot at the right magnitude.
+        assertEquals(3L, values[0]);
     }
 }

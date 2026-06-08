@@ -357,13 +357,17 @@ final class AlpDoubleUtils {
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
 
-            if (originalBits == Double.doubleToRawLongBits(decoded)) {
-                values[i] = encoded;
-            } else {
+            // NOTE: always write the rounded mantissa, even for exceptions. The decoder
+            // patches exception positions back to the original value from metadata, so
+            // the in-array value only matters for the downstream stages. Keeping the
+            // rounded mantissa preserves the block's natural shape (monotonicity, tight
+            // delta range) instead of injecting copies of the previous value or a zero
+            // at position 0.
+            values[i] = encoded;
+            if (originalBits != Double.doubleToRawLongBits(decoded)) {
                 excPositions[excCount] = i;
                 excValues[excCount] = sortable;
                 excCount++;
-                values[i] = (i > 0) ? values[i - 1] : 0;
             }
         }
         return excCount;

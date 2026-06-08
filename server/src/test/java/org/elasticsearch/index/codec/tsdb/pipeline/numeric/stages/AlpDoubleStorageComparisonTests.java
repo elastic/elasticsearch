@@ -47,7 +47,7 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         assertSizes(
             AlpDoubleStorageComparisonTests::sensorLikeBlock,
             new long[] { 780, 3084, 6156, 12300 },
-            new long[] { 368, 1484, 2983, 5989 }
+            new long[] { 258, 1038, 2089, 4199 }
         );
     }
 
@@ -108,7 +108,7 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         // (e, f) cache carrying state between consecutive blocks; the baseline pipeline
         // has no cross-block state so its totals are exactly the sum of per-pattern rows.
         final long[] expectedBaseline = { 2611, 10243, 20419, 40771 };
-        final long[] expectedAlp = { 1660, 6610, 13202, 26412 };
+        final long[] expectedAlp = { 1550, 6164, 12308, 24622 };
         for (int i = 0; i < BLOCK_SIZES.length; i++) {
             final int bs = BLOCK_SIZES[i];
             final long[][] blocks = {

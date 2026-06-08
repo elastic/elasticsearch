@@ -745,4 +745,98 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
     }
+
+    // --- Map script-aware augmentations: per-method fires tests ---
+
+    /**
+     * Builds a source that declares {@code fill(Map m)} plus the given user functions, populates a
+     * 1500-entry {@code big} HashMap via sequential {@code put} statements (so the script body's
+     * $cancelPoll never ticks during construction), then runs {@code stmts}.
+     */
+    private ScriptedMetricAggContexts.InitScript compileFillMapThen(String functions, String stmts) {
+        StringBuilder source = new StringBuilder("void fill(Map m) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" m.put(").append(i).append(", ").append(i).append(");");
+        }
+        source.append("} ").append(functions).append(" Map big = new HashMap(); fill(big); ").append(stmts);
+        return compileInit(source.toString());
+    }
+
+    /** Map {@code each} visits every entry and must poll. */
+    public void testMapEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.each((k, v) -> v.toString());"), "cancelled-map-each");
+    }
+
+    /** Map {@code collect(BiFunction)} maps every entry and must poll. */
+    public void testMapCollectBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.collect((k, v) -> v.toString());"), "cancelled-map-collect-fn");
+    }
+
+    /** Map {@code collect(Collection, BiFunction)} maps every entry into the given collection and must poll. */
+    public void testMapCollectCollectionBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.collect(new ArrayList(), (k, v) -> v.toString());"), "cancelled-map-collect-coll-fn");
+    }
+
+    /** Map {@code count} visits every entry and must poll. */
+    public void testMapCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.count((k, v) -> false);"), "cancelled-map-count");
+    }
+
+    /** Map {@code every} with an always-true predicate scans the whole map and must poll. */
+    public void testMapEveryAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.every((k, v) -> true);"), "cancelled-map-every");
+    }
+
+    /** Map {@code find} with an always-false predicate scans the whole map and must poll. */
+    public void testMapFindAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.find((k, v) -> false);"), "cancelled-map-find");
+    }
+
+    /** Map {@code findAll} visits every entry and must poll. */
+    public void testMapFindAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findAll((k, v) -> false);"), "cancelled-map-findall");
+    }
+
+    /** Map {@code findResult(BiFunction)} with an always-null function scans the whole map and must poll. */
+    public void testMapFindResultBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResult((k, v) -> null);"), "cancelled-map-findresult-fn");
+    }
+
+    /** Map {@code findResult(default, BiFunction)} with an always-null function scans the whole map and must poll. */
+    public void testMapFindResultDefaultBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResult('none', (k, v) -> null);"), "cancelled-map-findresult-default-fn");
+    }
+
+    /** Map {@code findResults} applies the function to every entry and must poll. */
+    public void testMapFindResultsAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResults((k, v) -> v.toString());"), "cancelled-map-findresults");
+    }
+
+    /** Map {@code groupBy} visits every entry building a map keyed by the function result and must poll. */
+    public void testMapGroupByAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.groupBy((k, v) -> k % 3);"), "cancelled-map-groupby");
+    }
+
+    /**
+     * Each new Map script-aware augmentation must take the no-poll fast path when the script has no
+     * cancellation check installed.  Exercises all eleven new methods in one script execution.
+     */
+    public void testMapAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillMapThen(
+            "",
+            "big.each((k, v) -> v.toString()); "
+                + "big.collect((k, v) -> v.toString()); "
+                + "big.collect(new ArrayList(), (k, v) -> v.toString()); "
+                + "big.count((k, v) -> false); "
+                + "big.every((k, v) -> true); "
+                + "big.find((k, v) -> false); "
+                + "big.findAll((k, v) -> false); "
+                + "big.findResult((k, v) -> null); "
+                + "big.findResult('none', (k, v) -> null); "
+                + "big.findResults((k, v) -> v.toString()); "
+                + "big.groupBy((k, v) -> k % 3);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
 }

@@ -583,6 +583,23 @@ public class Augmentation {
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Map.html
 
     /**
+     * Cancellation-aware {@code collect(BiFunction)} on Map.  Maps every entry via {@code function}
+     * into a new list, polling {@link PainlessScript#_pollCancellation()} once per entry.  Delegates
+     * to {@link #collect(Map, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> List<T> collect(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, function);
+        }
+        List<T> list = new ArrayList<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            list.add(function.apply(kvPair.getKey(), kvPair.getValue()));
+            script._pollCancellation();
+        }
+        return list;
+    }
+
+    /**
      * Iterates through this map transforming each entry into a new value using
      * the function, returning a list of transformed values.
      */
@@ -592,6 +609,28 @@ public class Augmentation {
             list.add(function.apply(kvPair.getKey(), kvPair.getValue()));
         }
         return list;
+    }
+
+    /**
+     * Cancellation-aware {@code collect(Collection, BiFunction)} on Map.  Maps every entry via
+     * {@code function} and appends the result to {@code collection}, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #collect(Map, Collection, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Object collect(
+        PainlessScript script,
+        Map<K, V> receiver,
+        Collection<T> collection,
+        BiFunction<K, V, T> function
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, collection, function);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            collection.add(function.apply(kvPair.getKey(), kvPair.getValue()));
+            script._pollCancellation();
+        }
+        return collection;
     }
 
     /**
@@ -605,6 +644,25 @@ public class Augmentation {
         return collection;
     }
 
+    /**
+     * Cancellation-aware {@code count} on Map.  Counts entries matching {@code predicate}, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #count(Map, BiPredicate)} when the script has no cancellation check installed.
+     */
+    public static <K, V> int count(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return count(receiver, predicate);
+        }
+        int count = 0;
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                count++;
+            }
+            script._pollCancellation();
+        }
+        return count;
+    }
+
     /** Counts the number of occurrences which satisfy the given predicate from inside this Map */
     public static <K, V> int count(Map<K, V> receiver, BiPredicate<K, V> predicate) {
         int count = 0;
@@ -616,10 +674,45 @@ public class Augmentation {
         return count;
     }
 
+    /**
+     * Cancellation-aware {@code each} on Map.  Visits every entry, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #each(Map, BiConsumer)} when the script has no cancellation check installed.
+     */
+    public static <K, V> Object each(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
+        if (script._getCancellationCheck() == null) {
+            return each(receiver, consumer);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            consumer.accept(kvPair.getKey(), kvPair.getValue());
+            script._pollCancellation();
+        }
+        return receiver;
+    }
+
     /** Iterates through a Map, passing each item to the given consumer. */
     public static <K, V> Object each(Map<K, V> receiver, BiConsumer<K, V> consumer) {
         receiver.forEach(consumer);
         return receiver;
+    }
+
+    /**
+     * Cancellation-aware {@code every} on Map.  Returns true only if {@code predicate} matches every
+     * entry; short-circuits on the first non-match.  Polls {@link PainlessScript#_pollCancellation()}
+     * once per matching entry.  Delegates to {@link #every(Map, BiPredicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <K, V> boolean every(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return every(receiver, predicate);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue()) == false) {
+                return false;
+            }
+            script._pollCancellation();
+        }
+        return true;
     }
 
     /**
@@ -635,6 +728,25 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code find} on Map.  Returns the first entry matching {@code predicate}, or
+     * {@code null}; short-circuits on the first match.  Polls {@link PainlessScript#_pollCancellation()}
+     * once per non-matching entry.  Delegates to {@link #find(Map, BiPredicate)} when the script has
+     * no cancellation check installed.
+     */
+    public static <K, V> Map.Entry<K, V> find(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return find(receiver, predicate);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                return kvPair;
+            }
+            script._pollCancellation();
+        }
+        return null;
+    }
+
+    /**
      * Finds the first entry matching the predicate, or returns null.
      */
     public static <K, V> Map.Entry<K, V> find(Map<K, V> receiver, BiPredicate<K, V> predicate) {
@@ -644,6 +756,31 @@ public class Augmentation {
             }
         }
         return null;
+    }
+
+    /**
+     * Cancellation-aware {@code findAll} on Map.  Collects entries matching {@code predicate} into a
+     * new {@link LinkedHashMap} (or {@link TreeMap} when the receiver is one), polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #findAll(Map, BiPredicate)} when the script has no cancellation check installed.
+     */
+    public static <K, V> Map<K, V> findAll(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return findAll(receiver, predicate);
+        }
+        final Map<K, V> map;
+        if (receiver instanceof TreeMap) {
+            map = new TreeMap<>();
+        } else {
+            map = new LinkedHashMap<>();
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                map.put(kvPair.getKey(), kvPair.getValue());
+            }
+            script._pollCancellation();
+        }
+        return map;
     }
 
     /**
@@ -666,12 +803,45 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResult(BiFunction)} on Map.  Delegates to the four-arg script-aware
+     * overload with a {@code null} default.
+     */
+    public static <K, V, T> Object findResult(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> function) {
+        return findResult(script, receiver, null, function);
+    }
+
+    /**
      * Iterates through the map calling the given function for each item
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
     public static <K, V, T> Object findResult(Map<K, V> receiver, BiFunction<K, V, T> function) {
         return findResult(receiver, null, function);
+    }
+
+    /**
+     * Cancellation-aware {@code findResult(Object, BiFunction)} on Map.  Returns the first non-null
+     * result of applying {@code function} to an entry, or {@code defaultResult} when none does.  Polls
+     * {@link PainlessScript#_pollCancellation()} after each null-yielding entry.  Delegates to
+     * {@link #findResult(Map, Object, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Object findResult(
+        PainlessScript script,
+        Map<K, V> receiver,
+        Object defaultResult,
+        BiFunction<K, V, T> function
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return findResult(receiver, defaultResult, function);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T value = function.apply(kvPair.getKey(), kvPair.getValue());
+            if (value != null) {
+                return value;
+            }
+            script._pollCancellation();
+        }
+        return defaultResult;
     }
 
     /**
@@ -690,6 +860,27 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResults} on Map.  Applies {@code filter} to every entry and
+     * collects non-null results into a new list, polling {@link PainlessScript#_pollCancellation()}
+     * once per entry.  Delegates to {@link #findResults(Map, BiFunction)} when the script has no
+     * cancellation check installed.
+     */
+    public static <K, V, T> List<T> findResults(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> filter) {
+        if (script._getCancellationCheck() == null) {
+            return findResults(receiver, filter);
+        }
+        List<T> list = new ArrayList<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T result = filter.apply(kvPair.getKey(), kvPair.getValue());
+            if (result != null) {
+                list.add(result);
+            }
+            script._pollCancellation();
+        }
+        return list;
+    }
+
+    /**
      * Iterates through the map transforming items using the supplied function and
      * collecting any non-null results.
      */
@@ -702,6 +893,33 @@ public class Augmentation {
             }
         }
         return list;
+    }
+
+    /**
+     * Cancellation-aware {@code groupBy} on Map.  Groups entries by the value returned from
+     * {@code mapper}, polling {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #groupBy(Map, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Map<T, Map<K, V>> groupBy(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> mapper) {
+        if (script._getCancellationCheck() == null) {
+            return groupBy(receiver, mapper);
+        }
+        Map<T, Map<K, V>> map = new LinkedHashMap<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
+            Map<K, V> results = map.get(mapped);
+            if (results == null) {
+                if (receiver instanceof TreeMap) {
+                    results = new TreeMap<>();
+                } else {
+                    results = new LinkedHashMap<>();
+                }
+                map.put(mapped, results);
+            }
+            results.put(kvPair.getKey(), kvPair.getValue());
+            script._pollCancellation();
+        }
+        return map;
     }
 
     /**

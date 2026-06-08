@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -285,20 +286,43 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
 
     public void testFromMapGoogleVertexAi_NoModel_Failure() {
         assertValidationFailure(buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, null, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", TEST_LOCATION, TEST_PROJECT_ID, null));
+            Validation Failed: 1: For Google Vertex AI models, you must provide 'project_id' and 'model_id'. \
+            Provided values: project_id=%s, model_id=%s;""", TEST_PROJECT_ID, null));
     }
 
-    public void testFromMapGoogleVertexAi_NoLocation_Failure() {
-        assertValidationFailure(buildServiceSettingsMap(TEST_PROJECT_ID, null, TEST_MODEL_ID, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", null, TEST_PROJECT_ID, TEST_MODEL_ID));
+    public void testFromMapGoogleVertexAi_NoLocation_DefaultsToGlobalEndpoint() {
+        GoogleVertexAiChatCompletionServiceSettings settings = GoogleVertexAiChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_PROJECT_ID, null, TEST_MODEL_ID, null, null, null, TEST_RATE_LIMIT),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(
+            settings,
+            is(
+                new GoogleVertexAiChatCompletionServiceSettings(
+                    TEST_PROJECT_ID,
+                    null,
+                    TEST_MODEL_ID,
+                    null,
+                    null,
+                    GoogleModelGardenProvider.GOOGLE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+        assertThat(settings.location(), is(nullValue()));
     }
 
     public void testFromMapGoogleVertexAi_NoProject_Failure() {
         assertValidationFailure(buildServiceSettingsMap(null, TEST_LOCATION, TEST_MODEL_ID, null, null, null, null), Strings.format("""
-            Validation Failed: 1: For Google Vertex AI models, you must provide 'location', 'project_id', and 'model_id'. \
-            Provided values: location=%s, project_id=%s, model_id=%s;""", TEST_LOCATION, null, TEST_MODEL_ID));
+            Validation Failed: 1: For Google Vertex AI models, you must provide 'project_id' and 'model_id'. \
+            Provided values: project_id=%s, model_id=%s;""", null, TEST_MODEL_ID));
+    }
+
+    public void testFromMapGoogleVertexAi_EmptyLocation_Failure() {
+        assertValidationFailure(
+            buildServiceSettingsMap(TEST_PROJECT_ID, "", TEST_MODEL_ID, null, null, null, null),
+            "Validation Failed: 1: [service_settings] Invalid value empty string. [location] must be a non-empty string;"
+        );
     }
 
     public void testUpdateServiceSettings_GoogleVertexAi_AllFields_OnlyMutableFieldsAreUpdated() {
@@ -425,7 +449,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     private static GoogleVertexAiChatCompletionServiceSettings createRandomWithGoogleVertexAiSettings() {
         return new GoogleVertexAiChatCompletionServiceSettings(
             randomString(),
-            randomString(),
+            randomOptionalString(),
             randomString(),
             null,
             null,

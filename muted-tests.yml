@@ -650,3 +650,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterFieldWithNullify}
   issue: https://github.com/elastic/elasticsearch/issues/150963
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBufferTests
+  method: "testEvaluateInManyThreads {TestCase=geo_shape with distance[double]. #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/150965
+- class: org.elasticsearch.reindex.management.ReindexRelocationIT
+  method: testNonSlicedRemoteReindexRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/150966

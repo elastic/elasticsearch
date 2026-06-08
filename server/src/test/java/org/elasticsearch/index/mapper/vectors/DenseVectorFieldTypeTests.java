@@ -916,7 +916,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorSimilarity.COSINE,
             randomIndexOptionsHnswQuantized(),
             Collections.emptyMap(),
-            false
+            false,
+            0.5f
         );
         Query filter = new TermQuery(new Term("tag", "match"));
 

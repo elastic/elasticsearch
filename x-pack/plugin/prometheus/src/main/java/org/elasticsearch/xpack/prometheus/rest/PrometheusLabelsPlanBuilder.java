@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
@@ -34,9 +33,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
  *   └── OrderBy([dimension_fields ASC])
  *         └── Aggregate([dimension_fields], [dimension_fields])  -- STATS BY for dedup
  *               └── MvExpand(dimension_fields)
- *                     └── MetricsInfo
- *                           └── Filter(timeCond [AND OR(selectorConds...)])
- *                                 └── UnresolvedRelation(index, TS)
+ *                     └── Filter(metric_name for regex __name__ selectors, optional)
+ *                           └── MetricsInfo
+ *                                 └── Filter(timeCond [AND OR(pre-info selectorConds...)])
+ *                                       └── UnresolvedRelation(index, TS)
  * </pre>
  *
  * <p>The response listener strips the {@code "labels."}
@@ -59,9 +59,14 @@ final class PrometheusLabelsPlanBuilder {
      * @throws IllegalArgumentException if a selector is not a valid instant vector selector
      */
     static LogicalPlan buildPlan(String index, List<String> matchSelectors, Instant start, Instant end, int limit) {
-        LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
-        plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.filterExpression(matchSelectors, start, end));
-        plan = new MetricsInfo(Source.EMPTY, plan);
+        var selectors = PrometheusPlanBuilderUtils.parseInstantSelectors(matchSelectors);
+        LogicalPlan plan = PrometheusPlanBuilderUtils.buildFilteredInfoPlan(
+            index,
+            selectors,
+            start,
+            end,
+            child -> new MetricsInfo(Source.EMPTY, child)
+        );
 
         // Expand the multivalued dimension_fields column into one row per label name
         UnresolvedAttribute dimField = new UnresolvedAttribute(Source.EMPTY, PrometheusPlanBuilderUtils.DIMENSION_FIELDS);

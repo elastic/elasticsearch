@@ -90,10 +90,9 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
-        EsqlStatement statement = new EsqlStatement(plan, List.of());
+        EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
         PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement, "prometheus_series");
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusSeriesResponseListener(channel, limit));
     }
-
 }

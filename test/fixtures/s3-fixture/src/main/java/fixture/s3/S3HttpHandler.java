@@ -57,10 +57,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -825,21 +822,6 @@ public class S3HttpHandler implements HttpHandler {
             // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
             // if it's a real SHA256 checksum then it must match the request's contents.
             assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
-        }
-    }
-
-    /**
-     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
-     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
-     */
-    public void assertContentSha256Header(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
-        final var request = parseRequest(exchange);
-        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
-            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
-            assertThat(
-                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
-            );
         }
     }
 

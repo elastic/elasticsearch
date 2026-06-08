@@ -74,6 +74,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     private final TransformAuditor auditor;
     private final Settings destIndexSettings;
     private final ProjectResolver projectResolver;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportStartTransformAction(
@@ -133,6 +134,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         this.auditor = transformServices.auditor();
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.projectResolver = projectResolver;
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -142,8 +144,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ClusterState state,
         ActionListener<StartTransformAction.Response> listener
     ) {
-        TransformNodes.warnIfNoTransformNodes(state);
-        if (TransformMetadata.isUpgradeMode(state)) {
+        final var projectMetadata = projectResolver.getProjectMetadata(state);
+        TransformNodes.warnIfNoTransformNodes(projectMetadata, state.getNodes());
+        if (TransformMetadata.isUpgradeMode(projectMetadata)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot start any Transform while the Transform feature is upgrading.",
@@ -177,7 +180,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             assert transformTask != null;
             PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(
                 transformTask.getId(),
-                projectResolver.getProjectMetadata(state)
+                projectMetadata
             );
             if (existingTask == null) {
                 // Create the allocated task and wait for it to be started
@@ -281,12 +284,23 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                     config.getSource().requiresRemoteCluster()
                 )
             );
+            // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
+            // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
+            // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
+            // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
+            // Request.close() is null-safe so this path is identical for non-UIAM callers.
+            var validateRequest = new ValidateTransformAction.Request(
+                config,
+                false,
+                request.ackTimeout(),
+                cloudCredentialManager.currentCallerCredential()
+            );
             ClientHelper.executeAsyncWithOrigin(
                 parentClient,
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(config, false, request.ackTimeout()),
-                validationListener
+                validateRequest,
+                ActionListener.releaseAfter(validationListener, validateRequest)
             );
         }, listener::onFailure);
 

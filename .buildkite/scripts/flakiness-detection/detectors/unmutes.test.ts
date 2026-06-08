@@ -1,10 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   parseMutedEntries,
   diffMutedEntries,
   findUnmutedTests,
-} from "./unmutes";
-import type { TestRef } from "../domain";
+} from "./unmutes.ts";
+import type { TestRef } from "../domain.ts";
 
 describe("parseMutedEntries", () => {
   test("returns empty array for empty input", () => {

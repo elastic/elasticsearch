@@ -128,12 +128,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
-
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
         public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
@@ -190,6 +184,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         return textSearchInfo;
     }
 
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexSettings indexSettings) {
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        }
+
+        boolean multiValue = FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.get(indexSettings.getSettings());
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, multiValue);
+        }
+
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, multiValue);
+    }
+
     private static KeywordFieldMapper toType(FieldMapper in) {
         return (KeywordFieldMapper) in;
     }
@@ -197,10 +204,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).fieldType().nullValue, null)
@@ -287,6 +291,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.script.precludesParameters(nullValue);
 
+            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
+                defaultDocValuesParameters(indexSettings),
+                m -> toType(m).docValuesParameters()
+            );
+
             this.dimension = TimeSeriesParams.dimensionParam(
                 m -> toType(m).fieldType().isDimension(),
                 () -> docValuesParameters.getValue().enabled()
@@ -349,12 +358,16 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Deprecated()
         public Builder docValues(boolean hasDocValues) {
-            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
+            this.docValuesParameters.setValue(
+                hasDocValues ? defaultDocValuesParameters(indexSettings) : DocValuesParameter.Values.DISABLED
+            );
             return this;
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
-            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality, DEFAULT_DOC_VALUES_PARAMS.multiValue()));
+            this.docValuesParameters.setValue(
+                new DocValuesParameter.Values(true, cardinality, defaultDocValuesParameters(indexSettings).multiValue())
+            );
             return this;
         }
 
@@ -478,6 +491,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
+            enforceIndexSortDocValuesCompatibility(
+                context.buildFullName(leafName()),
+                indexSettings.getIndexSortConfig(),
+                docValuesParameters
+            );
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
@@ -490,7 +508,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 this,
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
-                indexSettings.getMode().isColumnar(),
+                indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
@@ -547,6 +565,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
         }
 
+        // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {
             IndexMode mode = indexSettings.getMode();
             return docValuesParameters.getValue().enabled()
@@ -619,7 +638,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
             this.readInArrayOrder = builder.offsetsFieldName != null
                 && builder.docValuesParameters().multiValue()
-                && builder.indexSettings.getMode().isColumnar();
+                && builder.indexSettings.getMode().isStrictColumnar();
         }
 
         public KeywordFieldType(String name) {
@@ -963,8 +982,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
 
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSourceEnabled() && blContext.parentField(name()) == null) {
+            if (isSyntheticSourceEnabled()
+                && blContext.mappingLookup().isSourceColumnarStored() == false
+                && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
@@ -1422,29 +1444,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (shouldRecordOffset(context)) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
-    }
-
-    private boolean shouldRecordOffset(DocumentParserContext context) {
-        if (offsetsFieldName == null) {
-            return false;
-        }
-
-        // Columnar mode relies solely on offsets for array order reconstruction. Record an offset for every indexed value so the offset
-        // slots remain aligned with the sorted-set ords during decode, regardless of whether the value's immediate parent was an array.
-        if (docValuesParameters.multiValue() && indexSettings.getMode().isStrictColumnar()) {
-            return true;
-        }
-
-        // synthetic_source_keep=arrays path: only record when the value's immediate parent is an array, since out-of-array values are
-        // captured by _ignored_source.
-        return context.isImmediateParentAnArray() && context.canAddIgnoredField();
     }
 
     @Override

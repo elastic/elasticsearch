@@ -48,8 +48,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -190,13 +192,14 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     /**
      * Verifies the rethrottle took effect by checking per-slice (or worker) RPS.
      * For non-sliced (numOfSlices == 1): checks the worker's status directly.
-     * For sliced: lists child tasks and checks each slice has the expected share of total RPS.
+     * For sliced: verifies all running children share equal RPS and that the per-slice rate is in the expected range.
      */
     private void assertRethrottledRps(final TaskId relocatedTaskId, final int expectedTotalRps) {
         if (numOfSlices == 1) {
-            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
-                relocatedTaskId
-            ).get().getTask().getTask().status();
+            final BulkByPaginatedSearchTask.Status status = asInstanceOf(
+                BulkByPaginatedSearchTask.Status.class,
+                clusterAdmin().prepareGetTask(relocatedTaskId).get().getTask().getTask().status()
+            );
             assertThat("non-sliced task should have the new RPS", (double) status.getRequestsPerSecond(), closeTo(expectedTotalRps, 0.001));
         } else {
             final ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();
@@ -205,16 +208,29 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
                 .filter(g -> g.taskInfo().taskId().equals(relocatedTaskId))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("relocated task group not found"));
-            assertThat("all slices should be registered", group.childTasks().size(), equalTo(numOfSlices));
-            final float expectedPerSlice = (float) expectedTotalRps / numOfSlices;
-            for (TaskGroup child : group.childTasks()) {
-                final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
-                assertThat(
-                    "slice " + sliceStatus + " should have the rethrottled RPS",
-                    (double) sliceStatus.getRequestsPerSecond(),
-                    closeTo(expectedPerSlice, 0.001)
-                );
+            assertThat("at least one slice should still be running", group.childTasks().size(), greaterThan(0));
+            assertThat("no more children than slices", group.childTasks().size(), lessThanOrEqualTo(numOfSlices));
+
+            List<Double> childRpsValues = group.childTasks()
+                .stream()
+                .map(
+                    child -> (double) asInstanceOf(BulkByPaginatedSearchTask.Status.class, child.taskInfo().status()).getRequestsPerSecond()
+                )
+                .toList();
+
+            // All children must have equal RPS (rethrottle distributes evenly).
+            for (double rps : childRpsValues) {
+                assertThat("all slices should share the same RPS", rps, closeTo(childRpsValues.getFirst(), 0.001));
             }
+
+            // The per-slice RPS is totalRPS/K where K was the number of running slices at rethrottle time.
+            // K is in [activeChildren, numOfSlices] — slices may have completed after rethrottle but before
+            // this assertion, so per-slice is in [totalRPS/numOfSlices, totalRPS/activeChildren].
+            double perSliceRps = childRpsValues.getFirst();
+            double minExpected = (double) expectedTotalRps / numOfSlices;
+            double maxExpected = (double) expectedTotalRps / group.childTasks().size();
+            assertThat("per-slice RPS not below minimum", perSliceRps, greaterThanOrEqualTo(minExpected - 0.001));
+            assertThat("per-slice RPS not above maximum", perSliceRps, lessThanOrEqualTo(maxExpected + 0.001));
         }
     }
 

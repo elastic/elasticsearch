@@ -42,6 +42,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     * @param overSampleFactor the oversample multiplier applied to the original k
      * @param sliceField the field used for slicing the index
      * @param sliceId the slice to be search
      */
@@ -53,10 +54,11 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         Query filter,
         float visitRatio,
         boolean doPrecondition,
+        float overSampleFactor,
         String sliceField,
         BytesRef sliceId
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition);
+        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

@@ -16,6 +16,9 @@ import com.google.cloud.storage.StorageException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -34,7 +37,7 @@ import java.util.concurrent.Executor;
  * <ul>
  *   <li>{@link #readBytes(long, ByteBuffer)} — uses {@code ReadChannel.read(ByteBuffer)} for
  *       direct buffer reads without intermediate byte[] allocation.</li>
- *   <li>{@link #readBytesAsync(long, long, Executor, ActionListener)} — executor-wrapped
+ *   <li>{@link #readBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)} — executor-wrapped
  *       ReadChannel reads for the async API.</li>
  *   <li>{@link #supportsNativeAsync()} — returns {@code true} because this class provides custom
  *       async and byte-read implementations that are more efficient than the default InputStream
@@ -95,9 +98,9 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (cachedLength != null) {
                 bytes = cachedLength;
             }
-            return Channels.newInputStream(reader);
+            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
         } catch (StorageException e) {
-            throw wrapException(e, "Failed to read object from");
+            throw throwReadFailure("Failed to read object from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
@@ -108,8 +111,9 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
@@ -117,12 +121,15 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             BlobId blobId = BlobId.of(bucket, objectName);
             ReadChannel reader = storage.reader(blobId);
             reader.seek(position);
-            reader.limit(position + length);
-            return Channels.newInputStream(reader);
+            // READ_TO_END: seek to position and read to the end of the object (no limit) — no length() lookup.
+            if (toEnd == false) {
+                reader.limit(position + length);
+            }
+            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
         } catch (StorageException e) {
-            throw wrapException(e, "Range request failed for");
+            throw throwReadFailure("Range request failed for", e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
     }
 
@@ -180,14 +187,20 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return totalRead == 0 ? -1 : totalRead;
             }
         } catch (StorageException e) {
-            throw wrapException(e, "Failed to read bytes from");
+            throw throwReadFailure("Failed to read bytes from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, totalRead);
         }
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
@@ -196,36 +209,72 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
-        executor.execute(() -> {
-            long startNanos = System.nanoTime();
-            int payloadBytes = 0;
-            try {
-                BlobId blobId = BlobId.of(bucket, objectName);
-                try (ReadChannel reader = storage.reader(blobId)) {
-                    reader.seek(position);
-                    reader.limit(position + length);
-                    ByteBuffer buffer = ByteBuffer.allocateDirect(Math.toIntExact(length));
-                    while (buffer.hasRemaining()) {
-                        int n = readFromChannel(reader, buffer);
-                        if (n < 0) {
-                            break;
+        // Allocate up front so the breaker decision and any OOM are surfaced synchronously via
+        // the listener instead of escaping the executor's Runnable as an Error.
+        int len = Math.toIntExact(length);
+        final DirectReadBuffer drb;
+        try {
+            drb = factory.allocate(len);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        ByteBuffer buffer = drb.buffer();
+
+        try {
+            executor.execute(() -> {
+                long startNanos = System.nanoTime();
+                int payloadBytes = 0;
+                try {
+                    BlobId blobId = BlobId.of(bucket, objectName);
+                    try (ReadChannel reader = storage.reader(blobId)) {
+                        reader.seek(position);
+                        reader.limit(position + length);
+                        while (buffer.hasRemaining()) {
+                            int n = readFromChannel(reader, buffer);
+                            if (n < 0) {
+                                break;
+                            }
                         }
+                        buffer.flip();
+                        payloadBytes = buffer.remaining();
                     }
-                    buffer.flip();
-                    payloadBytes = buffer.remaining();
-                    counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
-                    listener.onResponse(buffer);
+                } catch (StorageException e) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    drb.close();
+                    listener.onFailure(mapReadFailure("Failed to read bytes from", e));
+                    return;
+                } catch (Exception e) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    drb.close();
+                    listener.onFailure(e);
                     return;
                 }
-            } catch (StorageException e) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(wrapException(e, "Failed to read bytes from"));
-            } catch (Exception e) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(e);
-            }
-        });
+                // I/O succeeded; deliver outside the I/O catch blocks so a throw from
+                // onResponse does not double-close drb or invoke listener.onFailure.
+                counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
+                try {
+                    listener.onResponse(drb);
+                } catch (Exception e) {
+                    try {
+                        drb.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
+                }
+            });
+        } catch (RuntimeException e) {
+            // Executor rejection (saturated queue, shutdown) — release the buffer eagerly so the
+            // charge does not stay against the allocator for the lifetime of the JVM.
+            drb.close();
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -238,9 +287,42 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         return reader.read(target);
     }
 
-    private IOException wrapException(StorageException e, String operation) {
-        String message = e.getCode() == 404 ? "Object not found: " + path : operation + " " + path;
-        return new IOException(message, e);
+    /**
+     * Maps a failure from the GCS client into the exception to surface to ES|QL. A retryable transport
+     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
+     * retry, with the throttle flag set for 429/503); a missing object or any other failure becomes an
+     * {@link IOException}, which the external source operator classifies as a client-class 400. Returns
+     * (never throws) so both the synchronous and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof StorageException se) {
+            if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
+                boolean throttling = ExternalUnavailableException.isThrottlingStatus(se.getCode());
+                return new ExternalUnavailableException(
+                    throttling,
+                    cause,
+                    "GCS store unavailable reading [{}] (HTTP {})",
+                    path,
+                    se.getCode()
+                );
+            }
+            if (se.getCode() == 404) {
+                return new IOException("Object not found: " + path, cause);
+            }
+        }
+        return new IOException(context + " " + path, cause);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, Throwable cause) throws IOException {
+        Exception mapped = mapReadFailure(context, cause);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
     }
 
     private void fetchMetadata() throws IOException {

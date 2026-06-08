@@ -15,11 +15,13 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -220,23 +222,69 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && origin == other.origin;
     }
 
+    public void verify(Failures failures) {
+        if (origin != Origin.PROMQL_COMMAND) {
+            // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
+            groupings().forEach(g -> g.forEachDown(e -> {
+                if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
+                    failures.add(
+                        fail(
+                            fieldAttr,
+                            "cannot group by a metric field [{}] in a time-series aggregation. "
+                                + "If you want to group by a metric field, use the FROM "
+                                + "command instead of the TS command.",
+                            fieldAttr.sourceText()
+                        )
+                    );
+                }
+            }));
+        }
+
+        for (NamedExpression aggregate : aggregates) {
+            if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
+                if (outer instanceof Count count && count.field().equals(Literal.keyword(source(), StringUtils.WILDCARD))) {
+                    // reject `TS metrics | STATS COUNT(*)`
+                    failures.add(
+                        fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
+                    );
+                    // reject COUNT(keyword), but allow COUNT(numeric)
+                }
+                // reject `TS metrics | STATS SPARKLINE(...)`
+                if (outer instanceof Sparkline sparkline) {
+                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
+                }
+                outer.field().forEachDown(AggregateFunction.class, nested -> {
+                    if (nested instanceof TimeSeriesAggregateFunction == false) {
+                        failures.add(
+                            fail(
+                                this,
+                                "cannot use aggregate function [{}] inside aggregation function [{}];"
+                                    + "only time-series aggregation function can be used inside another aggregation function",
+                                nested.sourceText(),
+                                outer.sourceText()
+                            )
+                        );
+                    }
+                    nested.field()
+                        .forEachDown(
+                            AggregateFunction.class,
+                            nested2 -> failures.add(
+                                fail(
+                                    this,
+                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
+                                    nested2.sourceText(),
+                                    nested.sourceText()
+                                )
+                            )
+                        );
+                });
+            }
+        }
+    }
+
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
-        groupings().forEach(g -> g.forEachDown(e -> {
-            if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
-                failures.add(
-                    fail(
-                        fieldAttr,
-                        "cannot group by a metric field [{}] in a time-series aggregation. "
-                            + "If you want to group by a metric field, use the FROM "
-                            + "command instead of the TS command.",
-                        fieldAttr.sourceText()
-                    )
-                );
-            }
-        }));
         child().forEachDown(p -> {
             // reject `TS metrics | SORT BY ... | STATS ...`
             if (p instanceof OrderBy orderBy) {
@@ -322,45 +370,5 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     @Override
-    protected void checkTimeSeriesAggregates(Failures failures) {
-        for (NamedExpression aggregate : aggregates) {
-            if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
-                if (outer instanceof Count count && count.field().foldable()) {
-                    // reject `TS metrics | STATS COUNT(*)`
-                    failures.add(
-                        fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
-                    );
-                    // reject COUNT(keyword), but allow COUNT(numeric)
-                }
-                // reject `TS metrics | STATS SPARKLINE(...)`
-                if (outer instanceof Sparkline sparkline) {
-                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
-                }
-                outer.field().forEachDown(AggregateFunction.class, nested -> {
-                    if (nested instanceof TimeSeriesAggregateFunction == false) {
-                        fail(
-                            this,
-                            "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                + "only time-series aggregation function can be used inside another aggregation function",
-                            nested.sourceText(),
-                            outer.sourceText()
-                        );
-                    }
-                    nested.field()
-                        .forEachDown(
-                            AggregateFunction.class,
-                            nested2 -> failures.add(
-                                fail(
-                                    this,
-                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
-                                    nested.sourceText(),
-                                    nested2.sourceText()
-                                )
-                            )
-                        );
-                });
-                // }
-            }
-        }
-    }
+    protected void checkTimeSeriesAggregates(Failures failures) {}
 }

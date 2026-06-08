@@ -486,7 +486,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = new TextFieldType("field", true, false);
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -558,13 +558,15 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             true,
             false,
-            null
+            null,
+            false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.indexSettings()).thenReturn(indexSettings);
         when(context.fieldNames()).thenReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false));
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
 
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -599,13 +601,15 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             legacyVersion,
             false,
             false,
-            null
+            null,
+            false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -639,13 +643,15 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             legacyVersion,
             true,
             false,
-            null
+            null,
+            false
         );
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -669,7 +675,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            null
+            null,
+            false
         );
 
         // when
@@ -698,7 +705,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            null
+            null,
+            false
         );
 
         // when
@@ -713,6 +721,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     private static MappedFieldType.BlockLoaderContext mockContext() {
         MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         return context;
     }
 
@@ -732,7 +741,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             false,
-            null
+            null,
+            false
         );
     }
 
@@ -752,8 +762,13 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             true,
-            null
+            null,
+            false
         );
+    }
+
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
     }
 
     public void testPrefixQueryDocValuesOnly() {

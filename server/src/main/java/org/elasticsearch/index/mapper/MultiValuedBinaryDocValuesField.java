@@ -221,23 +221,27 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
 
         public static final String COUNT_FIELD_SUFFIX = ".counts";
 
+        // Held here so addToDoc can update the count on each value without a second keyedFields lookup.
+        NumericDocValuesField countField;
+
+        public NumericDocValuesField countField() {
+            return countField;
+        }
+
         public SeparateCount(String name, ValueOrdering ordering) {
             super(name, ordering);
         }
 
         private static void addToDoc(LuceneDocument doc, String fieldName, BytesRef value, ValueOrdering ordering) {
             var field = (SeparateCount) doc.getByKey(fieldName);
-            final NumericDocValuesField countField;
             if (field == null) {
                 field = new SeparateCount(fieldName, ordering);
-                countField = NumericDocValuesField.indexedField(field.countFieldName(), -1);
-                doc.addWithKey(field.name(), field);
-                doc.addWithKey(countField.name(), countField);
-            } else {
-                countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
+                field.countField = NumericDocValuesField.indexedField(field.countFieldName(), -1);
+                doc.addWithKey(fieldName, field);
+                doc.add(field.countField);
             }
             field.add(value);
-            countField.setLongValue(field.count());
+            field.countField.setLongValue(field.count());
         }
 
         @Override

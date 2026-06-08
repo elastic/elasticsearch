@@ -1335,7 +1335,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             false,
             false,
             false,
-            false
+            false,
+            null
         );
         testCase(iw -> {
             Document document = new Document();

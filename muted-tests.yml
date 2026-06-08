@@ -143,9 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
-  issue: https://github.com/elastic/elasticsearch/issues/147613
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147655
@@ -644,30 +641,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterFieldWithNullify}
-  issue: https://github.com/elastic/elasticsearch/issues/150943
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterFieldWithNullify}
-  issue: https://github.com/elastic/elasticsearch/issues/150963
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBufferTests
   method: "testEvaluateInManyThreads {TestCase=geo_shape with distance[double]. #2}"
   issue: https://github.com/elastic/elasticsearch/issues/150965
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testNonSlicedRemoteReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150966
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterField}
-  issue: https://github.com/elastic/elasticsearch/issues/150968
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:stats.sumExpressionWithConstantThreeClausesShareOneSvPair}
-  issue: https://github.com/elastic/elasticsearch/issues/150969
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:date.dateMinusNull}
-  issue: https://github.com/elastic/elasticsearch/issues/150970
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:fuse.fuseWithLinearAndMinMax}
-  issue: https://github.com/elastic/elasticsearch/issues/150971
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976
@@ -677,12 +656,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterField}
-  issue: https://github.com/elastic/elasticsearch/issues/150986
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:string.in3VLWithComputedNullAsValue}
-  issue: https://github.com/elastic/elasticsearch/issues/150987
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:dense_vector-arithmetic.mulDenseVectorWithLiteral}
-  issue: https://github.com/elastic/elasticsearch/issues/150988

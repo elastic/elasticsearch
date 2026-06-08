@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
   method: bwc expanded distribution folder can be resolved as bwc project artifact
   issue: https://github.com/elastic/elasticsearch/issues/150979
+- class: org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPluginFuncTest
+  method: yamlRestTest does nothing when there are no tests
+  issue: https://github.com/elastic/elasticsearch/issues/150983
 
 # Examples:
 #

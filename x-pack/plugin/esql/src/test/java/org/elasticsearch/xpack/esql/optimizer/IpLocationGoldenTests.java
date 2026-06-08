@@ -91,6 +91,24 @@ public class IpLocationGoldenTests extends GoldenTestCase {
         runGoldenTest(query, EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION), CONSTANT_KEYWORD_STATS);
     }
 
+    /**
+     * An EVAL-defined column (g.city_name) whose name collides with an IP_LOCATION output column is overridden by
+     * IP_LOCATION: the column takes the IP_LOCATION type (keyword) and moves after the command, so the later
+     * CONCAT over g.city_name resolves against the keyword rather than the original integer, and the shadowed EVAL
+     * is pruned.
+     */
+    public void testFieldOverriddenByIpLocation() {
+        assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
+        String query = """
+            FROM employees
+            | EVAL g.city_name = 123
+            | ip_location g = first_name
+            | KEEP g.city_name
+            | EVAL x = CONCAT(g.city_name, "...")
+            """;
+        runGoldenTest(query, EnumSet.of(Stage.LOGICAL_OPTIMIZATION));
+    }
+
     private static final SearchStats CONSTANT_KEYWORD_STATS = new EsqlTestUtils.TestSearchStats() {
         @Override
         public boolean isSingleValue(FieldName field) {

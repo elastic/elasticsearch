@@ -147,3 +147,21 @@ ROW ip = "2602:306:33d3:8000::3257:9652"
 g.country_iso_code:keyword | g.city_name:keyword
 US                         | Homestead
 ;
+
+
+# An existing column (here an integer created by EVAL) whose name collides with an IP_LOCATION output column is
+# overridden by IP_LOCATION: the column takes the IP_LOCATION type (keyword) and value, so the subsequent CONCAT
+# resolves against the keyword rather than the original integer (which would fail type resolution).
+fieldOverride
+required_capability: ip_location_command
+
+ROW ip = "2602:306:33d3:8000::3257:9652"
+| EVAL g.city_name = 123
+| IP_LOCATION g = ip WITH { "properties": ["city_name"] }
+| KEEP g.city_name
+| EVAL x = CONCAT(g.city_name, " !")
+;
+
+g.city_name:keyword | x:keyword
+Homestead           | Homestead !
+;

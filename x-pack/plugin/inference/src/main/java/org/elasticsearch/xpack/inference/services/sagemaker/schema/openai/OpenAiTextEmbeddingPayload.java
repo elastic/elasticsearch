@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
@@ -59,8 +60,12 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return ApiServiceSettings.fromMap(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return ApiServiceSettings.fromMap(serviceSettings, context, validationException);
     }
 
     @Override
@@ -184,18 +189,33 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             };
         }
 
-        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
+        static ApiServiceSettings fromMap(
+            Map<String, Object> serviceSettings,
+            ConfigurationParseContext context,
+            ValidationException validationException
+        ) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
                 ModelConfigurations.SERVICE_SETTINGS,
                 validationException
             );
-            var dimensionsSetByUser = extractOptionalBoolean(serviceSettings, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+            // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
+            // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
+            // In a persisted config we read the stored value, falling back to that same inference for configs written before it existed.
+            boolean dimensionsSetByUser;
+            if (ConfigurationParseContext.isRequestContext(context)) {
+                dimensionsSetByUser = dimensions != null;
+            } else {
+                var storedDimensionsSetByUser = extractOptionalBoolean(
+                    serviceSettings,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
+                    validationException
+                );
+                dimensionsSetByUser = storedDimensionsSetByUser != null ? storedDimensionsSetByUser : dimensions != null;
+            }
 
-            // dimensions_set_by_user is persisted with stored configurations; it is absent from user requests, where it is
-            // inferred from whether dimensions were supplied. Reading it back preserves the distinction across a persist/parse cycle.
-            return new ApiServiceSettings(dimensions, dimensionsSetByUser != null ? dimensionsSetByUser : dimensions != null);
+            return new ApiServiceSettings(dimensions, dimensionsSetByUser);
         }
 
         @Override

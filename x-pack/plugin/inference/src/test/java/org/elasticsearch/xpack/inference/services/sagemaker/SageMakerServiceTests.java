@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerServiceSettings;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
@@ -67,6 +68,9 @@ import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionReq
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,9 +145,58 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    public void testParsePersistedConfig_WithoutSecrets() {
-        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
+    public void testParseRequestConfig_TextEmbedding_DimensionsSetByUser_ReturnsError() {
+        // dimensions_set_by_user is internal, so supplying it in a request must be rejected as an unknown setting.
+        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        var service = new SageMakerService(realModelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
+        TestPlainActionFuture<Model> listener = new TestPlainActionFuture<>();
+        var serviceSettings = new HashMap<String, Object>(
+            Map.of(
+                ACCESS_KEY_FIELD,
+                "api_key",
+                SECRET_KEY_FIELD,
+                "secret_key",
+                "endpoint_name",
+                "endpoint",
+                "api",
+                "openai",
+                "region",
+                "region",
+                DIMENSIONS_SET_BY_USER,
+                true
+            )
+        );
+        service.parseRequestConfig(
+            "modelId",
+            TaskType.TEXT_EMBEDDING,
+            new HashMap<String, Object>(Map.of("service_settings", serviceSettings)),
+            listener
+        );
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Configuration contains settings [{dimensions_set_by_user=true}] unknown to the [" + SageMakerService.NAME + "] service")
+        );
+    }
+
+    public void testParsePersistedConfig_TextEmbedding_DimensionsSetByUser_DoesNotError() {
+        // A persisted config legitimately stores dimensions_set_by_user, so parsing it back must not error.
+        var realModelBuilder = new SageMakerModelBuilder(new SageMakerSchemas());
+        var service = new SageMakerService(realModelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
+        var serviceSettings = new HashMap<String, Object>(
+            Map.of("endpoint_name", "endpoint", "api", "openai", "region", "region", "dimensions", 123, DIMENSIONS_SET_BY_USER, false)
+        );
+        var config = new HashMap<String, Object>(
+            Map.of("service_settings", serviceSettings, "task_settings", new HashMap<String, Object>())
+        );
+
+        var model = service.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.TEXT_EMBEDDING, SageMakerService.NAME, config, null)
+        );
+
+        assertThat(((SageMakerServiceSettings) model.getServiceSettings()).dimensionsSetByUser(), is(false));
     }
 
     private static Model mockUnsupportedModel() {

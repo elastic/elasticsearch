@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -78,7 +79,12 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
 
     @Override
     protected SageMakerServiceSettings fromMutableMap(Map<String, Object> mutableMap) {
-        return SageMakerServiceSettings.fromMap(SageMakerSchemasTests.mockSchemas(), randomFrom(TaskType.values()), mutableMap);
+        return SageMakerServiceSettings.fromMap(
+            SageMakerSchemasTests.mockSchemas(),
+            randomFrom(TaskType.values()),
+            mutableMap,
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     public void testFromMap_ElasticTextEmbedding_AllFields_CreatesSettingsCorrectly() {
@@ -95,7 +101,12 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             TEST_ELEMENT_TYPE
         );
 
-        var serviceSettings = SageMakerServiceSettings.fromMap(SCHEMAS, TaskType.TEXT_EMBEDDING, settingsMap);
+        var serviceSettings = SageMakerServiceSettings.fromMap(
+            SCHEMAS,
+            TaskType.TEXT_EMBEDDING,
+            settingsMap,
+            ConfigurationParseContext.PERSISTENT
+        );
 
         assertThat(serviceSettings.endpointName(), is(TEST_ENDPOINT_NAME));
         assertThat(serviceSettings.region(), is(TEST_REGION));
@@ -126,7 +137,12 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             TEST_ELEMENT_TYPE
         );
 
-        var serviceSettings = SageMakerServiceSettings.fromMap(SCHEMAS, TaskType.TEXT_EMBEDDING, settingsMap);
+        var serviceSettings = SageMakerServiceSettings.fromMap(
+            SCHEMAS,
+            TaskType.TEXT_EMBEDDING,
+            settingsMap,
+            ConfigurationParseContext.PERSISTENT
+        );
 
         assertThat(serviceSettings.endpointName(), is(TEST_ENDPOINT_NAME));
         assertThat(serviceSettings.region(), is(TEST_REGION));
@@ -154,7 +170,12 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             TEST_DIMENSIONS
         );
 
-        var serviceSettings = SageMakerServiceSettings.fromMap(SCHEMAS, TaskType.TEXT_EMBEDDING, settingsMap);
+        var serviceSettings = SageMakerServiceSettings.fromMap(
+            SCHEMAS,
+            TaskType.TEXT_EMBEDDING,
+            settingsMap,
+            ConfigurationParseContext.PERSISTENT
+        );
 
         assertThat(serviceSettings.endpointName(), is(TEST_ENDPOINT_NAME));
         assertThat(serviceSettings.region(), is(TEST_REGION));
@@ -174,7 +195,12 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
     public void testFromMap_OpenAiTextEmbedding_OnlyMandatoryFields_DefaultsAreUsed() {
         var settingsMap = buildOpenAiTextEmbeddingServiceSettingsMap(TEST_ENDPOINT_NAME, TEST_REGION, null, null, null, null, null);
 
-        var serviceSettings = SageMakerServiceSettings.fromMap(SCHEMAS, TaskType.TEXT_EMBEDDING, settingsMap);
+        var serviceSettings = SageMakerServiceSettings.fromMap(
+            SCHEMAS,
+            TaskType.TEXT_EMBEDDING,
+            settingsMap,
+            ConfigurationParseContext.PERSISTENT
+        );
 
         assertThat(serviceSettings.endpointName(), is(TEST_ENDPOINT_NAME));
         assertThat(serviceSettings.region(), is(TEST_REGION));

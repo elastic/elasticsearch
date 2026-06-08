@@ -21,6 +21,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
@@ -167,7 +168,12 @@ public record SageMakerServiceSettings(
         }
     }
 
-    static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {
+    static SageMakerServiceSettings fromMap(
+        SageMakerSchemas schemas,
+        TaskType taskType,
+        Map<String, Object> serviceSettingsMap,
+        ConfigurationParseContext context
+    ) {
         var validationException = new ValidationException();
 
         var endpointName = extractRequiredString(
@@ -206,7 +212,7 @@ public record SageMakerServiceSettings(
         validationException.throwIfValidationErrorsExist();
 
         var schema = schemas.schemaFor(taskType, api);
-        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, validationException);
+        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

@@ -1488,12 +1488,41 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 : null;
         }
 
+        /**
+         * Atomically records that {@code generation} must be uploaded ({@link #maxGenerationToUploadForFlush}),
+         * then schedules a VBCC freeze and upload if this thread is the first to record a generation this high.
+         * If another thread already updated to at least {@code generation}, this method returns early and relies
+         * on the other thread to schedule the freeze and upload.
+         *
+         * @param generation the minimum commit generation that must be uploaded
+         */
         public void ensureMaxGenerationToUploadForFlush(long generation) {
+            ensureMaxGenerationToUploadForFlush(generation, false);
+        }
+
+        /**
+         * Like {@link #ensureMaxGenerationToUploadForFlush(long)}, but {@code alsoEnsureScheduling}
+         * controls whether to suppress the early-return when another thread has already updated
+         * {@code maxGenerationToUploadForFlush}. When {@code true}, this thread always proceeds to
+         * freeze and schedule the upload even if the early-return condition is met. Therefore, the
+         * caller can be sure that the required {@code generation} is uploaded or scheduled for upload
+         * when the method returns.
+         *
+         * @param generation           the minimum commit generation that must be uploaded
+         * @param alsoEnsureScheduling if {@code true}, always attempt to freeze and schedule the
+         *                             current VBCC even if another thread already updated {@code maxGenerationToUploadForFlush}
+         */
+        private void ensureMaxGenerationToUploadForFlush(long generation, boolean alsoEnsureScheduling) {
             if (isClosed()) {
                 return;
             }
             final long previousMaxGeneration = maxGenerationToUploadForFlush.getAndUpdate(v -> Math.max(v, generation));
-            if (previousMaxGeneration >= generation) {
+            // Another thread concurrently updated maxGenerationToUploadForFlush, and it may still be on its way
+            // to invoke maybeFreezeAndUploadCurrentVirtualBcc for scheduling the actual upload. If this thread
+            // does not need to ensure the scheduling, it can short-circuit. Otherwise, it will also proceed
+            // to schedule the upload. This is necessary because this thread may hold the lock to shardCommitState
+            // so that the other thread would not be able to schedule the upload until this thread finishes.
+            if (previousMaxGeneration >= generation && alsoEnsureScheduling == false) {
                 return;
             }
 
@@ -1508,7 +1537,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             assert virtualBcc.getMaxGeneration() >= generation
-                : "requested generation ["
+                : shardId
+                    + " requested generation ["
                     + generation
                     + "] is larger than the max available generation ["
                     + virtualBcc.getMaxGeneration()
@@ -2095,7 +2125,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final var maxUploadedCcGen = getMaxUploadedGeneration();
             if (generation > maxUploadedCcGen) {
                 final String message = format(
-                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s] on node [%s]",
+                    "%s generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s] on node [%s]",
+                    shardId,
                     generation,
                     maxUploadedCcGen,
                     maxPendingUploadBcc,
@@ -2459,7 +2490,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already
                 // been uploaded which would make the listener be triggered immediately.
-                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration);
+                ensureMaxGenerationToUploadForFlush(minRelocatedGeneration, true);
                 toWaitFor = getMaxPendingUploadBcc().map(VirtualBatchedCompoundCommit::getMaxGeneration).orElse(minRelocatedGeneration);
                 assert toWaitFor >= minRelocatedGeneration : toWaitFor + " < " + minRelocatedGeneration;
                 assert assertGenerationIsUploadedOrPending(toWaitFor);

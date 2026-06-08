@@ -242,9 +242,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithInvalidApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/150941
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/400_synthetic_source/stored keyword with ignore_above}
   issue: https://github.com/elastic/elasticsearch/issues/150952

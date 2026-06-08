@@ -95,7 +95,11 @@ public class RestTestUtil {
         // we shield the project dependency to make integration tests easier
         Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
         if (yamlTestRunnerProject != null) {
-            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+            project.getDependencies()
+                .add(
+                    sourceSet.getImplementationConfigurationName(),
+                    project.getDependencies().project(Map.of("path", yamlTestRunnerProject.getPath()))
+                );
         }
     }
 }

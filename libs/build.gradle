@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-configure(childProjects.values()) {
+subprojects {
 
   apply plugin: 'base'
 
@@ -18,7 +18,7 @@ configure(childProjects.values()) {
    * of libs begin with their parents artifactId.
    */
   def baseProject = project
-  def baseArtifactId = "elasticsearch-${it.name}"
+  def baseArtifactId = "elasticsearch-${project.name}"
   base {
     archivesName = baseArtifactId
   }

@@ -302,6 +302,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:unmapped-load.sortOnMultipleFieldsWithNonExistent}
   issue: https://github.com/elastic/elasticsearch/issues/150996
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:qstr-function.testQstrWithNonPushableDisjunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/150997
 
 # Examples:
 #

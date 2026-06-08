@@ -285,6 +285,10 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.1.3, bwcProject: major4, expectedAssembleTaskName:
     extractedAssemble, #3]"
   issue: https://github.com/elastic/elasticsearch/issues/150985
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: major2, expectedAssembleTaskName:
+    extractedAssemble, #1]"
+  issue: https://github.com/elastic/elasticsearch/issues/150989
 
 # Examples:
 #

@@ -293,21 +293,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:spatial-grid.gridGeohashQuery}
-  issue: https://github.com/elastic/elasticsearch/issues/150993
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:boolean.trueFalse}
-  issue: https://github.com/elastic/elasticsearch/issues/150994
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:unmapped-load.sortOnMultipleFieldsWithNonExistent}
-  issue: https://github.com/elastic/elasticsearch/issues/150996
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:qstr-function.testQstrWithNonPushableDisjunctions}
-  issue: https://github.com/elastic/elasticsearch/issues/150997
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterFieldWithNullify}
-  issue: https://github.com/elastic/elasticsearch/issues/150943
 
 # Examples:
 #

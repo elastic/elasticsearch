@@ -639,4 +639,54 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             "cancelled-unbound-methodref"
         );
     }
+
+    // --- Iterable script-aware augmentations: per-method fires tests ---
+
+    /** {@code any} with an always-false predicate scans the whole iterable and must poll. */
+    public void testAnyAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.any(x -> false);"), "cancelled-any");
+    }
+
+    /** {@code every} with an always-true predicate scans the whole iterable and must poll. */
+    public void testEveryAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.every(x -> true);"), "cancelled-every");
+    }
+
+    /** {@code eachWithIndex} visits every element and must poll. */
+    public void testEachWithIndexAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.eachWithIndex((x, i) -> x.toString());"), "cancelled-eachwithindex");
+    }
+
+    /** {@code findResults} applies the function to every element and must poll. */
+    public void testFindResultsAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResults(x -> x.toString());"), "cancelled-findresults");
+    }
+
+    /** {@code groupBy} visits every element building a map keyed by the function result and must poll. */
+    public void testGroupByAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.groupBy(x -> x % 3);"), "cancelled-groupby");
+    }
+
+    /** {@code sum(ToDoubleFunction)} applies the function to every element and must poll. */
+    public void testSumWithToDoubleFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
+    }
+
+    /**
+     * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
+     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     */
+    public void testIterableAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.any(x -> false); "
+                + "big.every(x -> true); "
+                + "big.eachWithIndex((x, i) -> x.toString()); "
+                + "big.findResults(x -> x.toString()); "
+                + "big.groupBy(x -> x % 3); "
+                + "big.sum(x -> 1.0d);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
 }

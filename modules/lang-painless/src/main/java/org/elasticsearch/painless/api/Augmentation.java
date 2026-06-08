@@ -58,6 +58,26 @@ public class Augmentation {
     // some groovy methods on iterable
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/Iterable.html
 
+    /**
+     * Cancellation-aware {@code any}.  Returns true if {@code predicate} matches at least one element;
+     * short-circuits on the first match.  When iteration continues past a non-matching element the
+     * augmentation calls {@link PainlessScript#_pollCancellation()} so a worst-case (no-match) scan of
+     * a large collection still honours search timeouts.  Delegates to {@link #any(Iterable, Predicate)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> boolean any(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return any(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                return true;
+            }
+            script._pollCancellation();
+        }
+        return false;
+    }
+
     /** Iterates over the contents of an iterable, and checks whether a predicate is valid for at least one element. */
     public static <T> boolean any(Iterable<T> receiver, Predicate<T> predicate) {
         for (T t : receiver) {
@@ -136,6 +156,25 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code eachWithIndex} augmentation.  Visits each element of {@code receiver}
+     * paired with a zero-based index, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the script's shared poll counter advances and a search timeout can interrupt iteration
+     * even when the consumer body is trivial.  Delegates to {@link #eachWithIndex(Iterable, ObjIntConsumer)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> Object eachWithIndex(PainlessScript script, Iterable<T> receiver, ObjIntConsumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            return eachWithIndex(receiver, consumer);
+        }
+        int count = 0;
+        for (T t : receiver) {
+            consumer.accept(t, count++);
+            script._pollCancellation();
+        }
+        return receiver;
+    }
+
+    /**
      * Iterates through an iterable type, passing each item and the item's index
      * (a counter starting at zero) to the given consumer.
      */
@@ -145,6 +184,25 @@ public class Augmentation {
             consumer.accept(t, count++);
         }
         return receiver;
+    }
+
+    /**
+     * Cancellation-aware {@code every}.  Returns true only if {@code predicate} matches every element;
+     * short-circuits on the first non-match.  Polls {@link PainlessScript#_pollCancellation()} once per
+     * matching element so a worst-case (all-match) scan honours search timeouts.  Delegates to
+     * {@link #every(Iterable, Predicate)} when the script has no cancellation check installed.
+     */
+    public static <T> boolean every(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return every(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t) == false) {
+                return false;
+            }
+            script._pollCancellation();
+        }
+        return true;
     }
 
     /**
@@ -160,6 +218,27 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResults}.  Applies {@code filter} to every element and collects
+     * non-null results into a new list, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the full scan honours search timeouts.  Delegates to
+     * {@link #findResults(Iterable, Function)} when the script has no cancellation check installed.
+     */
+    public static <T, U> List<U> findResults(PainlessScript script, Iterable<T> receiver, Function<T, U> filter) {
+        if (script._getCancellationCheck() == null) {
+            return findResults(receiver, filter);
+        }
+        List<U> list = new ArrayList<>();
+        for (T t : receiver) {
+            U result = filter.apply(t);
+            if (result != null) {
+                list.add(result);
+            }
+            script._pollCancellation();
+        }
+        return list;
+    }
+
+    /**
      * Iterates through the Iterable transforming items using the supplied function and
      * collecting any non-null results.
      */
@@ -172,6 +251,30 @@ public class Augmentation {
             }
         }
         return list;
+    }
+
+    /**
+     * Cancellation-aware {@code groupBy}.  Builds a {@link LinkedHashMap} grouping each element by the
+     * value returned from {@code mapper}, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the full scan honours search timeouts.  Delegates to
+     * {@link #groupBy(Iterable, Function)} when the script has no cancellation check installed.
+     */
+    public static <T, U> Map<U, List<T>> groupBy(PainlessScript script, Iterable<T> receiver, Function<T, U> mapper) {
+        if (script._getCancellationCheck() == null) {
+            return groupBy(receiver, mapper);
+        }
+        Map<U, List<T>> map = new LinkedHashMap<>();
+        for (T t : receiver) {
+            U mapped = mapper.apply(t);
+            List<T> results = map.get(mapped);
+            if (results == null) {
+                results = new ArrayList<>();
+                map.put(mapped, results);
+            }
+            results.add(t);
+            script._pollCancellation();
+        }
+        return map;
     }
 
     /**
@@ -216,6 +319,24 @@ public class Augmentation {
         double sum = 0;
         for (T t : receiver) {
             sum += t.doubleValue();
+        }
+        return sum;
+    }
+
+    /**
+     * Cancellation-aware {@code sum(ToDoubleFunction)}.  Applies {@code function} to each element and
+     * accumulates the result, polling {@link PainlessScript#_pollCancellation()} once per element so
+     * the full scan honours search timeouts.  Delegates to {@link #sum(Iterable, ToDoubleFunction)} when
+     * the script has no cancellation check installed.
+     */
+    public static <T> double sum(PainlessScript script, Iterable<T> receiver, ToDoubleFunction<T> function) {
+        if (script._getCancellationCheck() == null) {
+            return sum(receiver, function);
+        }
+        double sum = 0;
+        for (T t : receiver) {
+            sum += function.applyAsDouble(t);
+            script._pollCancellation();
         }
         return sum;
     }

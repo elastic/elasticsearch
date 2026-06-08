@@ -44,12 +44,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class StatelessEvictionPolicyTests extends ESTestCase {
+public class IndexAgeEvictionPolicyTests extends ESTestCase {
 
-    private static final class TestStatelessEvictionPolicy extends StatelessEvictionPolicy {
+    private static final class TestIndexAgeEvictionPolicy extends IndexAgeEvictionPolicy {
         private final Map<ShardId, Long> creationDates;
 
-        TestStatelessEvictionPolicy(Map<ShardId, Long> creationDates) {
+        TestIndexAgeEvictionPolicy(Map<ShardId, Long> creationDates) {
             super();
             this.creationDates = creationDates;
         }
@@ -74,7 +74,7 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
         long[] creationDates = randomOlderAndRecentCreationDates();
         ShardId oldShard = new ShardId("old", randomUUID(), 0);
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
-        var policy = new TestStatelessEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
+        var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
         assertTrue(policy.canEvict(region(oldShard, "f"), region(recentShard, "g")));
     }
@@ -83,7 +83,7 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
         long[] creationDates = randomOlderAndRecentCreationDates();
         ShardId oldShard = new ShardId("old", randomUUID(), 0);
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
-        var policy = new TestStatelessEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
+        var policy = new TestIndexAgeEvictionPolicy(Map.of(oldShard, creationDates[0], recentShard, creationDates[1]));
 
         assertFalse(policy.canEvict(region(recentShard, "f"), region(oldShard, "g")));
     }
@@ -92,7 +92,7 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
         long creationDate = randomLong();
         ShardId shard1 = new ShardId("index", randomUUID(), 0);
         ShardId shard2 = new ShardId("index2", randomUUID(), 0);
-        var policy = new TestStatelessEvictionPolicy(Map.of(shard1, creationDate, shard2, creationDate));
+        var policy = new TestIndexAgeEvictionPolicy(Map.of(shard1, creationDate, shard2, creationDate));
 
         assertTrue(policy.canEvict(region(shard1, "f"), region(shard2, "g")));
     }
@@ -101,7 +101,7 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
         long recentDate = randomLong();
         ShardId unknownShard = new ShardId("unknown", randomUUID(), 0);
         ShardId recentShard = new ShardId("recent", randomUUID(), 0);
-        var policy = new TestStatelessEvictionPolicy(Map.of(recentShard, recentDate));
+        var policy = new TestIndexAgeEvictionPolicy(Map.of(recentShard, recentDate));
 
         assertTrue(policy.canEvict(region(unknownShard, "f"), region(recentShard, "g")));
         assertFalse(policy.canEvict(region(recentShard, "f"), region(unknownShard, "g")));
@@ -111,16 +111,36 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false)
             .build();
+        if (randomBoolean()) {
+            settings = Settings.builder()
+                .put(
+                    StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                    StatelessCacheEvictionPolicyType.INDEX_AGE
+                )
+                .build();
+        }
         EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsStatelessPolicyWhenSettingEnabled() {
+    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyDefault() {
+        Settings settings = Settings.builder()
+            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
+            .put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
+                StatelessCacheEvictionPolicyType.DEFAULT
+            )
+            .build();
+        EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
+        assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
+    }
+
+    public void testCreateEvictionPolicyReturnsIndexAgePolicyWhenSettingEnabled() {
         Settings settings = Settings.builder()
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .build();
         EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
-        assertThat(policy, instanceOf(StatelessEvictionPolicy.class));
+        assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
     }
 
     private static long cacheRegionSizeInBytes(long numPages) {
@@ -129,9 +149,9 @@ public class StatelessEvictionPolicyTests extends ESTestCase {
 
     /**
      * Fills the cache with regions from an older index, then inserts regions from a newer index and verifies that the
-     * stateless eviction policy evicts older-index regions to make room.
+     * index-age eviction policy evicts older-index regions to make room.
      */
-    public void testStatelessEvictionPolicyEvictsOlderIndexInCache() throws IOException {
+    public void testIndexAgeEvictionPolicyEvictsOlderIndexInCache() throws IOException {
         final int numRegions = randomIntBetween(4, 100);
         final long regionSizeInBytes = cacheRegionSizeInBytes(100);
         final long oldCreationDate = randomLongBetween(0, Long.MAX_VALUE - 2);

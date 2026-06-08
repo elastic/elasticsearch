@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +41,14 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         false,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<StatelessCacheEvictionPolicyType> STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING = Setting
+        .enumSetting(
+            StatelessCacheEvictionPolicyType.class,
+            "stateless.cache_boost_preference.eviction_policy",
+            StatelessCacheEvictionPolicyType.INDEX_AGE,
+            Setting.Property.NodeScope
+        );
 
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
@@ -88,10 +95,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
-        if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings)) {
-            return new StatelessEvictionPolicy(clusterService);
-        }
-        return new DefaultEvictionPolicy<>();
+        return StatelessCacheEvictionPolicyType.fromSettings(settings).create(clusterService);
     }
 
     /**

@@ -18,22 +18,21 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.util.Objects;
 
 /**
- * Eviction policy that evicts cache regions according to cache boost preferences.
- *
- * NB: For the moment, the policy simply prefers keeping cache regions for indices with newer creation timestamps. This will
- * change when the cache boost preferences and timestamp information are defined/accessible.
+ * Eviction policy that prefers keeping cache regions for indices with newer creation timestamps.
+ * <p>
+ * Richer cache boost and commit-timestamp policies can be implemented as separate classes.
  */
-public class StatelessEvictionPolicy implements EvictionPolicy<FileCacheKey> {
+public class IndexAgeEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     @Nullable
     private final ClusterService clusterService;
 
-    public StatelessEvictionPolicy(ClusterService clusterService) {
+    public IndexAgeEvictionPolicy(ClusterService clusterService) {
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     // for tests that override {@link #indexCreationDateMillis}
-    protected StatelessEvictionPolicy() {
+    protected IndexAgeEvictionPolicy() {
         this.clusterService = null;
     }
 
@@ -52,7 +51,7 @@ public class StatelessEvictionPolicy implements EvictionPolicy<FileCacheKey> {
         long incomingDate = indexCreationDateMillis(incoming.key().shardId());
         return regionDate <= incomingDate;
         // When the cache is full of regions from newer indices, older indices might not be able to get a cache region.
-        // This is a simplification for now, which will be dealt with in the future.
+        // This is a simplification for now, which can be dealt with in the future.
     }
 
     @Override

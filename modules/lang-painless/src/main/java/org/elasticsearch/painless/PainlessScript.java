@@ -135,4 +135,15 @@ public interface PainlessScript {
 
     /** Binds a cancellation runnable; default no-op. See {@link #_getCancellationCheck()}. */
     default void _setCancellationCheck(Runnable cancellationCheck) {}
+
+    /**
+     * Performs one decrement-and-check of this script instance's persistent cancellation poll
+     * counter, running the cancellation runnable and resetting the counter when it reaches zero.
+     * Opted-in contexts back the counter with a generated field ({@code $cancelPoll}) that the
+     * compiler also decrements inline at every loop back-edge and function entry;
+     * {@code @script_aware} augmentations call this once per iteration so their polling shares
+     * that single counter rather than a private copy, keeping the cadence amortised across all
+     * script work. The default no-op is for non-opted-in contexts.
+     */
+    default void _pollCancellation() {}
 }

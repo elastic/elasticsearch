@@ -4,6 +4,16 @@
 #
 # aggs_init / aggs_combine omitted: doPostCollection() sets timeoutOverwrites=true, suppressing
 # TimeExceededException in that phase.  geometry_field test lives in spatial/130_geo_shape_runtime.yml.
+#
+# SimilarityScript / SimilarityWeightScript omitted: they declare _getCancellationCheck() so the
+# poll bytecode is injected, but no caller wires up _setCancellationCheck() on these instances
+# (Lucene's Similarity API does not expose a searcher context), so the runnable stays null and
+# search timeouts never propagate into the script.
+#
+# "static lambda" tests (below the context tests) verify that the cancellation poll is forwarded
+# into typed static lambda bodies (e.g. removeIf / sort) via the synthetic #scriptThis capture
+# (the script receiver) injected by the compiler.  The loop lives inside the lambda, not the
+# top-level script body, and shares the script's persistent $cancelPoll counter.
 
 ---
 "Search timeout aborts a long-running filter script loop":
@@ -659,3 +669,1638 @@
                   }
                   return 0.0;
   - is_true: timed_out
+
+---
+"Search timeout cancels a loop inside a static lambda in a filter script":
+  # The loop is inside a typed removeIf lambda, not in the top-level script body.
+  # Exercises the IRCStaticCancellationCheck path: the compiler injects a synthetic
+  # #scriptThis capture so the lambda body shares the script's $cancelPoll counter.
+  - do:
+      indices.create:
+        index: test_filter_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: long
+  - do:
+      index:
+        index: test_filter_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_filter_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout cancels a loop inside a static lambda in a runtime long field":
+  # Same as above but via a runtime field script to confirm the lambda capture path
+  # works across a different cancellation-aware context.
+  - do:
+      indices.create:
+        index: test_runtime_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: long
+            runtime:
+              rt_field:
+                type: long
+                script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    emit(1L);
+  - do:
+      index:
+        index: test_runtime_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_runtime_lambda_timeout
+        timeout: 100ms
+        body:
+          fields:
+            - rt_field
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in number sort script":
+  - do:
+      indices.create:
+        index: test_number_sort_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_number_sort_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_number_sort_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: number
+                script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 0.0;
+                order: asc
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in string sort script":
+  - do:
+      indices.create:
+        index: test_string_sort_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_string_sort_lambda_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_string_sort_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: string
+                script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in bytesref (version) sort script":
+  - do:
+      indices.create:
+        index: test_bytesref_sort_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_bytesref_sort_lambda_timeout
+        id: d1
+        body: {"val": "1.0.0"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bytesref_sort_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: version
+                script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in terms_set minimum_should_match script":
+  - do:
+      indices.create:
+        index: test_terms_set_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              tags:
+                type: keyword
+  - do:
+      index:
+        index: test_terms_set_lambda_timeout
+        id: d1
+        body: {"tags": ["a", "b", "c"]}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms_set_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            terms_set:
+              tags:
+                terms: ["a", "b", "c"]
+                minimum_should_match_script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 1;
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in interval filter script":
+  - do:
+      indices.create:
+        index: test_interval_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: standard
+  - do:
+      index:
+        index: test_interval_lambda_timeout
+        id: d1
+        body: {"text": "the quick brown fox"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_interval_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "fox"
+                  filter:
+                    script:
+                      source: |
+                        List l = new ArrayList();
+                        l.add(1);
+                        l.removeIf(x -> {
+                          long start = System.currentTimeMillis();
+                          while (System.currentTimeMillis() - start < 60000L) {
+                              /* deliberately empty: rely on timeout to cancel */
+                          }
+                          return false;
+                        });
+                        return true;
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in aggregation script":
+  - do:
+      indices.create:
+        index: test_agg_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_agg_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_agg_lambda_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              avg:
+                script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 0.0;
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in scripted_metric map_script":
+  - do:
+      indices.create:
+        index: test_scripted_metric_map_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_scripted_metric_map_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scripted_metric_map_lambda_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              scripted_metric:
+                init_script: "state.total = 0"
+                map_script:
+                  source: |
+                    List l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    state.total += doc['val'].value;
+                combine_script: "return state.total"
+                reduce_script: "double t = 0; for (a in states) { t += a } return t"
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in script_score":
+  - do:
+      indices.create:
+        index: test_script_score_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_script_score_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_script_score_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  return 0.0;
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in double runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_double_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_double_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_double_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: double
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(1.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in boolean runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_boolean_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_boolean_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_boolean_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: boolean
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(true);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in date runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_date_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_date_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_date_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: date
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(System.currentTimeMillis());
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in keyword runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_keyword_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_keyword_lambda_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_keyword_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: keyword
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit("hello");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in geo_point runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_geo_point_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_geo_point_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_geo_point_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: geo_point
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(0.0, 0.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in ip runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_ip_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_ip_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_ip_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: ip
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit("127.0.0.1");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Static lambda loop cancelled in composite runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_composite_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_composite_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_composite_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: composite
+              fields:
+                count:
+                  type: long
+              script:
+                source: |
+                  List l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit('count', 1L);
+          query:
+            exists:
+              field: rt_field.count
+  - is_true: timed_out
+
+# "def lambda" tests verify the same wire effect for lambdas whose target functional interface
+# is not statically known (because the receiver of the call is def, so dispatch goes through
+# DefBootstrap rather than LambdaBootstrap).  These reuse the existing needsInstance / instance-
+# capture machinery: the analysis phase widens the trigger for `usesInstanceMethod` to also fire
+# when the script supports cancellation, so the lambda becomes a non-static method on the script
+# class and the regular IRCCancellationCheck path handles the prologue + per-iteration poll.
+
+---
+"Def lambda loop cancelled in filter script":
+  - do:
+      indices.create:
+        index: test_filter_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: long
+  - do:
+      index:
+        index: test_filter_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_filter_def_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  return true;
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in number sort script":
+  - do:
+      indices.create:
+        index: test_number_sort_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_number_sort_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_number_sort_def_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: number
+                script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 0.0;
+                order: asc
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in string sort script":
+  - do:
+      indices.create:
+        index: test_string_sort_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_string_sort_def_lambda_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_string_sort_def_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: string
+                script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in bytesref (version) sort script":
+  - do:
+      indices.create:
+        index: test_bytesref_sort_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: keyword
+  - do:
+      index:
+        index: test_bytesref_sort_def_lambda_timeout
+        id: d1
+        body: {"val": "1.0.0"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_bytesref_sort_def_lambda_timeout
+        timeout: 100ms
+        body:
+          sort:
+            - _script:
+                type: version
+                script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return "";
+                order: asc
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in terms_set minimum_should_match script":
+  - do:
+      indices.create:
+        index: test_terms_set_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              tags:
+                type: keyword
+  - do:
+      index:
+        index: test_terms_set_def_lambda_timeout
+        id: d1
+        body: {"tags": ["a", "b", "c"]}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_terms_set_def_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            terms_set:
+              tags:
+                terms: ["a", "b", "c"]
+                minimum_should_match_script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 1;
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in interval filter script":
+  - do:
+      indices.create:
+        index: test_interval_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: standard
+  - do:
+      index:
+        index: test_interval_def_lambda_timeout
+        id: d1
+        body: {"text": "the quick brown fox"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_interval_def_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            intervals:
+              text:
+                match:
+                  query: "fox"
+                  filter:
+                    script:
+                      source: |
+                        def l = new ArrayList();
+                        l.add(1);
+                        l.removeIf(x -> {
+                          long start = System.currentTimeMillis();
+                          while (System.currentTimeMillis() - start < 60000L) {
+                              /* deliberately empty: rely on timeout to cancel */
+                          }
+                          return false;
+                        });
+                        return true;
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in aggregation script":
+  - do:
+      indices.create:
+        index: test_agg_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_agg_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_agg_def_lambda_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              avg:
+                script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    return 0.0;
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in scripted_metric map_script":
+  - do:
+      indices.create:
+        index: test_scripted_metric_map_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_scripted_metric_map_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_scripted_metric_map_def_lambda_timeout
+        timeout: 100ms
+        body:
+          size: 0
+          aggs:
+            spinning:
+              scripted_metric:
+                init_script: "state.total = 0"
+                map_script:
+                  source: |
+                    def l = new ArrayList();
+                    l.add(1);
+                    l.removeIf(x -> {
+                      long start = System.currentTimeMillis();
+                      while (System.currentTimeMillis() - start < 60000L) {
+                          /* deliberately empty: rely on timeout to cancel */
+                      }
+                      return false;
+                    });
+                    state.total += doc['val'].value;
+                combine_script: "return state.total"
+                reduce_script: "double t = 0; for (a in states) { t += a } return t"
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in script_score":
+  - do:
+      indices.create:
+        index: test_script_score_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              val:
+                type: double
+  - do:
+      index:
+        index: test_script_score_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_script_score_def_lambda_timeout
+        timeout: 100ms
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  return 0.0;
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in long runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_long_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_long_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_long_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: long
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(1L);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in double runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_double_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_double_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_double_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: double
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(1.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in boolean runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_boolean_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_boolean_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_boolean_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: boolean
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(true);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in date runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_date_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_date_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_date_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: date
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(System.currentTimeMillis());
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in keyword runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_keyword_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_keyword_def_lambda_timeout
+        id: d1
+        body: {"val": "hello"}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_keyword_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: keyword
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit("hello");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in geo_point runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_geo_point_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_geo_point_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_geo_point_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: geo_point
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit(0.0, 0.0);
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in ip runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_ip_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_ip_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_ip_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: ip
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit("127.0.0.1");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out
+
+---
+"Def lambda loop cancelled in composite runtime field script":
+  - do:
+      indices.create:
+        index: test_rt_composite_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_composite_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_composite_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: composite
+              fields:
+                count:
+                  type: long
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit('count', 1L);
+          query:
+            exists:
+              field: rt_field.count
+  - is_true: timed_out
+
+
+---
+"Search timeout aborts a long-running each augmentation loop":
+  - do:
+      indices.create:
+        index: test_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware `each` augmentation drives the iteration itself; the cancellation poll injected
+  # into the augmentation must honor the search timeout even though the script body has no loop. A
+  # short build loop fills a small list, then nested each() iterates ~1e9 times until the 100ms
+  # timeout cancels it.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 1000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> a.each(z -> z.hashCode())));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running def each augmentation loop":
+  - do:
+      indices.create:
+        index: test_def_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_def_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # Same as above but the receiver is def-typed, so each() is dispatched dynamically through
+  # Def.lookupMethod, which must still route the call through the script-aware overload and poll.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_def_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  def a = new ArrayList();
+                  for (int i = 0; i < 1000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> a.each(z -> z.hashCode())));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a nested each-in-each augmentation loop":
+  - do:
+      indices.create:
+        index: test_nested_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_nested_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # An each() whose consumer runs another each(): the cancellation poll must propagate into the
+  # inner augmentation's driver loop too. Two levels over a ~50k list (~2.5e9 iterations) outlast
+  # the 100ms timeout, which must cancel without any user-written loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_nested_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> y.hashCode()));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running String.replace augmentation loop":
+  - do:
+      indices.create:
+        index: test_replace_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_replace_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The malicious pattern: repeatedly replacing into a growing string. String.replace is now the
+  # @script_aware augmentation, so its O(length) work advances the script's cancellation budget and the
+  # 100ms timeout cancels it even though the loop count stays under maxLoopCounter (999999 < 1e6).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_replace_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  String s = 'AAAAAAA';
+                  for (int i = 0; i < 999999; i++) { s = s.replace('A', 'AB'); }
+                  return s.length() > 0;
+  - is_true: timed_out
+

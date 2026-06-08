@@ -85,7 +85,18 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         "multiFileGroupByFile",
         "ffwAggregateByGender",
         "strictAggregateByGender",
-        "ubnAggregateByGender"
+        "ubnAggregateByGender",
+        // Nested STRUCT subfield projection (external-nested-struct.csv-spec) is implemented by the
+        // Java parquet reader only; parquet-rs does not yet flatten struct schemas.
+        "nestedKeepSingleSubfield",
+        "nestedKeepTwoSubfieldsSameParent",
+        "nestedKeepMixedTopLevelAndNested",
+        "nestedStatsByNested",
+        "nestedNullPropagation",
+        "nestedWhereEquals",
+        "nestedWhereIsNull",
+        "nestedStatsMinMax",
+        "nestedFilterAndProjectMixed"
     );
 
     @Override

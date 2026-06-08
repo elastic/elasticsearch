@@ -37,6 +37,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -199,8 +200,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
         public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
             bbqTypes.forEach(type -> operations.forEach(op -> {
                 String typeName = switch (type) {
-                    case D1Q1 -> throw new IllegalStateException("D1Q1 has no native implementation");
+                    case D1Q1 -> "d1q1";
                     case D1Q4 -> "d1q4";
+                    case D2Q2 -> "d2q2";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
                     case D2Q4_PACKED -> "d2q4_packed";
@@ -229,7 +231,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static Iterable<BBQType> allBBQTypes() {
-            return () -> Arrays.stream(BBQType.values()).filter(t -> t != BBQType.D1Q1).iterator();
+            return () -> Arrays.stream(BBQType.values()).iterator();
         }
 
         private static String getOpName(Operation op) {
@@ -328,6 +330,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_FLOAT,  // queryBitScale
                     JAVA_FLOAT,  // indexBitScale
                     JAVA_FLOAT,  // centroidDp
+                    JAVA_BYTE,   // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     ADDRESS      // scores
                 );
 
@@ -788,6 +791,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareDBF16QBF16Handle, a, b, elementCount);
         }
 
+        private static final MethodHandle dotD1Q1Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE)
+        );
+
+        static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD1Q1Handle, a, query, length);
+        }
+
         private static final MethodHandle dotD1Q4Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
@@ -796,6 +809,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q2Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q2(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q2Handle, a, query, length);
         }
 
         private static final MethodHandle dotD2Q4Handle = HANDLES.get(
@@ -943,6 +966,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -959,6 +983,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -979,6 +1004,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -995,6 +1021,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1015,6 +1042,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -1031,6 +1059,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1410,6 +1439,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,          // queryBitScale
                     float.class,          // indexBitScale
                     float.class,          // centroidDp
+                    byte.class,           // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     MemorySegment.class   // scores
                 );
 

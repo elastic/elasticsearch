@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,8 +26,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -37,11 +46,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -131,7 +144,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
     }
 
-    public void testParallelReadPreservesOrder() throws Exception {
+    /**
+     * Completeness across a multi-segment file: every row is emitted exactly once. This replaces a former
+     * "preserves order" assertion. Pages are now emitted in completion (as-ready) order, not segment order,
+     * so cross-segment row order is intentionally not preserved (an external scan has no order guarantee
+     * absent an explicit SORT). The contract this test guards is exactly-once delivery of all rows, so it
+     * sorts before comparing.
+     */
+    public void testParallelReadEmitsAllRowsExactlyOnce() throws Exception {
         StringBuilder sb = new StringBuilder();
         int lineCount = 200;
         for (int i = 0; i < lineCount; i++) {
@@ -150,6 +170,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             totalCoverage += seg[1];
         }
         assertEquals("Segments must cover entire file", contentBytes.length, totalCoverage);
+        assertThat("test needs a genuinely multi-segment file to be meaningful", segments.size(), Matchers.greaterThan(1));
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -169,8 +190,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
 
             assertEquals("All lines should be read", lineCount, allLines.size());
+            // Order-insensitive: emission order is as-ready, so sort before comparing the set.
+            List<String> sorted = new ArrayList<>(allLines);
+            Collections.sort(sorted);
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("Lines must be in order", "line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals(
+                    "every line must appear exactly once",
+                    "line-" + String.format(java.util.Locale.ROOT, "%04d", i),
+                    sorted.get(i)
+                );
             }
         } finally {
             exec.shutdown();
@@ -209,6 +237,146 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Early-close leak regression for {@code AsReadyParallelIterator}'s own look-ahead. Distinct from the
+     * per-reader {@link BufferingPageIterator} buffer: the coordinator parks one as-ready page in its
+     * private {@code buffered} field when {@code hasNext()} runs ahead of {@code next()}. A consumer that
+     * aborts after {@code hasNext()} (a pushed-down {@code LIMIT}, a cancellation, a downstream error)
+     * reaches {@code close()} with that page still parked; {@code close()} must release it (and drain the
+     * shared queue, and wait out the workers so each releases its own in-flight page) or the breaker leaks.
+     * A genuinely multi-segment file is required so the parallel path engages rather than the single-stream
+     * fallback (which returns the reader's own iterator directly).
+     */
+    public void testCloseReleasesBufferedPageOnEarlyTermination() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 500;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        LineFormatReader reader = new LineFormatReader(trackingFactory);
+
+        // Guard: the test only exercises AsReadyParallelIterator if the file actually splits.
+        assertThat(
+            "test needs a genuinely multi-segment file or it would hit the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            // Small batch + many lines => several pages produced; a hasNext() parks one in `buffered`.
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
+            assertTrue("workers should produce at least one page", iter.hasNext());
+            assertThat("hasNext must have parked a buffered page", breaker.getUsed(), Matchers.greaterThan(0L));
+
+            // Abandon without draining: this is the LIMIT / cancel / downstream-error shape.
+            iter.close();
+
+            assertEquals(
+                "close() must release the parked buffered page, drain the queue, and let workers release their in-flight pages",
+                0L,
+                breaker.getUsed()
+            );
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Contract: when a consumer wraps {@link ParallelParsingCoordinator#parallelRead}'s outer
+     * iterator with a {@link StatsCapturingIterator}-bound sink, every per-segment chunk's
+     * {@link ExternalStatsCapture#record} contribution must reach that sink — regardless of which
+     * worker thread the chunk's iterator was drained on. The production {@code CsvFormatReader} /
+     * {@code NdJsonPageIterator} close hooks call {@code ExternalStatsCapture.record(...)} once
+     * per drained chunk; the coordinator-side reconciler relies on those partials plus the outer
+     * finalize marker to reconstruct a whole-file stat. Lose the partials, lose the warm-path
+     * aggregate pushdown for any file large enough to be parallel-parsed.
+     * <p>
+     * {@code ExternalStatsCapture}'s active sink is a plain {@link ThreadLocal} that does not
+     * propagate to executor threads, so the coordinator threads through an explicit
+     * {@code captureSink} parameter and binds it around the per-segment {@code reader.read(...)
+     * .close()} block inside {@code parseSegment}. This test asserts that bind actually wires
+     * each worker's published contribution into the consumer-owned sink.
+     */
+    public void testParallelReadPropagatesPerSegmentPartialsToSink() throws Exception {
+        // Build a multi-segment file. Lines are short so 4 workers each see at least one chunk
+        // when parallelism=4 + minimumSegmentSize=1.
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 200;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+        String path = obj.path().toString();
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(blockFactory(), path);
+
+        // Sanity: this fixture must actually exercise the multi-segment path, otherwise the bug
+        // is masked by the single-segment fast path that runs inline on the caller thread.
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            reader,
+            obj,
+            contentBytes.length,
+            4,
+            reader.minimumSegmentSize()
+        );
+        assertThat("test must drive the multi-segment worker path", segments.size(), Matchers.greaterThanOrEqualTo(2));
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            // Use the explicit-sink overload: the coordinator binds `sink` on each worker around
+            // the per-segment reader.read(...).close() so the close hook's record() call lands in
+            // the same map the consumer's StatsCapturingIterator binds for the outer finalize marker.
+            CloseableIterator<Page> outer = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                false,
+                true,
+                null,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+
+        // One partial per segment is the contract. Cap the lower bound at "at least 2" so the
+        // assertion stays stable against future tweaks to the boundary-probing heuristic.
+        assertThat(
+            "Parallel parsing must propagate per-segment partials to the bound sink. Saw "
+                + contributions.size()
+                + " total contributions, "
+                + partialCount
+                + " partials, across "
+                + segments.size()
+                + " segments. Contributions: "
+                + contributions,
+            partialCount,
+            Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
     public void testParallelReadEmptyFile() throws Exception {
         StorageObject obj = new InMemoryStorageObject(new byte[0]);
         BlockFactory blockFactory = blockFactory();
@@ -231,7 +399,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(6, skipped);
         }
     }
@@ -241,7 +409,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\r\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(7, skipped);
         }
     }
@@ -251,7 +419,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "no-newline-here".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(-1, skipped);
         }
     }
@@ -278,6 +446,200 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
         });
         assertNotNull("Should propagate rejection error", ex);
+    }
+
+    private static final int REPRO_PARALLELISM = 12;
+    private static final int REPRO_POOL_SIZE = 8; // wider than the small cap, so an uncapped run can open many at once
+    private static final int REPRO_SMALL_CAP = 3;
+
+    /**
+     * Hard regression gate for the fix: with {@code max_concurrent_open_segments = cap}, the number of
+     * concurrently-open object-store range streams never exceeds {@code cap}, no matter how many segments
+     * or parser threads exist. This is an upper bound the window enforces regardless of thread scheduling,
+     * so it is not timing-dependent. {@link StreamCountingStorageObject} holds each open briefly so that a
+     * regressed (uncapped) implementation would open more than {@code cap} at once and trip this assertion.
+     */
+    public void testCapBoundsConcurrentOpenSegments() throws Exception {
+        byte[] content = repeatedLines(1200);
+        int cappedPeak = peakConcurrentOpensFor(content, REPRO_PARALLELISM, REPRO_SMALL_CAP, REPRO_POOL_SIZE);
+        assertThat(
+            "peak concurrently-open range streams [" + cappedPeak + "] must not exceed the cap [" + REPRO_SMALL_CAP + "]",
+            cappedPeak,
+            Matchers.lessThanOrEqualTo(REPRO_SMALL_CAP)
+        );
+    }
+
+    /**
+     * Best-effort reproduction of the unbounded-fanout congestion (in plain terms:
+     * a wide read opened every segment's stream at once and pinned the heap). Run uncapped, the peak should
+     * climb well above the small cap. Demonstrating that requires threads to actually overlap, which a
+     * heavily loaded or serializing scheduler cannot guarantee, so this is an {@code assumeTrue} diagnostic,
+     * not a hard gate — the hard invariant lives in {@link #testCapBoundsConcurrentOpenSegments}.
+     */
+    public void testUncappedReproducesCongestion() throws Exception {
+        byte[] content = repeatedLines(1200);
+        int segmentCount = ParallelParsingCoordinator.computeSegments(
+            new LineFormatReader(blockFactory()),
+            new StreamCountingStorageObject(content),
+            content.length,
+            REPRO_PARALLELISM,
+            1
+        ).size();
+        assertThat("test needs more segments than the small cap to be meaningful", segmentCount, Matchers.greaterThan(REPRO_SMALL_CAP));
+
+        // cap >= segment count == no effective cap (the pre-fix shape).
+        int congestedPeak = peakConcurrentOpensFor(content, REPRO_PARALLELISM, segmentCount, REPRO_POOL_SIZE);
+        assumeTrue(
+            "uncapped run only congests when threads overlap; skipped on a serializing/loaded scheduler (peak="
+                + congestedPeak
+                + ", cap="
+                + REPRO_SMALL_CAP
+                + ")",
+            congestedPeak > REPRO_SMALL_CAP
+        );
+    }
+
+    /** Runs the parallel read once with the given {@code maxConcurrentOpenSegments} and returns the peak concurrent opens. */
+    private int peakConcurrentOpensFor(byte[] content, int parallelism, int maxConcurrentOpenSegments, int poolSize) throws Exception {
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        ExecutorService exec = Executors.newFixedThreadPool(poolSize);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    maxConcurrentOpenSegments,
+                    null
+                )
+            ) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+        assertThat("sanity: more range streams opened than the cap", obj.totalOpens(), Matchers.greaterThan(maxConcurrentOpenSegments));
+        return obj.peakConcurrent();
+    }
+
+    private static byte[] repeatedLines(int n) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%05d", i)).append("\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Tightest window: {@code max_concurrent_open_segments == 1}. Asserts only one segment stream is ever
+     * open at a time and the read completes (no deadlock). At cap=1 segments run strictly one after another
+     * — the next is submitted only in the previous worker's finally — so the single FIFO shared queue
+     * happens to yield rows in file order. That ordering is a <em>consequence</em> of serial execution here,
+     * not a general contract: with cap &gt; 1 pages emit in as-ready order (see
+     * {@link #testParallelReadEmitsAllRowsExactlyOnce} and {@link #testEmitsReadySegmentBeforeSlowerEarlierSegment}).
+     */
+    public void testCapOfOneIsSerialPreservesOrderAndProgresses() throws Exception {
+        final int parallelism = 8; // many threads available, but the cap must keep opens to 1
+        int rows = 600;
+        byte[] content = repeatedLines(rows);
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        List<String> read = new ArrayList<>();
+        ExecutorService exec = Executors.newFixedThreadPool(parallelism);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    1,
+                    null
+                )
+            ) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        read.add(block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString());
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate (possible deadlock at cap=1)", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        assertThat("cap=1 must keep at most one segment stream open", obj.peakConcurrent(), Matchers.lessThanOrEqualTo(1));
+        assertThat("all rows must be read", read.size(), Matchers.equalTo(rows));
+        for (int i = 0; i < rows; i++) {
+            assertThat("rows must stay in file order", read.get(i), Matchers.equalTo(String.format(java.util.Locale.ROOT, "line-%05d", i)));
+        }
+        assertThat("no segment stream may be left open after close", obj.currentOpen(), Matchers.equalTo(0));
+    }
+
+    /**
+     * Mid-stream teardown: the consumer abandons after a few pages and closes the iterator. Exercises the
+     * close path + the early-return guard + the window cascade for not-yet-run segments. Asserts close
+     * returns (no hang) and no segment read stream is left open — i.e. the cascade still poisons/finishes
+     * every segment so nothing leaks an object-store stream.
+     */
+    public void testCloseMidStreamLeaksNoOpenStreams() throws Exception {
+        final int parallelism = 6;
+        byte[] content = repeatedLines(2000);
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        ExecutorService exec = Executors.newFixedThreadPool(parallelism);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                parallelism,
+                exec,
+                null,
+                false,
+                true,
+                null,
+                3,
+                null
+            );
+            // Consume just a couple of pages, then abandon the rest and close early.
+            int pages = 0;
+            while (iter.hasNext() && pages < 2) {
+                iter.next().releaseBlocks();
+                pages++;
+            }
+            iter.close();
+            assertThat("expected to consume at least one page before closing", pages, Matchers.greaterThan(0));
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate after early close", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        assertThat("early close must leave no segment stream open", obj.currentOpen(), Matchers.equalTo(0));
     }
 
     public void testParallelReadPropagatesError() throws Exception {
@@ -684,6 +1046,128 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * As-ready emission (the root-fix behaviour): a later segment whose reader finishes quickly must be
+     * emitted before an earlier segment that is artificially slowed. If pages were still gated on segment
+     * order, the first row out would belong to segment 0 and this would fail.
+     * <p>
+     * The first-split segment (segment 0) stalls before producing its first page; every other segment runs
+     * at full speed. With the cap wide enough for both to be open at once, a later segment must reach the
+     * consumer first. Rows are prefixed with their segment's start offset so the test can tell which segment
+     * emitted them.
+     */
+    public void testEmitsReadySegmentBeforeSlowerEarlierSegment() throws Exception {
+        int rows = 800;
+        byte[] content = repeatedLines(rows);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+
+        // Sanity: confirm the fixture is genuinely multi-segment so "later segment" is meaningful.
+        int segmentCount = ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1)
+            .size();
+        assertThat("test needs multiple segments", segmentCount, Matchers.greaterThan(1));
+
+        // Segment 0 (the file-leader split) blocks before emitting any page until the consumer has already
+        // pulled a page. Because the blocked leader has enqueued nothing, that first page can only have come
+        // from a later segment — proving as-ready emission deterministically, with no enqueue race. A
+        // regressed in-order implementation would gate every page behind the blocked leader and time out.
+        java.util.concurrent.CountDownLatch leaderRelease = new java.util.concurrent.CountDownLatch(1);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        String firstLineEmitted = null;
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4 // wide window so the slowed segment 0 and a fast later segment are open together
+                )
+            ) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    if (firstLineEmitted == null && p.getPositionCount() > 0) {
+                        BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                        firstLineEmitted = block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString();
+                        // First page is in hand while the leader is still blocked — now let the leader proceed.
+                        leaderRelease.countDown();
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        // The leader segment owns the file's leading bytes, hence line-00000. It is structurally blocked from
+        // emitting until a later segment has produced a page, so the first page reaching the consumer cannot
+        // be the leader's: the first line out must not be line-00000. Under strict segment-order emission it
+        // would have been (and the read would have deadlocked on the stalled leader instead).
+        assertNotNull("expected at least one page", firstLineEmitted);
+        assertThat(
+            "first emitted row must come from a later segment, not the stalled leader",
+            firstLineEmitted,
+            Matchers.not(Matchers.equalTo("line-00000"))
+        );
+    }
+
+    /**
+     * {@link LineFormatReader} variant where the segment owning the file leader ({@code firstSplit=true})
+     * blocks before emitting its first page until a later segment has emitted; every other segment runs at
+     * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
+     */
+    private static class FirstSegmentStallingReader extends LineFormatReader {
+        private final java.util.concurrent.CountDownLatch leaderRelease;
+
+        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch leaderRelease) {
+            super(blockFactory);
+            this.leaderRelease = leaderRelease;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean isFirstSplit = context.firstSplit();
+            CloseableIterator<Page> delegate = super.read(object, context);
+            return new CloseableIterator<>() {
+                private boolean firstPage = true;
+
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    if (firstPage && isFirstSplit) {
+                        firstPage = false;
+                        // Block the leader before emitting anything until the consumer releases it (which it
+                        // does only after pulling a page — necessarily from a later segment, since the leader
+                        // has enqueued nothing). Later segments are never gated and run at full speed.
+                        try {
+                            leaderRelease.await(30, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
+        }
+    }
+
+    /**
      * Records the {@link FormatReadContext} of every {@code read} call so tests can assert the
      * coordinator's per-segment split-flag dispatch behavior. Otherwise behaves like the parent
      * {@link LineFormatReader}.
@@ -722,27 +1206,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-                if (b == '\r') {
-                    int next = stream.read();
-                    consumed++;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                    if (next == -1) {
-                        return consumed - 1;
-                    }
-                    return consumed - 1;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -787,16 +1252,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -823,10 +1280,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private final List<String> buffer = new ArrayList<>();
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -880,7 +1336,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }
@@ -899,6 +1355,96 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each segment's iterator publishes a per-chunk
+     * {@code _stats.*} contribution via {@link ExternalStatsCapture#record} on natural EOF — same
+     * close-hook pattern as the production {@code CsvFormatReader} / {@code NdJsonPageIterator}
+     * chunk paths. Used by {@link #testParallelReadPropagatesPerSegmentPartialsToSink} to
+     * observe whether parallel-parsing worker threads can reach a bound sink.
+     */
+    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StatsPublishingLineReader(BlockFactory blockFactory, String path) {
+            this.delegate = new LineFormatReader(blockFactory);
+            this.path = path;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean chunkMode = context.recordAligned();
+            CloseableIterator<Page> inner = delegate.read(object, context);
+            return new CloseableIterator<>() {
+                long rowsEmitted = 0;
+                boolean naturallyExhausted = false;
+
+                @Override
+                public boolean hasNext() {
+                    if (inner.hasNext()) {
+                        return true;
+                    }
+                    naturallyExhausted = true;
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    Page p = inner.next();
+                    rowsEmitted += p.getPositionCount();
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        if (naturallyExhausted) {
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsEmitted);
+                            if (chunkMode) {
+                                stats.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                            }
+                            ExternalStatsCapture.record(path, stats);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     /**
@@ -927,16 +1473,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1000,16 +1538,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1034,10 +1564,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private int linesRead = 0;
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -1095,7 +1624,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }
@@ -1151,6 +1680,86 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * In-memory {@link StorageObject} that records the peak number of positional range streams
+     * ({@code newStream(pos,len)}) open at once. Segment workers always read through the positional overload
+     * (via {@link RangeStorageObject}), so this captures the concurrently-open-segment count. Each open
+     * lingers a few ms so overlapping threads coincide -- a plain delay, not a barrier, so it cannot
+     * deadlock. The whole-file {@code newStream()} overload is not counted (segment workers never use it).
+     */
+    private static class StreamCountingStorageObject implements StorageObject {
+        private final byte[] data;
+        private final AtomicInteger open = new AtomicInteger();
+        private final AtomicInteger peak = new AtomicInteger();
+        private final AtomicInteger total = new AtomicInteger();
+
+        StreamCountingStorageObject(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int now = open.incrementAndGet();
+            peak.accumulateAndGet(now, Math::max);
+            total.incrementAndGet();
+            // Linger so concurrently-open segment streams overlap in time; plain sleep, no barrier.
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return new ByteArrayInputStream(data, (int) position, (int) length) {
+                private boolean closed = false;
+
+                @Override
+                public void close() {
+                    if (closed == false) {
+                        closed = true;
+                        open.decrementAndGet();
+                    }
+                }
+            };
+        }
+
+        int peakConcurrent() {
+            return peak.get();
+        }
+
+        int totalOpens() {
+            return total.get();
+        }
+
+        /** Currently-open positional range streams (incremented on open, decremented on close). */
+        int currentOpen() {
+            return open.get();
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://stream-counting");
         }
     }
 }

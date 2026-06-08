@@ -50,13 +50,16 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
-
                 if (values == null) {
                     return null;
                 }
-
-                final var iterator = multiValuedIterator(values, counts, matcher, matchCost());
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+                final DocIdSetIterator iterator;
+                if (counts != null) {
+                    iterator = multiValuedIterator(values, counts, matcher, matchCost);
+                } else {
+                    iterator = singleValuedIterator(values, matcher, matchCost);
+                }
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -89,6 +92,22 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             public boolean matches() throws IOException {
                 values.advance(counts.docID());
                 return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
+    }
+
+    static DocIdSetIterator singleValuedIterator(BinaryDocValues values, Predicate<BytesRef> predicate, float cost) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(values) {
+            final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                return reader.match(values.binaryValue(), 1, predicate);
             }
 
             @Override

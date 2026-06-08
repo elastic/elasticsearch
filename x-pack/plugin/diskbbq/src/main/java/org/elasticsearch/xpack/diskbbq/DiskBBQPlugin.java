@@ -139,7 +139,9 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
             IndexVersion indexVersion,
             Settings.Builder additionalSettings
         ) {
-            additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
+            if (IndexSettings.SLICE_ENABLED.get(indexTemplateAndCreateRequestSettings)) {
+                additionalSettings.put(IndexSettings.SLICE_VALIDATED.getKey(), "true");
+            }
         }
     }
 

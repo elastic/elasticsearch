@@ -123,12 +123,12 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         assertThat(policy, instanceOf(DefaultEvictionPolicy.class));
     }
 
-    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyDefault() {
+    public void testCreateEvictionPolicyReturnsDefaultWhenBoostEnabledButPolicyAlways() {
         Settings settings = Settings.builder()
             .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), true)
             .put(
                 StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.getKey(),
-                StatelessCacheEvictionPolicyType.DEFAULT
+                StatelessCacheEvictionPolicyType.ALWAYS
             )
             .build();
         EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));

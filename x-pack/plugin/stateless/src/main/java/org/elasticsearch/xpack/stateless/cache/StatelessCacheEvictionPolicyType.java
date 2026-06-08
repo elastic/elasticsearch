@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheSe
  * Factory for stateless shared blob cache eviction policies.
  */
 public enum StatelessCacheEvictionPolicyType {
-    DEFAULT {
+    ALWAYS {
         @Override
         EvictionPolicy<FileCacheKey> create(ClusterService clusterService) {
             return new DefaultEvictionPolicy<>();
@@ -37,7 +37,7 @@ public enum StatelessCacheEvictionPolicyType {
 
     static StatelessCacheEvictionPolicyType fromSettings(Settings settings) {
         if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings) == false) {
-            return DEFAULT;
+            return ALWAYS;
         }
         return STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING.get(settings);
     }

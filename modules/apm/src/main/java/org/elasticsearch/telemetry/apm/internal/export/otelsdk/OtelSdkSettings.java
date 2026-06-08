@@ -147,10 +147,27 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /**
+     * When {@code true}, exceptions recorded fully on a span are attached via {@link io.opentelemetry.api.trace.Span#recordException}.
+     * When {@code false}, only {@code exception.type} and {@code exception.message} are emitted as an {@code exception} span event.
+     */
+    public static final Setting<Boolean> TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS = Setting.boolSetting(
+        "telemetry.otel.traces.record_exception_stacks",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
         "telemetry.otel.flush_timeout",
         TimeValue.timeValueSeconds(10),
         NodeScope
+    );
+
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
+    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
+        "telemetry.otel.resource.",
+        key -> Setting.simpleString(key, NodeScope)
     );
 }

@@ -264,18 +264,32 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals("foo", localIndexes.get(0));
                 }
                 {
-                    IllegalArgumentException e = expectThrows(
-                        IllegalArgumentException.class,
-                        () -> service.groupClusterIndices(
-                            service.getRegisteredRemoteClusterNames(),
-                            // -cluster_1:foo* is not allowed, only -cluster_1:*
-                            new String[] { "cluster_1:bar", "-cluster_2:foo*", "cluster_1:test", "cluster_2:foo*", "foo" }
-                        )
+                    String remoteIndexExclusion = randomBoolean() ? "-cluster_2:foo*" : "cluster_2:-foo*";
+                    Map<String, List<String>> groupedIndicesWithNegativeClusterPrefix = service.groupClusterIndices(
+                        service.getRegisteredRemoteClusterNames(),
+                        new String[] { "cluster_1:bar", remoteIndexExclusion, "cluster_1:test", "cluster_2:foo*", "foo" }
                     );
-                    assertThat(
-                        e.getMessage(),
-                        equalTo("To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [foo*]")
+                    Map<String, List<String>> groupedIndicesWithNegativeIndexPrefix = service.groupClusterIndices(
+                        service.getRegisteredRemoteClusterNames(),
+                        new String[] { "cluster_1:bar", "cluster_2:-foo*", "cluster_1:test", "cluster_2:foo*", "foo" }
                     );
+                    assertThat(groupedIndicesWithNegativeClusterPrefix, equalTo(groupedIndicesWithNegativeIndexPrefix));
+                }
+                {
+                    String remoteConcreteExclusion = randomBoolean() ? "-cluster_1:logs" : "cluster_1:-logs";
+                    Map<String, List<String>> groupedIndicesWithOnlyExclusion = service.groupClusterIndices(
+                        service.getRegisteredRemoteClusterNames(),
+                        new String[] { remoteConcreteExclusion }
+                    );
+                    assertThat(groupedIndicesWithOnlyExclusion.get("cluster_1"), equalTo(List.of("-logs")));
+                }
+                {
+                    String remoteConcreteExclusion = randomBoolean() ? "-cluster_1:logs" : "cluster_1:-logs";
+                    Map<String, List<String>> groupedIndicesExclusionBeforeInclusion = service.groupClusterIndices(
+                        service.getRegisteredRemoteClusterNames(),
+                        new String[] { remoteConcreteExclusion, "cluster_1:*" }
+                    );
+                    assertEquals(List.of("-logs", "*"), groupedIndicesExclusionBeforeInclusion.get("cluster_1"));
                 }
                 {
                     IllegalArgumentException e = expectThrows(

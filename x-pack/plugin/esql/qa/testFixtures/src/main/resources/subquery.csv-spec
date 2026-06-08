@@ -1412,6 +1412,8 @@ subqueryInFromWithRenameMissingCounterField
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
+request_stored: skip
+
 FROM k8s-downsampled, (from many_numbers)
 | KEEP network.total_bytes_in, network.eth0.tx
 | RENAME network.total_bytes_in as x, network.eth0.tx as y
@@ -1428,6 +1430,8 @@ subqueryInFromWithRenameMissingCounterFieldWithNullify
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 required_capability: optional_fields_nullify_tech_preview
+
+request_stored: skip
 
 SET unmapped_fields="nullify"\;
 FROM k8s-downsampled, (from many_numbers)
@@ -1446,6 +1450,8 @@ subqueryInFromWithRenameChainMissingCounterField
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 
+request_stored: skip
+
 FROM k8s, (from many_numbers)
 | KEEP network.total_bytes_in
 | RENAME network.total_bytes_in as x, x as y
@@ -1463,6 +1469,8 @@ subqueryInFromWithRenameChainMissingCounterFieldWithNullify
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_implicit_casting_inconsistent_after_rename
 required_capability: optional_fields_nullify_tech_preview
+
+request_stored: skip
 
 SET unmapped_fields="nullify"\;
 FROM k8s, (from many_numbers)

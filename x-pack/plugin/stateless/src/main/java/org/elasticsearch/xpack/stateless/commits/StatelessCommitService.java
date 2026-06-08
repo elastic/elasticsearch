@@ -1558,8 +1558,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Another thread concurrently updated maxGenerationToUploadForFlush, and it may still be on its way
             // to invoke maybeFreezeAndUploadCurrentVirtualBcc for scheduling the actual upload. If this thread
             // does not need to ensure the scheduling, it can short-circuit. Otherwise, it will also proceed
-            // to schedule the upload. This is necessary because this thread may hold the lock to shardCommitState
-            // so that the other thread would not be able to schedule the upload until this thread finishes.
+            // to schedule the upload.g
             if (previousMaxGeneration >= generation && alsoEnsureScheduling == false) {
                 return;
             }

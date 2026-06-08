@@ -575,8 +575,6 @@ public class EsExecutors {
     public static class TaskTrackingConfig {
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
-        /** Lambda for an EWMR with a 30-second half-life, expressed in inverse nanoseconds. */
-        public static final double DEFAULT_THREAD_UTILIZATION_EWMR_LAMBDA = Math.log(2.0) / (30L * 1_000_000_000L);
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;

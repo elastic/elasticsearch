@@ -662,3 +662,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:stats.sumExpressionWithConstantThreeClausesShareOneSvPair}
   issue: https://github.com/elastic/elasticsearch/issues/150969
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:date.dateMinusNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150970

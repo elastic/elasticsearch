@@ -1,9 +1,9 @@
-# config:
-#   included-regions:
-#     - build-conventions/.*
-#     - build-tools/.*
-#     - build-tools-internal/.*
-#     - plugins/examples/.*
+config:
+  included-regions:
+    - build-conventions/.*
+    - build-tools/.*
+    - build-tools-internal/.*
+    - plugins/examples/.*
 steps:
   - label: example-plugins
     command: |-

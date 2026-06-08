@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
@@ -29,6 +30,37 @@ import java.util.Set;
 public class BinaryDocValuesLengthQueryTests extends ESTestCase {
 
     public void testSingleValued() throws Exception {
+        String fieldName = "field";
+        int numDocs = randomIntBetween(1, 100);
+        List<BytesRef> values = new ArrayList<>();
+        int[] lengthToCount = new int[11];
+        for (int i = 0; i < numDocs; i++) {
+            var val = new BytesRef(randomAlphaOfLength(between(0, 10)));
+            values.add(val);
+            lengthToCount[val.length]++;
+        }
+
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                for (var val : values) {
+                    Document document = new Document();
+                    document.add(new BinaryDocValuesField("field", val));
+                    writer.addDocument(document);
+                }
+
+                // search
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    for (int len = 0; len <= 10; len++) {
+                        long numMatches = searcher.count(new BinaryDocValuesLengthQuery(fieldName, len));
+                        assertEquals(lengthToCount[len], numMatches);
+                    }
+                }
+            }
+        }
+    }
+
+    public void testMultiValueFieldWithOneValue() throws Exception {
         String fieldName = "field";
         int numDocs = randomIntBetween(1, 100);
         List<BytesRef> values = new ArrayList<>();

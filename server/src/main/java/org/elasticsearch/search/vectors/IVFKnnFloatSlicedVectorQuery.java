@@ -12,7 +12,7 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.internal.hppc.IntHashSet;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
@@ -64,7 +64,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     ) {
         super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
         this.sliceField = Objects.requireNonNull(sliceField);
-        // do we need to deduplcate slices?
         this.sliceIds = Objects.requireNonNull(sliceIds);
         assert sliceIds.length > 0;
     }
@@ -102,6 +101,8 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         if (sortedDocValues == null) {
             throw new IllegalArgumentException("sliceField [" + sliceField + "] must be indexed as a SortedDocValues field");
         }
+        // Get ordinals sorted so we can share the iterator of the filter if it exists. Note that it means tht in case
+        // of filters, we cannot process slices in parallel as the iterator needs to be consume in order.
         final int[] ords = sliceToSortedOrds(sortedDocValues, sliceIds);
         if (ords.length == 0) {
             return NO_RESULTS;
@@ -139,11 +140,12 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             docIdIteratorSupplier = null;
             costSupplier = null;
         }
-        for (int ord : ords) {
+        for (int i = 0; i < ords.length; i++) {
+            assert i == 0 || ords[i - 1] < ords[i];
             approximateSearchForOneSlice(
                 sortedDocValues,
                 skipper,
-                ord,
+                ords[i],
                 knnCollector,
                 docIdIteratorSupplier,
                 costSupplier,
@@ -193,16 +195,15 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     private int[] sliceToSortedOrds(SortedDocValues sortedDocValues, BytesRef[] sliceIds) throws IOException {
-        IntHashSet list = new IntHashSet();
+        // no need to deduplicate at that should have been done at a higher level.
+        IntArrayList ords = new IntArrayList();
         for (BytesRef sliceId : sliceIds) {
             int ord = sortedDocValues.lookupTerm(sliceId);
             if (ord >= 0) {
-                list.add(ord);
+                ords.add(ord);
             }
         }
-        int[] ords = list.toArray();
-        Arrays.sort(ords);
-        return ords;
+        return ords.sort().toArray();
     }
 
     private static ESAcceptDocs.SliceAcceptDocs getSliceAcceptDocsSupplier(

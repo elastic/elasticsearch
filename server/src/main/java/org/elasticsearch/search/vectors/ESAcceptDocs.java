@@ -132,6 +132,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             if (docID != NO_MORE_DOCS) {
                 upTo = Math.min(upTo, slice.endDoc());
                 iterator.intoBitSet(upTo, bitSet, offset);
+                docID = iterator.docID() >= slice.endDoc() ? NO_MORE_DOCS : iterator.docID();
             }
         }
 

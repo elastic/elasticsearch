@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -175,13 +176,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
         TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
-        aggregate.forEachDown(EsRelation.class, r -> {
-            for (Attribute attr : r.output()) {
-                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
-                    tsid.set(attr);
-                }
-            }
-        });
+        // Only look at the time-series source feeding this aggregate. Do not cross into nested sub-plans
+        // (the right-hand side of a join, e.g. an IN-subquery rewritten to a SemiJoin), which carry their
+        // own time-series source and have their own _tsid - see findTimeSeriesSourceTsid.
+        findTimeSeriesSourceTsid(aggregate, tsid);
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
@@ -313,14 +311,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
             }
         }
-        LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-            IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
-            if (r.output().contains(tsid.get()) == false) {
-                return r.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(r.output(), tsid.get()));
-            } else {
-                return r.withIndexMode(indexMode);
-            }
-        });
+        // Inject _tsid (and adjust the index mode) only into the time-series source of this aggregate, again
+        // without descending into nested sub-plans on the right-hand side of a join - see addTsidToTimeSeriesSource.
+        LogicalPlan newChild = addTsidToTimeSeriesSource(aggregate.child(), tsid.get(), requiredTimeSeriesSource.get());
         Bucket userBucket = timeBucketSpecRef.get();
         if (userBucket == null) {
             userBucket = (Bucket) Alias.unwrap(timeBucket);
@@ -577,4 +570,45 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         }
         return -1L;
     }
+
+    /**
+     * Finds the {@code _tsid} attribute of the time-series source feeding this aggregate, walking only the main input path. The right-hand
+     * side of a {@code BinaryPlan} (a lookup index, or an {@code IN}-subquery rewritten to a {@code SemiJoin}) is skipped: those subtrees
+     * are separate time-series sources with their own {@code _tsid} that this aggregate must not adopt. Crossing that boundary previously
+     * caused the outer aggregate to inject its {@code _tsid} into a nested subquery relation that already had one, producing a relation
+     * with two {@code _tsid} attributes.
+     */
+    private static void findTimeSeriesSourceTsid(LogicalPlan plan, Holder<Attribute> tsid) {
+        if (plan instanceof EsRelation relation) {
+            for (Attribute attr : relation.output()) {
+                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    tsid.set(attr);
+                }
+            }
+            return;
+        }
+        if (plan instanceof BinaryPlan binary) {
+            findTimeSeriesSourceTsid(binary.left(), tsid);
+            return;
+        }
+        for (LogicalPlan child : plan.children()) {
+            findTimeSeriesSourceTsid(child, tsid);
+        }
+    }
+
+    /**
+     * Injects {@code tsid} into the time-series source relation(s) of this aggregate and adjusts their index mode, mirroring the traversal
+     * scope of {@code findTimeSeriesSourceTsid}: it never descends into the right-hand side of a {@code BinaryPlan}, so nested subqueries
+     * keep their own {@code _tsid} untouched.
+     */
+    private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
+        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> {
+            IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
+            if (relation.output().contains(tsid) == false) {
+                return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
+            }
+            return relation.withIndexMode(indexMode);
+        });
+    }
+
 }

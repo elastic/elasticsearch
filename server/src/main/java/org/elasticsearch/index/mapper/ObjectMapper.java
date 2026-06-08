@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -722,6 +723,7 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
+    private final String[] sortedFieldNames;
 
     ObjectMapper(
         String name,
@@ -742,8 +744,12 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
+            this.sortedFieldNames = Strings.EMPTY_ARRAY;
         } else {
             this.mappers = Map.copyOf(mappers);
+            String[] names = mappers.keySet().toArray(String[]::new);
+            Arrays.sort(names);
+            sortedFieldNames = names;
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -792,6 +798,21 @@ public class ObjectMapper extends Mapper {
 
     public Map<String, Mapper> getMappers() {
         return mappers;
+    }
+
+    /**
+     * Returns true if any mapped child field has {@code prefix} as a dotted-path prefix,
+     * i.e. any key in this mapper's children starts with {@code prefix + "."}.
+     * Used to detect intermediate object segments when {@code subobjects} is disabled.
+     */
+    public boolean hasMappedFieldsWithPrefix(String prefix) {
+        String searchKey = prefix + ".";
+        int idx = Arrays.binarySearch(sortedFieldNames, searchKey);
+        if (idx >= 0) {
+            return true;
+        }
+        int insertionPoint = ~idx;
+        return insertionPoint < sortedFieldNames.length && sortedFieldNames[insertionPoint].startsWith(searchKey);
     }
 
     @Override

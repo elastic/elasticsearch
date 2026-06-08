@@ -26,12 +26,15 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-
-  // zstd-jni provided by esql-datasource-compression-libs parent plugin at runtime;
-  // compileOnly for compilation, testImplementation for test-time resolution
-  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
+  // PanamaZstd lives in the parent compression-libs plugin (extendedPlugins above) so it is
+  // available at runtime through parent-first classloader delegation; compileOnly is just to
+  // surface the symbols at compile time.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // Compression-side test fixtures (ZstdOutputStream) and byte-for-byte cross-checks against
+  // ZstdInputStream still use zstd-jni. With Phase 2 it is no longer on the production runtime
+  // classpath of any ESQL data source plugin — testImplementation only.
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
 }

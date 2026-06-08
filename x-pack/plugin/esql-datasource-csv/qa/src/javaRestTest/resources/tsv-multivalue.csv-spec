@@ -1,0 +1,55 @@
+// Explicit multi_value_syntax coverage for TSV. Both settings are exercised explicitly on a
+// multi-value fixture (mv_sample) and a scalar fixture (web_logs). Unlike CSV, multi-value data read
+// with multi_value_syntax: none does NOT fail for TSV: the field delimiter is the tab, so the commas
+// inside [a,b,c] are not field separators — the cell is read as one literal value (MV_COUNT == 1),
+// with no column misalignment.
+
+tsvBracketsParsesMultiValue
+required_capability: external_command
+
+EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "brackets"}
+| EVAL cnt = MV_COUNT(tags)
+| KEEP id, tags, cnt
+| SORT id
+;
+
+id:integer | tags:keyword         | cnt:integer
+1          | [alpha, beta, gamma] | 3
+2          | solo                 | 1
+;
+
+tsvNoneOnMultiValueDataReadsLiteralNoFailure
+required_capability: external_command
+
+EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "none"}
+| EVAL cnt = MV_COUNT(tags)
+| KEEP id, cnt
+| SORT id
+;
+
+id:integer | cnt:integer
+1          | 1
+2          | 1
+;
+
+tsvScalarWithNoneParses
+required_capability: external_command
+
+EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "none"}
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;
+
+tsvScalarWithBracketsParsesSame
+required_capability: external_command
+
+EXTERNAL "{{web_logs}}" WITH {"multi_value_syntax": "brackets"}
+| STATS c = COUNT(*)
+;
+
+c:long
+10
+;

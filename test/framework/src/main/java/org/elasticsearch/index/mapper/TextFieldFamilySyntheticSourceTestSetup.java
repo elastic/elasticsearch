@@ -66,9 +66,18 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             return FieldMapper.DocValuesParameter.Values.DISABLED;
         }
 
+        // multi_value: false enforces single-value semantics and is only meaningful when doc_values is enabled.
         return switch (randomInt(2)) {
-            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
-            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true);
+            case 0 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                randomBoolean()
+            );
+            case 1 -> new FieldMapper.DocValuesParameter.Values(
+                true,
+                FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                randomBoolean()
+            );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
             default -> throw new IllegalStateException();
         };
@@ -116,6 +125,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         @Override
         public boolean ignoreAbove() {
             return keywordMultiFieldSyntheticSourceSupport.ignoreAbove();
+        }
+
+        @Override
+        public boolean enforcesSingleValue() {
+            if (store) {
+                return false;
+            }
+            if (docValues.enabled()) {
+                return docValues.multiValue() == false;
+            }
+            return keywordMultiFieldSyntheticSourceSupport.enforcesSingleValue();
         }
 
         @Override
@@ -182,11 +202,15 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 } else {
                     b.startObject("doc_values");
                     b.field("cardinality", docValues.cardinality().toString());
+                    if (docValues.multiValue() == false) {
+                        b.field("multi_value", false);
+                    }
                     b.endObject();
                 }
             };
 
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never produce a multi-valued example.
+            if (enforcesSingleValue() || randomBoolean()) {
                 var randomString = randomString();
                 return new MapperTestCase.SyntheticSourceExample(randomString, randomString, mapping);
             }

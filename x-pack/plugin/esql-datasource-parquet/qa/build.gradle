@@ -19,7 +19,7 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
-  
+
   // S3 fixture infrastructure for mocking S3 operations
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
@@ -27,8 +27,21 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
-  // Parquet support - needed for reading test fixtures
+  // Parquet support - needed for reading test fixtures and generating ClickBench fixtures at test time.
+  // hadoop-client-api provides class stubs (Path, FSDataInputStream) needed to compile against ParquetFileWriter;
+  // PlainParquetConfiguration is used at runtime to avoid requiring hadoop-client-runtime.
   javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  javaRestTestImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
+
+  // The parquet datasource plugin -- also on the test classpath for PlainCompressionCodecFactory
+  // and PlainParquetReadOptions (which bypass all Hadoop dependencies at runtime)
+  javaRestTestImplementation project(xpackModule('esql-datasource-parquet'))
+  javaRestTestImplementation project(xpackModule('esql-datasource-compression-libs'))
+
+  // Hadoop stubs required at compile time only. ParquetFileReader's class file references
+  // Hadoop types even though our PlainParquetReadOptions bypasses them at runtime.
+  javaRestTestCompileOnly("org.apache.hadoop:hadoop-common:3.4.3") { transitive = false }
+  javaRestTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:3.4.3") { transitive = false }
   
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
@@ -55,7 +68,7 @@ ext.parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixture
 def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -80,6 +93,7 @@ csvToParquetFixtures.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }
@@ -96,6 +110,7 @@ tasks.register('generateMultifileParquet_employees', JavaExec) {
   inputs.file(multifileEmployeesCsv)
   outputs.dir(multifileDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
 
@@ -117,6 +132,7 @@ def multifileUbnDir = file("${parquetFixtureOutputDir}/multifile_ubn")
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }
@@ -135,6 +151,7 @@ tasks.register('generateMultifileSplitParquet_employees', JavaExec) {
   inputs.file(multifileSplitEmployeesCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateMultifileSplitParquet_employees'))
 
@@ -155,6 +172,7 @@ tasks.register('generateHivePartitionedParquet_employees', JavaExec) {
   inputs.file(hivePartitionedEmployeesCsv)
   outputs.dir(hivePartitionedDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateHivePartitionedParquet_employees'))
 
@@ -187,11 +205,11 @@ tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
-  
+
   // Increase timeouts for S3/Parquet operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
-  
+
   // Enable more verbose logging for debugging
   testLogging {
     events = ["passed", "skipped", "failed"]

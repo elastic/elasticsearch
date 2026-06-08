@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
@@ -125,7 +124,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -166,7 +165,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -204,7 +203,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -236,7 +235,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    InferenceString.ofText(TEST_QUERY),
                     InferenceString.fromStringList(TEST_DOCUMENTS),
                     null,
                     NEW_TEST_TOP_N,
@@ -280,7 +279,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                new QueryAndDocsInputs(InferenceString.ofText(TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );

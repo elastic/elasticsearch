@@ -46,7 +46,7 @@ class java.lang.Iterable {
   boolean org.elasticsearch.painless.api.Augmentation any(Predicate)
   Collection org.elasticsearch.painless.api.Augmentation asCollection()
   List org.elasticsearch.painless.api.Augmentation asList()
-  def org.elasticsearch.painless.api.Augmentation each(Consumer)
+  def org.elasticsearch.painless.api.Augmentation each(Consumer) @script_aware
   def org.elasticsearch.painless.api.Augmentation eachWithIndex(ObjIntConsumer)
   boolean org.elasticsearch.painless.api.Augmentation every(Predicate)
   List org.elasticsearch.painless.api.Augmentation findResults(Function)
@@ -764,7 +764,7 @@ class java.lang.String {
   int offsetByCodePoints(int,int)
   boolean regionMatches(boolean,int,String,int,int)
   boolean regionMatches(int,String,int,int)
-  String replace(CharSequence,CharSequence)
+  String org.elasticsearch.painless.api.Augmentation replace(CharSequence,CharSequence) @script_aware
   boolean startsWith(String)
   boolean startsWith(String,int)
   String substring(int)

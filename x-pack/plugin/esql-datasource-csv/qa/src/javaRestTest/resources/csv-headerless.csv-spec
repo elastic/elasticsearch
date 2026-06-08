@@ -12,7 +12,7 @@ required_capability: external_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees}}" WITH {"header_row": false}
+EXTERNAL "{{employees}}" WITH {"header_row": false, "multi_value_syntax": "brackets"}
 | KEEP col1
 | LIMIT 2
 ;
@@ -27,7 +27,7 @@ required_capability: external_command
 required_capability: external_csv_header_row_option
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees}}" WITH {"header_row": false, "column_prefix": "f"}
+EXTERNAL "{{employees}}" WITH {"header_row": false, "column_prefix": "f", "multi_value_syntax": "brackets"}
 | KEEP f1
 | LIMIT 2
 ;

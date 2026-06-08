@@ -31,8 +31,11 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -530,6 +533,54 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Struct-leaf columns (e.g. {@code "event.action"}) must be extractable via the deferred
+     * TopN path. The two bugs this exercises: (1) {@code resolveColumnInfo} previously returned
+     * {@code null} for dotted names because it only checked top-level fields; (2)
+     * {@code decodeBucketsAsTheyArrive} called {@code schema.getType(columnName)} which throws
+     * for dotted names. The multi-row-group setup forces the cross-bucket code path.
+     */
+    public void testExtractStructLeafColumns() throws IOException {
+        byte[] data = writeStructFile(200);
+        StorageObject so = createStorageObject(data);
+        try (ColumnExtractor extractor = newFullFileExtractor(so)) {
+            assertEquals(200, extractor.rowCount());
+            long[] positions = { 0, 50, 99, 100, 150, 199 };
+
+            try (Block strBlock = extractor.extract("event.action", positions, blockFactory)) {
+                BytesRefBlock strs = (BytesRefBlock) strBlock;
+                assertEquals(positions.length, strs.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals("action-" + positions[i], strs.getBytesRef(i, new org.apache.lucene.util.BytesRef()).utf8ToString());
+                }
+            }
+
+            try (Block intBlock = extractor.extract("event.id", positions, blockFactory)) {
+                IntBlock ints = (IntBlock) intBlock;
+                assertEquals(positions.length, ints.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals((int) positions[i], ints.getInt(i));
+                }
+            }
+
+            // Also validate that the per-column schema and projection are built
+            // correctly when multiple dotted names are resolved in one pass.
+            Block[] blocks = extractor.extract(new String[] { "event.id", "event.action" }, positions, blockFactory);
+            try {
+                IntBlock ints = (IntBlock) blocks[0];
+                BytesRefBlock strs = (BytesRefBlock) blocks[1];
+                assertEquals(positions.length, ints.getPositionCount());
+                assertEquals(positions.length, strs.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals((int) positions[i], ints.getInt(i));
+                    assertEquals("action-" + positions[i], strs.getBytesRef(i, new org.apache.lucene.util.BytesRef()).utf8ToString());
+                }
+            } finally {
+                Releasables.close(blocks);
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------------------------
     // Fixtures
     // -----------------------------------------------------------------------------------------
@@ -640,6 +691,34 @@ public class ParquetColumnExtractorTests extends ESTestCase {
             }
             return groups;
         }, /* rowGroupBytes = */ 64 * 1024 * 1024L);
+    }
+
+    /**
+     * File with an {@code event} STRUCT containing {@code id} (int) and {@code action} (string)
+     * sub-fields. Small row-group budget forces multiple row groups so the cross-bucket path is
+     * exercised. Row {@code r} has {@code event.id = r} and {@code event.action = "action-r"}.
+     */
+    private byte[] writeStructFile(int rows) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .requiredGroup()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("action")
+            .named("event")
+            .named("events");
+        return writeFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int i = 0; i < rows; i++) {
+                Group g = factory.newGroup();
+                Group event = g.addGroup("event");
+                event.add("id", i);
+                event.add("action", Binary.fromString("action-" + i));
+                groups.add(g);
+            }
+            return groups;
+        }, /* rowGroupBytes = */ 1024L);
     }
 
     private byte[] writeFile(MessageType schema, Function<SimpleGroupFactory, List<Group>> generator, long rowGroupBytes)
@@ -883,7 +962,13 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
 
         @Override
-        public void readBytesAsync(long position, long length, Executor unused, ActionListener<ByteBuffer> listener) {
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor unused,
+            ActionListener<DirectReadBuffer> listener
+        ) {
             boolean blocking = overlapsAnyChunk(position, length);
             if (blocking) {
                 observedDispatches.incrementAndGet();
@@ -901,7 +986,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                     int len = (int) Math.min(length, data.length - position);
                     byte[] copy = new byte[len];
                     System.arraycopy(data, pos, copy, 0, len);
-                    listener.onResponse(ByteBuffer.wrap(copy));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(copy), () -> {}));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     listener.onFailure(new IOException("interrupted while waiting for release", e));

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -38,10 +39,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -73,12 +76,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     private static final Literal NULLIFIED = Literal.NULL;
 
+    private static EsRelation withAdditionalAttributesUnlessLookup(EsRelation esr, List<? extends Attribute> fields) {
+        return esr.indexMode() == IndexMode.LOOKUP ? esr : esr.withAdditionalAttributes(fields);
+    }
+
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // In PromQL, queries never fail due to a field not being mapped, instead an empty result is returned.
-        if (plan instanceof PromqlCommand) {
-            return resolve(plan, false);
-        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -121,11 +124,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
         var transformed = plan.transformUp(EsRelation.class, esr -> {
-            if (esr.indexMode() == IndexMode.LOOKUP) {
-                return esr;
-            }
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
-            return fieldsToNullify.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToNullify));
+            return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify);
         });
 
         // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
@@ -170,12 +170,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         return plan.transformUp(EsRelation.class, esr -> {
-            if (esr.indexMode() == IndexMode.LOOKUP) {
-                return esr;
-            }
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
-            // there shouldn't be any duplicates, we can just merge the two lists
-            return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToLoad));
+            return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad);
         });
     }
 
@@ -238,20 +234,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * again. That's what this method does.
      */
     private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
+        Map<UnresolvedAttribute, UnresolvedAttribute> oldAttributesToNewAttributes = new HashMap<>();
         Function<UnresolvedAttribute, UnresolvedAttribute> refresh = ua -> {
-            if (maybeNowResolvableAttributes.remove(ua)) {
+            if (maybeNowResolvableAttributes.contains(ua)) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
                 // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
-                ua = (ua.withId(new NameId())).withUnresolvedMessage(null);
+                return oldAttributesToNewAttributes.computeIfAbsent(ua, u -> (u.withId(new NameId())).withUnresolvedMessage(null));
             }
             return ua;
         };
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        // transformExpressionsOnlyUp does not descend into the promqlPlan
-        // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-        if (refreshed instanceof PromqlCommand promql && maybeNowResolvableAttributes.isEmpty() == false) {
-            refreshed = promql.withPromqlPlan(promql.promqlPlan().transformExpressionsDown(UnresolvedAttribute.class, refresh));
-        }
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 
@@ -342,35 +334,67 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
     private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
-        Set<String> childOutputNames = new HashSet<>();
-        for (LogicalPlan child : plan.children()) {
-            for (Attribute attr : child.output()) {
-                childOutputNames.add(attr.name());
-            }
-        }
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
-        Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
+        Consumer<UnresolvedAttribute> sink = ua -> {
             if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
-                && aliasedGroupings.contains(ua.name()) == false
-            // Filter out unresolved attributes that exist in the children's output. These attributes are not truly unmapped;
-            // they just haven't been resolved yet by ResolveRefs (e.g. because the children only became resolved after ImplicitCasting).
-            // ResolveRefs will wire them up in the next iteration of the resolution batch.
-                && childOutputNames.contains(ua.name()) == false) {
+                && aliasedGroupings.contains(ua.name()) == false) {
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
         };
         if (plan instanceof PromqlCommand promqlCommand) {
             // The expressions of the PromqlCommand itself are not relevant here.
             // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-            promqlCommand.promqlPlan().forEachExpressionDown(UnresolvedAttribute.class, collectUnresolved);
+            promqlCommand.promqlPlan().forEachExpressionDown(UnresolvedAttribute.class, sink);
         } else {
-            plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
+            plan.forEachDown(LogicalPlan.class, node -> collectLoadCandidates(node, sink));
         }
         return unresolved;
+    }
+
+    /**
+     * Per-node walk: which unresolved attributes from this node's local context (its own expressions or join config)
+     * cannot be resolved against its immediate children's outputs, and so are candidates for {@code _source} loading?
+     * UAs whose names match a child's output are skipped — ResolveRefs will wire them up on the next iteration.
+     */
+    private static void collectLoadCandidates(LogicalPlan node, Consumer<UnresolvedAttribute> sink) {
+        if (node instanceof LookupJoin lj) {
+            Set<String> leftOutputNames = new HashSet<>(Expressions.names(lj.left().output()));
+            Set<String> rightOutputNames = new HashSet<>(Expressions.names(lj.right().output()));
+            // Unresolved left keys not found in the left child → load candidates.
+            for (Attribute lf : lj.config().leftFields()) {
+                if (lf instanceof UnresolvedAttribute ua && leftOutputNames.contains(ua.name()) == false) {
+                    sink.accept(ua);
+                }
+            }
+            // joinOnConditions UAs not found in either child → load candidates.
+            Expression conds = lj.config().joinOnConditions();
+            if (conds != null) {
+                conds.forEachUp(UnresolvedAttribute.class, ua -> {
+                    if (leftOutputNames.contains(ua.name()) == false && rightOutputNames.contains(ua.name()) == false) {
+                        sink.accept(ua);
+                    }
+                });
+            }
+            // Unresolved right keys are intentionally ignored — a query that references them is invalid and will fail verification.
+        } else {
+            Set<String> childOutputNames = new HashSet<>();
+            for (LogicalPlan child : node.children()) {
+                for (Attribute a : child.output()) {
+                    childOutputNames.add(a.name());
+                }
+            }
+            for (Expression expr : node.expressions()) {
+                expr.forEachUp(UnresolvedAttribute.class, ua -> {
+                    if (childOutputNames.contains(ua.name()) == false) {
+                        sink.accept(ua);
+                    }
+                });
+            }
+        }
     }
 
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {

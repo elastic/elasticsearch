@@ -770,6 +770,35 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return dsq + soarLambda * proj * proj / rnorm;
     }
 
+    @Override
+    public float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        IntVector sqAcc = IntVector.zero(INTEGER_SPECIES);
+        FloatVector projAcc = FloatVector.zero(FLOAT_SPECIES);
+        int i = 0;
+        final int vectorEnd = BYTE_SPECIES.loopBound(v1.length);
+        for (; i < vectorEnd; i += BYTE_SPECIES.length()) {
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, v1, i);
+            ByteVector cv = ByteVector.fromArray(BYTE_SPECIES, centroid, i);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                IntVector diff = ((IntVector) qv.castShape(INTEGER_SPECIES, part)).sub((IntVector) cv.castShape(INTEGER_SPECIES, part));
+                sqAcc = sqAcc.add(diff.mul(diff));
+                FloatVector resVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + part * FLOAT_SPECIES.length());
+                projAcc = fma((FloatVector) diff.castShape(FLOAT_SPECIES, 0), resVec, projAcc);
+            }
+        }
+        int sqDist = sqAcc.reduceLanes(VectorOperators.ADD);
+        float proj = projAcc.reduceLanes(VectorOperators.ADD);
+        // scalar tail
+        for (; i < v1.length; i++) {
+            int diff = v1[i] - centroid[i];
+            sqDist += diff * diff;
+            proj = Math.fma(diff, originalResidual[i], proj);
+        }
+        return sqDist + soarLambda * proj * proj / rnorm;
+    }
+
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
 
@@ -1434,6 +1463,110 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         distances[3] = dsq3 + soarLambda * proj3 * proj3 / rnorm;
     }
 
+    @Override
+    public void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length >= BYTE_SPECIES.length()) {
+            soarDistanceBulkByteSIMD(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+            return;
+        }
+        // scalar fallback for very short vectors
+        distances[0] = DefaultESVectorUtilSupport.soarDistanceByte(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = DefaultESVectorUtilSupport.soarDistanceByte(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = DefaultESVectorUtilSupport.soarDistanceByte(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = DefaultESVectorUtilSupport.soarDistanceByte(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    private void soarDistanceBulkByteSIMD(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        // Accumulate sqDist in int (byte diffs squared fit in int without overflow)
+        IntVector sqAcc0 = IntVector.zero(INTEGER_SPECIES);
+        IntVector sqAcc1 = IntVector.zero(INTEGER_SPECIES);
+        IntVector sqAcc2 = IntVector.zero(INTEGER_SPECIES);
+        IntVector sqAcc3 = IntVector.zero(INTEGER_SPECIES);
+        // Accumulate proj (dot of diff with float originalResidual) in float
+        FloatVector projAcc0 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector projAcc1 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector projAcc2 = FloatVector.zero(FLOAT_SPECIES);
+        FloatVector projAcc3 = FloatVector.zero(FLOAT_SPECIES);
+
+        final int byteLen = BYTE_SPECIES.length();
+        final int floatLen = FLOAT_SPECIES.length();
+        final int vectorEnd = BYTE_SPECIES.loopBound(v1.length);
+        int i = 0;
+        for (; i < vectorEnd; i += byteLen) {
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, v1, i);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, c0, i);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, c1, i);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, c2, i);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, c3, i);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                IntVector iq = (IntVector) qv.castShape(INTEGER_SPECIES, part);
+                IntVector diff0 = iq.sub(bv0.castShape(INTEGER_SPECIES, part));
+                IntVector diff1 = iq.sub(bv1.castShape(INTEGER_SPECIES, part));
+                IntVector diff2 = iq.sub(bv2.castShape(INTEGER_SPECIES, part));
+                IntVector diff3 = iq.sub(bv3.castShape(INTEGER_SPECIES, part));
+                // sqDist accumulation in int
+                sqAcc0 = sqAcc0.add(diff0.mul(diff0));
+                sqAcc1 = sqAcc1.add(diff1.mul(diff1));
+                sqAcc2 = sqAcc2.add(diff2.mul(diff2));
+                sqAcc3 = sqAcc3.add(diff3.mul(diff3));
+                // proj accumulation: convert diffs to float and FMA with originalResidual
+                FloatVector resVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + part * floatLen);
+                projAcc0 = fma((FloatVector) diff0.castShape(FLOAT_SPECIES, 0), resVec, projAcc0);
+                projAcc1 = fma((FloatVector) diff1.castShape(FLOAT_SPECIES, 0), resVec, projAcc1);
+                projAcc2 = fma((FloatVector) diff2.castShape(FLOAT_SPECIES, 0), resVec, projAcc2);
+                projAcc3 = fma((FloatVector) diff3.castShape(FLOAT_SPECIES, 0), resVec, projAcc3);
+            }
+        }
+        int sqDist0 = sqAcc0.reduceLanes(VectorOperators.ADD);
+        int sqDist1 = sqAcc1.reduceLanes(VectorOperators.ADD);
+        int sqDist2 = sqAcc2.reduceLanes(VectorOperators.ADD);
+        int sqDist3 = sqAcc3.reduceLanes(VectorOperators.ADD);
+        float proj0 = projAcc0.reduceLanes(VectorOperators.ADD);
+        float proj1 = projAcc1.reduceLanes(VectorOperators.ADD);
+        float proj2 = projAcc2.reduceLanes(VectorOperators.ADD);
+        float proj3 = projAcc3.reduceLanes(VectorOperators.ADD);
+        // scalar tail
+        for (; i < v1.length; i++) {
+            int diff0 = v1[i] - c0[i];
+            int diff1 = v1[i] - c1[i];
+            int diff2 = v1[i] - c2[i];
+            int diff3 = v1[i] - c3[i];
+            sqDist0 += diff0 * diff0;
+            sqDist1 += diff1 * diff1;
+            sqDist2 += diff2 * diff2;
+            sqDist3 += diff3 * diff3;
+            float res = originalResidual[i];
+            proj0 = Math.fma(diff0, res, proj0);
+            proj1 = Math.fma(diff1, res, proj1);
+            proj2 = Math.fma(diff2, res, proj2);
+            proj3 = Math.fma(diff3, res, proj3);
+        }
+        distances[0] = sqDist0 + soarLambda * proj0 * proj0 / rnorm;
+        distances[1] = sqDist1 + soarLambda * proj1 * proj1 / rnorm;
+        distances[2] = sqDist2 + soarLambda * proj2 * proj2 / rnorm;
+        distances[3] = sqDist3 + soarLambda * proj3 * proj3 / rnorm;
+    }
+
     private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
     private static final IntVector SHIFTS_256;
     private static final IntVector HIGH_SHIFTS_128;
@@ -1512,8 +1645,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void packDibit(int[] vector, byte[] packed) {
-        // TODO
         DefaultESVectorUtilSupport.packDibitImpl(vector, packed);
+    }
+
+    @Override
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.packDibitQuadImpl(vector, packed);
     }
 
     @Override
@@ -1748,6 +1885,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         // tail
         for (; i < dest.length; i++) {
             dest[i] = fma(other[i], scaleOther, dest[i]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
+        final int byteLen = BYTE_SPECIES.length();
+        final int floatLen = FLOAT_SPECIES.length();
+        final int vectorEnd = BYTE_SPECIES.loopBound(other.length);
+        int i = 0;
+        for (; i < vectorEnd; i += byteLen) {
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES, other, i);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                int offset = i + part * floatLen;
+                FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, offset);
+                FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, part);
+                destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
+                destVec.intoArray(dest, offset);
+            }
+        }
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
         }
     }
 

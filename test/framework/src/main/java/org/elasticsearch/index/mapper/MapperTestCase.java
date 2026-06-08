@@ -570,8 +570,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         for (var field : fields) {
-            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+            assertThat(field.fieldType().indexOptions(), equalTo(defaultDisabledIndexOption()));
         }
+    }
+
+    /**
+     * Most field types default to disabled indexing when IndexSettings.INDEX_DISABLED_BY_DEFAULT is set.
+     * Text-like fields are the notable exception.
+     */
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.NONE;
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -1350,6 +1358,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
 
         /**
+         * @return true when the field enforces single-value semantics (ie. {@code doc_values.multi_value: false}). In such cases, a doc
+         * with more than one value for the field is rejected at parse time and {@link #example} must only produce single-valued documents.
+         */
+        default boolean enforcesSingleValue() {
+            return false;
+        }
+
+        /**
          * Examples that should work when source is generated from doc values.
          */
         SyntheticSourceExample example(int maxValues) throws IOException;
@@ -1758,8 +1774,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepArrays() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS)
-            .example(1);
+        SyntheticSourceSupport support = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS);
+        assumeFalse("multi_value: false rejects documents with more than one value", support.enforcesSingleValue());
+        SyntheticSourceExample example = support.example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", randomSyntheticSourceKeep());
@@ -1803,17 +1820,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSingletonIntBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton<?>) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton<?>) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton<?>) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
@@ -1924,10 +1941,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(context).apply(breaker)) {
-                    assertThat(
-                        columnReader,
-                        anyOf(instanceOf(AbstractNumericBlockLoader.Sorted.class), instanceOf(AbstractNumericBlockLoader.Singleton.class))
-                    );
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));

@@ -885,6 +885,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .build()
         );
         ensureGreen(indexName);

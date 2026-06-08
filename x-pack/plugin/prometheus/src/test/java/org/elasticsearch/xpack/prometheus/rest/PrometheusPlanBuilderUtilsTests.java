@@ -38,7 +38,7 @@ public class PrometheusPlanBuilderUtilsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PrometheusPlanBuilderUtils.parseInstantSelectors(List.of("up[5m]"))
         );
-        assertThat(ex.getMessage(), containsString("instant vector selector"));
+        assertThat(ex.getMessage(), containsString("match[] selector must be an instant vector selector, got: [up[5m]]"));
     }
 
     public void testParseInstantSelectorsRejectsInvalidSyntax() {
@@ -46,7 +46,12 @@ public class PrometheusPlanBuilderUtilsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> PrometheusPlanBuilderUtils.parseInstantSelectors(List.of("{not valid!!!}"))
         );
-        assertThat(ex.getMessage(), containsString("Invalid match[] selector"));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Invalid match[] selector [{not valid!!!}]: line 1:6: mismatched input 'valid' expecting {'!=', '=', '=~', '!~', '}', ','}"
+            )
+        );
     }
 
     public void testBuildPreInfoSelectorConditionReturnsIsNotNullForBareMetricName() {

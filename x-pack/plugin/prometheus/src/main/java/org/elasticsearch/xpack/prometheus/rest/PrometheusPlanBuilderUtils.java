@@ -175,6 +175,7 @@ final class PrometheusPlanBuilderUtils {
                 }
                 // matchesAll() == true: automaton accepts every string (e.g. =~".*") — no constraint needed
             } else {
+                // Regular label matchers, e.g. job="myjob" in {job="myjob"}.
                 Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(
                     Source.EMPTY,
                     new UnresolvedAttribute(Source.EMPTY, matcher.name()),

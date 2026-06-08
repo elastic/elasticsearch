@@ -356,6 +356,24 @@ public class Augmentation {
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Collection.html
 
     /**
+     * Cancellation-aware {@code collect(Function)}.  Maps every element of {@code receiver} via
+     * {@code function} into a new list, polling {@link PainlessScript#_pollCancellation()} once per
+     * element.  Delegates to {@link #collect(Collection, Function)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T, U> List<U> collect(PainlessScript script, Collection<T> receiver, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, function);
+        }
+        List<U> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(function.apply(t));
+            script._pollCancellation();
+        }
+        return list;
+    }
+
+    /**
      * Iterates through this collection transforming each entry into a new value using
      * the function, returning a list of transformed values.
      */
@@ -365,6 +383,24 @@ public class Augmentation {
             list.add(function.apply(t));
         }
         return list;
+    }
+
+    /**
+     * Cancellation-aware {@code collect(Collection, Function)}.  Maps every element of {@code receiver}
+     * via {@code function} and appends each result to {@code collection}, polling
+     * {@link PainlessScript#_pollCancellation()} once per element.  Delegates to
+     * {@link #collect(Collection, Collection, Function)} when the script has no cancellation check
+     * installed.
+     */
+    public static <T, U> Object collect(PainlessScript script, Collection<T> receiver, Collection<U> collection, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, collection, function);
+        }
+        for (T t : receiver) {
+            collection.add(function.apply(t));
+            script._pollCancellation();
+        }
+        return collection;
     }
 
     /**
@@ -379,6 +415,26 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code find}.  Returns the first element matching {@code predicate}, or
+     * {@code null}; short-circuits on the first match.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per non-matching element so a worst-case
+     * (no-match) scan honours search timeouts.  Delegates to {@link #find(Collection, Predicate)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> T find(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return find(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                return t;
+            }
+            script._pollCancellation();
+        }
+        return null;
+    }
+
+    /**
      * Finds the first value matching the predicate, or returns null.
      */
     public static <T> T find(Collection<T> receiver, Predicate<T> predicate) {
@@ -388,6 +444,26 @@ public class Augmentation {
             }
         }
         return null;
+    }
+
+    /**
+     * Cancellation-aware {@code findAll}.  Collects every element matching {@code predicate}, polling
+     * {@link PainlessScript#_pollCancellation()} once per element so the full scan honours search
+     * timeouts.  Delegates to {@link #findAll(Collection, Predicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T> List<T> findAll(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return findAll(receiver, predicate);
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                list.add(t);
+            }
+            script._pollCancellation();
+        }
+        return list;
     }
 
     /**
@@ -404,12 +480,42 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResult(Function)}.  Delegates to the three-arg script-aware
+     * overload with a {@code null} default.
+     */
+    public static <T, U> Object findResult(PainlessScript script, Collection<T> receiver, Function<T, U> function) {
+        return findResult(script, receiver, null, function);
+    }
+
+    /**
      * Iterates through the collection calling the given function for each item
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
     public static <T, U> Object findResult(Collection<T> receiver, Function<T, U> function) {
         return findResult(receiver, null, function);
+    }
+
+    /**
+     * Cancellation-aware {@code findResult(Object, Function)}.  Returns the first non-null result of
+     * applying {@code function} to an element, or {@code defaultResult} when no element produces a
+     * non-null result.  Polls {@link PainlessScript#_pollCancellation()} after each null-yielding
+     * element so a worst-case (all-null) scan honours search timeouts.  Delegates to
+     * {@link #findResult(Collection, Object, Function)} when the script has no cancellation check
+     * installed.
+     */
+    public static <T, U> Object findResult(PainlessScript script, Collection<T> receiver, Object defaultResult, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return findResult(receiver, defaultResult, function);
+        }
+        for (T t : receiver) {
+            U value = function.apply(t);
+            if (value != null) {
+                return value;
+            }
+            script._pollCancellation();
+        }
+        return defaultResult;
     }
 
     /**
@@ -425,6 +531,32 @@ public class Augmentation {
             }
         }
         return defaultResult;
+    }
+
+    /**
+     * Cancellation-aware {@code split}.  Partitions {@code receiver} into matched and unmatched lists,
+     * polling {@link PainlessScript#_pollCancellation()} once per element so the full scan honours
+     * search timeouts.  Delegates to {@link #split(Collection, Predicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T> List<List<T>> split(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return split(receiver, predicate);
+        }
+        List<T> matched = new ArrayList<>();
+        List<T> unmatched = new ArrayList<>();
+        List<List<T>> result = new ArrayList<>(2);
+        result.add(matched);
+        result.add(unmatched);
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                matched.add(t);
+            } else {
+                unmatched.add(t);
+            }
+            script._pollCancellation();
+        }
+        return result;
     }
 
     /**

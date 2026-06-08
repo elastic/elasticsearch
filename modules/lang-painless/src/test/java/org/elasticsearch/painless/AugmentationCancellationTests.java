@@ -689,4 +689,60 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
     }
+
+    // --- Collection script-aware augmentations: per-method fires tests ---
+
+    /** {@code collect(Function)} maps every element and must poll. */
+    public void testCollectFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.collect(x -> x.toString());"), "cancelled-collect-fn");
+    }
+
+    /** {@code collect(Collection, Function)} maps every element into the given collection and must poll. */
+    public void testCollectCollectionFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.collect(new ArrayList(), x -> x.toString());"), "cancelled-collect-coll-fn");
+    }
+
+    /** {@code find} with an always-false predicate scans the whole collection and must poll. */
+    public void testFindAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.find(x -> false);"), "cancelled-find");
+    }
+
+    /** {@code findAll} visits every element and must poll. */
+    public void testFindAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findAll(x -> false);"), "cancelled-findall");
+    }
+
+    /** {@code findResult(Function)} with an always-null function scans the whole collection and must poll. */
+    public void testFindResultFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResult(x -> null);"), "cancelled-findresult-fn");
+    }
+
+    /** {@code findResult(default, Function)} with an always-null function scans the whole collection and must poll. */
+    public void testFindResultDefaultFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResult('none', x -> null);"), "cancelled-findresult-default-fn");
+    }
+
+    /** {@code split} partitions every element and must poll. */
+    public void testSplitAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.split(x -> x % 2 == 0);"), "cancelled-split");
+    }
+
+    /**
+     * Each new Collection script-aware augmentation must take the no-poll fast path when the script
+     * has no cancellation check installed.  Exercises all seven new methods in one script execution.
+     */
+    public void testCollectionAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.collect(x -> x.toString()); "
+                + "big.collect(new ArrayList(), x -> x.toString()); "
+                + "big.find(x -> false); "
+                + "big.findAll(x -> false); "
+                + "big.findResult(x -> null); "
+                + "big.findResult('none', x -> null); "
+                + "big.split(x -> x % 2 == 0);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
 }

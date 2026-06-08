@@ -31,13 +31,13 @@ class java.util.Collection {
   def[] toArray(def[])
 
   # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation collect(Function)
-  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function)
-  def org.elasticsearch.painless.api.Augmentation find(Predicate)
-  List org.elasticsearch.painless.api.Augmentation findAll(Predicate)
-  def org.elasticsearch.painless.api.Augmentation findResult(Function)
-  def org.elasticsearch.painless.api.Augmentation findResult(def,Function)
-  List org.elasticsearch.painless.api.Augmentation split(Predicate)
+  List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation find(Predicate) @script_aware
+  List org.elasticsearch.painless.api.Augmentation findAll(Predicate) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(def,Function) @script_aware
+  List org.elasticsearch.painless.api.Augmentation split(Predicate) @script_aware
 }
 
 class java.util.Comparator {

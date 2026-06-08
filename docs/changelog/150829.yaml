@@ -1,6 +1,0 @@
-area: Distributed
-issues:
- - 125291
-pr: 150829
-summary: Improve logging in `PublishResponseHandler's` `onFailure` method
-type: enhancement

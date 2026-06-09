@@ -315,7 +315,12 @@ public final class DateFieldMapper extends FieldMapper {
                     // Other modes use them by default, with special override logic for certain versions and sort configurations.
                     return indexSettings.getMode().isStrictColumnar() == false || indexSettings.useDocValuesSkipper() == false;
                 }
-                return indexSettings.isIndexDisabledByDefault() == false;
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+                // In strict columnar mode, default to not indexing the field when doc values skippers are enabled,
+                // so the field can rely on skippers for range-style filters.
+                return indexSettings.getMode().isStrictColumnar() == false || indexSettings.useDocValuesSkipper() == false;
             });
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();

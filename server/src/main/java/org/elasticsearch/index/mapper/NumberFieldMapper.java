@@ -95,7 +95,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useDocValuesSkippersByDefault;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -196,7 +196,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return false;
                 }
 
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useDocValuesSkippersByDefault(indexSettings, dimension.get())) {
                     return false;
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
@@ -250,7 +250,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return IndexType.archivedPoints();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useDocValuesSkippersByDefault(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
                 if (indexSettings.useDocValuesSkipper()

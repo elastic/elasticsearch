@@ -116,7 +116,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useDocValuesSkippersByDefault;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -544,7 +544,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private boolean shouldUseTimeSeriesSkipper() {
             return docValuesParameters.getValue().enabled()
                 && indexed.get() == false
-                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
+                && useDocValuesSkippersByDefault(indexSettings, dimension.get());
         }
 
         private boolean shouldUseHostnameSkipper(final String fullFieldName) {

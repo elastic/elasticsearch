@@ -160,6 +160,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
+                // In strict columnar mode, default to not indexing the field when doc values skippers are enabled,
+                // so the field can rely on skippers for range-style filters.
+                if (indexSettings.getMode().isStrictColumnar() && indexSettings.useDocValuesSkipper()) {
+                    return false;
+                }
 
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();

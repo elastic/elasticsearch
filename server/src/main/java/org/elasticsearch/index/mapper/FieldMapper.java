@@ -1386,7 +1386,7 @@ public abstract class FieldMapper extends Mapper {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
-                return useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false;
+                return useDocValuesSkippersByDefault(indexSettings, isDimension.get()) == false;
             });
         }
 
@@ -1401,6 +1401,24 @@ public abstract class FieldMapper extends Mapper {
                 return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
             }
             return false;
+        }
+
+        /**
+         * Returns {@code true} if doc values skippers should be used by default for fields in the given index. This is the case for
+         * time series mode (subject to version checks via {@link #useTimeSeriesDocValuesSkippers}), and for strict columnar modes
+         * where skippers replace inverted indexes by default whenever {@link IndexSettings#useDocValuesSkipper()} is enabled.
+         * <p>
+         * Callers use this helper to determine the default value of the {@code index} mapping parameter: when this method returns
+         * {@code true}, fields should default to not being indexed in favour of doc values skippers.
+         */
+        public static boolean useDocValuesSkippersByDefault(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.useDocValuesSkipper() == false) {
+                return false;
+            }
+            if (indexSettings.getMode().isStrictColumnar()) {
+                return true;
+            }
+            return useTimeSeriesDocValuesSkippers(indexSettings, isDimension);
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {

@@ -75,7 +75,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useDocValuesSkippersByDefault;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongLeafFieldData.convertUnsignedLongToDouble;
 
 public class UnsignedLongFieldMapper extends FieldMapper {
@@ -143,7 +143,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return false;
                 }
 
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useDocValuesSkippersByDefault(indexSettings, dimension.get())) {
                     return false;
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
@@ -209,7 +209,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useDocValuesSkippersByDefault(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
                 if (indexSettings.useDocValuesSkipper()

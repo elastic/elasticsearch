@@ -2186,6 +2186,45 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }));
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
+
+        // Doc values skippers are enabled by default in columnar index modes for indices created on or after
+        // SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB. Test using the current index version to verify the default behavior.
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            IndexVersion columnarSkipperVersion = IndexVersionUtils.randomVersionBetween(
+                IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB,
+                IndexVersion.current()
+            );
+            for (IndexMode columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+                Settings columnarDefaultSkipper = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+                MapperService mapperService = createMapperService(columnarSkipperVersion, columnarDefaultSkipper, fieldMapping(b -> {
+                    minimalMapping(b);
+                    b.field("doc_values", true);
+                }));
+                assertThat(
+                    "expected skippers to be used by default for [" + columnarMode + "] mode",
+                    mapperService.fieldType("field").indexType(),
+                    equalTo(IndexType.skippers())
+                );
+            }
+
+            // Explicitly disabling the skipper setting overrides the columnar default.
+            for (IndexMode columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+                Settings columnarSkipperDisabled = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), columnarMode.getName())
+                    .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+                    .build();
+                MapperService mapperService = createMapperService(columnarSkipperVersion, columnarSkipperDisabled, fieldMapping(b -> {
+                    minimalMapping(b);
+                    b.field("doc_values", true);
+                    b.field("index", false);
+                }));
+                assertThat(
+                    "expected doc_values only when skippers are disabled for [" + columnarMode + "] mode",
+                    mapperService.fieldType("field").indexType(),
+                    equalTo(IndexType.docValuesOnly())
+                );
+            }
+        }
     }
 
     /**

@@ -66,7 +66,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
-import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useTimeSeriesDocValuesSkippers;
+import static org.elasticsearch.index.mapper.FieldMapper.Parameter.useDocValuesSkippersByDefault;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -198,7 +198,7 @@ public class IpFieldMapper extends FieldMapper {
                 // Disable skippers if using binary doc values
                 return IndexType.points(indexed.get(), true);
             }
-            if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+            if (useDocValuesSkippersByDefault(indexSettings, dimension.get())) {
                 return IndexType.skippers();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {

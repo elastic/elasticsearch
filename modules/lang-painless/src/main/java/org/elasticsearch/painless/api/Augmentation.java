@@ -741,23 +741,18 @@ public class Augmentation {
 
     /**
      * Cancellation-aware {@code each} on Map.  Visits every entry, polling
-     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
-     * {@link #each(Map, BiConsumer)} when the script has no cancellation check installed.
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to
+     * {@link Map#forEach} when the script has no cancellation check installed.
      */
     public static <K, V> Object each(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
         if (script._getCancellationCheck() == null) {
-            return each(receiver, consumer);
+            receiver.forEach(consumer);
+            return receiver;
         }
         for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             consumer.accept(kvPair.getKey(), kvPair.getValue());
             script._pollCancellation();
         }
-        return receiver;
-    }
-
-    /** Iterates through a Map, passing each item to the given consumer. */
-    public static <K, V> Object each(Map<K, V> receiver, BiConsumer<K, V> consumer) {
-        receiver.forEach(consumer);
         return receiver;
     }
 

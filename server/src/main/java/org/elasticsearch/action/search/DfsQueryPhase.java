@@ -87,10 +87,11 @@ class DfsQueryPhase extends SearchPhase {
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();
+            ShardSearchRequest shardSearchRequest = context.buildShardSearchRequest(context.shardIterators[shardIndex], shardIndex);
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),
-                rewriteShardSearchRequest(knnResults, dfsResult.getShardSearchRequest()),
+                rewriteShardSearchRequest(knnResults, shardSearchRequest),
                 dfs
             );
             final Transport.Connection connection;

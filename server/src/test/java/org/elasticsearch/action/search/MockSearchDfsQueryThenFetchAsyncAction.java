@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.CloseableConnection;
@@ -62,15 +63,15 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             mock(SearchTransportService.class),
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (clusterAlias, nodeId) -> createMockConnection(nodeId),
-            null,
-            null,
+            Map.of("uuid", AliasFilter.EMPTY),
+            Map.of(),
             Runnable::run,
             null,
-            new SearchRequest(),
+            new SearchRequest().allowPartialSearchResults(true),
             ActionListener.noop(),
             createShardIterators(numShards),
             Collections.emptyMap(),
-            null,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             null,
@@ -87,7 +88,7 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
         List<SearchShardIterator> shardIterators = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
             shardIterators.add(
-                new SearchShardIterator(null, new ShardId("index", "_na", i), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
+                new SearchShardIterator(null, new ShardId("index", "uuid", i), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
             );
         }
         return shardIterators;

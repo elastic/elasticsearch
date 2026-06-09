@@ -2937,7 +2937,7 @@ public class EsqlCapabilities {
         /**
          * Match function and match operator support for runtime expressions, not just ES mapped fields.
          */
-        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+        MATCH_RUNTIME_SEARCH(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.

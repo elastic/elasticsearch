@@ -413,7 +413,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled()
+        return EsqlCapabilities.Cap.MATCH_RUNTIME_SEARCH.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
             && fieldAsFieldAttribute() == null;
     }
@@ -433,16 +433,28 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return super.toEvaluator(toEvaluator);
         }
 
-        if (field.dataType() == TEXT) {
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryAsObject().toString(), new StandardAnalyzer());
-        }
-
         Object queryObject = Foldables.queryAsObject(query(), sourceText());
         String queryString = queryObject instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : null;
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case BYTES_REF -> {
+                if (field.dataType() == TEXT) {
+                    yield new MatchTextEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(field()),
+                        queryAsObject().toString(),
+                        new StandardAnalyzer()
+                    );
+                }
+
                 assert queryObject instanceof BytesRef;
+                if (field.dataType() == IP && DataType.isString(query().dataType())) {
+                    queryObject = EsqlDataTypeConverter.stringToIP(queryString);
+                }
+                if (field.dataType() == VERSION && DataType.isString(query().dataType())) {
+                    queryObject = EsqlDataTypeConverter.stringToVersion(queryString);
+                }
+
                 yield new MatchBytesRefEvaluator.Factory(
                     source(),
                     toEvaluator.apply(field()),
@@ -460,11 +472,26 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                 toEvaluator.apply(field()),
                 queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryObject).doubleValue()
             );
-            case LONG -> new MatchLongEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field()),
-                queryString != null ? EsqlDataTypeConverter.stringToLong(queryString) : ((Number) queryObject).longValue()
-            );
+            case LONG -> {
+                if (field().dataType().isNumeric()) {
+                    queryObject = queryString != null
+                        ? EsqlDataTypeConverter.stringToLong(queryString)
+                        : ((Number) queryObject).longValue();
+                }
+                if (field().dataType() == DATETIME) {
+                    queryObject = queryString != null
+                        ? EsqlDataTypeConverter.dateTimeToLong(queryString)
+                        : ((Number) queryObject).longValue();
+                }
+                if (field().dataType() == DATE_NANOS) {
+                    queryObject = queryString != null
+                        ? EsqlDataTypeConverter.dateNanosToLong(queryString)
+                        : ((Number) queryObject).longValue();
+                }
+
+                assert queryObject instanceof Long;
+                yield new MatchLongEvaluator.Factory(source(), toEvaluator.apply(field()), (Long) queryObject);
+            }
             case INT -> new MatchIntegerEvaluator.Factory(
                 source(),
                 toEvaluator.apply(field()),

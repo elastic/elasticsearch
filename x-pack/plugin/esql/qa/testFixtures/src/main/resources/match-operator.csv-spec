@@ -1053,7 +1053,7 @@ constant_keyword-foo:keyword | keyword:keyword
 matchOnRuntimeText
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1074,7 +1074,7 @@ book_no:keyword | title:text
 matchOnRuntimeTextAndIndexedField
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1096,7 +1096,7 @@ book_no:keyword | title:text
 matchOnTextWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1114,7 +1114,7 @@ This is a brown dog
 matchOnTextWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1132,7 +1132,7 @@ This dog is really brown
 matchOnTextWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1151,7 +1151,7 @@ content:text
 matchOnRuntimeKeyword
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1170,7 +1170,7 @@ emp_no:integer | full_name:keyword
 matchOnRuntimeKeywordWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1186,7 +1186,7 @@ foobar
 matchOnKeywordWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1204,7 +1204,7 @@ foobar
 matchOnKeywordWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1221,7 +1221,7 @@ content:keyword
 matchOnRuntimeBoolean
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1244,7 +1244,7 @@ emp_no:integer | first_name:keyword | x:boolean
 matchOnRuntimeBooleanWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1263,7 +1263,7 @@ foobar          |true
 matchOnBooleanWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1282,7 +1282,7 @@ foobar          | true
 matchOnBooleanWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1301,7 +1301,7 @@ foobar          | [true, false]
 matchOnRuntimeDouble
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1321,7 +1321,7 @@ emp_no:integer | x:double
 matchOnRuntimeDoubleWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1339,7 +1339,7 @@ a:double
 matchOnDoubleWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1359,7 +1359,7 @@ a:double
 matchOnDoubleWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1378,7 +1378,7 @@ a:double
 matchOnRuntimeLong
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1397,7 +1397,7 @@ emp_no:integer | x:long
 matchOnRuntimeLongWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1415,7 +1415,7 @@ a:long
 matchOnLongWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1434,7 +1434,7 @@ a:long
 matchOnLongWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1453,7 +1453,7 @@ a:long
 matchOnRuntimeInteger
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1472,7 +1472,7 @@ emp_no:integer | x:integer
 matchOnRuntimeIntegerWithRow
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1490,7 +1490,7 @@ a:integer
 matchOnIntegerWithRowAndNullValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1509,7 +1509,7 @@ a:integer
 matchOnIntegerWithRowAndMultiValues
 
 required_capability: match_operator_colon
-required_capability: match_support_runtime_text
+required_capability: match_runtime_search
 
 pragma: runtime_lexical_search=true
 
@@ -1523,4 +1523,281 @@ ROW a = [100, 200, 300, 400]
 a:integer
 [100, 200]
 [200, 300]
+;
+
+matchOnRuntimeIp
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM hosts
+| EVAL my_ip = CASE(mv_contains(ip0, ip1), ip0, ip1)
+| WHERE my_ip:"127.0.0.1"
+| SORT host, my_ip, card
+| LIMIT 3
+| KEEP host, my_ip, ip0, ip1
+;
+
+host:keyword | my_ip:ip                          | ip0:ip    | ip1:ip
+alpha        | 127.0.0.1                         | 127.0.0.1 | 127.0.0.1
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3] | null      | [127.0.0.1, 127.0.0.2, 127.0.0.3]
+;
+
+matchOnRuntimeIpWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+127.0.0.1
+;
+
+matchOnIpWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content =  ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| EVAL content = CASE(content == "::1", NULL, "127.0.0.1"::ip)
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+127.0.0.1
+127.0.0.1
+;
+
+matchOnIpWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["127.0.0.1", "fe80::cae2:65ff:fece:feb9", "::1"]::ip
+| MV_EXPAND content
+| EVAL content = mv_append(content, "127.0.0.3"::ip)
+| WHERE content:"127.0.0.1"
+;
+
+content:ip
+[127.0.0.1, 127.0.0.3]
+;
+
+matchOnRuntimeVersion
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM apps
+| EVAL x = concat(version::string, ".1")::version
+| WHERE x:"1.1" OR x:"5.2.9" OR version:"bad"
+| SORT id
+| KEEP id, version, x
+;
+
+id:integer | version:version | x:version
+1          | 1               | 1.1
+9          | bad             | bad.1
+;
+
+matchOnRuntimeVersionWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| WHERE content:"1.2.3"
+;
+
+content:version
+1.2.3
+;
+
+matchOnVersionWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| EVAL content = CASE(content == "1.2.3.4"::version, NULL, "1.2.3"::version)
+| WHERE content:"1.2.3"
+;
+
+content:version
+1.2.3
+1.2.3
+;
+
+matchOnVersionWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1.2.3", "1.2.3.4", "1.2.3-SNAPSHOT"]::version
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2.3"::version)
+| WHERE content:"1.2.3"
+;
+
+content:version
+[1.2.3, 2.3]
+;
+
+matchOnRuntimeDatetime
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string)
+| where new_date:"1959-10-01"
+| keep emp_no, new_date, birth_date
+;
+
+emp_no:integer | new_date:datetime        | birth_date:datetime
+10039          | 1959-10-01T00:00:00.000Z | 1959-10-01T00:00:00.000Z
+;
+
+matchOnRuntimeDatetimeWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+1965-09-23T00:00:00.000Z
+;
+
+matchOnDatetimeWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| EVAL content = CASE(content > "1980-09-23T00:00:00.000Z"::datetime, NULL, content)
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+1965-09-23T00:00:00.000Z
+;
+
+matchOnDatetimeWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1965-01-29T00:00:00.000Z", "1965-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::datetime
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2026-09-12T00:00:00.000Z"::datetime)
+| WHERE content:"1965-09-23T00:00:00.000Z"
+;
+
+content:datetime
+[1965-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
+;
+
+matchOnRuntimeDateNanos
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+FROM employees
+| eval birth_date_string = date_format("yyyy-MM-dd", birth_date + 100y)
+| eval new_date = date_parse("yyyy-MM-dd", birth_date_string)::date_nanos
+| where new_date:"2059-10-01"
+| keep emp_no, new_date, birth_date
+;
+
+emp_no:integer | new_date:date_nanos      | birth_date:datetime
+10039          | 2059-10-01T00:00:00.000Z | 1959-10-01T00:00:00.000Z
+;
+
+matchOnRuntimeDateNanosWithRow
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| WHERE content:"1980-01-29T00:00:00.000Z"
+;
+
+content:date_nanos
+1980-01-29T00:00:00.000Z
+;
+
+matchOnDateNanosWithRowAndNullValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| EVAL content = CASE(content < "1985-01-01T00:00:00.000Z"::date_nanos, NULL, content)
+| WHERE content:"1990-09-23T00:00:00.000Z"
+;
+
+content:date_nanos
+1990-09-23T00:00:00.000Z
+;
+
+matchOnDateNanosWithRowAndMultiValues
+
+required_capability: match_operator_colon
+required_capability: match_runtime_search
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["1980-01-29T00:00:00.000Z", "1990-09-23T00:00:00.000Z", "1987-06-02T00:00:00.000Z"]::date_nanos
+| MV_EXPAND content
+| EVAL content = mv_append(content, "2026-09-12T00:00:00.000Z"::date_nanos)
+| WHERE content:"1990-09-23T00:00:00.000Z"
+;
+
+content:date_nanos
+[1990-09-23T00:00:00.000Z, 2026-09-12T00:00:00.000Z]
 ;

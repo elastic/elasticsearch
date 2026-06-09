@@ -77,7 +77,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public enum Mode {
         DISABLED,
         STORED,
-        SYNTHETIC
+        SYNTHETIC,
+        COLUMNAR_STORED
     }
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(
@@ -100,6 +101,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     private static final SourceFieldMapper SYNTHETIC = new SourceFieldMapper(
         Mode.SYNTHETIC,
+        Explicit.IMPLICIT_TRUE,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY,
+        false,
+        false
+    );
+
+    private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
+        Mode.COLUMNAR_STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
@@ -281,6 +291,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return resolveSourceMode() == Mode.SYNTHETIC;
         }
 
+        public boolean isColumnarStored() {
+            return resolveSourceMode() == Mode.COLUMNAR_STORED;
+        }
+
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
@@ -306,6 +320,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
+            case COLUMNAR_STORED -> COLUMNAR_STORED;
         };
     }
 
@@ -443,8 +458,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
+        final boolean useColumnarSource = mode == Mode.COLUMNAR_STORED;
 
-        if (adaptedStoredSource != null) {
+        if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
@@ -453,15 +469,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
+        assert useColumnarSource == false || syntheticRecovery : "columnar_stored source requires synthetic recovery source";
+
         if (syntheticRecovery) {
-            assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+            assert isSynthetic() || isColumnarStored() : "Recovery source should not be disabled for non-synthetic sources";
             // Synthetic source recovery is enabled; omit the full recovery source.
             // Instead, store only the size of the uncompressed original source.
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
         } else if (stored() == false || adaptedStoredSource != storedSource) {
-            // If the source is missing (due to synthetic source or disabled mode)
+            // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
             var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
@@ -561,6 +579,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    public boolean isColumnarStored() {
+        return mode == Mode.COLUMNAR_STORED;
     }
 
     /**

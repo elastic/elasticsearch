@@ -163,7 +163,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             );
             if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
+                SourceFieldMapper.Mode fallbackMode = fallbackSourceMode(settings, templateIndexMode);
+                additionalSettings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), fallbackMode.toString());
             }
         }
 
@@ -392,6 +393,20 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         return tmpIndexMetadata.build();
+    }
+
+    /**
+     * Returns the source mode to fall back to when synthetic source is not licensed.
+     * Strictly-columnar index modes ({@code columnar} and {@code logsdb_columnar}) do not support
+     * {@link SourceFieldMapper.Mode#STORED}, so they fall back to {@link SourceFieldMapper.Mode#COLUMNAR_STORED}.
+     * All other index modes fall back to {@link SourceFieldMapper.Mode#STORED}.
+     */
+    private static SourceFieldMapper.Mode fallbackSourceMode(Settings settings, IndexMode templateIndexMode) {
+        IndexMode indexMode = resolveIndexMode(settings.get(IndexSettings.MODE.getKey()));
+        if (indexMode == null) {
+            indexMode = templateIndexMode;
+        }
+        return indexMode != null && indexMode.isStrictColumnar() ? SourceFieldMapper.Mode.COLUMNAR_STORED : SourceFieldMapper.Mode.STORED;
     }
 
     /**

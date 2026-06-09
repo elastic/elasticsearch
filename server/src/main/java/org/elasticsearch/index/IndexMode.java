@@ -475,6 +475,11 @@ public enum IndexMode {
         }
 
         @Override
+        public List<SourceFieldMapper.Mode> supportedSourceModes() {
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
+        }
+
+        @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
@@ -569,6 +574,11 @@ public enum IndexMode {
         @Override
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        @Override
+        public List<SourceFieldMapper.Mode> supportedSourceModes() {
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
         }
 
         @Override
@@ -832,6 +842,13 @@ public enum IndexMode {
      * @return default source mode for this mode
      */
     public abstract SourceFieldMapper.Mode defaultSourceMode();
+
+    /**
+     * @return source modes supported by this index mode
+     */
+    public List<SourceFieldMapper.Mode> supportedSourceModes() {
+        return List.of(SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED, SourceFieldMapper.Mode.SYNTHETIC);
+    }
 
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;

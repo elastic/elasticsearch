@@ -62,23 +62,18 @@ public class Augmentation {
     /**
      * Cancellation-aware wrapper around {@link Iterable#forEach}.  Polls
      * {@link PainlessScript#_pollCancellation()} once per element so a long iteration honours search
-     * timeouts.  Delegates to {@link #forEach(Iterable, Consumer)} when the script has no cancellation
-     * check installed.
+     * timeouts.  Fast path delegates straight to the JDK when the script has no cancellation check
+     * installed.
      */
     public static <T> void forEach(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
         if (script._getCancellationCheck() == null) {
-            forEach(receiver, consumer);
+            receiver.forEach(consumer);
             return;
         }
         for (T t : receiver) {
             consumer.accept(t);
             script._pollCancellation();
         }
-    }
-
-    /** Plain delegation to {@link Iterable#forEach} used as the fast path of the script-aware overload. */
-    public static <T> void forEach(Iterable<T> receiver, Consumer<T> consumer) {
-        receiver.forEach(consumer);
     }
 
     // some groovy methods on iterable
@@ -369,13 +364,13 @@ public class Augmentation {
     /**
      * Cancellation-aware wrapper around {@link Collection#removeIf}.  Iterates explicitly via the
      * receiver's iterator so each {@link Predicate#test} invocation can be followed by a
-     * {@link PainlessScript#_pollCancellation()} call.  Delegates to
-     * {@link #removeIf(Collection, Predicate)} when the script has no cancellation check installed
-     * (which preserves the JDK implementation's optimisations on collections that override removeIf).
+     * {@link PainlessScript#_pollCancellation()} call.  Fast path delegates straight to the JDK when
+     * the script has no cancellation check installed (preserving optimisations on collections that
+     * override removeIf, e.g. {@code ArrayList}).
      */
     public static <T> boolean removeIf(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
         if (script._getCancellationCheck() == null) {
-            return removeIf(receiver, predicate);
+            return receiver.removeIf(predicate);
         }
         boolean removed = false;
         Iterator<T> iter = receiver.iterator();
@@ -387,11 +382,6 @@ public class Augmentation {
             script._pollCancellation();
         }
         return removed;
-    }
-
-    /** Plain delegation to {@link Collection#removeIf} used as the fast path of the script-aware overload. */
-    public static <T> boolean removeIf(Collection<T> receiver, Predicate<T> predicate) {
-        return receiver.removeIf(predicate);
     }
 
     // some groovy methods on collection
@@ -623,12 +613,12 @@ public class Augmentation {
 
     /**
      * Cancellation-aware wrapper around {@link Map#forEach}.  Iterates the entry set and polls
-     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
-     * {@link #forEach(Map, BiConsumer)} when the script has no cancellation check installed.
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to the
+     * JDK when the script has no cancellation check installed.
      */
     public static <K, V> void forEach(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
         if (script._getCancellationCheck() == null) {
-            forEach(receiver, consumer);
+            receiver.forEach(consumer);
             return;
         }
         for (Map.Entry<K, V> entry : receiver.entrySet()) {
@@ -637,31 +627,21 @@ public class Augmentation {
         }
     }
 
-    /** Plain delegation to {@link Map#forEach} used as the fast path of the script-aware overload. */
-    public static <K, V> void forEach(Map<K, V> receiver, BiConsumer<K, V> consumer) {
-        receiver.forEach(consumer);
-    }
-
     /**
      * Cancellation-aware wrapper around {@link Map#replaceAll}.  Walks the entry set, computes each
      * new value via {@code function}, and writes it back through {@link Map.Entry#setValue}, polling
-     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
-     * {@link #replaceAll(Map, BiFunction)} when the script has no cancellation check installed.
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to the
+     * JDK when the script has no cancellation check installed.
      */
     public static <K, V> void replaceAll(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, V> function) {
         if (script._getCancellationCheck() == null) {
-            replaceAll(receiver, function);
+            receiver.replaceAll(function);
             return;
         }
         for (Map.Entry<K, V> entry : receiver.entrySet()) {
             entry.setValue(function.apply(entry.getKey(), entry.getValue()));
             script._pollCancellation();
         }
-    }
-
-    /** Plain delegation to {@link Map#replaceAll} used as the fast path of the script-aware overload. */
-    public static <K, V> void replaceAll(Map<K, V> receiver, BiFunction<K, V, V> function) {
-        receiver.replaceAll(function);
     }
 
     // some groovy methods on map
@@ -1018,13 +998,12 @@ public class Augmentation {
     /**
      * Cancellation-aware wrapper around {@link List#replaceAll}.  Uses a {@link ListIterator} so each
      * {@link UnaryOperator#apply} call can be followed by a {@link PainlessScript#_pollCancellation()}
-     * call.  Delegates to {@link #replaceAll(List, UnaryOperator)} when the script has no
-     * cancellation check installed (which preserves the JDK implementation's optimisations on lists
-     * that override replaceAll).
+     * call.  Fast path delegates straight to the JDK when the script has no cancellation check
+     * installed (preserving optimisations on lists that override replaceAll, e.g. {@code ArrayList}).
      */
     public static <T> void replaceAll(PainlessScript script, List<T> receiver, UnaryOperator<T> operator) {
         if (script._getCancellationCheck() == null) {
-            replaceAll(receiver, operator);
+            receiver.replaceAll(operator);
             return;
         }
         ListIterator<T> iter = receiver.listIterator();
@@ -1034,20 +1013,15 @@ public class Augmentation {
         }
     }
 
-    /** Plain delegation to {@link List#replaceAll} used as the fast path of the script-aware overload. */
-    public static <T> void replaceAll(List<T> receiver, UnaryOperator<T> operator) {
-        receiver.replaceAll(operator);
-    }
-
     /**
      * Cancellation-aware wrapper around {@link Iterator#forEachRemaining}.  Walks the receiver via
      * {@link Iterator#hasNext}/{@link Iterator#next} and polls {@link PainlessScript#_pollCancellation()}
-     * once per element.  Delegates to {@link #forEachRemaining(Iterator, Consumer)} when the script
-     * has no cancellation check installed.
+     * once per element.  Fast path delegates straight to the JDK when the script has no cancellation
+     * check installed.
      */
     public static <T> void forEachRemaining(PainlessScript script, Iterator<T> receiver, Consumer<T> consumer) {
         if (script._getCancellationCheck() == null) {
-            forEachRemaining(receiver, consumer);
+            receiver.forEachRemaining(consumer);
             return;
         }
         while (receiver.hasNext()) {
@@ -1056,32 +1030,21 @@ public class Augmentation {
         }
     }
 
-    /** Plain delegation to {@link Iterator#forEachRemaining} used as the fast path of the script-aware overload. */
-    public static <T> void forEachRemaining(Iterator<T> receiver, Consumer<T> consumer) {
-        receiver.forEachRemaining(consumer);
-    }
-
     /**
      * Cancellation-aware wrapper around {@link Spliterator#forEachRemaining}.  Drives the receiver
      * via {@link Spliterator#tryAdvance} so the augmentation can poll
      * {@link PainlessScript#_pollCancellation()} between each element rather than letting the
-     * spliterator's bulk traversal run uninterrupted.  Delegates to
-     * {@link #forEachRemaining(Spliterator, Consumer)} when the script has no cancellation check
-     * installed.
+     * spliterator's bulk traversal run uninterrupted.  Fast path delegates straight to the JDK when
+     * the script has no cancellation check installed.
      */
     public static <T> void forEachRemaining(PainlessScript script, Spliterator<T> receiver, Consumer<T> consumer) {
         if (script._getCancellationCheck() == null) {
-            forEachRemaining(receiver, consumer);
+            receiver.forEachRemaining(consumer);
             return;
         }
         while (receiver.tryAdvance(consumer)) {
             script._pollCancellation();
         }
-    }
-
-    /** Plain delegation to {@link Spliterator#forEachRemaining} used as the fast path of the script-aware overload. */
-    public static <T> void forEachRemaining(Spliterator<T> receiver, Consumer<T> consumer) {
-        receiver.forEachRemaining(consumer);
     }
 
     // CharSequence augmentation

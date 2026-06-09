@@ -150,14 +150,13 @@ final class AlpDoubleUtils {
      * Adding {@code bias = 2^52 + 2^51} pushes {@code x} into the magnitude range where
      * every representable double is an integer; IEEE 754 ties-to-even then rounds as part
      * of fitting the sum into the 52-bit mantissa, and subtracting the bias recovers the
-     * rounded integer. Caller must guarantee {@code |x| < FAST_ROUND_MAX_DOUBLE} and that
-     * {@code x} is finite; {@link #alpRound} layers the magnitude guard.
+     * rounded integer. The same expression works for negative {@code x} because the bias
+     * dominates {@code |x|} in magnitude, so the addition still lands inside the
+     * integer-only range. Caller must guarantee {@code |x| < FAST_ROUND_MAX_DOUBLE} and
+     * that {@code x} is finite; {@link #alpRound} layers the magnitude guard.
      */
     static long fastRound(double x) {
-        if (x >= 0) {
-            return (long) (x + ROUNDING_BIAS_DOUBLE) - (long) ROUNDING_BIAS_DOUBLE;
-        }
-        return -((long) (-x + ROUNDING_BIAS_DOUBLE) - (long) ROUNDING_BIAS_DOUBLE);
+        return (long) (x + ROUNDING_BIAS_DOUBLE) - (long) ROUNDING_BIAS_DOUBLE;
     }
 
     /**

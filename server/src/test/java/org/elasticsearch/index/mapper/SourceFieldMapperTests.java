@@ -501,6 +501,54 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testSourceFilteringRejectedForSyntheticAndColumnarStored() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        Settings syntheticSettings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .build();
+
+        // synthetic source rejects includes
+        MapperParsingException exc = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(syntheticSettings, topMapping(b -> b.startObject("_source").array("includes", "foo").endObject()))
+        );
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [synthetic] source"));
+
+        // synthetic source rejects excludes
+        exc = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(syntheticSettings, topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject()))
+        );
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [synthetic] source"));
+
+        Settings columnarStoredSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+
+        // columnar_stored rejects includes
+        exc = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnarStoredSettings,
+                topMapping(b -> b.startObject("_source").array("includes", "foo").endObject())
+            )
+        );
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [columnar_stored] source"));
+
+        // columnar_stored rejects excludes
+        exc = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                columnarStoredSettings,
+                topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject())
+            )
+        );
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [columnar_stored] source"));
+    }
+
     public void testColumnarStoredModeRequiresColumnarIndex() {
         // COLUMNAR_STORED is rejected on non-columnar index modes
         for (var nonColumnarMode : new IndexMode[] { IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES }) {

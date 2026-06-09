@@ -671,3 +671,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
   method: test {p0=downsample/110_downsample_temporality/Downsample mixed temporality counters}
   issue: https://github.com/elastic/elasticsearch/issues/151048
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  method: test {p0=downsample/110_downsample_temporality/Downsample delta temporality counter}
+  issue: https://github.com/elastic/elasticsearch/issues/151049

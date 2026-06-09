@@ -481,7 +481,8 @@ public final class DocumentParser {
             } else {
                 var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
                 if (context.canAddIgnoredField()
-                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
+                    && (context.mappingLookup().isSourceColumnarStored()
+                        || fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
                         || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
@@ -779,7 +780,8 @@ public final class DocumentParser {
             boolean fieldWithStoredArraySource = false;
             if (mapper instanceof FieldMapper fieldMapper) {
                 mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+                fieldWithFallbackSyntheticSource = context.mappingLookup().isSourceColumnarStored()
+                    || fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
                 fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
             }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);

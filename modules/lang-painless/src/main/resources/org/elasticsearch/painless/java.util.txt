@@ -31,13 +31,13 @@ class java.util.Collection {
   def[] toArray(def[])
 
   # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation collect(Function)
-  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function)
-  def org.elasticsearch.painless.api.Augmentation find(Predicate)
-  List org.elasticsearch.painless.api.Augmentation findAll(Predicate)
-  def org.elasticsearch.painless.api.Augmentation findResult(Function)
-  def org.elasticsearch.painless.api.Augmentation findResult(def,Function)
-  List org.elasticsearch.painless.api.Augmentation split(Predicate)
+  List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation find(Predicate) @script_aware
+  List org.elasticsearch.painless.api.Augmentation findAll(Predicate) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(def,Function) @script_aware
+  List org.elasticsearch.painless.api.Augmentation split(Predicate) @script_aware
 }
 
 class java.util.Comparator {
@@ -157,17 +157,17 @@ class java.util.Map {
   Object org.elasticsearch.painless.api.Augmentation getByPath(String, Object)
 
   # some adaptations of groovy methods
-  List org.elasticsearch.painless.api.Augmentation collect(BiFunction)
-  def org.elasticsearch.painless.api.Augmentation collect(Collection,BiFunction)
-  int org.elasticsearch.painless.api.Augmentation count(BiPredicate)
-  def org.elasticsearch.painless.api.Augmentation each(BiConsumer)
-  boolean org.elasticsearch.painless.api.Augmentation every(BiPredicate)
-  Map.Entry org.elasticsearch.painless.api.Augmentation find(BiPredicate)
-  Map org.elasticsearch.painless.api.Augmentation findAll(BiPredicate)
-  def org.elasticsearch.painless.api.Augmentation findResult(BiFunction)
-  def org.elasticsearch.painless.api.Augmentation findResult(def,BiFunction)
-  List org.elasticsearch.painless.api.Augmentation findResults(BiFunction)
-  Map org.elasticsearch.painless.api.Augmentation groupBy(BiFunction)
+  List org.elasticsearch.painless.api.Augmentation collect(BiFunction) @script_aware
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,BiFunction) @script_aware
+  int org.elasticsearch.painless.api.Augmentation count(BiPredicate) @script_aware
+  def org.elasticsearch.painless.api.Augmentation each(BiConsumer) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation every(BiPredicate) @script_aware
+  Map.Entry org.elasticsearch.painless.api.Augmentation find(BiPredicate) @script_aware
+  Map org.elasticsearch.painless.api.Augmentation findAll(BiPredicate) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(BiFunction) @script_aware
+  def org.elasticsearch.painless.api.Augmentation findResult(def,BiFunction) @script_aware
+  List org.elasticsearch.painless.api.Augmentation findResults(BiFunction) @script_aware
+  Map org.elasticsearch.painless.api.Augmentation groupBy(BiFunction) @script_aware
 }
 
 class java.util.Map$Entry {

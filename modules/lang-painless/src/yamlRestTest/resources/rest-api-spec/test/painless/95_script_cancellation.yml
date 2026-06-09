@@ -2377,6 +2377,44 @@
   - is_true: timed_out
 
 ---
+"Search timeout aborts a long-running removeIf augmentation loop":
+  - do:
+      indices.create:
+        index: test_removeif_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_removeif_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Collection.removeIf drives the iteration itself. An outer each() over a list
+  # invokes a nested removeIf with an always-false predicate so the inner list size is preserved;
+  # the cancellation poll inside removeIf must fire so the 100 ms timeout cancels even though the
+  # script body has no loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_removeif_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  List b = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { b.add(i); }
+                  a.each(x -> b.removeIf(y -> false));
+                  return true;
+  - is_true: timed_out
+
+---
 "Search timeout aborts a long-running String.replace augmentation loop":
   - do:
       indices.create:

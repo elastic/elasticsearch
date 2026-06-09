@@ -839,4 +839,64 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
     }
+
+    // --- Native methods routed through @script_aware Augmentation wrappers ---
+
+    /** {@code Iterable.forEach} visits every element and must poll. */
+    public void testIterableForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.forEach(x -> x.toString());"), "cancelled-iterable-foreach");
+    }
+
+    /** {@code Collection.removeIf} with an always-false predicate scans the whole collection and must poll. */
+    public void testCollectionRemoveIfAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.removeIf(x -> false);"), "cancelled-removeif");
+    }
+
+    /** {@code Iterator.forEachRemaining} on a fresh iterator visits every element and must poll. */
+    public void testIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.iterator().forEachRemaining(x -> x.toString());"), "cancelled-iterator-foreachremaining");
+    }
+
+    /** {@code List.replaceAll} with an identity operator scans the whole list and must poll. */
+    public void testListReplaceAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.replaceAll(x -> x);"), "cancelled-list-replaceall");
+    }
+
+    /** {@code Map.forEach} visits every entry and must poll. */
+    public void testMapForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.forEach((k, v) -> v.toString());"), "cancelled-map-foreach");
+    }
+
+    /** {@code Map.replaceAll} with an identity function scans the whole map and must poll. */
+    public void testMapReplaceAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.replaceAll((k, v) -> v);"), "cancelled-map-replaceall");
+    }
+
+    /** {@code Spliterator.forEachRemaining} on a fresh spliterator visits every element and must poll. */
+    public void testSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.spliterator().forEachRemaining(x -> x.toString());"),
+            "cancelled-spliterator-foreachremaining"
+        );
+    }
+
+    /**
+     * Each new native-wrapper script-aware augmentation must take the no-poll fast path when the
+     * script has no cancellation check installed.  Exercises all seven native wrappers (Iterable,
+     * Collection, Iterator, List, Map x2, Spliterator) in one script execution.
+     */
+    public void testNativeWrapperAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "Map newMap() { Map m = new HashMap(); m.put(1, 1); return m; }",
+            "big.forEach(x -> x.toString()); "
+                + "big.removeIf(x -> false); "
+                + "big.iterator().forEachRemaining(x -> x.toString()); "
+                + "big.replaceAll(x -> x); "
+                + "Map m = newMap(); m.forEach((k, v) -> v.toString()); "
+                + "Map m2 = newMap(); m2.replaceAll((k, v) -> v); "
+                + "big.spliterator().forEachRemaining(x -> x.toString());"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
 }

@@ -124,6 +124,11 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "qstr-function", tag = "qstr-with-field"),
             @Example(file = "qstr-function", tag = "qstr-with-options", applies_to = "stack: ga 9.1.0") }

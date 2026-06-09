@@ -155,7 +155,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
-            `MATCH` returns true if the provided query matches the row.""",
+            `MATCH` returns true if the provided query matches the row.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
             @Example(file = "match-function", tag = "match-with-named-function-params") }

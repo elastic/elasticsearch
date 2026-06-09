@@ -49,6 +49,11 @@ public class Score extends Function implements EvaluatorMapper {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+        detailedDescription = """
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "score-function", tag = "score-function") }
     )
     public Score(

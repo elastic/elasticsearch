@@ -2200,10 +2200,13 @@ public class TopNOperatorTests extends OperatorTestCase {
                 try (Page out = op.getOutput()) {
                     totalPositions += out.getPositionCount();
                     if (totalPositions < expectedTotal) {
-                        assertThat(out.ramBytesUsedByBlocks(), both(greaterThanOrEqualTo(minPageSize)).and(lessThanOrEqualTo(maxPageSize)));
-                    } else {
-                        assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                        // We can over-allocate to one page for BytesRefArray that requires less than one page.
+                        // So don't check the min page size if jumboPageBytes is less than a page.
+                        if (minPageSize >= PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                            assertThat(out.ramBytesUsedByBlocks(), greaterThanOrEqualTo(minPageSize));
+                        }
                     }
+                    assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
                 }
             }
             assertThat(totalPositions, equalTo(expectedTotal));

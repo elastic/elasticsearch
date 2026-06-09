@@ -449,7 +449,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         // only a byte-size estimate, which the EIRF row can supply without re-serializing.
         if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
             if (syntheticRecovery) {
-                assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+                assert isSynthetic() || isColumnarStored() : "Recovery source should not be disabled for non-synthetic sources";
                 context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedSizeInBytes()));
             }
             return;

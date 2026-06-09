@@ -23,6 +23,7 @@ import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
@@ -278,6 +279,21 @@ public class ColumnarSourceIT extends ESIntegTestCase {
                 ) {
                     // columnar mode does not support the subobjects mapping parameter
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new);
+                }
+            }, new DefaultMappingParametersHandler() {
+                @Override
+                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+                    var delegated = super.handle(request);
+                    if (delegated == null) {
+                        return null;
+                    }
+                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                        var mapping = new HashMap<>(delegated.mappingGenerator().get());
+                        // synthetic_source_keep is not allowed in columnar index mode
+                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                        mapping.remove("store");
+                        return mapping;
+                    });
                 }
             }))
             .build();

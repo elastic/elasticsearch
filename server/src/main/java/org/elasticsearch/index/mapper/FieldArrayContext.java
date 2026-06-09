@@ -193,7 +193,9 @@ public class FieldArrayContext {
         // Note, doc values cannot be disabled in columnar mode
         // TODO: copy_to is disabled since copy_to forces _ignored_source to be used for synthetic source, recording offsets in addition
         // to that is a big storage overhead. This will be addressed in a follow up
-        if (multiValue && isStrictColumnar && context.isSourceSynthetic() && fieldMapperBuilder.copyTo.copyToFields().isEmpty()) {
+        // isStrictColumnar is only true for COLUMNAR / LOGSDB_COLUMNAR, whose supportedSourceModes() are exactly
+        // {SYNTHETIC, COLUMNAR_STORED}. Both columnar source modes need offsets for block-loader arrival-order ordering.
+        if (multiValue && isStrictColumnar && fieldMapperBuilder.copyTo.copyToFields().isEmpty()) {
             return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
         }
         return null;

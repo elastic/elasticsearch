@@ -34,14 +34,20 @@ public class MatchOnlyTextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestC
         }
 
         // Without doc values, a genuinely synthetic source reconstructs the field from a per-field fallback. Multi fields don't get that
-        // fallback, so nothing can be loaded for them. Columnar-stored source, by contrast, keeps a real stored _source blob, so a multi
-        // field still resolves to its parent's reconstructed value. Either way the binary fallback returns sorted order while the stored
-        // fallback preserves source order.
-        if (params.syntheticSource() || params.isColumnarStored()) {
-            if (testContext.isMultifield() && params.syntheticSource()) {
+        // fallback, so nothing can be loaded for them. With the binary fallback (binaryDocValues=true), values come back in sorted order;
+        // with the stored fallback (binaryDocValues=false), values come back in source order.
+        if (params.syntheticSource()) {
+            if (testContext.isMultifield()) {
                 return null;
             }
             return params.binaryDocValues() ? valuesInSortedOrder(value) : valuesInSourceOrder(value);
+        }
+
+        // Columnar-stored source stores every leaf as a per-field _ignored_source entry. The block loader reads from doc values in
+        // arrival order (offsets are recorded for both SYNTHETIC and COLUMNAR_STORED source modes in strict-columnar mode) or falls
+        // back to the reconstructed _source, which also preserves source/arrival order. Either way, arrival order is returned.
+        if (params.isColumnarStored()) {
+            return valuesInSourceOrder(value);
         }
 
         // Non-synthetic source loads the value back from stored _source in its original order.

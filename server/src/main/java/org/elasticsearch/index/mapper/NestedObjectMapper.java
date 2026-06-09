@@ -153,6 +153,8 @@ public class NestedObjectMapper extends ObjectMapper {
                         + "]"
                 );
             }
+            assert indexSettings == null || indexSettings.getMode().isStrictColumnar() == false
+                : "nested type [" + fullPath + "] is not supported in strict columnar index mode";
             final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
             NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
                 context.buildFullName(leafName()),
@@ -410,6 +412,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+        assert indexSettings == null || indexSettings.getMode().isStrictColumnar() == false
+            : "nested objects are not supported in strict columnar index mode";
         // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.

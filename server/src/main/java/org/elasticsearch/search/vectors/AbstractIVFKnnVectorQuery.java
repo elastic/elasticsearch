@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -44,8 +45,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 
-abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
+abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -56,6 +58,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final Query filter;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
+
+    // Stashed during rewrite() so the post-filter orchestrator can read back the raw per-leaf
+    // candidates without re-running: one TopDocs per leaf, doc ids already shifted to global by
+    // searchLeaf (buildPerLeafCandidates regroups them by leaf via ReaderUtil.subIndex).
+    private List<LeafReaderContext> leaves;
+    private TopDocs[] rawPerLeafResults;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
@@ -125,6 +133,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+        this.leaves = leafReaderContexts;
 
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
@@ -138,6 +147,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
+        this.rawPerLeafResults = perLeafResults;
 
         TopDocs topK = mergeLeafResults(k, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
@@ -241,6 +251,74 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IVFCollectorManager knnCollectorManager,
         float visitRatio
     ) throws IOException;
+
+    /**
+     * Rebuilds this query as a new instance of the same concrete type, carrying over every
+     * parameter except {@code filter}, {@code k}, {@code numCands} and {@code overSampleFactor}.
+     * Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate} so each subclass
+     * (sliced, diversifying-children, ...) reconstructs itself with its extra state (slice range,
+     * parents filter) intact. Concrete subclasses must respawn from the <em>un-preconditioned</em>
+     * query vector, since the live vector may already have been transformed in place by a prior
+     * {@link #preconditionQuery}.
+     */
+    protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor);
+
+    @Override
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+        // seedDocs are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
+        // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
+        // cross-round dedup. Same visit budget as round 1 (numCands carried over unchanged).
+        Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        return withParams(retryFilter, remainingK, numCands, 1.0f);
+    }
+
+    @Override
+    public Query createPostFilterDelegate(float filterSelectivity) {
+        double zMargin = PostFilterableKnnQuery.zMargin(k, filterSelectivity);
+        int scaledK = (int) Math.clamp(
+            Math.ceil((k + zMargin) / filterSelectivity),
+            Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR),
+            NUM_CANDS_LIMIT
+        );
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCands / k));
+        // Oversampling is expressed through scaledK, so the delegate uses overSampleFactor=1.0 and
+        // searches filter-less; the orchestrator applies the filter to the returned candidates.
+        return withParams(null, scaledK, scaledNumCands, 1.0f);
+    }
+
+    @Override
+    public ScoreDoc[][] getPostFilterCandidates() {
+        return rawPerLeafResults == null
+            ? new ScoreDoc[leaves.size()][]
+            : PostFilterableKnnQuery.buildPerLeafCandidates(rawPerLeafResults, leaves);
+    }
+
+    @Override
+    public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        int totalVectors = 0;
+        for (LeafReaderContext leaf : leaves) {
+            FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);
+            if (fvv != null) {
+                totalVectors += fvv.size();
+            }
+        }
+        return totalVectors;
+    }
+
+    @Override
+    public long totalVectorOps() {
+        return vectorOpsCount;
+    }
+
+    @Override
+    public int k() {
+        return k;
+    }
+
+    @Override
+    public int numCands() {
+        return numCands;
+    }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);

@@ -52,6 +52,21 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            field,
+            originalQuery,
+            k,
+            numCands,
+            filter,
+            parentsFilter,
+            providedVisitRatio,
+            doPrecondition,
+            overSampleFactor
+        );
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;

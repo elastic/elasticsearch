@@ -30,6 +30,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     private boolean isQueryPreconditioned = false;
     private final int originalK;
     private float[] query;
+    // The query vector as originally supplied, before any in-place preconditioning transform.
+    // Used by withParams() so respawned retry/delegate queries are not double-preconditioned.
+    protected final float[] originalQuery;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -56,10 +59,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         assert overSampleFactor >= 1.0f : "overSampleFactor [" + overSampleFactor + "] must be >= 1.0";
         this.originalK = overSampleFactor > 1.0f ? Math.max(1, Math.round(k / overSampleFactor)) : k;
         this.query = query;
+        this.originalQuery = query;
     }
 
     public float[] getQuery() {
         return query;
+    }
+
+    @Override
+    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+        return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, filter, providedVisitRatio, doPrecondition, overSampleFactor);
     }
 
     @Override

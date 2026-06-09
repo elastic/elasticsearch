@@ -659,3 +659,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
   method: testAsyncPrefetchSuccessIsRecorded
   issue: https://github.com/elastic/elasticsearch/issues/151030
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testAsyncPrefetchFailureIsRecorded
+  issue: https://github.com/elastic/elasticsearch/issues/151031

@@ -2264,4 +2264,87 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
         assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
+
+    /**
+     * Verifies the block loader read path for a field mapped with {@code doc_values.multi_value: false}. Enabling single-value
+     * enforcement changes the on-disk doc-values format, but it must not change what the block loader returns for single-valued
+     * documents.
+     *
+     * <p>For field types whose default mapping also supports column-at-a-time doc-values loading we assert that the two mappings produce
+     * identical blocks, including {@code null} for the sparse middle document. For field types whose default mapping uses source-based
+     * row-stride loading (e.g. {@code text}) the column-at-a-time path is only enabled by {@code multi_value: false}; in that case we
+     * only verify the structural invariant: docs 0 and 2 are non-null, doc 1 is null.
+     */
+    public void testMultiValueFalseBlockLoader() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+
+        // getSampleValueForDocument() is deterministic for most types, so a single call is enough.
+        Object sample = getSampleValueForDocument();
+
+        MapperService mvFalse = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        MapperService defaults = createMapperService(fieldMapping(this::minimalMapping));
+
+        Object[] mvFalseBlock = loadThreeDocs(mvFalse, sample);
+        assumeTrue("field must support column-at-a-time doc-values loading", mvFalseBlock != null);
+        Object[] defaultBlock = loadThreeDocs(defaults, sample);
+
+        if (defaultBlock != null) {
+            // Both mappings support column-at-a-time: assert identical encoded values.
+            assertThat(mvFalseBlock[0], equalTo(defaultBlock[0]));
+            assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
+            assertThat(mvFalseBlock[2], equalTo(defaultBlock[2]));
+        } else {
+            // Default mapping reads from source (no doc-values); multi_value:false adds doc-values, enabling the
+            // column-at-a-time path. Verify the structural invariant: present docs are non-null, sparse is null.
+            assertNotNull(mvFalseBlock[0]);
+            assertThat(mvFalseBlock[1], nullValue());          // sparse / unset middle document
+            assertNotNull(mvFalseBlock[2]);
+        }
+    }
+
+    /**
+     * Indexes three documents — {@code [sample, &lt;empty&gt;, sample]} — force-merges to one segment, and loads the field's block via the
+     * column-at-a-time reader with {@link MappedFieldType.FieldExtractPreference#DOC_VALUES}. Returns the three loaded values, or
+     * {@code null} when the field type has no column-at-a-time reader (e.g. source-only loaders), so the caller can skip via
+     * {@code assumeTrue}.
+     */
+    private Object[] loadThreeDocs(MapperService mapperService, Object sample) throws IOException {
+        DocumentMapper mapper = mapperService.documentMapper();
+        Object[] result = new Object[3];
+        boolean[] supported = { true };
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapper.parse(source(b -> b.field("field", sample))).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> {})).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> b.field("field", sample))).rootDoc());
+            iw.forceMerge(1);
+        }, reader -> {
+            assertThat(reader.leaves(), hasSize(1));
+            LeafReaderContext ctx = reader.leaves().get(0);
+            BlockLoader blockLoader = mapperService.fieldType("field")
+                .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                    @Override
+                    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                        return MappedFieldType.FieldExtractPreference.DOC_VALUES;
+                    }
+                });
+            var columnReaderSource = blockLoader.columnAtATimeReader(ctx);
+            if (columnReaderSource == null) {
+                supported[0] = false;
+                return;
+            }
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            try (BlockLoader.ColumnAtATimeReader columnReader = columnReaderSource.apply(breaker)) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                assertThat(block.size(), equalTo(3));
+                result[0] = block.get(0);
+                result[1] = block.get(1);
+                result[2] = block.get(2);
+            }
+        });
+        return supported[0] ? result : null;
+    }
 }

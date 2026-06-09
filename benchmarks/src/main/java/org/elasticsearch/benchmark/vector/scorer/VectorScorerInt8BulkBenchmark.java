@@ -39,7 +39,7 @@ public class VectorScorerInt8BulkBenchmark extends VectorScorerBulkBenchmark {
     @Param({ "128", "1500", "130000" })
     public int numVectors;
 
-    @Param
+    @Param({ "SCALAR", "LUCENE", "NATIVE" })
     public VectorImplementation implementation;
 
     @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })

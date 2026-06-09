@@ -1143,7 +1143,9 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
         "index.dense_vector.experimental_features",
-        Build.current().isSnapshot(),
+        // snapshot should use new experimental formats
+        // enabling with slice feature as well for ease of testing
+        Build.current().isSnapshot() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled(),
         Property.IndexScope,
         Property.Final
     );

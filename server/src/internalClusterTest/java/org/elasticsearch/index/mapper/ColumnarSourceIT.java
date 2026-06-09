@@ -73,8 +73,9 @@ public class ColumnarSourceIT extends ESIntegTestCase {
         var template = new TemplateGenerator(spec).generate();
         var mapping = new MappingGenerator(spec).generate(template);
 
+        var indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         var settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
@@ -108,12 +109,13 @@ public class ColumnarSourceIT extends ESIntegTestCase {
         var mapping = new MappingGenerator(spec).generate(template);
         var mappingXContent = XContentFactory.jsonBuilder().map(mapping.raw());
 
+        var indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
         var syntheticSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         var columnarStoredSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
 

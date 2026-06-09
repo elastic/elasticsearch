@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -652,7 +653,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = project.index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
-            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+            List<DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
                 project::index,
                 nowSupplier
@@ -693,7 +694,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
-        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
+        List<DownsamplingRound> downsamplingRounds,
         DownsampleConfig.SamplingMethod downsamplingMethod,
         ProjectMetadata project
     ) {
@@ -701,11 +702,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
         Set<Index> affectedIndices = new HashSet<>();
-        DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+        DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
         Index index = backingIndex.getIndex();
         String indexName = index.getName();
-        for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
+        for (DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
@@ -746,7 +747,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
     private void downsampleIndexOnce(
-        DataStreamLifecycle.DownsamplingRound round,
+        DownsamplingRound round,
         DownsampleConfig.SamplingMethod requestedDownsamplingMethod,
         ProjectId projectId,
         IndexMetadata sourceIndexMetadata,
@@ -799,8 +800,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ProjectId projectId,
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
-        DataStreamLifecycle.DownsamplingRound currentRound,
-        DataStreamLifecycle.DownsamplingRound lastRound,
+        DownsamplingRound currentRound,
+        DownsamplingRound lastRound,
         DownsampleConfig.SamplingMethod downsamplingMethod,
         IndexMetadata backingIndex,
         Index downsampleIndex
@@ -1650,9 +1651,63 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.nowSupplier = nowSupplier;
     }
 
-    public Instant timeseriesStartWindow(DataStream dataStream, ProjectMetadata projectMetadata) {
-        // PRTODO Implement
-        return null;
+    /**
+     * Determines the earliest that a time series backing index could be created such that the lifecycle doesn't immediately make it
+     * unusable (either by deleting it or modifying it to be read only).
+     * @param dataStream A time series data stream
+     * @param projectMetadata The project metadata the stream belongs to
+     * @return an Instant that a backing index would be picked up and modified by its lifecycle, or {@link Instant#MIN} if no interference
+     * is detected.
+     */
+    public Instant timeseriesStartWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
+        assert IndexMode.TIME_SERIES.equals(dataStream.getIndexMode()) : "Time series data stream required";
+        DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
+        if (lifecycle == null || lifecycle.enabled() == false) {
+            // PRTODO: Is this all we'd need to check? Or do we need to check the data stream's
+            //  template to see if it prefers ILM for new indices? A new index that prefers ILM
+            //  would be managed by ILM and thus the data stream lifecycle wouldn't matter for
+            //  the data stream's start time.
+            return Instant.MIN;
+        }
+        var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
+
+        // PRTODO: All DLM operations (retention, downsample) are based off an index's
+        //  "generation date". This is normally selected from an index's origination date
+        //  first, and if that is not present, then it is based on either rollover time
+        //  (if present) or creation date. We don't have an origination date for this
+        //  theoretical index, and the creation date will likely be very close to now, so
+        //  first determine what the max age rollover time is for an index created now
+        long now = nowSupplier.getAsLong();
+        long rolloverAge = RolloverConfiguration.evaluateMaxAgeCondition(dataRetention).getMillis();
+        long oldestPossibleGenerationTime = now - rolloverAge;
+
+        // We delete indices that are older than `retentionPeriod` milliseconds in the past from `now`
+        long retentionPeriod = dataRetention.getMillis();
+        long candidateStartWindow = now - rolloverAge - retentionPeriod;
+
+        // Indices can be downsampled, which makes them unable to accept new documents.
+        if (lifecycle.downsamplingRounds() != null) {
+            for (DownsamplingRound round : lifecycle.downsamplingRounds()) {
+                // The oldest the downsample round can happen is the after period minus the generation time.
+                long downsampleAfter = round.after().getMillis();
+                long oldestDownsamplePoint = oldestPossibleGenerationTime - downsampleAfter;
+                // If the oldestDownsamplePoint is more recent than the current candidate, use it as the new candidate
+                candidateStartWindow = Math.max(oldestDownsamplePoint, candidateStartWindow);
+            }
+        }
+
+        // Indices can also be marked for frozen tier via DLM, which makes them readonly once snapshotted.
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
+            if (lifecycle.frozenAfter() != null) {
+                // The oldest frozen transition can happen is the after period minus the generation time
+                long frozenAfter = lifecycle.frozenAfter().getMillis();
+                long oldestFrozenTransition = oldestPossibleGenerationTime - frozenAfter;
+                // If the oldestFrozenTransition is more recent than the current candidate, use it as the new candidate
+                candidateStartWindow = Math.max(oldestFrozenTransition, candidateStartWindow);
+            }
+        }
+
+        return Instant.ofEpochMilli(candidateStartWindow);
     }
 
     /**

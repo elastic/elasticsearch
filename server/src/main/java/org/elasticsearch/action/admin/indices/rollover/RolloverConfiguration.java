@@ -178,7 +178,7 @@ public class RolloverConfiguration implements Writeable, ToXContentObject {
      * - If retention is less than or equal to 90 days, max_age will be 7 days
      * - If retention is greater than 90 days, max_age will be 30 days
      */
-    static TimeValue evaluateMaxAgeCondition(@Nullable TimeValue retention) {
+    public static TimeValue evaluateMaxAgeCondition(@Nullable TimeValue retention) {
         if (retention == null) {
             return TimeValue.timeValueDays(30);
         }

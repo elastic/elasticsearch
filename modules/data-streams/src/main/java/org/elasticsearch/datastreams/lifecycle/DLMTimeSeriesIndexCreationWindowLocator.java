@@ -41,7 +41,7 @@ public class DLMTimeSeriesIndexCreationWindowLocator
         if (dataStreamLifecycleService == null) {
             throw new IllegalStateException("Could not obtain data stream lifecycle service because it has not yet been created");
         }
-        return dataStreamLifecycleService.timeseriesStartWindow(dataStream, projectMetadata);
+        return dataStreamLifecycleService.timeseriesStartWindow(dataStream, projectMetadata, nowSupplier);
     }
 
 }

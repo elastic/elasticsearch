@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 /**
  * References plugin code to determine how far in the past a time series data stream can create a backing index without that backing index
@@ -25,9 +26,10 @@ public interface TimeSeriesIndexCreationWindowLocator {
      *
      * @param dataStream      The data stream to surface the start window for, will always be a time-series data stream
      * @param projectMetadata The project metadata this data stream is attached to
+     * @param nowSupplier Supplier for the current timestamp in epoch millis
      * @return The earliest instant this data stream could create a backing index
      */
-    Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata);
+    Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier);
 
     /**
      * Combines multiple locators together to determine the start window for creating a time series data stream backing index. All locators
@@ -43,15 +45,17 @@ public interface TimeSeriesIndexCreationWindowLocator {
 
         /**
          * Determines the cut-off time for a time series data stream to create a new backing index.
-         * @param dataStream The data stream to surface the start window for, must be a time-series data stream
+         *
+         * @param dataStream      The data stream to surface the start window for, must be a time-series data stream
          * @param projectMetadata The project metadata to search for the data stream
+         * @param nowSupplier Supplier for the current timestamp in epoch millis
          * @return The earliest instant this data stream could create a backing index
          */
-        public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata) {
+        public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
             assert IndexMode.TIME_SERIES == dataStream.getIndexMode() : "Only time series data streams should be checked for a starting window";
             Instant currentWindow = Instant.MIN;
             for (TimeSeriesIndexCreationWindowLocator locator : locators) {
-                Instant startWindow = locator.locateCreateWindow(dataStream, projectMetadata);
+                Instant startWindow = locator.locateCreateWindow(dataStream, projectMetadata, nowSupplier);
                 if (startWindow != null && startWindow.isAfter(currentWindow)) {
                     currentWindow = startWindow;
                 }

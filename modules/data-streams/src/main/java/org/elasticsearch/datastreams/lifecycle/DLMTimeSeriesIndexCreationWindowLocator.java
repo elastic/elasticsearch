@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 
 import java.time.Instant;
+import java.util.function.LongSupplier;
 
 /**
  * Uses lifecycle logic to determine how far in the past a time series backing index can be created before it would either be deleted or set
@@ -35,7 +36,7 @@ public class DLMTimeSeriesIndexCreationWindowLocator
     private final DataStreamsPlugin dataStreamsPlugin;
 
     @Override
-    public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata) {
+    public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
         var dataStreamLifecycleService = dataStreamsPlugin.getDataStreamLifecycleService();
         if (dataStreamLifecycleService == null) {
             throw new IllegalStateException("Could not obtain data stream lifecycle service because it has not yet been created");

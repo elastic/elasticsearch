@@ -633,7 +633,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
     }
 
-    public void testColumnarStoredSourceWithSkipIgnoredSourceWrite() throws IOException {
+    public void testColumnarStoredSourceRejectsSkipIgnoredSourceWrite() {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
@@ -641,19 +641,17 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true)
             .build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
-            b.startObject("field1");
-            b.field("type", "keyword");
-            b.endObject();
-        }));
-        DocumentMapper docMapper = mapperService.documentMapper();
-        ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
-        // columnar_stored always writes its whole-document _ignored_source entry, even
-        // when skip_ignored_source_write=true suppresses per-field entries
-        assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
-        // synthetic recovery source is required for columnar_stored, so only the size is stored
-        assertNull(doc.rootDoc().getField("_recovery_source"));
-        assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {})));
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "["
+                    + IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey()
+                    + "] is incompatible with ["
+                    + IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()
+                    + "=columnar_stored]"
+            )
+        );
     }
 
     public void testRecoverySourceWithLogs() throws IOException {

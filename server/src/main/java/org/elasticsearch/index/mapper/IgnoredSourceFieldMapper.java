@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +91,32 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static final Setting<Boolean> SKIP_IGNORED_SOURCE_WRITE_SETTING = Setting.boolSetting(
         "index.mapping.synthetic_source.skip_ignored_source_write",
         false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    var sourceMode = (Mode) settings.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    if (sourceMode == Mode.COLUMNAR_STORED) {
+                        throw new IllegalArgumentException(
+                            "["
+                                + SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey()
+                                + "] is incompatible with ["
+                                + IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()
+                                + "=columnar_stored]: columnar_stored relies on _ignored_source for source storage"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> deps = List.of(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
+                return deps.iterator();
+            }
+        },
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );

@@ -2307,7 +2307,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Indexes three documents — {@code [sample, &lt;empty&gt;, sample]} — force-merges to one segment, and loads the field's block via the
+     * Indexes three documents — {@code [sample, <empty>, sample]} — force-merges to one segment, and loads the field's block via the
      * column-at-a-time reader with {@link MappedFieldType.FieldExtractPreference#DOC_VALUES}. Returns the three loaded values, or
      * {@code null} when the field type has no column-at-a-time reader (e.g. source-only loaders), so the caller can skip via
      * {@code assumeTrue}.

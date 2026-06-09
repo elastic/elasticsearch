@@ -293,6 +293,9 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerTests
   method: testCanConfigureReadTimeout
   issue: https://github.com/elastic/elasticsearch/issues/151022
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testMaxQueueLatencyMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/146283
 
 # Examples:
 #

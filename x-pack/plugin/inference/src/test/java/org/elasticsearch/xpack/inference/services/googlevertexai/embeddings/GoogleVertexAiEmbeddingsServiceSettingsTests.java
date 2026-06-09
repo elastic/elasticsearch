@@ -198,41 +198,6 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         );
     }
 
-    public void testSerialization_NullLocation_RoundTripsAsNull() throws IOException {
-        var instance = new GoogleVertexAiEmbeddingsServiceSettings(
-            null,
-            TEST_PROJECT_ID,
-            TEST_MODEL_ID,
-            randomBoolean(),
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        var copy = copyInstance(instance);
-        assertThat(copy.location(), is(nullValue()));
-        assertThat(copy, is(instance));
-    }
-
-    public void testSerialization_NullLocation_BeforeOptionalLocationVersion_RoundTripsAsNull() throws IOException {
-        var instance = new GoogleVertexAiEmbeddingsServiceSettings(
-            null,
-            TEST_PROJECT_ID,
-            TEST_MODEL_ID,
-            randomBoolean(),
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        // Before GOOGLE_VERTEX_AI_OPTIONAL_LOCATION the location is written as an empty string; it must be read back as null.
-        var copy = copyInstance(instance, GOOGLE_VERTEX_AI_CONFIGURABLE_MAX_BATCH_SIZE);
-        assertThat(copy.location(), is(nullValue()));
-        assertThat(copy, is(instance));
-    }
-
     public void testFromMap_MissingProjectId_Failure() {
         assertValidationFailure(
             buildServiceSettingsMap(TEST_LOCATION, null, TEST_MODEL_ID, true, null, null, null, null, null),

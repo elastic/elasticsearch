@@ -52,11 +52,11 @@ class DfsQueryPhase extends SearchPhase {
 
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final Client client;
-    private final AbstractSearchAsyncAction<?> context;
+    private final SearchDfsQueryThenFetchAsyncAction context;
     private final SearchProgressListener progressListener;
     private long phaseStartTimeInNanos;
 
-    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
+    DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, SearchDfsQueryThenFetchAsyncAction context) {
         super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
@@ -69,11 +69,10 @@ class DfsQueryPhase extends SearchPhase {
         return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     protected void run() {
         phaseStartTimeInNanos = System.nanoTime();
-        List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
+        List<DfsSearchResult> searchResults = context.results.getAtomicArray().asList();
         AggregatedDfs dfs = aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early

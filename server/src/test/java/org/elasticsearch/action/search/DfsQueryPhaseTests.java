@@ -127,7 +127,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -208,7 +208,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -291,7 +291,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         try (
             SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
@@ -317,7 +317,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
     private static DfsQueryPhase makeDfsPhase(
         AtomicArray<DfsSearchResult> results,
         SearchPhaseResults<SearchPhaseResult> consumer,
-        MockSearchPhaseContext mockSearchPhaseContext,
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext,
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef
     ) {
         int shards = mockSearchPhaseContext.numShards;
@@ -381,7 +381,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             }
         };
         SearchPhaseController searchPhaseController = searchPhaseController();
-        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mockSearchPhaseContext.searchTransport = searchTransportService;
         mockSearchPhaseContext.getRequest()
             .source(
@@ -422,7 +422,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new ScoreDoc[] { new ScoreDoc(2, 1.75f, 2), new ScoreDoc(1, 2.0f, 1), new ScoreDoc(3, 0.25f, 2), new ScoreDoc(6, 2.5f, 2) }
             )
         );
-        MockSearchPhaseContext mspc = new MockSearchPhaseContext(2);
+        MockSearchDfsQueryThenFetchAsyncAction mspc = new MockSearchDfsQueryThenFetchAsyncAction(2);
         mspc.searchTransport = new SearchTransportService(null, null, null);
         DfsQueryPhase dqp = new DfsQueryPhase(mock(QueryPhaseResultConsumer.class), null, mspc);
 

@@ -164,9 +164,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/150552
-- class: org.elasticsearch.xpack.security.QueryApiKeyIT
-  method: testPagination
-  issue: https://github.com/elastic/elasticsearch/issues/150714
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testScriptCaching
   issue: https://github.com/elastic/elasticsearch/issues/150752

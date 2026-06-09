@@ -57,6 +57,10 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
 
     public MockSearchDfsQueryThenFetchAsyncAction(int numShards) {
+        this(numShards, new SearchRequest().allowPartialSearchResults(true));
+    }
+
+    public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest) {
         super(
             logger,
             new NamedWriteableRegistry(List.of()),
@@ -67,7 +71,7 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             Map.of(),
             Runnable::run,
             null,
-            new SearchRequest().allowPartialSearchResults(true),
+            searchRequest,
             ActionListener.noop(),
             createShardIterators(numShards),
             Collections.emptyMap(),

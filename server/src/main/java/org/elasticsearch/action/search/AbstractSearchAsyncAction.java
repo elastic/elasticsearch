@@ -847,7 +847,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param shardIndex the index of the shard that is used in the coordinator node to
      *                   tiebreak results with identical sort values
      */
-    protected final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
+    protected ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);

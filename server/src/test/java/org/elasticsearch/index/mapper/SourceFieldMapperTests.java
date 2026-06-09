@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,6 +21,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,9 +32,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -700,6 +707,51 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                     + "=columnar_stored]"
             )
         );
+    }
+
+    /**
+     * Verifies that in {@code columnar_stored} mode the reconstructed source comes from the per-field
+     * {@code _ignored_source} entries written at index time, not from the field's own doc values.
+     * To demonstrate this, the test indexes {@code {"kwd":"blob_value"}}, then constructs a Lucene
+     * document where the {@code kwd} doc values are replaced with {@code "docvalues_value"} while the
+     * {@code _ignored_source} entries are left intact. Reading back the source must return
+     * {@code "blob_value"}.
+     */
+    public void testColumnarStoredSourceReadsFromIgnoredSourceEntries() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> b.field("kwd", "blob_value")));
+
+        // Replace the kwd doc values with a different value, but leave _ignored_source entries intact.
+        List<IndexableField> modified = new ArrayList<>();
+        for (IndexableField field : parsed.rootDoc()) {
+            if (field instanceof SortedSetDocValuesField && field.name().equals("kwd")) {
+                modified.add(new SortedSetDocValuesField("kwd", new BytesRef("docvalues_value")));
+            } else {
+                modified.add(field);
+            }
+        }
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(modified), reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                sfLoader.advanceTo(0);
+                Source source = sourceLeaf.source(sfLoader, 0);
+                assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
+            }
+        });
     }
 
     public void testRecoverySourceWithLogs() throws IOException {

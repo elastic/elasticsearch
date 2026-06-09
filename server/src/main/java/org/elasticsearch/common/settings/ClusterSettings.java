@@ -114,7 +114,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
+
 import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
@@ -492,7 +492,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HunspellService.HUNSPELL_LAZY_LOAD,
         HunspellService.HUNSPELL_IGNORE_CASE,
         HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
-        IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT,
         Environment.PATH_DATA_SETTING,
         Environment.PATH_HOME_SETTING,
         Environment.PATH_LOGS_SETTING,

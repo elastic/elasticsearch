@@ -105,4 +105,22 @@ public class IndicesStoreTests extends ESTestCase {
         // Shard exists locally, can't delete shard
         assertFalse(IndicesStore.shardCanBeDeleted(localNode.getId(), routingTable.build()));
     }
+
+    public void testShardIsAllocatedOnNode() {
+        final var shardId = new ShardId("test", "_na_", 0);
+        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
+        routingTable.addShard(
+            TestShardRouting.newShardRouting(shardId, localNode.getId(), true, ShardRoutingState.STARTED)
+        );
+        assertTrue(IndicesStore.shardIsAllocatedOnNode(localNode.getId(), routingTable.build()));
+    }
+
+    public void testShardIsNotAllocatedOnNode() {
+        final var shardId = new ShardId("test", "_na_", 0);
+        final var routingTable = new IndexShardRoutingTable.Builder(shardId);
+        routingTable.addShard(
+            TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), true, ShardRoutingState.STARTED)
+        );
+        assertFalse(IndicesStore.shardIsAllocatedOnNode(localNode.getId(), routingTable.build()));
+    }
 }

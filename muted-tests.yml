@@ -86,9 +86,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145884
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/145886
@@ -242,9 +239,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithInvalidApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/150941
 - class: org.elasticsearch.test.rest.yaml.RcsCcsSearchYamlTestSuiteIT
   method: test {p0=search/400_synthetic_source/stored keyword with ignore_above}
   issue: https://github.com/elastic/elasticsearch/issues/150952
@@ -290,21 +284,21 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:spatial-grid.gridGeohashQuery}
-  issue: https://github.com/elastic/elasticsearch/issues/150993
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:boolean.trueFalse}
-  issue: https://github.com/elastic/elasticsearch/issues/150994
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:unmapped-load.sortOnMultipleFieldsWithNonExistent}
-  issue: https://github.com/elastic/elasticsearch/issues/150996
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:qstr-function.testQstrWithNonPushableDisjunctions}
-  issue: https://github.com/elastic/elasticsearch/issues/150997
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterFieldWithNullify}
-  issue: https://github.com/elastic/elasticsearch/issues/150943
+- class: org.elasticsearch.tdigest.AVLTreeDigestTests
+  method: testMonotonicity
+  issue: https://github.com/elastic/elasticsearch/issues/151012
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerTests
+  method: testCanConfigureReadTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/151022
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testMaxQueueLatencyMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/146283
+- class: org.elasticsearch.reindex.ReindexBasicTests
+  method: testReindexFailsWhenSourceIndexIsClosed
+  issue: https://github.com/elastic/elasticsearch/issues/151024
+- class: org.elasticsearch.xpack.slm.SLMStatDisruptionIT
+  method: testFailedSnapshotSubmitStats
+  issue: https://github.com/elastic/elasticsearch/issues/151025
 
 # Examples:
 #

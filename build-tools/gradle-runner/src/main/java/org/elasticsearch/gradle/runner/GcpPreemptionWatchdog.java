@@ -6,10 +6,8 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.gradle.internal.ci;
 
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
+package org.elasticsearch.gradle.runner;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -36,10 +34,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  *
  * <p>Activated by setting {@code GCP_PREEMPTION_WATCHDOG=true}. No-op otherwise.
- *
- * <p>State is intentionally static: build-script reapplication and Gradle daemon reuse mean
- * we want a single watchdog per JVM, idempotent {@link #start()}/{@link #stop()}, and a flag
- * any part of the build can read without plumbing a service through configuration.
  */
 public final class GcpPreemptionWatchdog {
 
@@ -52,8 +46,6 @@ public final class GcpPreemptionWatchdog {
     private static final String ENV_WATCHDOG = "GCP_PREEMPTION_WATCHDOG";
     private static final String ENV_SIMULATE = "GCP_PREEMPTION_SIMULATE_AFTER_SECONDS";
 
-    private static final Logger LOGGER = Logging.getLogger(GcpPreemptionWatchdog.class);
-
     private static final AtomicBoolean PREEMPTED = new AtomicBoolean(false);
     private static final AtomicReference<Instant> PREEMPTED_AT = new AtomicReference<>();
     private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
@@ -65,16 +57,14 @@ public final class GcpPreemptionWatchdog {
         return PREEMPTED.get();
     }
 
-    /** Returns the instant preemption was detected, or {@code null} if not preempted. */
     public static Instant preemptedAt() {
         return PREEMPTED_AT.get();
     }
 
     /**
      * Register a callback to fire when preemption is first detected. Runs on the watchdog
-     * thread, so listeners must be non-blocking and self-contained (no Gradle DSL calls).
-     * If preemption has already been signalled, the listener fires immediately on the
-     * caller's thread instead.
+     * thread, so listeners must be non-blocking and self-contained. If preemption has already
+     * been signalled, the listener fires immediately on the caller's thread instead.
      */
     public static void onPreempted(Runnable listener) {
         LISTENERS.add(listener);
@@ -97,7 +87,7 @@ public final class GcpPreemptionWatchdog {
             try {
                 seconds = Long.parseLong(simulateAfter);
             } catch (NumberFormatException e) {
-                LOGGER.warn("[gcp-preemption-watchdog] invalid {}={}; ignoring simulation", ENV_SIMULATE, simulateAfter);
+                log("invalid " + ENV_SIMULATE + "=" + simulateAfter + "; ignoring simulation");
                 seconds = -1;
             }
             if (seconds > 0) {
@@ -105,7 +95,7 @@ public final class GcpPreemptionWatchdog {
                 watchThread = new Thread(() -> simulationLoop(finalSeconds), "gcp-preemption-watchdog");
                 watchThread.setDaemon(true);
                 watchThread.start();
-                LOGGER.lifecycle("[gcp-preemption-watchdog] simulation mode: will fire in {}s", seconds);
+                log("simulation mode: will fire in " + seconds + "s");
                 return;
             }
         }
@@ -113,7 +103,7 @@ public final class GcpPreemptionWatchdog {
         watchThread = new Thread(GcpPreemptionWatchdog::metadataLoop, "gcp-preemption-watchdog");
         watchThread.setDaemon(true);
         watchThread.start();
-        LOGGER.lifecycle("[gcp-preemption-watchdog] started; polling {} every {}s", METADATA_BASE_URL, POLL_INTERVAL_SECONDS);
+        log("started; polling " + METADATA_BASE_URL + " every " + POLL_INTERVAL_SECONDS + "s");
     }
 
     public static synchronized void stop() {
@@ -162,10 +152,8 @@ public final class GcpPreemptionWatchdog {
                 return;
             } catch (Exception e) {
                 if (loggedFailure == false) {
-                    LOGGER.info("[gcp-preemption-watchdog] metadata poll failed (will retry silently): {}", e.toString());
+                    log("metadata poll failed (will retry silently): " + e);
                     loggedFailure = true;
-                } else {
-                    LOGGER.debug("[gcp-preemption-watchdog] metadata poll failed: {}", e.toString());
                 }
             }
             try {
@@ -180,7 +168,7 @@ public final class GcpPreemptionWatchdog {
     private static void signal(String reason) {
         if (PREEMPTED.compareAndSet(false, true)) {
             PREEMPTED_AT.set(Instant.now());
-            LOGGER.lifecycle("[gcp-preemption-watchdog] preemption detected at {}: {}", PREEMPTED_AT.get(), reason);
+            log("preemption detected at " + PREEMPTED_AT.get() + ": " + reason);
             for (Runnable listener : LISTENERS) {
                 safelyRun(listener);
             }
@@ -191,7 +179,12 @@ public final class GcpPreemptionWatchdog {
         try {
             r.run();
         } catch (Throwable t) {
-            LOGGER.warn("[gcp-preemption-watchdog] listener threw", t);
+            System.err.println("[gcp-preemption-watchdog] listener threw: " + t);
+            t.printStackTrace(System.err);
         }
+    }
+
+    private static void log(String message) {
+        System.out.println("[gcp-preemption-watchdog] " + message);
     }
 }

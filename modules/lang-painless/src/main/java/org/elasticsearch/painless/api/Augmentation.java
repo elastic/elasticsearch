@@ -265,13 +265,7 @@ public class Augmentation {
         }
         Map<U, List<T>> map = new LinkedHashMap<>();
         for (T t : receiver) {
-            U mapped = mapper.apply(t);
-            List<T> results = map.get(mapped);
-            if (results == null) {
-                results = new ArrayList<>();
-                map.put(mapped, results);
-            }
-            results.add(t);
+            map.computeIfAbsent(mapper.apply(t), k -> new ArrayList<>()).add(t);
             script._pollCancellation();
         }
         return map;
@@ -283,13 +277,7 @@ public class Augmentation {
     public static <T, U> Map<U, List<T>> groupBy(Iterable<T> receiver, Function<T, U> mapper) {
         Map<U, List<T>> map = new LinkedHashMap<>();
         for (T t : receiver) {
-            U mapped = mapper.apply(t);
-            List<T> results = map.get(mapped);
-            if (results == null) {
-                results = new ArrayList<>();
-                map.put(mapped, results);
-            }
-            results.add(t);
+            map.computeIfAbsent(mapper.apply(t), k -> new ArrayList<>()).add(t);
         }
         return map;
     }
@@ -907,16 +895,8 @@ public class Augmentation {
         Map<T, Map<K, V>> map = new LinkedHashMap<>();
         for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
-            Map<K, V> results = map.get(mapped);
-            if (results == null) {
-                if (receiver instanceof TreeMap) {
-                    results = new TreeMap<>();
-                } else {
-                    results = new LinkedHashMap<>();
-                }
-                map.put(mapped, results);
-            }
-            results.put(kvPair.getKey(), kvPair.getValue());
+            map.computeIfAbsent(mapped, k -> receiver instanceof TreeMap ? new TreeMap<K, V>() : new LinkedHashMap<K, V>())
+                .put(kvPair.getKey(), kvPair.getValue());
             script._pollCancellation();
         }
         return map;
@@ -929,17 +909,9 @@ public class Augmentation {
         Map<T, Map<K, V>> map = new LinkedHashMap<>();
         for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
-            Map<K, V> results = map.get(mapped);
-            if (results == null) {
-                // try to preserve some properties of the receiver (see the groovy javadocs)
-                if (receiver instanceof TreeMap) {
-                    results = new TreeMap<>();
-                } else {
-                    results = new LinkedHashMap<>();
-                }
-                map.put(mapped, results);
-            }
-            results.put(kvPair.getKey(), kvPair.getValue());
+            // try to preserve some properties of the receiver (see the groovy javadocs)
+            map.computeIfAbsent(mapped, k -> receiver instanceof TreeMap ? new TreeMap<K, V>() : new LinkedHashMap<K, V>())
+                .put(kvPair.getKey(), kvPair.getValue());
         }
         return map;
     }

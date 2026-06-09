@@ -86,9 +86,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/145884
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
   method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERD doubles>, percentile: <positive int>}"
   issue: https://github.com/elastic/elasticsearch/issues/145886
@@ -259,9 +256,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/148606
-- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
-  method: testSplitOnSize
-  issue: https://github.com/elastic/elasticsearch/issues/148613
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
@@ -656,3 +650,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testAsyncPrefetchNotCalledOnCacheHit
+  issue: https://github.com/elastic/elasticsearch/issues/151028
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testAsyncPrefetchOnCacheMiss
+  issue: https://github.com/elastic/elasticsearch/issues/151029
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testAsyncPrefetchSuccessIsRecorded
+  issue: https://github.com/elastic/elasticsearch/issues/151030
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testAsyncPrefetchFailureIsRecorded
+  issue: https://github.com/elastic/elasticsearch/issues/151031
+- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
+  method: test {p0=downsample/110_downsample_temporality/Downsample delta temporality counter}
+  issue: https://github.com/elastic/elasticsearch/issues/151046
+- class: org.elasticsearch.xpack.downsample.DownsampleRestIT
+  method: test {p0=downsample/110_downsample_temporality/Downsample mixed temporality counters}
+  issue: https://github.com/elastic/elasticsearch/issues/151047
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  method: test {p0=downsample/110_downsample_temporality/Downsample mixed temporality counters}
+  issue: https://github.com/elastic/elasticsearch/issues/151048
+- class: org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT
+  method: test {p0=downsample/110_downsample_temporality/Downsample delta temporality counter}
+  issue: https://github.com/elastic/elasticsearch/issues/151049
+- class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
+  method: test {p0=ml/estimate_model_memory/Test partition field with independent influencer}
+  issue: https://github.com/elastic/elasticsearch/issues/151052

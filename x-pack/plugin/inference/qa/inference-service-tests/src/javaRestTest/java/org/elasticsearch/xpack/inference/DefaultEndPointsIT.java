@@ -66,9 +66,8 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void closeThreadPool() throws Exception {
         threadPool.close();
-        super.tearDown();
     }
 
     public void testGet() throws IOException {

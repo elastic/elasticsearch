@@ -63,4 +63,18 @@ public interface TimeSeriesIndexCreationWindowLocator {
             return currentWindow;
         }
     }
+
+    static TimeSeriesIndexCreationWindowLocator noOp() {
+        return NoOpLocator.INSTANCE;
+    }
+
+    enum NoOpLocator implements TimeSeriesIndexCreationWindowLocator {
+        INSTANCE;
+
+        @Override
+        public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
+            return Instant.MIN;
+        }
+    }
+
 }

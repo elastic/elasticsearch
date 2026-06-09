@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TimeSeriesIndexCreationWindowLocator;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -61,6 +62,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -92,8 +94,46 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private final OriginSettingClient rolloverClient;
     private final FailureStoreMetrics failureStoreMetrics;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator;
 
     @Inject
+    public TransportBulkAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        IngestService ingestService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices,
+        ProjectResolver projectResolver,
+        FailureStoreMetrics failureStoreMetrics,
+        DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        FeatureService featureService,
+        TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator
+    ) {
+        this(
+            TYPE,
+            BulkRequest::new,
+            threadPool,
+            transportService,
+            clusterService,
+            ingestService,
+            client,
+            actionFilters,
+            indexNameExpressionResolver,
+            indexingPressure,
+            systemIndices,
+            projectResolver,
+            threadPool.relativeTimeInMillisSupplier(),
+            failureStoreMetrics,
+            dataStreamFailureStoreSettings,
+            featureService,
+            timeSeriesIndexCreationWindowLocator
+        );
+    }
+
     public TransportBulkAction(
         ThreadPool threadPool,
         TransportService transportService,
@@ -110,6 +150,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         FeatureService featureService
     ) {
         this(
+            TYPE,
+            BulkRequest::new,
             threadPool,
             transportService,
             clusterService,
@@ -120,10 +162,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             indexingPressure,
             systemIndices,
             projectResolver,
-            threadPool::relativeTimeInNanos,
+            threadPool.relativeTimeInMillisSupplier(),
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService
+            featureService,
+            TimeSeriesIndexCreationWindowLocator.noOp() // PRTODO: Fix
         );
     }
 
@@ -159,7 +202,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             relativeTimeProvider,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService
+            featureService,
+            TimeSeriesIndexCreationWindowLocator.noOp() // PRTODO: Fix
         );
     }
 
@@ -179,7 +223,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService
+        FeatureService featureService,
+        TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator
     ) {
         super(
             bulkAction,
@@ -201,6 +246,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.failureStoreMetrics = failureStoreMetrics;
+        this.timeSeriesIndexCreationWindowLocator = timeSeriesIndexCreationWindowLocator;
     }
 
     public static <Response extends ReplicationResponse & WriteResponse> ActionListener<BulkResponse> unwrappingSingleItemBulkResponse(

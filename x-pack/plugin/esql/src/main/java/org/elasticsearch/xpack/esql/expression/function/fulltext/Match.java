@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +49,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -420,15 +419,23 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (isRuntimeSearch()) {
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryAsObject().toString(), new StandardAnalyzer());
+        if (false == isRuntimeSearch()) {
+            return super.toEvaluator(toEvaluator);
         }
 
-        return super.toEvaluator(toEvaluator);
+        Analyzer analyzer = new StandardAnalyzer();
+        Set<String> queryTerms;
+        try {
+            queryTerms = queryTerms(analyzer);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to tokenize query string: " + e.getMessage(), e);
+        }
+
+        return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryTerms, analyzer);
     }
 
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean process(@Position int position, BytesRefBlock fieldBlock, @Fixed String queryString, @Fixed Analyzer analyzer)
+    static boolean process(@Position int position, BytesRefBlock fieldBlock, @Fixed Set<String> queryTerms, @Fixed Analyzer analyzer)
         throws IOException {
         if (fieldBlock == null) {
             return false;
@@ -439,22 +446,40 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         var value = new BytesRef();
 
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            // TODO: See if we really need a memory index, we could match the terms directly from the analyzer token stream.
-            MemoryIndex index = new MemoryIndex();
             value = fieldBlock.getBytesRef(valueIndex, value);
-            index.addField(CONTENT_FIELD, value.utf8ToString(), analyzer);
-            IndexSearcher searcher = index.createSearcher();
+            boolean foundMatch = false;
+            try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, value.utf8ToString())) {
+                stream.reset();
+                CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
 
-            org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
-            // TODO: Use the operator specified in the query options instead of `BooleanClause.Occur.SHOULD`.
-            org.apache.lucene.search.Query query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, BooleanClause.Occur.SHOULD);
-
-            TopDocs topDocs = searcher.search(query, 1);
-            if (topDocs.scoreDocs.length > 0) {
+                while (stream.incrementToken()) {
+                    if (queryTerms.contains(term.toString())) {
+                        foundMatch = true;
+                        break;
+                    }
+                }
+                stream.end();
+            }
+            if (foundMatch) {
                 return true;
             }
+
         }
         return false;
+    }
+
+    private Set<String> queryTerms(Analyzer analyzer) throws IOException {
+        Set<String> queryTerms = new HashSet<>();
+
+        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, queryAsObject().toString())) {
+            stream.reset();
+            CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+            while (stream.incrementToken()) {
+                queryTerms.add(term.toString());
+            }
+            stream.end();
+        }
+        return queryTerms;
     }
 
     @Override

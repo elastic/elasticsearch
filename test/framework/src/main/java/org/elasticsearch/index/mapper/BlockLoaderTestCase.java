@@ -57,11 +57,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
-    protected static final SourceFieldMapper.Mode[] SOURCE_MODES = {
-        SourceFieldMapper.Mode.STORED,
-        SourceFieldMapper.Mode.SYNTHETIC,
-        SourceFieldMapper.Mode.COLUMNAR_STORED };
-
     /**
      * A large enough size that loading the field won't circuit break.
      */
@@ -76,25 +71,22 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             : List.of(IndexMode.STANDARD);
 
         for (IndexMode indexMode : modes) {
-            for (SourceFieldMapper.Mode sourceMode : SOURCE_MODES) {
-                if (indexMode.supportedSourceModes().contains(sourceMode) == false) {
+            for (boolean syntheticSource : new boolean[] { false, true }) {
+                // COLUMNAR already implies synthetic source mode; skip the non-synthetic combo to avoid invalid configurations.
+                if (indexMode == IndexMode.COLUMNAR && syntheticSource == false) {
                     continue;
                 }
                 for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
-                    args.add(new Object[] { new Params(indexMode, sourceMode, preference) });
+                    args.add(new Object[] { new Params(syntheticSource, preference, indexMode) });
                 }
             }
         }
         return args;
     }
 
-    public record Params(IndexMode indexMode, SourceFieldMapper.Mode sourceMode, MappedFieldType.FieldExtractPreference preference) {
-        public boolean syntheticSource() {
-            return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
-        }
-
-        public boolean isColumnarStored() {
-            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference, IndexMode indexMode) {
+        public Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {
+            this(syntheticSource, preference, IndexMode.STANDARD);
         }
     }
 
@@ -317,7 +309,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         // synthetic_source_keep is rejected on strict-columnar indices, so the fallback-through-ignored-source path can only be exercised
         // on non-strict-columnar synthetic-source indices.
-        if (params.syntheticSource() && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
+        if (params.syntheticSource && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
@@ -434,8 +426,12 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        builder.put("index.mapping.source.mode", params.sourceMode().name());
-        builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
+        if (params.syntheticSource()) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        }
+        if (params.indexMode() != IndexMode.STANDARD) {
+            builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
+        }
         return builder;
     }
 

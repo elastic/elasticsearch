@@ -180,8 +180,7 @@ class FlattenedFieldParser {
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
         if (value.length() > ignoreAbove) {
-            var lookup = context.documentParserContext().mappingLookup();
-            if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
+            if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
                 if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }

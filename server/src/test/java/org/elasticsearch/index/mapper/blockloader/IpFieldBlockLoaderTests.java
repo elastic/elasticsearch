@@ -41,8 +41,7 @@ public class IpFieldBlockLoaderTests extends BlockLoaderTestCase {
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
-            || params.syntheticSource()
-            || params.isColumnarStored();
+            || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Columnar index modes preserve arrival order via offsets; other modes return sorted, deduplicated doc values.
             boolean preserveOrder = params.indexMode().isColumnar();

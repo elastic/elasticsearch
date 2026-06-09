@@ -42,13 +42,13 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (hasDocValues(fieldMapping, true)) {
             if (preferToLoadFromDocValues) {
                 return longValues(values, nullValue, testContext.isMultifield());
-            } else if (noPreference && (params.syntheticSource() || params.isColumnarStored())) {
+            } else if (noPreference && params.syntheticSource()) {
                 return bytesRefWkbValues(values, nullValue, testContext.isMultifield());
             }
         }
 
-        // stored source is used (columnar_stored behaves like synthetic source, not raw stored source)
-        if (params.syntheticSource() == false && params.isColumnarStored() == false) {
+        // stored source is used
+        if (params.syntheticSource() == false) {
             return exactValuesFromSource(values, nullValue, false);
         }
 

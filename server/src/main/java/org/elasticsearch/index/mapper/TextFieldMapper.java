@@ -1434,12 +1434,8 @@ public final class TextFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // Check if we can load from a fallback field.
-            // columnar_stored pre-builds _source as a single blob and drops the fallback field
-            if (isSyntheticSourceEnabled()
-                && blContext.mappingLookup().isSourceColumnarStored() == false
-                && syntheticSourceDelegate.isEmpty()
-                && parentField == null) {
+            // Check if we can load from a fallback field
+            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
                 if (usesBinaryDocValuesForFallbackFields) {
                     if (indexCreatedVersion.onOrAfter(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES)) {
                         return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(syntheticSourceFallbackFieldName());

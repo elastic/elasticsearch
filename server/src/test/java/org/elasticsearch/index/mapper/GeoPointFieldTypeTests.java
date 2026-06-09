@@ -268,7 +268,6 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType.BlockLoaderContext blContextMock = mock(MappedFieldType.BlockLoaderContext.class);
         doReturn(fieldExtractPreference).when(blContextMock).fieldExtractPreference();
         doReturn(indexSettings).when(blContextMock).indexSettings();
-        doReturn(MappingLookup.EMPTY).when(blContextMock).mappingLookup();
 
         return blContextMock;
     }

@@ -81,10 +81,8 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     ) throws IOException {
         super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
-        assert engineSearcher.getDirectoryReader().maxDoc() == 0
-            || mapperService.mappingLookup().isSourceSynthetic()
-            || mapperService.mappingLookup().isSourceColumnarStored()
-            : "either an empty index or synthetic/columnar_stored source must be enabled for proper functionality.";
+        assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
+            : "either an empty index or synthetic source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);

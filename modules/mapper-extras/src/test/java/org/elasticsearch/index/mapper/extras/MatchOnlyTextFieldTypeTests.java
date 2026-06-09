@@ -52,7 +52,6 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -527,7 +526,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field
@@ -555,7 +553,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field using separate count format
@@ -583,7 +580,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // when
         var context = mock(MappedFieldType.BlockLoaderContext.class);
-        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then - should load from a fallback binary doc values field using integrated count format
@@ -711,7 +707,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     private static MappedFieldType.BlockLoaderContext mockContext() {
         MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
-        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         return context;
     }
 }

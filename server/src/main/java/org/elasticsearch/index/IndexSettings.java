@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -869,31 +870,7 @@ public final class IndexSettings {
             return indexMode.defaultSourceMode().name();
         },
         "index.mapping.source.mode",
-        new Setting.Validator<SourceFieldMapper.Mode>() {
-            @Override
-            public void validate(SourceFieldMapper.Mode value) {}
-
-            @Override
-            public void validate(SourceFieldMapper.Mode value, Map<Setting<?>, Object> settings) {
-                var indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode.supportedSourceModes().contains(value) == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "unsupported source mode [%s] for index mode [%s]; supported values: %s",
-                            value,
-                            indexMode,
-                            indexMode.supportedSourceModes()
-                        )
-                    );
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(MODE).iterator();
-            }
-        },
+        value -> {},
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic
@@ -908,12 +885,10 @@ public final class IndexSettings {
                 .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
 
             boolean useSyntheticRecoverySource = isNewIndexVersion || isIndexVersionInBackportRange;
-
-            var sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
-            boolean sourceModeDefault = sourceMode == SourceFieldMapper.Mode.SYNTHETIC
-                || sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
-
-            return String.valueOf(useSyntheticRecoverySource && sourceModeDefault);
+            return String.valueOf(
+                useSyntheticRecoverySource
+                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
+            );
 
         },
         new Setting.Validator<>() {
@@ -922,25 +897,12 @@ public final class IndexSettings {
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                var indexMode = (IndexMode) settings.get(MODE);
                 if (enabled == false) {
-                    // columnar mode requires synthetic recovery source
-                    if (indexMode.isStrictColumnar()) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] must not be false when [%s] is set to [%s].",
-                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
-                                MODE.getKey(),
-                                indexMode.name()
-                            )
-                        );
-                    }
-
                     return;
                 }
 
                 // Verify if synthetic source is enabled on the index; fail if it is not
+                var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
                     var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
                     if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {

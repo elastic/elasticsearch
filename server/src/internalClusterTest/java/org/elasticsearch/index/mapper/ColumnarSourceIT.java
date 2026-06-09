@@ -64,9 +64,9 @@ public class ColumnarSourceIT extends ESIntegTestCase {
     }
 
     /**
-     * Verifies that in {@code columnar_stored} source mode, every non-null field in an indexed document is stored in
-     * {@code _ignored_source}. A random mapping and document are generated each run to exercise a wide variety of field
-     * types and nesting shapes.
+     * Verifies that in {@code columnar_stored} source mode, every field in an indexed document (including null values
+     * and all-null arrays) is stored in {@code _ignored_source}. A random mapping and document are generated each run
+     * to exercise a wide variety of field types and nesting shapes.
      */
     public void testAllFieldsStoredInIgnoredSource() throws Exception {
         var spec = buildSpec();
@@ -89,10 +89,9 @@ public class ColumnarSourceIT extends ESIntegTestCase {
         prepareIndex("test").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         flushAndRefresh("test");
-
         var ignoredSourceFieldNames = readIgnoredSourceFieldNames();
 
-        var expectedFieldNames = collectNonNullLeafPaths(document, "", mapping.lookup());
+        var expectedFieldNames = collectLeafPaths(document, "", mapping.lookup());
         for (String fieldName : expectedFieldNames) {
             assertThat("field '" + fieldName + "' should be stored in _ignored_source", ignoredSourceFieldNames, hasItem(fieldName));
         }
@@ -247,34 +246,34 @@ public class ColumnarSourceIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Set<String> collectNonNullLeafPaths(Map<String, Object> doc, String prefix, Map<String, Map<String, Object>> mappingLookup) {
+    private Set<String> collectLeafPaths(Map<String, Object> doc, String prefix, Map<String, Map<String, Object>> mappingLookup) {
         Set<String> paths = new HashSet<>();
         for (Map.Entry<String, Object> entry : doc.entrySet()) {
             String fullPath = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
             if (value == null) {
-                // null values are not indexed, skip
+                paths.add(fullPath);
             } else if (value instanceof Map<?, ?> nested) {
                 if (isMappedLeafField(fullPath, mappingLookup)) {
                     // A mapped leaf field with an object-shaped value (e.g. geo_point stored as {lat, lon}).
                     // _ignored_source stores the whole field under its mapped path, not its sub-keys.
                     paths.add(fullPath);
                 } else {
-                    paths.addAll(collectNonNullLeafPaths((Map<String, Object>) nested, fullPath, mappingLookup));
+                    paths.addAll(collectLeafPaths((Map<String, Object>) nested, fullPath, mappingLookup));
                 }
             } else if (value instanceof List<?> list) {
-                // Find the first non-null element; skip all-null arrays (not stored in _ignored_source).
-                list.stream().filter(Objects::nonNull).findFirst().ifPresent(firstNonNull -> {
-                    if (firstNonNull instanceof Map<?, ?> && isMappedLeafField(fullPath, mappingLookup) == false) {
-                        // array of objects under an object-mapper or unmapped path: recurse into each item
-                        list.stream().filter(item -> item instanceof Map<?, ?>).forEach(item -> {
-                            paths.addAll(collectNonNullLeafPaths((Map<String, Object>) item, fullPath, mappingLookup));
-                        });
-                    } else {
-                        // array of scalars, or array of objects for a mapped leaf field (e.g. geo_point)
-                        paths.add(fullPath);
-                    }
-                });
+                var firstNonNull = list.stream().filter(Objects::nonNull).findFirst();
+                if (firstNonNull.isPresent()
+                    && firstNonNull.get() instanceof Map<?, ?>
+                    && isMappedLeafField(fullPath, mappingLookup) == false) {
+                    // array of objects under an object-mapper or unmapped path: recurse into each item
+                    list.stream().filter(item -> item instanceof Map<?, ?>).forEach(item -> {
+                        paths.addAll(collectLeafPaths((Map<String, Object>) item, fullPath, mappingLookup));
+                    });
+                } else if (list.isEmpty() == false) {
+                    // array of scalars, all-null array, or array of objects for a mapped leaf field (e.g. geo_point)
+                    paths.add(fullPath);
+                }
             } else {
                 paths.add(fullPath);
             }

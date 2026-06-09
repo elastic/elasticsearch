@@ -14,8 +14,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper.SeqNoIndexOptions;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -2621,6 +2623,43 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
         String syntheticSource = syntheticSource(mapper, b -> { b.startObject("obj").field("key", "val").endObject(); });
         assertEquals("{\"obj\":{\"key\":\"val\"}}", syntheticSource);
+    }
+
+    public void testColumnarStoredNullScalarStoredInIgnoredSource() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> { b.startObject("value").field("type", "keyword").endObject(); })
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("value")));
+        assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+    }
+
+    public void testColumnarStoredAllNullArrayStoredInIgnoredSource() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> { b.startObject("value").field("type", "keyword").endObject(); })
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("value");
+            b.nullValue();
+            b.nullValue();
+            b.endArray();
+        }));
+        assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
     }
 
     public void testFormatSelectionByVersion() {

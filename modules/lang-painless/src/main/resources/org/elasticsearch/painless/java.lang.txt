@@ -39,7 +39,7 @@ class java.lang.Comparable {
 }
 
 class java.lang.Iterable {
-  void forEach(Consumer)
+  void org.elasticsearch.painless.api.Augmentation forEach(Consumer) @script_aware
   Iterator iterator()
   Spliterator spliterator()
   # some adaptations of groovy wmethods

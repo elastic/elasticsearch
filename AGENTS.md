@@ -77,6 +77,10 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - Integration: Extend `ESIntegTestCase`.
 - REST API: Extend `ESRestTestCase` or `ESClientYamlSuiteTestCase`. **YAML based REST tests are preferred** for integration/API testing.
 
+### Distribution selection for external-module tests
+- Prefer the OSS/minimal distribution over `usesDefaultDistribution` whenever possible. `usesDefaultDistribution` packages the full default distribution, which is significantly more expensive to build and run.
+- Only use `usesDefaultDistribution` when the test genuinely requires a feature that is only available in the default distribution and cannot be replicated with a custom cluster configuration that includes just the needed plugins. Always document the reason in the `usesDefaultDistribution(...)` message.
+
 ## Dependency Hygiene
 - Never add a dependency without checking for existing alternatives in the repo.
 

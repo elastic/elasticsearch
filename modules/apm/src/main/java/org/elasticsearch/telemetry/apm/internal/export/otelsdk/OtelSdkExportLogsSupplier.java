@@ -29,7 +29,9 @@ import java.io.Closeable;
 /**
  * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/gRPC, then installs
  * it into the log4j {@link OpenTelemetryAppender} and programmatically attaches that appender
- * to the {@code LoggingAuditTrail} logger so audit events flow out via OTLP.
+ * to the {@code LoggingAuditTrail} logger so audit events flow out via OTLP. Currently used
+ * solely for audit log delivery; the attachment point is not fundamental to this class and
+ * could be extended to other loggers.
  *
  * <p>The appender is attached programmatically rather than via {@code log4j2.properties} because
  * log4j2 config files are parsed at JVM startup, before plugin/module classloaders are available;
@@ -69,15 +71,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             return;
         }
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.get(settings);
-        if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException(
-                OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey()
-                    + "=true requires "
-                    + OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey()
-                    + " to be configured"
-            );
-        }
-
         OtlpGrpcLogRecordExporterBuilder exporterBuilder = OtlpGrpcLogRecordExporter.builder().setEndpoint(endpoint);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
@@ -96,7 +89,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
         if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName()) == false) {
             // No exact LoggerConfig for the audit logger (e.g. audit logging disabled). Bail.
-            provider.close();
+            built.close();
             logger.warn("Audit logger config not found; skipping OTel logs install");
             return;
         }
@@ -158,6 +151,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {
                 auditLoggerConfig.removeAppender(OTEL_APPENDER_NAME);
             }
+            config.getAppenders().remove(OTEL_APPENDER_NAME);
             ctx.updateLoggers();
             appender.stop();
         } catch (Exception e) {

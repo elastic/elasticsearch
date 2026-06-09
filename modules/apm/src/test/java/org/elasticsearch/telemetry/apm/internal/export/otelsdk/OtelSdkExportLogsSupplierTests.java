@@ -17,8 +17,11 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,18 +37,29 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
         supplier.close();
     }
 
-    public void testInstallWhenEnabledWithoutEndpointThrows() {
+    public void testLogsEnabledWithoutEndpointIsInvalidSettings() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new OtelSdkExportLogsSupplier(settings).install());
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.validate(settings, true)
+        );
         assertThat(e.getMessage(), containsString("telemetry.otel.logs.endpoint"));
     }
 
-    public void testInstallWhenEnabledWithEmptyEndpointThrows() {
+    public void testLogsEnabledWithEmptyEndpointIsInvalidSettings() {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.getKey(), true)
             .put(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.getKey(), "")
             .build();
-        expectThrows(IllegalStateException.class, () -> new OtelSdkExportLogsSupplier(settings).install());
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
+        );
+        expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
     }
 
     public void testInstallTwiceIsIdempotent() {

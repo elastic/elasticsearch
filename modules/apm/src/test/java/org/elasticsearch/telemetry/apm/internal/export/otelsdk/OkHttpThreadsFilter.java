@@ -12,13 +12,15 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 
 /**
- * Excludes OkHttp and Okio daemon threads from the thread-leak checker.
- * {@code OkHttp TaskRunner} and {@code Okio Watchdog} are global JVM singletons
- * that persist after all OkHttp clients are closed; they are not a true resource leak.
+ * Excludes OkHttp and Okio global daemon threads from the thread-leak checker.
+ * {@code OkHttp TaskRunner} and {@code Okio Watchdog} are JVM-wide singletons that persist
+ * after all OkHttp clients are closed; they are not a true resource leak. Matching by exact
+ * name (rather than prefix) avoids masking leaked per-request OkHttp client threads.
  */
 public class OkHttpThreadsFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
-        return t.getName().startsWith("OkHttp") || t.getName().startsWith("Okio");
+        String name = t.getName();
+        return name.equals("OkHttp TaskRunner") || name.equals("Okio Watchdog");
     }
 }

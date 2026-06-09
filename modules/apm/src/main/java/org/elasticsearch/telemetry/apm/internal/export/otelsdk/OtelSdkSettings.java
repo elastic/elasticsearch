@@ -13,6 +13,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
 
@@ -175,5 +179,27 @@ public final class OtelSdkSettings {
     public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
 
     /** Whether the OTel SDK audit-log export path is active. When false, {@link OtelSdkExportLogsSupplier} installs nothing. */
-    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting("telemetry.otel.logs.enabled", false, NodeScope);
+    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting(
+        "telemetry.otel.logs.enabled",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
+                if (value && ((String) settings.get(TELEMETRY_OTEL_LOGS_ENDPOINT)).isEmpty()) {
+                    throw new IllegalArgumentException(
+                        TELEMETRY_OTEL_LOGS_ENDPOINT.getKey() + " must be configured when telemetry.otel.logs.enabled=true"
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(TELEMETRY_OTEL_LOGS_ENDPOINT).iterator();
+            }
+        },
+        NodeScope
+    );
 }

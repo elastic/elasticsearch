@@ -160,6 +160,46 @@ public class ColumnarSourceIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Verifies that {@code columnar_stored} handles {@code ignore_malformed=true} correctly: a malformed value is stored
+     * exactly once in {@code _ignored_source} and the reconstructed source matches the original document without duplication.
+     */
+    public void testColumnarStoredSourceWithIgnoreMalformed() throws Exception {
+        var indexMode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        var syntheticSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+        var columnarStoredSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), indexMode.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+
+        var mappingXContent = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("count")
+            .field("type", "long")
+            .field("ignore_malformed", true)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
+        assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
+
+        // Index a document with a malformed value for the long field
+        var document = Map.of("count", "not_a_number");
+        prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
+        var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
+
+        assertEquals(syntheticSource, columnarStoredSource);
+        assertEquals("not_a_number", columnarStoredSource.get("count"));
+    }
+
     private Set<String> readIgnoredSourceFieldNames() throws IOException {
         var clusterState = clusterService().state();
         var primaryShard = clusterState.routingTable().index("test").shard(0).primaryShard();

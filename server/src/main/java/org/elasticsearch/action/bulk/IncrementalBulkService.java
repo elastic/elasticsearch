@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,14 +57,22 @@ public class IncrementalBulkService {
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
     private final TaskManager taskManager;
+    private final ThreadPool threadPool;
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
     private final LongHistogram chunkWaitTimeMillisHistogram;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry, TaskManager taskManager) {
+    public IncrementalBulkService(
+        Client client,
+        IndexingPressure indexingPressure,
+        MeterRegistry meterRegistry,
+        TaskManager taskManager,
+        ThreadPool threadPool
+    ) {
         this.client = client;
         this.indexingPressure = indexingPressure;
         this.taskManager = taskManager;
+        this.threadPool = threadPool;
         this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
             CHUNK_WAIT_TIME_HISTOGRAM_NAME,
             "Total time in millis spent waiting for next chunk of a bulk request",
@@ -91,7 +100,8 @@ public class IncrementalBulkService {
             refresh,
             chunkWaitTimeMillisHistogram,
             paramsUsed,
-            taskManager
+            taskManager,
+            threadPool
         );
     }
 
@@ -155,26 +165,33 @@ public class IncrementalBulkService {
             @Nullable String refresh,
             LongHistogram chunkWaitTimeMillisHistogram,
             Set<String> paramsUsed,
-            TaskManager taskManager
+            TaskManager taskManager,
+            ThreadPool threadPool
         ) {
             this.taskManager = taskManager;
-            bulkSessionTask = (CancellableTask) taskManager.register(BULK_SESSION_TASK_TYPE, BULK_SESSION_ACTION, new TaskAwareRequest() {
-                @Override
-                public void setParentTask(TaskId taskId) {}
+            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                bulkSessionTask = (CancellableTask) taskManager.register(
+                    BULK_SESSION_TASK_TYPE,
+                    BULK_SESSION_ACTION,
+                    new TaskAwareRequest() {
+                        @Override
+                        public void setParentTask(TaskId taskId) {}
 
-                @Override
-                public void setRequestId(long requestId) {}
+                        @Override
+                        public void setRequestId(long requestId) {}
 
-                @Override
-                public TaskId getParentTask() {
-                    return TaskId.EMPTY_TASK_ID;
-                }
+                        @Override
+                        public TaskId getParentTask() {
+                            return TaskId.EMPTY_TASK_ID;
+                        }
 
-                @Override
-                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                    return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
-                }
-            });
+                        @Override
+                        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+                        }
+                    }
+                );
+            }
 
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;

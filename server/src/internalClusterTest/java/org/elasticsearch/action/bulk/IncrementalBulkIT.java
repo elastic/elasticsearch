@@ -533,6 +533,13 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
     }
 
+    public void testCancellableIncrementBulkServiceHandler() throws Exception {
+
+        // Test Case 1: Cancellation arrive before the first client.Bulk
+        // Verify no client.Bulk is executed.
+
+    }
+
     private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {
         final var threadCount = threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);

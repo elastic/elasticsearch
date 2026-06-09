@@ -1106,7 +1106,8 @@ class NodeConstruction {
             client,
             indexingLimits,
             telemetryProvider.getMeterRegistry(),
-            taskManager
+            taskManager,
+            threadPool
         );
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);

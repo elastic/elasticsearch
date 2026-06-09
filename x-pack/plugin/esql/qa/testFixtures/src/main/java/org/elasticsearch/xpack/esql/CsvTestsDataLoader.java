@@ -798,18 +798,22 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean clusterHasViewSupport(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_query/view");
+        // Use the _capabilities endpoint so we check ALL nodes, not just the coordinator.
+        // Views CRUD operations are master-node transport actions; if any node (e.g. an older data
+        // node acting as master) doesn't know the action, it will crash with an AssertionError.
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", "POST");
+        request.addParameter("path", "/_query");
+        request.addParameter("capabilities", "views_crud_as_index_actions");
         try {
-            Response ignored = client.performRequest(request);
-        } catch (ResponseException e) {
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 410 || code == 400 || code == 500 || code == 405) {
-                return false;
+            Response response = client.performRequest(request);
+            try (var content = response.getEntity().getContent()) {
+                Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, false);
+                return Boolean.TRUE.equals(map.get("supported"));
             }
-            throw e;
+        } catch (ResponseException e) {
+            return false;
         }
-        return true;
     }
 
     private static void deleteView(RestClient client, String viewName) throws IOException {

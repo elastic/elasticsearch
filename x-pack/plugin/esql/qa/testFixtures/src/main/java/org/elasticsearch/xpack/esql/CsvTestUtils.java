@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
@@ -100,8 +102,11 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public final class CsvTestUtils {
     private static final Logger LOGGER = LogManager.getLogger(CsvTestUtils.class);
@@ -297,6 +302,16 @@ public final class CsvTestUtils {
                 Sets.difference(new HashSet<>(requiredCapabilities), enabledCapabilities.capabilities())
             ),
             enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+        );
+    }
+
+    public static void checkPragma(
+        Map<String, String> pragmaSettings
+    ) {
+        assertThat(
+            "Pragma not found, spelling mistake?",
+            pragmaSettings.keySet(),
+            everyItem(in(QueryPragmas.VALID_PRAGMA_NAMES))
         );
     }
 

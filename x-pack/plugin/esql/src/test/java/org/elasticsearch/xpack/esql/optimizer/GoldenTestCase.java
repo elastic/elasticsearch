@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -84,6 +86,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -134,6 +137,10 @@ public abstract class GoldenTestCase extends ESTestCase {
         builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
     }
 
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, TransportVersion transportVersion) {
+        builder(esqlQuery).stages(stages).transportVersion(transportVersion).run();
+    }
+
     protected void runGoldenTest(
         String esqlQuery,
         EnumSet<Stage> stages,
@@ -142,7 +149,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         String... nestedPath
     ) {
         String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion).doTest();
+        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, null, null).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -155,23 +162,32 @@ public abstract class GoldenTestCase extends ESTestCase {
         private SearchStats searchStats;
         private String[] nestedPath;
         private TransportVersion transportVersion;
+        private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
+        private AliasFilter aliasFilter;
 
         private TestBuilder(
             String esqlQuery,
             EnumSet<Stage> stages,
             SearchStats searchStats,
             String[] nestedPath,
-            TransportVersion transportVersion
+            TransportVersion transportVersion,
+            AliasFilter aliasFilter
         ) {
             this.esqlQuery = esqlQuery;
             this.stages = stages;
             this.searchStats = searchStats;
             this.nestedPath = nestedPath;
             this.transportVersion = transportVersion;
+            this.aliasFilter = aliasFilter;
         }
 
         TestBuilder(String esqlQuery) {
-            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion());
+            this(esqlQuery, EnumSet.allOf(Stage.class), EsqlTestUtils.TEST_SEARCH_STATS, new String[0], randomMinimumVersion(), null);
+        }
+
+        public TestBuilder optimizer(Function<LogicalOptimizerContext, LogicalPlanOptimizer> factory) {
+            this.optimizerFactory = factory;
+            return this;
         }
 
         public TestBuilder stages(EnumSet<Stage> stages) {
@@ -210,8 +226,19 @@ public abstract class GoldenTestCase extends ESTestCase {
             return this;
         }
 
+        public TestBuilder aliasFilter(AliasFilter aliasFilter) {
+            this.aliasFilter = aliasFilter;
+            return this;
+        }
+
+        public AliasFilter aliasFilter() {
+            return aliasFilter;
+        }
+
         public void run() {
-            runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
+            String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
+            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory, aliasFilter)
+                .doTest();
         }
 
         public Optional<Throwable> tryRun() {
@@ -231,7 +258,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         String esqlQuery,
         EnumSet<Stage> stages,
         SearchStats searchStats,
-        TransportVersion transportVersion
+        TransportVersion transportVersion,
+        Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
+        AliasFilter aliasFilter
     ) {
 
         private void doTest() {
@@ -248,7 +277,10 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            LogicalPlan parsedPlan = statement.plan();
+            // Mirror EsqlSession#execute: rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
+            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier
+            // checks (e.g. unbounded SORT inside an IN subquery) fire.
+            LogicalPlan parsedPlan = InSubqueryResolver.resolve(statement.plan());
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
@@ -279,7 +311,10 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
             var configuration = EsqlTestUtils.configuration(new QueryPragmas(Settings.EMPTY), esqlQuery, statement);
             var optimizerContext = new LogicalOptimizerContext(configuration, FoldContext.small(), transportVersion);
-            var logicallyOptimized = new LogicalPlanOptimizer(optimizerContext).optimize(analyzed);
+            var optimizer = optimizerFactory != null
+                ? optimizerFactory.apply(optimizerContext)
+                : new LogicalPlanOptimizer(optimizerContext);
+            var logicallyOptimized = optimizer.optimize(analyzed);
             if (stages.contains(Stage.LOGICAL_OPTIMIZATION)) {
                 result.add(Tuple.tuple(Stage.LOGICAL_OPTIMIZATION, verifyOrWrite(logicallyOptimized, Stage.LOGICAL_OPTIMIZATION)));
             }
@@ -323,43 +358,59 @@ public abstract class GoldenTestCase extends ESTestCase {
                             result.add(Tuple.tuple(Stage.LOOKUP_LOGICAL_OPTIMIZATION, r));
                         }
                         if (stages.contains(Stage.LOOKUP_PHYSICAL_OPTIMIZATION)) {
-                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(lookupLogical, configuration, searchStats);
+                            PhysicalPlan lookupPhysical = optimizeLookupPhysicalPlan(
+                                lookupLogical,
+                                configuration,
+                                searchStats,
+                                aliasFilter
+                            );
                             TestResult r = verifyOrWrite(lookupPhysical, outputPath("lookup_physical_optimization" + suffix));
                             result.add(Tuple.tuple(Stage.LOOKUP_PHYSICAL_OPTIMIZATION, r));
                         }
                     }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
-                    var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                    var reductionPlan = ComputeService.reductionPlan(
-                        PlannerSettings.DEFAULTS,
-                        new EsqlFlags(false),
-                        configuration,
-                        configuration.newFoldContext(),
-                        sink,
-                        true,
-                        true,
-                        new PlanTimeProfile()
+                    List<ExchangeExec> exchanges = physicalPlan.collect(ExchangeExec.class);
+                    // Skip plans that terminate at the
+                    // coordinator and produce no ExchangeExec;
+                    // e.g. query that optimized data scan entirely like `time()`
 
-                    );
-                    if (stages.contains(Stage.NODE_REDUCE)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
-                        result.addAll(
-                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
+                    if (exchanges.isEmpty() == false) {
+                        ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
+                        var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
+                        var reductionPlan = ComputeService.reductionPlan(
+                            PlannerSettings.DEFAULTS,
+                            new EsqlFlags(false),
+                            configuration,
+                            configuration.newFoldContext(),
+                            sink,
+                            true,
+                            true,
+                            new PlanTimeProfile()
+
                         );
-                    }
-                    if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        result.add(
-                            Tuple.tuple(
-                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                verifyOrWrite(
-                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                    outputPath(singleFileOutput.output())
+                        if (stages.contains(Stage.NODE_REDUCE)) {
+                            var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
+                            result.addAll(
+                                addNodeReduceDualPlanResult(
+                                    reductionPlan,
+                                    dualFileOutput.nodeReduceOutput(),
+                                    dualFileOutput.dataNodeOutput()
                                 )
-                            )
-                        );
+                            );
+                        }
+                        if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
+                            var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                            result.add(
+                                Tuple.tuple(
+                                    Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                    verifyOrWrite(
+                                        localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                        outputPath(singleFileOutput.output())
+                                    )
+                                )
+                            );
+                        }
                     }
                 }
             }
@@ -467,10 +518,22 @@ public abstract class GoldenTestCase extends ESTestCase {
             return new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(conf, foldCtx, stats)).localOptimize(logicalPlan);
         }
 
-        private static PhysicalPlan optimizeLookupPhysicalPlan(LogicalPlan logicalPlan, Configuration conf, SearchStats stats) {
+        private static PhysicalPlan optimizeLookupPhysicalPlan(
+            LogicalPlan logicalPlan,
+            Configuration conf,
+            SearchStats stats,
+            AliasFilter aliasFilter
+        ) {
             FoldContext foldCtx = conf.newFoldContext();
             PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
-            var context = new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, new EsqlFlags(true), conf, foldCtx, stats);
+            var context = new LookupPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                conf,
+                foldCtx,
+                stats,
+                aliasFilter
+            );
             return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
         }
     }

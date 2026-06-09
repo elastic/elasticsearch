@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -172,7 +172,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
         // Create a request with the product use case header
         Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
+        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
@@ -226,7 +226,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
         // Create a request with an empty product use case header value
         Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
+        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))

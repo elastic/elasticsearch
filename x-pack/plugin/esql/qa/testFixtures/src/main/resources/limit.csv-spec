@@ -993,6 +993,7 @@ emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
 ;
 
 sortLimitByMultivalueGroupKeyFiltered
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: esql_topn_by
 
 FROM employees
@@ -1084,6 +1085,58 @@ emp_no:integer | language_code:integer | language_name:keyword
 10004          | 5                     | null
 10005          | 1                     | English
 10005          | 1                     | English
+;
+
+// SORT key renamed by a Project lifted above a LOOKUP JOIN.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortRenameSortKeyLimitByWithLookupJoin
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME salary AS pay
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT pay
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, pay, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | pay:integer | language_name:keyword
+10001          | 2                     | 57305       | French
+10002          | 5                     | 56371       | null
+10003          | 4                     | 61805       | German
+10004          | 5                     | 36174       | null
+10005          | 1                     | 63528       | English
+;
+
+
+// Companion positive test: the RENAME targets the join column, so the SORT key still survives the Project.
+// https://github.com/elastic/elasticsearch/issues/148612
+sortLimitByRenamingJoinKey
+required_capability: fix_reorder_limit_project_and_order_by_preserves_refs
+required_capability: esql_topn_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| RENAME languages AS language_code
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT salary
+| LIMIT 5 BY language_code
+| KEEP emp_no, language_code, salary, language_name
+| SORT emp_no, language_code
+;
+
+emp_no:integer | language_code:integer | salary:integer | language_name:keyword
+10001          | 2                     | 57305          | French
+10002          | 5                     | 56371          | null
+10003          | 4                     | 61805          | German
+10004          | 5                     | 36174          | null
+10005          | 1                     | 63528          | English
 ;
 
 limitByWithEnrich

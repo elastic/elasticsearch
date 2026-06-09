@@ -16,11 +16,15 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_READ;
@@ -28,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
@@ -157,6 +162,81 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         } finally {
             disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
         }
+    }
+
+    public void testSliceRequiredWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        indicesAdmin().prepareCreate("slice-enabled")
+            .setSettings(indexSettings(1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .get();
+        ensureGreen("slice-enabled");
+
+        IllegalArgumentException e = safeAwaitAndUnwrapFailure(
+            IllegalArgumentException.class,
+            ClusterSearchShardsResponse.class,
+            listener -> client().execute(
+                TransportClusterSearchShardsAction.TYPE,
+                new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-enabled"),
+                listener
+            )
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testSliceRejectedWhenSliceDisabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-disabled");
+        ensureGreen("slice-disabled");
+
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").searchSlice("s1");
+        IllegalArgumentException e = safeAwaitAndUnwrapFailure(
+            IllegalArgumentException.class,
+            ClusterSearchShardsResponse.class,
+            listener -> client().execute(TransportClusterSearchShardsAction.TYPE, request, listener)
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testSliceRoutingReturnsExpectedShardGroupsWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        indicesAdmin().prepareCreate("slice-routing")
+            .setSettings(indexSettings(4, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .get();
+        ensureGreen("slice-routing");
+        NumShards numShards = getNumShards("slice-routing");
+
+        ClusterSearchShardsResponse sliceS1 = safeExecute(sliceRequest("slice-routing", "s1"));
+        ClusterSearchShardsResponse sliceS2 = safeExecute(sliceRequest("slice-routing", "s2"));
+        ClusterSearchShardsResponse sliceS1S2 = safeExecute(sliceRequest("slice-routing", "s1,s2"));
+        ClusterSearchShardsResponse sliceAll = safeExecute(
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-routing").searchSlice(SliceIndexing.SLICE_ALL)
+        );
+
+        assertThat(sliceS1.getGroups().length, equalTo(1));
+        assertThat(sliceS2.getGroups().length, equalTo(1));
+
+        Set<Integer> expectedFromSingles = shardIds(sliceS1);
+        expectedFromSingles.addAll(shardIds(sliceS2));
+        assertThat(shardIds(sliceS1S2), equalTo(expectedFromSingles));
+
+        assertThat(sliceAll.getGroups().length, equalTo(numShards.numPrimaries));
+        Set<Integer> expectedAllShards = new HashSet<>();
+        for (int i = 0; i < numShards.numPrimaries; i++) {
+            expectedAllShards.add(i);
+        }
+        assertThat(shardIds(sliceAll), equalTo(expectedAllShards));
+    }
+
+    private static ClusterSearchShardsRequest sliceRequest(String index, String slice) {
+        return new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, index).routing(slice).searchSlice(slice);
+    }
+
+    private static Set<Integer> shardIds(ClusterSearchShardsResponse response) {
+        Set<Integer> shardIds = new HashSet<>();
+        for (ClusterSearchShardsGroup group : response.getGroups()) {
+            shardIds.add(group.getShardId().getId());
+        }
+        return shardIds;
     }
 
     private static ClusterSearchShardsResponse safeExecute(ClusterSearchShardsRequest request) {

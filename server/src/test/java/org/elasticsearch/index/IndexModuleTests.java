@@ -555,6 +555,25 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
+    public void testQueryCacheDisabledByDefaultForStrictlyColumnarMode() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+        assertFalse(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
+    }
+
     public void testDisableQueryCacheHasPrecedenceOverForceQueryCache() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)

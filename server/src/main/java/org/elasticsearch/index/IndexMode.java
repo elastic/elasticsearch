@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,21 +26,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -103,8 +101,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -210,8 +208,9 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperForReindex() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            // null the _id so we recalculate it on write
+            return id -> null;
         }
 
         @Override
@@ -280,8 +279,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -378,8 +377,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -407,6 +406,11 @@ public enum IndexMode {
         }
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
+        }
+
+        @Override
         public void validateMapping(MappingLookup lookup) {}
 
         @Override
@@ -423,12 +427,12 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_MAPPING_TIMESTAMP;
+            return null;
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -471,6 +475,11 @@ public enum IndexMode {
         }
 
         @Override
+        public List<SourceFieldMapper.Mode> supportedSourceModes() {
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
+        }
+
+        @Override
         public String getDefaultCodec() {
             return CodecService.BEST_COMPRESSION_CODEC;
         }
@@ -479,14 +488,24 @@ public enum IndexMode {
         public boolean isColumnar() {
             return true;
         }
+
+        @Override
+        public boolean isStrictColumnar() {
+            return true;
+        }
     },
-    COLUMNAR_LOGSDB("columnar_logsdb") {
+    LOGSDB_COLUMNAR("logsdb_columnar") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
             if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
             }
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
         }
 
         @Override
@@ -512,8 +531,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -547,7 +566,7 @@ public enum IndexMode {
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException(
-                    "_source can not be disabled in index using [" + IndexMode.COLUMNAR_LOGSDB + "] index mode"
+                    "_source can not be disabled in index using [" + IndexMode.LOGSDB_COLUMNAR + "] index mode"
                 );
             }
         }
@@ -555,6 +574,11 @@ public enum IndexMode {
         @Override
         public SourceFieldMapper.Mode defaultSourceMode() {
             return SourceFieldMapper.Mode.SYNTHETIC;
+        }
+
+        @Override
+        public List<SourceFieldMapper.Mode> supportedSourceModes() {
+            return List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED);
         }
 
         @Override
@@ -566,6 +590,11 @@ public enum IndexMode {
         public boolean isColumnar() {
             return true;
         }
+
+        @Override
+        public boolean isStrictColumnar() {
+            return true;
+        }
     },
     /**
      * Index mode optimized for indexing and searching {@code dense_vector} fields.
@@ -573,6 +602,11 @@ public enum IndexMode {
     VECTORDB_DOCUMENT("vectordb_document") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return VECTORDB_DOCUMENT_INDEX_MODE;
+        }
 
         @Override
         public void validateMapping(MappingLookup lookup) {}
@@ -593,8 +627,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -704,16 +738,29 @@ public enum IndexMode {
 
     public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
-    public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
+
+    /**
+     * Returns the minimum transport version a recipient node must run to deserialize this index mode.
+     * Modes introduced after the initial release override this to return their introduction version.
+     */
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    /**
+     * Returns whether this index mode can be serialized to a node running the given transport version.
+     */
+    public final boolean supportsVersion(TransportVersion version) {
+        return version.supports(getMinimalSupportedVersion());
+    }
 
     /**
      * Returns only the index modes that are available in the current build.
-     * Columnar and vectordb_document modes are excluded in non-snapshot builds where their feature flag is disabled.
+     * Columnar modes are excluded in non-snapshot builds where their feature flag is disabled.
      */
     public static IndexMode[] availableModes() {
         return Arrays.stream(values())
-            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != COLUMNAR_LOGSDB))
-            .filter(m -> VECTORDB_FEATURE_FLAG.isEnabled() || m != VECTORDB_DOCUMENT)
+            .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != LOGSDB_COLUMNAR))
             .toArray(IndexMode[]::new);
     }
 
@@ -751,10 +798,9 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
-     * It can never support field data.
+     * Get the id transformer for reindex to correctly reindex the id into the destination index.
      */
-    public abstract IdFieldMapper idFieldMapperForReindex();
+    public abstract Function<String, String> idTransformerForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -797,6 +843,13 @@ public enum IndexMode {
      */
     public abstract SourceFieldMapper.Mode defaultSourceMode();
 
+    /**
+     * @return source modes supported by this index mode
+     */
+    public List<SourceFieldMapper.Mode> supportedSourceModes() {
+        return List.of(SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED, SourceFieldMapper.Mode.SYNTHETIC);
+    }
+
     public String getDefaultCodec() {
         return CodecService.DEFAULT_CODEC;
     }
@@ -810,6 +863,14 @@ public enum IndexMode {
     }
 
     /**
+     * Whether this index mode is a strict columnar mode, regardless of index version.
+     * In addition to codecs, this includes mappings, e.g., indexing and subobjects configuration.
+     */
+    public boolean isStrictColumnar() {
+        return false;
+    }
+
+    /**
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
@@ -818,7 +879,7 @@ public enum IndexMode {
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
             case "columnar" -> IndexMode.COLUMNAR;
-            case "columnar_logsdb" -> IndexMode.COLUMNAR_LOGSDB;
+            case "logsdb_columnar" -> IndexMode.LOGSDB_COLUMNAR;
             case "lookup" -> IndexMode.LOOKUP;
             case "vectordb_document" -> IndexMode.VECTORDB_DOCUMENT;
             default -> throw new IllegalArgumentException(
@@ -830,10 +891,7 @@ public enum IndexMode {
             );
         };
 
-        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.COLUMNAR_LOGSDB) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
-        if (mode == IndexMode.VECTORDB_DOCUMENT && VECTORDB_FEATURE_FLAG.isEnabled() == false) {
+        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
         }
         return mode;
@@ -858,27 +916,20 @@ public enum IndexMode {
             case 2 -> LOGSDB;
             case 3 -> LOOKUP;
             case 4 -> COLUMNAR;
-            case 5 -> COLUMNAR_LOGSDB;
+            case 5 -> LOGSDB_COLUMNAR;
             case 6 -> VECTORDB_DOCUMENT;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
 
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
-        if ((indexMode == COLUMNAR || indexMode == COLUMNAR_LOGSDB)
-            && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
-            throw new IOException(
-                "cannot serialize index mode ["
-                    + indexMode
-                    + "] to node on transport version ["
-                    + out.getTransportVersion()
-                    + "] that does not support it"
+        if (indexMode.supportsVersion(out.getTransportVersion()) == false) {
+            final var message = Strings.format(
+                "[%s] doesn't support serialization with transport version [%s]",
+                indexMode.getName(),
+                out.getTransportVersion()
             );
-        }
-        if (indexMode == VECTORDB_DOCUMENT && out.getTransportVersion().supports(VECTORDB_DOCUMENT_INDEX_MODE) == false) {
-            throw new IllegalArgumentException(
-                "cannot send index mode [" + VECTORDB_DOCUMENT.getName() + "] to a node that does not support it"
-            );
+            throw new IllegalStateException(message);
         }
         final int code = switch (indexMode) {
             case STANDARD -> 0;
@@ -886,7 +937,7 @@ public enum IndexMode {
             case LOGSDB -> 2;
             case LOOKUP -> 3;
             case COLUMNAR -> 4;
-            case COLUMNAR_LOGSDB -> 5;
+            case LOGSDB_COLUMNAR -> 5;
             case VECTORDB_DOCUMENT -> 6;
         };
         out.writeByte((byte) code);
@@ -951,6 +1002,13 @@ public enum IndexMode {
                 String intraMergeKey = IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey();
                 if (IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
                     additionalSettings.put(intraMergeKey, true);
+                }
+
+                // Disable merge IO auto-throttling.
+                // Only applied when the user has not set it explicitly.
+                String autoThrottleKey = MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey();
+                if (MergeSchedulerConfig.AUTO_THROTTLE_SETTING.exists(indexTemplateAndCreateRequestSettings) == false) {
+                    additionalSettings.put(autoThrottleKey, false);
                 }
             }
         }

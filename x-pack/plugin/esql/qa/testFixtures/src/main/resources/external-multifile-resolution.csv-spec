@@ -1,0 +1,172 @@
+// Schema resolution strategy tests on same-schema multifile fixtures.
+// All three files share the employees schema, so all strategies should succeed.
+// Uses {{employees_multifile_split}} which resolves to multifile_split/*.<format>.
+
+// ===== FIRST_FILE_WINS =====
+
+ffwCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ffwFilterAndSort
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+ffwAggregateByGender
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+ffwSalaryStats
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "first_file_wins"}
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;
+
+// ===== STRICT =====
+
+strictCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+strictFilterAndSort
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+strictAggregateByGender
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+strictSalaryStats
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "strict"}
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;
+
+// ===== UNION_BY_NAME (default) =====
+
+ubnCount
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ubnExplicitCount
+required_capability: external_command
+required_capability: external_source_read_schema
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"schema_resolution": "union_by_name"}
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+ubnFilterAndSort
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}"
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+ubnAggregateByGender
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}"
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+ubnSalaryStats
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}"
+| STATS avg_salary = AVG(salary), total = SUM(salary);
+
+avg_salary:double | total:long
+48248.55          | 4824855
+;

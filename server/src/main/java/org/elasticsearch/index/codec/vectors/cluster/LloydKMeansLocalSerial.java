@@ -15,12 +15,14 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import java.io.IOException;
 
 /**
- * Single threaded implementation of Lloyd's k-means
+ * Single threaded implementation of Lloyd's k-means.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class LloydKMeansLocalSerial extends LloydKMeansLocal {
+class LloydKMeansLocalSerial<V> extends LloydKMeansLocal<V> {
 
-    LloydKMeansLocalSerial(int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    LloydKMeansLocalSerial(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+        super(ops, sampleSize, maxIterations);
     }
 
     @Override
@@ -30,29 +32,39 @@ class LloydKMeansLocalSerial extends LloydKMeansLocal {
 
     @Override
     protected boolean stepLloyd(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction ordTranslator,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        return stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
+        return stepLloydSlice(
+            vectors,
+            ops,
+            ordTranslator,
+            centroids,
+            centroidChangedSlices[0],
+            assignments,
+            neighborHoods,
+            0,
+            vectors.size()
+        );
     }
 
     @Override
     protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
+        ClusteringVectorValues<V> vectors,
+        KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        assignSpilledSlice(vectors, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
+        assignSpilledSlice(vectors, ops, kmeansIntermediate, neighborhoods, soarLambda, 0, vectors.size());
     }
 
     @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(ops.toFloatCentroids(centroids), clustersPerNeighborhood);
     }
 }

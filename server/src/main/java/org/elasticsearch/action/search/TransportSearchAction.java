@@ -332,26 +332,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
             );
         }
-        if (anySliceEnabled && fromSlice == false && searchRequest.routing() != null) {
-            throw new IllegalArgumentException(
-                "[routing] is not allowed when [index.slice.enabled] is true for search request targeting ["
-                    + target
-                    + "], use [_slice] instead"
-            );
-        }
-        if (fromSlice && anySliceEnabled == false && hasRemoteIndices == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is not allowed when [index.slice.enabled] is false for search request targeting [" + target + "]"
-            );
-        }
-        if (anySliceEnabled && fromSlice == false) {
-            throw new IllegalArgumentException(
-                "[_slice] is required when [index.slice.enabled] is true for search request targeting [" + target + "]"
-            );
-        }
-        if (fromSlice) {
-            searchRequest.routing(SliceIndexing.SLICE_ALL.equals(requestedSlice) ? null : requestedSlice);
-        }
+        searchRequest.routing(
+            SliceIndexing.validateAndResolveSliceRoutingRequirement(
+                anySliceEnabled,
+                fromSlice,
+                searchRequest.routing(),
+                requestedSlice,
+                "search request",
+                target,
+                hasRemoteIndices
+            )
+        );
         return requestedSlice;
     }
 
@@ -410,12 +401,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest(
-            (SearchTask) task,
-            searchRequest,
-            activityLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
-            AsyncSearchActionProvider::new,
-            true
+        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
+        activityLogger.wrapAndRun(
+            listener,
+            searchLogContextBuilder,
+            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
         );
     }
 

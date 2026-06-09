@@ -37,6 +37,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -139,6 +140,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
             JAVA_INT,
             ADDRESS
         );
+        private static final FunctionDescriptor bulk8 = FunctionDescriptor.ofVoid(
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,
+            ADDRESS,  // data vectors
+            ADDRESS,  // query
+            JAVA_INT, // dims
+            ADDRESS   // results
+        );
 
         final List<NativeFunction<?>> nativeFunctions = new ArrayList<>();
 
@@ -157,6 +171,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     };
                     case BULK, BULK_SPARSE -> bulk;
                     case BULK_OFFSETS -> bulkOffsets;
+                    case BULK8 -> bulk8;
                 };
                 nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(f, type, op), typeName, descriptor));
             }));
@@ -174,6 +189,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         case SINGLE -> floatSingle;
                         case BULK, BULK_SPARSE -> bulk;
                         case BULK_OFFSETS -> bulkOffsets;
+                        case BULK8 -> throw new IllegalArgumentException("BULK8 not supported for BFloat16");
                     };
                     nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(f, type, op), typeName, descriptor));
                 }));
@@ -184,7 +200,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
         public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
             bbqTypes.forEach(type -> operations.forEach(op -> {
                 String typeName = switch (type) {
+                    case D1Q1 -> "d1q1";
                     case D1Q4 -> "d1q4";
+                    case D2Q2 -> "d2q2";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
                     case D2Q4_PACKED -> "d2q4_packed";
@@ -193,6 +211,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     case SINGLE -> longSingle;
                     case BULK, BULK_SPARSE -> bulk;
                     case BULK_OFFSETS -> bulkOffsets;
+                    case BULK8 -> throw new IllegalArgumentException("BULK8 not supported for BBQ");
                 };
                 nativeFunctions.add(new NativeFunction<>(new OperationSignature<>(Function.DOT_PRODUCT, type, op), typeName, descriptor));
             }));
@@ -203,8 +222,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return () -> Arrays.stream(Function.values()).iterator();
         }
 
+        static Iterable<Operation> standardOperations() {
+            return List.of(Operation.SINGLE, Operation.BULK, Operation.BULK_OFFSETS, Operation.BULK_SPARSE);
+        }
+
         static Iterable<Operation> allOperations() {
-            return () -> Arrays.stream(Operation.values()).iterator();
+            return List.of(Operation.SINGLE, Operation.BULK, Operation.BULK_OFFSETS, Operation.BULK_SPARSE, Operation.BULK8);
         }
 
         static Iterable<BBQType> allBBQTypes() {
@@ -217,6 +240,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 case BULK -> "_bulk";
                 case BULK_OFFSETS -> "_bulk_offsets";
                 case BULK_SPARSE -> "_bulk_sparse";
+                case BULK8 -> "_bulk8";
             };
         }
 
@@ -259,13 +283,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 HANDLES = new NativeFunctions()
                     // Only DOT_PRODUCT is needed for int4 — other functions are computed by applying correction terms on top of the raw
                     // dot.
-                    .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.allOperations())
-                    .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
+                    .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.standardOperations())
+                    .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.standardOperations())
                     // Only byte vectors have cosine as other types are normalized to unit length to use dot_product instead
                     .add(DataType.INT8, NativeFunctions.allFunctions(), NativeFunctions.allOperations())
                     .add(DataType.FLOAT32, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
-                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
-                    .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.allOperations())
+                    .addBFloat16(List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.standardOperations())
+                    .addBBQ(NativeFunctions.allBBQTypes(), NativeFunctions.standardOperations())
                     .build((functionName, functionDescriptor) -> bindFunction(functionName, finalVecCaps, functionDescriptor));
 
                 FunctionDescriptor score = FunctionDescriptor.of(
@@ -306,6 +330,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_FLOAT,  // queryBitScale
                     JAVA_FLOAT,  // indexBitScale
                     JAVA_FLOAT,  // centroidDp
+                    JAVA_BYTE,   // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     ADDRESS      // scores
                 );
 
@@ -473,6 +498,34 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBulkOffsets(a, offsets, count, length, pitch, result, rowBytes);
+            return true;
+        }
+
+        static boolean checkBulk8(
+            int elementBits,
+            MemorySegment a0,
+            MemorySegment a1,
+            MemorySegment a2,
+            MemorySegment a3,
+            MemorySegment a4,
+            MemorySegment a5,
+            MemorySegment a6,
+            MemorySegment a7,
+            MemorySegment query,
+            int dims,
+            MemorySegment result
+        ) {
+            long vectorBytes = (long) dims * elementBits / 8;
+            Objects.checkFromIndexSize(0L, vectorBytes, a0.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a1.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a2.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a3.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a4.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a5.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a6.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, a7.byteSize());
+            Objects.checkFromIndexSize(0L, vectorBytes, query.byteSize());
+            Objects.checkFromIndexSize(0L, 8L * Float.BYTES, result.byteSize());
             return true;
         }
 
@@ -738,6 +791,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceFloat(squareDBF16QBF16Handle, a, b, elementCount);
         }
 
+        private static final MethodHandle dotD1Q1Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE)
+        );
+
+        static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD1Q1Handle, a, query, length);
+        }
+
         private static final MethodHandle dotD1Q4Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
@@ -746,6 +809,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q2Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q2, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q2(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q2Handle, a, query, length);
         }
 
         private static final MethodHandle dotD2Q4Handle = HANDLES.get(
@@ -893,6 +966,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -909,6 +983,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -929,6 +1004,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -945,6 +1021,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -965,6 +1042,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -981,6 +1059,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1280,6 +1359,36 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                             handlesWithChecks.put(op.getKey(), handleWithChecks);
                         }
+                        case BULK8 -> {
+                            MethodHandle checkMethod = lookup.findStatic(
+                                JdkVectorSimilarityFunctions.class,
+                                "checkBulk8",
+                                MethodType.methodType(
+                                    boolean.class,
+                                    int.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    MemorySegment.class,
+                                    int.class,
+                                    MemorySegment.class
+                                )
+                            );
+                            MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
+                                case DataType dt -> MethodHandles.guardWithTest(
+                                    MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
+                                    op.getValue(),
+                                    MethodHandles.empty(op.getValue().type())
+                                );
+                                default -> throw new IllegalArgumentException("Unknown handle type for BULK8: " + op.getKey().dataType());
+                            };
+                            handlesWithChecks.put(op.getKey(), handleWithChecks);
+                        }
                     }
                 }
 
@@ -1330,6 +1439,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,          // queryBitScale
                     float.class,          // indexBitScale
                     float.class,          // centroidDp
+                    byte.class,           // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     MemorySegment.class   // scores
                 );
 

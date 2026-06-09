@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
+    A extends ActionType<BulkByPaginatedSearchResponse>> extends BaseRestHandler {
 
     private final A action;
 
@@ -50,8 +50,8 @@ public abstract class AbstractBaseReindexRestHandler<
         // Executes the request and waits for completion
         if (request.paramAsBoolean("wait_for_completion", true)) {
             Map<String, String> params = new HashMap<>();
-            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
-            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByPaginatedSearchTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
 
             return channel -> client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
         } else {
@@ -67,7 +67,7 @@ public abstract class AbstractBaseReindexRestHandler<
         if (validationException != null) {
             throw validationException;
         }
-        final var responseListener = new SubscribableListener<BulkByScrollResponse>();
+        final var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);

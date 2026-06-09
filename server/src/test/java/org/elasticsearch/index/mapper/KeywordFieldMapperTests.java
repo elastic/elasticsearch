@@ -242,6 +242,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("field")), contains("1234"));
     }
 
+    public void testDefaultsColumnarMode() throws Exception {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        IndexableField field = fields.get(0);
+
+        assertEquals(new BytesRef("1234"), field.binaryValue());
+        IndexableFieldType fieldType = field.fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.BINARY, fieldType.docValuesType());
+    }
+
     public void testHighCardinalityFieldType() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
 
@@ -1480,6 +1504,62 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
+    public void testFieldTypeWithSkipDocValues_ColumnarLogsDbModeDisabledSetting() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final MapperService mapperService = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+                .build(),
+            mapping(b -> {
+                b.startObject("host.name");
+                b.field("type", "keyword");
+                b.endObject();
+            })
+        );
+
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
+        assertFalse(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+    }
+
+    public void testFieldTypeWithSkipDocValues_ColumnarLogsDbMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
+        final MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
+        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
+    }
+
+    public void testFieldTypeDefault_ColumnarLogsDbMode_NonSortField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .build();
+        final MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+
+        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
+        assertTrue(mapper.fieldType().hasDocValues());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+    }
+
     public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
         // given
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
@@ -1657,5 +1737,134 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // Binary values have no text representation; the keyword field must be skipped without NPE.
         ParsedDocument doc = mapper.parse(source);
         assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [host.name] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
+    }
+
+    public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
+            .documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 — sorted-deduped doc-values order would collapse it; arrival order must be preserved.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]")
+        );
+    }
+
+    public void testStoreNotAllowedInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("store", true)))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("[store] cannot be enabled on field [field] in [" + indexMode.getName() + "] index mode")
+            );
+        }
+    }
+
+    /**
+     * An array of objects mixing a scalar value with an inner array must preserve both. This means that we must record offsets for every
+     * value regardless of whether they're in an immediate array or not.
+     */
+    public void testColumnarKeywordArrayOfObjectsWithMixedScalarAndInnerArrayValues() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("obj.field");
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            b.startObject().field("field", "a").endObject();
+            b.startObject().startArray("field").value("b").value("c").endArray().endObject();
+            b.endArray();
+        });
+        assertThat(result, containsString("\"obj.field\":[\"a\",\"b\",\"c\"]"));
+    }
+
+    /**
+     * A scalar value at the root must round-trip as a scalar; it should not be reshaped into a single-element array.
+     */
+    public void testColumnarKeywordSingleScalarStaysScalar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String value = randomAlphanumericOfLength(4);
+        String result = syntheticSource(mapper, b -> b.field("field", value));
+        assertThat(result, containsString("\"field\":\"" + value + "\""));
+        assertThat(result, Matchers.not(containsString("\"field\":[")));
+    }
+
+    /**
+     * This tests the single-valued optimization path.
+     */
+    public void testColumnarKeywordSingleElementArrayIsReshapedToScalar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String value = randomAlphanumericOfLength(4);
+        String result = syntheticSource(mapper, b -> b.array("field", value));
+        assertThat(result, containsString("\"field\":\"" + value + "\""));
+        assertThat(result, Matchers.not(containsString("\"field\":[")));
+    }
+
+    /**
+     * Insertion order in a multi-value array must be preserved. Without the offsets table the sorted-set fallback would reorder this
+     * to {@code [a, b, c]}; the offsets entry survives the new write gate because it carries more than one slot.
+     */
+    public void testColumnarKeywordReverseSortedArrayPreservesOrder() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String result = syntheticSource(mapper, b -> b.array("field", "c", "b", "a"));
+        assertThat(result, containsString("\"field\":[\"c\",\"b\",\"a\"]"));
+    }
+
+    /**
+     * A single-element null array must round-trip as {@code [null]}. This test is a complement to
+     * {@link #testColumnarKeywordSingleElementArrayIsReshapedToScalar}. The doc values are empty for nulls, meaning we have nothing to
+     * reconstruct the source from. This is why offsets are important - they tell us that a null element was present.
+     */
+    public void testColumnarSingleElementArrayNullRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.nullValue();
+            b.endArray();
+        });
+        assertThat(result, containsString("\"field\":[null]"));
+    }
+
+    private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
     }
 }

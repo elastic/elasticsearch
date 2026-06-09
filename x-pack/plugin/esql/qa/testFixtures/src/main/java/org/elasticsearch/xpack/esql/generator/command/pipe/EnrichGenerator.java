@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -34,7 +35,8 @@ public class EnrichGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         String field = EsqlQueryGenerator.randomKeywordField(previousOutput);
         if (field == null || schema.enrichPolicies().isEmpty()) {

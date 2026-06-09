@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -116,11 +117,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -345,6 +344,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     private long getDirectorySize(Directory directory) throws IOException {
         long size = 0;
         for (String file : directory.listAll()) {
+            // Don't count .tmp files from ongoing merges, they can and will disappear
+            if (file.endsWith(".tmp")) {
+                continue;
+            }
             size += directory.fileLength(file);
         }
         return size;
@@ -469,7 +472,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             threads[i].start();
         }
 
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         for (Thread thread : threads) {
             thread.join();
         }
@@ -580,7 +583,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 .currentNodeId()
                 .equals(getNodeId(indexNodeB))
         );
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         logger.info("relocated primary");
 
         CountDownLatch indexNotFoundOnIndexNodeA = new CountDownLatch(1);
@@ -985,18 +988,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         // Ensure VBCC not yet uploaded
         assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
         CountDownLatch getVBCCChunkSent = new CountDownLatch(1);
         CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
-        final var transportService = MockTransportService.getInstance(searchNode);
-        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (connection.getNode().getName().equals(indexNodeA)
-                && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
-                getVBCCChunkSent.countDown();
-                safeAwait(getVBCCChunkBlocked);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
+        MockTransportService.getInstance(searchNode)
+            .addSendBehavior(indexNodeATransportService, (connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    getVBCCChunkSent.countDown();
+                    safeAwait(getVBCCChunkBlocked);
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
 
         // Wait till search shard start recovery
@@ -1010,16 +1012,14 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             final String indexNodeBNodeId = getNodeId(indexNodeB);
             awaitClusterState(
                 indexNodeA,
-                clusterState -> clusterState.routingTable()
+                clusterState -> clusterState.routingTable(ProjectId.DEFAULT)
                     .index(indexName)
                     .shard(shardId.id())
                     .primaryShard()
                     .currentNodeId()
                     .equals(indexNodeBNodeId)
             );
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
             logger.info("--> relocated primary");
-            final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
             indexNodeATransportService.addRequestHandlingBehavior(
                 TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
                 (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
@@ -1092,7 +1092,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
 
         // Relocate the search shard
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+        internalCluster().awaitNodeVacated(indexName, searchNodeA);
         logger.info("--> relocated search shard");
 
         getVBCCChunkBlocked.countDown();

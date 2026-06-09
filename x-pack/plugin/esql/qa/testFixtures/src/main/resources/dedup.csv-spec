@@ -1,0 +1,277 @@
+//
+// DEDUP command - integration tests
+//
+
+dedupSingleColumn
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| KEEP gender
+| DEDUP
+| SORT gender
+;
+
+gender:keyword
+F
+M
+;
+
+
+dedupSingleColumnWithNulls
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender
+| DEDUP
+| SORT gender NULLS LAST
+;
+
+gender:keyword
+F
+M
+null
+;
+
+
+dedupMultipleColumns
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP gender, languages
+| DEDUP
+| SORT gender NULLS LAST, languages
+;
+
+gender:keyword | languages:integer
+F              | 5
+M              | 2
+null           | 4
+null           | 5
+;
+
+
+dedupAfterEval
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003)
+| EVAL high_languages = languages > 3
+| KEEP high_languages
+| DEDUP
+| SORT high_languages
+;
+
+high_languages:boolean
+false
+true
+;
+
+
+dedupChainedWithLimit
+required_capability: dedup_command
+
+FROM employees
+| KEEP gender
+| DEDUP
+| SORT gender NULLS LAST
+| LIMIT 2
+;
+
+gender:keyword
+F
+M
+;
+
+
+dedupRemovesDuplicateRows
+required_capability: dedup_command
+
+ROW a = 1
+| EVAL b = 2
+| KEEP a, b
+| DEDUP
+;
+
+a:integer | b:integer
+1         | 2
+;
+
+
+dedupMultivalueGroupKey
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no IN (10001, 10009)
+| KEEP job_positions
+| DEDUP
+| SORT job_positions
+;
+
+job_positions:keyword
+[Accountant, Senior Python Developer]
+[Internship, Senior Python Developer]
+;
+
+
+dedupOverFullRowCountStar
+required_capability: dedup_command
+
+FROM employees
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+
+dedupWithMetadataIndex
+required_capability: dedup_command
+
+FROM employees METADATA _index
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP _index, gender
+| DEDUP
+| SORT gender NULLS LAST
+;
+
+_index:keyword | gender:keyword
+employees      | F
+employees      | M
+employees      | null
+;
+
+
+dedupWithMetadataIdParticipatesInDedup
+required_capability: dedup_command
+
+FROM employees METADATA _id
+| WHERE emp_no IN (10001, 10002, 10010, 10011)
+| KEEP _id, gender
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+4
+;
+
+
+dedupAfterDroppingAllColumns
+required_capability: dedup_command
+
+FROM employees
+| KEEP gender
+| DROP gender
+| DEDUP
+| EVAL marker = 1
+;
+
+marker:integer
+1
+;
+
+
+dedupTsSingleDimension
+required_capability: dedup_command
+
+TS k8s
+| KEEP cluster
+| DEDUP
+| SORT cluster
+;
+
+cluster:keyword
+prod
+qa
+staging
+;
+
+dedupTsAfterStats
+required_capability: dedup_command
+
+TS k8s
+| STATS c = COUNT(events_received) BY cluster, pod
+| KEEP cluster, pod
+| DEDUP
+| SORT cluster, pod
+;
+
+cluster:keyword | pod:keyword
+prod            | one
+prod            | three
+prod            | two
+qa              | one
+qa              | three
+qa              | two
+staging         | one
+staging         | three
+staging         | two
+;
+
+
+dedupOverUnionTypeWithCast
+required_capability: dedup_command
+
+FROM employees, employees_incompatible METADATA _index
+| EVAL emp_no_long = emp_no::long
+| KEEP _index, emp_no_long
+| WHERE emp_no_long IN (10001, 10002)
+| DEDUP
+| SORT _index, emp_no_long
+;
+
+_index:keyword          | emp_no_long:long
+employees               | 10001
+employees               | 10002
+employees_incompatible  | 10001
+employees_incompatible  | 10002
+;
+
+
+dedupOverUnionTypesFullSchemaCount
+required_capability: dedup_command
+
+FROM employees, employees_incompatible METADATA _index
+| EVAL emp_no_long = emp_no::long
+| WHERE emp_no_long IN (10001, 10002)
+| DEDUP
+| STATS c = COUNT(emp_no_long)
+;
+
+c:long
+4
+;
+
+
+dedupOverDenseVector
+required_capability: dedup_command
+
+FROM all_types
+| KEEP dense_vector
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+1
+;
+
+
+dedupWithMetadataSourceParticipatesInDedup
+required_capability: dedup_command
+
+FROM employees METADATA _source
+| WHERE emp_no IN (10001, 10005)
+| KEEP _source, gender
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+2
+;

@@ -13,17 +13,20 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 /**
  * Reindex test for routing.
  */
-public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadataTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
+    ReindexRequest,
+    BulkByPaginatedSearchResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
-        action().copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action().copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
@@ -31,7 +34,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         TestAction action = action();
         action.mainRequest().getDestination().routing("keep");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("foo", index.routing());
     }
 
@@ -39,7 +42,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         TestAction action = action();
         action.mainRequest().getDestination().routing("discard");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals(null, index.routing());
     }
 
@@ -47,7 +50,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         TestAction action = action();
         action.mainRequest().getDestination().routing("=cat");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
     }
 
@@ -55,7 +58,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         TestAction action = action();
         action.mainRequest().getDestination().routing("==]");
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("=]", index.routing());
     }
 
@@ -86,7 +89,9 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 listener(),
                 randomBoolean() ? null : Version.CURRENT,
                 randomPositiveTimeValue(),
-                null
+                null,
+                new ReindexSettings(),
+                new NoopCircuitBreaker("test")
             );
         }
 
@@ -95,8 +100,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         }
 
         @Override
-        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(
-            AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+        public AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> copyMetadata(
+            AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> request,
             Hit doc
         ) {
             return super.copyMetadata(request, doc);

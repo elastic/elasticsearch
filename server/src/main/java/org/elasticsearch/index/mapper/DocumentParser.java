@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -438,22 +439,30 @@ public final class DocumentParser {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        boolean sliceEnabled = context.indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
         if (nested.isIncludeInParent()) {
-            addFields(indexVersion, nestedDoc, parentDoc);
+            addFields(indexVersion, nestedDoc, parentDoc, sliceEnabled);
         }
         if (nested.isIncludeInRoot()) {
             LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
-                addFields(indexVersion, nestedDoc, rootDoc);
+                addFields(indexVersion, nestedDoc, rootDoc, sliceEnabled);
             }
         }
     }
 
-    private static void addFields(IndexVersion indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
+    private static void addFields(
+        IndexVersion indexCreatedVersion,
+        LuceneDocument nestedDoc,
+        LuceneDocument rootDoc,
+        boolean sliceEnabled
+    ) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
+            if (field.name().equals(nestedPathFieldName) == false
+                && field.name().equals(IdFieldMapper.NAME) == false
+                && (sliceEnabled == false || field.name().equals(RoutingFieldMapper.NAME) == false)) {
                 rootDoc.add(field);
             }
         }
@@ -534,13 +543,21 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        var prev = context.getImmediateXContentParent();
         context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
         } else {
-            parseObjectDynamic(context, currentFieldName);
+            final ObjectMapper parent = context.parent();
+            boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
+            if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+            } else {
+                parseObjectDynamic(context, currentFieldName);
+            }
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
@@ -559,7 +576,8 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -583,7 +601,13 @@ public final class DocumentParser {
                     );
                 }
             } else {
-                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
+                // When subobjects are disabled, only check for a matching dynamic template for this object field.
+                // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+                // If a template matches with an object type, or if no template matches (null), the object is
+                // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+                dynamicObjectBuilder = context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+                    ? DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName)
+                    : DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
@@ -657,7 +681,8 @@ public final class DocumentParser {
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -897,7 +922,8 @@ public final class DocumentParser {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -1088,6 +1114,26 @@ public final class DocumentParser {
         };
     }
 
+    /**
+     * Returns a new list of the given documents in shard index order: each child document precedes its parent.
+     * The input list is not modified.
+     */
+    static List<LuceneDocument> shardIndexOrder(List<LuceneDocument> documents) {
+        if (documents.size() <= 1) {
+            return new ArrayList<>(documents);
+        }
+        List<LuceneDocument> result = new ArrayList<>(documents.size());
+        LinkedList<LuceneDocument> parents = new LinkedList<>();
+        for (LuceneDocument doc : documents) {
+            while (parents.peek() != doc.getParent()) {
+                result.add(parents.poll());
+            }
+            parents.add(0, doc);
+        }
+        result.addAll(parents);
+        return result;
+    }
+
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
@@ -1216,20 +1262,19 @@ public final class DocumentParser {
         private List<LuceneDocument> reorderParentAndGetDocs() {
             if (documents.size() > 1 && docsReversed == false) {
                 docsReversed = true;
-                // We preserve the order of the children while ensuring that parents appear after them.
-                List<LuceneDocument> newDocs = new ArrayList<>(documents.size());
-                LinkedList<LuceneDocument> parents = new LinkedList<>();
-                for (LuceneDocument doc : documents) {
-                    while (parents.peek() != doc.getParent()) {
-                        newDocs.add(parents.poll());
-                    }
-                    parents.add(0, doc);
-                }
-                newDocs.addAll(parents);
+                List<LuceneDocument> reordered = shardIndexOrder(documents);
                 documents.clear();
-                documents.addAll(newDocs);
+                documents.addAll(reordered);
             }
             return documents;
+        }
+
+        @Override
+        public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+            if (docsReversed) {
+                return new ArrayList<>(documents);
+            }
+            return shardIndexOrder(documents);
         }
     }
 }

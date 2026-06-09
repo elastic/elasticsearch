@@ -1,0 +1,546 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.maintain_array_order" ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled, and array
+        ordering in columnar mode requires the mapper.columnar.maintain_array_order feature"
+
+# Each scenario writes the same multi-value document to two indices and reads it back:
+#   - test_columnar (index.mode: logsdb_columnar) - must return insertion order, since strict columnar emits a .offsets
+#     sub-field and the block loader reads doc values in array order.
+#   - test_logsdb (index.mode: logsdb) - is columnar() but not isStrictColumnar(); must return sorted doc-values order.
+#     This is the direct regression guard for the isColumnar -> isStrictColumnar narrowing in the field mappers.
+
+---
+"integer multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: integer }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: integer }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [1, 3, 5] }
+
+---
+"long multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: long }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: long }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [1, 3, 5] }
+
+---
+"ip multi-value array order":
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
+      reason: "Columnar array ordering for ip fields is part of the part-4 mapper wiring"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: ip }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: ip }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: ["10.0.0.5", "10.0.0.1", "10.0.0.3"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: ["10.0.0.1", "10.0.0.3", "10.0.0.5"] }
+
+---
+"text multi-value array order":
+  # text/match_only_text array ordering requires explicit doc_values:true; columnar mode does not force doc values on.
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
+      reason: "Columnar array ordering for text fields is part of the part-4 mapper wiring"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: text, doc_values: true }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: text, doc_values: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [banana, apple, cherry] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [apple, banana, cherry] }
+
+---
+"match_only_text multi-value array order":
+  - requires:
+      cluster_features: [ "mapper.columnar.maintain_array_order_ip_text" ]
+      reason: "Columnar array ordering for match_only_text fields is part of the part-4 mapper wiring"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: match_only_text, doc_values: true }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: match_only_text, doc_values: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [banana, apple, cherry] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [apple, banana, cherry] }
+
+---
+"double multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: double }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: double }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5.5, 1.5, 3.5] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5.5, 1.5, 3.5] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [5.5, 1.5, 3.5] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [1.5, 3.5, 5.5] }
+
+---
+"keyword multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: keyword }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["banana", "apple", "cherry"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [banana, apple, cherry] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [apple, banana, cherry] }
+
+---
+"boolean multi-value array order":
+  # SortedNumericDocValues retains duplicates, so [true, false, true] stays three-wide; sorted form is [false, true, true].
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: boolean }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: boolean }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [true, false, true] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [true, false, true] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [true, false, true] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [false, true, true] }
+
+---
+"date multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: date }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: date }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["2024-05-10T00:02:00.000Z", "2024-05-10T00:00:00.000Z", "2024-05-10T00:01:00.000Z"] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": ["2024-05-10T00:02:00.000Z", "2024-05-10T00:00:00.000Z", "2024-05-10T00:01:00.000Z"] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [ "2024-05-10T00:02:00.000Z", "2024-05-10T00:00:00.000Z", "2024-05-10T00:01:00.000Z" ] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [ "2024-05-10T00:00:00.000Z", "2024-05-10T00:01:00.000Z", "2024-05-10T00:02:00.000Z" ] }
+
+---
+"scaled_float multi-value array order":
+  # scaled_float surfaces as DOUBLE in ESQL; use values that round-trip exactly through scaling_factor=10.
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: scaled_float, scaling_factor: 10 }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: scaled_float, scaling_factor: 10 }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5.5, 1.5, 3.5] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5.5, 1.5, 3.5] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [5.5, 1.5, 3.5] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [1.5, 3.5, 5.5] }
+
+---
+"unsigned_long multi-value array order":
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: unsigned_long }
+  - do:
+      indices.create:
+        index: test_logsdb
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              val: { type: unsigned_long }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_columnar" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+          - { "index": { "_index": "test_logsdb" } }
+          - { "@timestamp": "2024-05-10T00:00:00.000Z", "val": [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_columnar | KEEP val'
+  - match: { values.0.0: [5, 1, 3] }
+
+  - do:
+      allowed_warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM test_logsdb | KEEP val'
+  - match: { values.0.0: [1, 3, 5] }

@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
@@ -56,6 +54,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -102,9 +101,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void infer(
         Model model,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -114,7 +110,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
-            var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+            var inferenceInput = createInput(this, model, input, inputType, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -159,7 +155,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             );
 
             throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForServiceSettings() == false) {
+                throwIfNotEmptyMap(serviceSettingsMap, name());
+            }
             if (usesParserForTaskSettings() == false) {
                 throwIfNotEmptyMap(taskSettingsMap, name());
             }
@@ -168,16 +166,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
-    }
-
-    /**
-     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
-     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
-     * task settings map is empty, these services will throw an exception from the parser.
-     * @return whether this service implements a parser for task settings
-     */
-    public boolean usesParserForTaskSettings() {
-        return false;
     }
 
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
@@ -236,30 +224,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         Model model,
         List<String> input,
         InputType inputType,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         boolean stream
     ) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> {
-                ValidationException validationException = new ValidationException();
-                service.validateRerankParameters(returnDocuments, topN, validationException);
-
-                if (query == null) {
-                    validationException.addValidationError("Rerank task type requires a non-null query field");
-                }
-
-                validationException.throwIfValidationErrorsExist();
-                yield new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, query),
-                    InferenceString.fromStringList(input),
-                    returnDocuments,
-                    topN,
-                    stream
-                );
-            }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
@@ -346,15 +314,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             if (supportsMultimodalRerank() == false
                 && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
+                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
 
@@ -362,6 +324,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
             validationException.throwIfValidationErrorsExist();
 
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -379,7 +342,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void chunkedInfer(
         Model model,
-        @Nullable String query,
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -455,8 +417,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     );
 
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

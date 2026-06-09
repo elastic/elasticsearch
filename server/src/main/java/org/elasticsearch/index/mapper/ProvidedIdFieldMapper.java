@@ -162,7 +162,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             @Override
             public SortedBinaryDocValues getBytesValues() {
                 SortedBinaryDocValues inValues = in.getBytesValues();
-                return new SortedBinaryDocValues() {
+                return new SortedBinaryDocValues(inValues.docIdIterator()) {
 
                     @Override
                     public BytesRef nextValue() throws IOException {
@@ -213,8 +213,4 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return "[" + parsedDocument.id() + "]";
     }
 
-    @Override
-    public String reindexId(String id) {
-        return id;
-    }
 }

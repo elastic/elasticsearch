@@ -1311,6 +1311,7 @@ FROM sample_data
 ;
 
 multiValueLike#[skip:-8.12.99]
+skip_flattened_rewrite: field_extract_multivalue_null
 from employees | where job_positions like "Account*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions like \\\"Account\*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1322,6 +1323,7 @@ emp_no:integer | job_positions:keyword
 
 
 multiValueRLike#[skip:-8.12.99]
+skip_flattened_rewrite: field_extract_multivalue_null
 from employees | where job_positions rlike "Account.*" | keep emp_no, job_positions;
 
 warningRegex:evaluation of \[job_positions rlike \\\"Account.*\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -1481,4 +1483,56 @@ required_capability: fix_index_like_question_mark_wildcard
 FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
 
 emp_no:integer
+;
+
+
+// LIKE fast-path coverage on the row evaluator (non-pushable position).
+// These exercise the WildcardLike.toEvaluator dispatch added in elastic/elasticsearch#148680:
+// prefix -> StartsWithEvaluator, suffix -> EndsWithEvaluator, contains -> WildcardLikeContainsEvaluator.
+// LIKE sits on an EVAL-output column so the optimizer cannot push it down to Lucene; the row
+// evaluator is the only path it can take. End-to-end answers must match what the automaton path
+// would have produced before this PR.
+
+likePrefixOnEvalOutput
+from employees | eval n = first_name | where n like "Eberhar*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeSuffixOnEvalOutput
+from employees | eval n = first_name | where n like "*uhito" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10016          | Kazuhito
+;
+
+
+likeContainsOnEvalOutput
+from employees | eval n = first_name | where n like "*har*" | keep emp_no, n | sort emp_no;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+10058          | Berhard
+10068          | Charlene
+10089          | Sudharsan
+;
+
+
+likeContainsLongerLiteralOnEvalOutput
+from employees | eval n = first_name | where n like "*ardt*" | keep emp_no, n;
+
+emp_no:integer | n:keyword
+10013          | Eberhardt
+;
+
+
+likeStarAloneOnEvalOutput
+// LIKE on a NULL value returns NULL under 3-valued logic; WHERE then filters those rows out.
+// 10 of the 100 employees have a NULL first_name, so n LIKE "*" matches the remaining 90.
+from employees | eval n = first_name | where n like "*" | stats c = count(*);
+
+c:long
+90
 ;

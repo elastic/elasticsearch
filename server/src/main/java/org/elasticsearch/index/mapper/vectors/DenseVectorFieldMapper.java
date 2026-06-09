@@ -86,6 +86,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
+import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.DiversifyingParentBlockQuery;
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
@@ -94,6 +95,7 @@ import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.PostFilterKnnQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
@@ -201,6 +203,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic,
         Setting.Property.Dynamic
+    );
+
+    /**
+     * Selectivity threshold above which a filtered knn query is routed through the post-filter
+     * pipeline (HNSW runs unfiltered, the filter is applied to the raw candidate set, retrying
+     * with seeded entry points if {@code k} is not collected). Below this threshold the query
+     * stays on the pre-filter path. The default is {@link PostFilterKnnQuery#DEFAULT_POST_FILTERING_THRESHOLD}.
+     */
+    public static final Setting<Float> POST_FILTER_SELECTIVITY_THRESHOLD = new Setting<>(
+        "index.dense_vector.post_filter_selectivity_threshold",
+        Float.toString(PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD),
+        s -> {
+            float value = Float.parseFloat(s);
+            if (value < 0.0f || value > 1.0f) {
+                throw new IllegalArgumentException(
+                    "Failed to parse value ["
+                        + s
+                        + "] for setting [index.dense_vector.post_filter_selectivity_threshold] must be in [0.0, 1.0]"
+                );
+            }
+            return value;
+        },
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
     );
 
     private static boolean hasRescoreIndexVersion(IndexVersion version) {
@@ -1250,7 +1276,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteBuffer.remaining() == dims * Float.BYTES) {
                 byteBuffer.asFloatBuffer().get(decodedVector);
             } else if (byteBuffer.remaining() == dims * BFloat16.BYTES) {
-                BFloat16.bFloat16ToFloat(byteBuffer.asShortBuffer(), decodedVector);
+                BFloat16.bFloat16ToFloat(byteBuffer, decodedVector);
             } else {
                 throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -1316,7 +1342,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
-            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer());
+            // ByteBuffer created by FloatElement.createByteBuffer, so will always wrap an array
+            BFloat16.floatToBFloat16(values, 0, byteBuffer.array(), byteBuffer.position(), values.length, byteBuffer.order());
             byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
         }
 
@@ -3302,22 +3329,35 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                if (sliceEnabled && parentFilter != null) {
-                    throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
-                }
-                final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
+                float overSampleFactor = rescore ? oversample : 1.0f;
+                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
                 if (singleSliceRouting != null) {
-                    knnQuery = new IVFKnnFloatSlicedVectorQuery(
-                        name(),
-                        queryVector,
-                        adjustedK,
-                        numCands,
-                        filter,
-                        visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        RoutingFieldMapper.NAME,
-                        new BytesRef(singleSliceRouting)
-                    );
+                    knnQuery = parentFilter != null
+                        ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            adjustedK,
+                            numCands,
+                            filter,
+                            parentFilter,
+                            visitRatio,
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor,
+                            RoutingFieldMapper.NAME,
+                            new BytesRef(singleSliceRouting)
+                        )
+                        : new IVFKnnFloatSlicedVectorQuery(
+                            name(),
+                            queryVector,
+                            adjustedK,
+                            numCands,
+                            filter,
+                            visitRatio,
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor,
+                            RoutingFieldMapper.NAME,
+                            new BytesRef(singleSliceRouting)
+                        );
                 } else {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
@@ -3328,7 +3368,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         )
                         : new IVFKnnFloatVectorQuery(
                             name(),
@@ -3337,7 +3378,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             numCands,
                             filter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         );
                 }
             } else {

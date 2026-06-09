@@ -9,17 +9,18 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
+
 public class GrokExecSerializationTests extends AbstractPhysicalPlanSerializationTests<GrokExec> {
     public static GrokExec randomGrokExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
-        Expression inputExpression = FieldAttributeTests.createFieldAttribute(0, false);
+        Expression inputExpression = createFieldAttribute(0, false);
         Grok.Parser parser = Grok.pattern(source, EsqlNodeSubclassTests.randomGrokPattern());
         return new GrokExec(source, child, inputExpression, parser, parser.extractedFields());
     }
@@ -36,7 +37,7 @@ public class GrokExecSerializationTests extends AbstractPhysicalPlanSerializatio
         Grok.Parser parser = instance.pattern();
         switch (between(0, 2)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> inputExpression = randomValueOtherThan(inputExpression, () -> FieldAttributeTests.createFieldAttribute(0, false));
+            case 1 -> inputExpression = randomValueOtherThan(inputExpression, () -> createFieldAttribute(0, false));
             case 2 -> parser = Grok.pattern(
                 instance.source(),
                 randomValueOtherThan(parser.pattern(), EsqlNodeSubclassTests::randomGrokPattern)

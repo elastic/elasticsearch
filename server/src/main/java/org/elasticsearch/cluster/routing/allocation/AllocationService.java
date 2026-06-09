@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -56,6 +57,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -232,20 +234,26 @@ public class AllocationService {
                     );
                 }
                 int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().failedAllocations() : 0;
+                Exception failure = failedShardEntry.failure();
+                final boolean cancelledByMaster = ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null;
                 final Set<String> failedNodeIds;
                 if (failedShard.unassignedInfo() != null) {
-                    failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
-                    failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
-                    failedNodeIds.add(failedShard.currentNodeId());
+                    if (cancelledByMaster == false) {
+                        failedNodeIds = Sets.newHashSetWithExpectedSize(failedShard.unassignedInfo().failedNodeIds().size() + 1);
+                        failedNodeIds.addAll(failedShard.unassignedInfo().failedNodeIds());
+                        failedNodeIds.add(failedShard.currentNodeId());
+                    } else {
+                        failedNodeIds = failedShard.unassignedInfo().failedNodeIds();
+                    }
                 } else {
                     failedNodeIds = Collections.emptySet();
                 }
                 String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.message();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(
-                    UnassignedInfo.Reason.ALLOCATION_FAILED,
+                    cancelledByMaster ? UnassignedInfo.Reason.RECOVERY_CANCELLED : UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failedShardEntry.failure(),
-                    failedAllocations + 1,
+                    failure,
+                    cancelledByMaster ? failedAllocations : failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),
                     false,
@@ -256,7 +264,11 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
+                if (cancelledByMaster) {
+                    logger.debug(() -> "recovery cancelled for shard [" + failedShardEntry + "]");
+                } else {
+                    logger.warn(() -> "failing shard [" + failedShardEntry + "]", failure);
+                }
                 allocation.routingNodes().failShard(failedShard, unassignedInfo, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);

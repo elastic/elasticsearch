@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -304,6 +306,39 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             var source = allocation.globalRoutingTable().routingTable(projectId).index("idx").shard(0).shard(0);
             assertThat(decider.canAllocate(source, allocation).type(), equalTo(Decision.Type.YES));
         });
+    }
+
+    public void testRecoveryCancellationPreservesExistingFailureCount() {
+        var clusterState = createInitialClusterState();
+        final int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+
+        // Burn through maxRetries.
+        for (int i = 0; i < maxRetries - 1; i++) {
+            clusterState = applyShardFailure(clusterState, clusterState.routingTable().index("idx").shard(0).shard(0), "genuine-" + i);
+        }
+        assertThat(
+            clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().failedAllocations(),
+            equalTo(maxRetries - 1)
+        );
+
+        clusterState = applyShardCancellation(clusterState, clusterState.routingTable().index("idx").shard(0).shard(0));
+        final var unassigned = clusterState.routingTable().index("idx").shard(0).shard(0);
+        assertThat(
+            "cancellation must not increment existing failedAllocations",
+            unassigned.unassignedInfo().failedAllocations(),
+            equalTo(maxRetries - 1)
+        );
+        assertThat(unassigned.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.RECOVERY_CANCELLED));
+        assertThat(unassigned.state(), equalTo(INITIALIZING));
+    }
+
+    private ClusterState applyShardCancellation(ClusterState clusterState, ShardRouting shardRouting) {
+        final var cause = new RecoveryCancelledException(shardRouting.shardId(), null, newNode("node1"), "test cancellation");
+        return strategy.applyFailedShards(
+            clusterState,
+            List.of(new FailedShard(shardRouting, "recovery cancelled", cause, false)),
+            List.of()
+        );
     }
 
     private ClusterState applyShardFailure(ClusterState clusterState, ShardRouting shardRouting, String message) {

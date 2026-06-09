@@ -569,9 +569,6 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
         // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
-        // Post-filter retry/seed logic does not compose with a sort-shuffled doc-id space, so disable on sorted indices.
-        boolean hasIndexSort = context.getIndexSettings().getIndexSortConfig().hasIndexSort();
-
         return vectorFieldType.createKnnQuery(
             queryVector,
             k,
@@ -584,8 +581,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             heuristic,
             hnswEarlyTermination,
             sliceEnabled,
-            sliceRouting,
-            hasIndexSort
+            sliceRouting
         );
     }
 

@@ -49,7 +49,13 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                 .stream()
                 .map(s -> s.withAppliesTo(expHistogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
                 .toList(),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList()
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramGaAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.ipCases(1, 1000),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
+            MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
+            MultiRowTestCaseSupplier.flattenedCases(1, 1000)
         );
         for (List<TestCaseSupplier.TypedDataSupplier> valuesSupplier : valuesSuppliers) {
             for (TestCaseSupplier.TypedDataSupplier fieldSupplier : valuesSupplier) {
@@ -102,9 +108,15 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                     lastTimestamp = timestamps.get(i);
                 }
             }
+
+            String evaluatorStr = switch (type) {
+                case EXPONENTIAL_HISTOGRAM -> "AllFirstExponentialHistogramByLong";
+                case TDIGEST -> "AllFirstTDigestByLong";
+                default -> standardAggregatorNameAllBytesTheSame("First", type) + "ByTimestamp";
+            };
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("First", type) + "ByTimestamp",
+                evaluatorStr,
                 fieldSupplier.type(),
                 equalTo(expected)
             );

@@ -145,6 +145,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
@@ -199,9 +200,12 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
@@ -256,6 +260,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -265,6 +270,13 @@ import java.util.regex.Pattern;
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
 
     protected ClassNode irClassNode;
+
+    protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation() && irFunctionNode.hasCondition(IRCStatic.class) == false) {
+            irFunctionNode.attachCondition(IRCInstanceCancellationCheck.class);
+        }
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+    }
 
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
@@ -645,7 +657,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCSynthetic.class);
         }
 
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -1406,15 +1418,49 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCStatic.class);
         }
         irFunctionNode.attachCondition(IRCSynthetic.class);
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
+
+        boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
+            && scriptScope.getScriptClassInfo().supportsCancellation()
+            && scriptScope.hasDecoration(userLambdaNode, TargetType.class);
+        if (injectCancelCapture) {
+            irFunctionNode.attachCondition(IRCStaticCancellationCheck.class);
+
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
+            List<Class<?>> augTypes = new ArrayList<>();
+            augTypes.add(scriptClass);
+            augTypes.addAll(irFunctionNode.getDecorationValue(IRDTypeParameters.class));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(augTypes));
+
+            List<String> augNames = new ArrayList<>();
+            augNames.add("#scriptThis");
+            augNames.addAll(irFunctionNode.getDecorationValue(IRDParameterNames.class));
+            irFunctionNode.attachDecoration(new IRDParameterNames(augNames));
+        }
 
         irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).valueType()));
 
         List<Variable> captures = scriptScope.getDecoration(userLambdaNode, CapturesDecoration.class).captures();
 
+        List<String> captureNames;
         if (captures.isEmpty() == false) {
-            List<String> captureNames = captures.stream().map(Variable::name).toList();
+            captureNames = captures.stream().map(Variable::name).toList();
+        } else {
+            captureNames = null;
+        }
+
+        if (injectCancelCapture) {
+            List<String> augCaptures = new ArrayList<>();
+            augCaptures.add("#scriptThis");
+            if (captureNames != null) {
+                augCaptures.addAll(captureNames);
+            }
+            irExpressionNode.attachDecoration(new IRDCaptureNames(augCaptures));
+            FunctionRef original = irExpressionNode.getDecorationValue(IRDReference.class);
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
+            irExpressionNode.attachDecoration(new IRDReference(original.withSyntheticScriptCapture(scriptClass)));
+        } else if (captureNames != null) {
             irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }
 
@@ -1857,6 +1903,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
+            if (scriptScope.getPainlessLookup()
+                .hasAnnotationAwareMethod(
+                    ScriptAwareAnnotation.class,
+                    userCallNode.getMethodName(),
+                    userCallNode.getArgumentNodes().size()
+                )) {
+                irCallSubDefNode.attachCondition(IRCScriptAware.class);
+            }
             irExpressionNode = irCallSubDefNode;
         } else {
             Class<?> boxType;
@@ -1887,6 +1941,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irInvokeCallNode.addArgumentNode(constantNode);
             }
 
+            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
+            if (cancellationAware) {
+                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
+            }
+
             for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {
                 irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
@@ -1895,6 +1954,17 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).standardPainlessMethod());
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
+
+            if (cancellationAware) {
+                if (userCallNode.isNullSafe()) {
+                    NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(irExpressionNode.getLocation());
+                    irNullSafeSubNode.setChildNode(irExpressionNode);
+                    irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
+                    irExpressionNode = irNullSafeSubNode;
+                }
+                scriptScope.putDecoration(userCallNode, new IRNodeDecoration(irExpressionNode));
+                return;
+            }
         }
 
         if (userCallNode.isNullSafe()) {

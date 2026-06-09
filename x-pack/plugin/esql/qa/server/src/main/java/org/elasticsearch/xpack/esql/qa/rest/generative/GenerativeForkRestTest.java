@@ -15,14 +15,16 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V6;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -54,7 +56,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
@@ -69,11 +74,17 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "FORK is not supported with unmapped_fields=\"load\"",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V5.capabilityName())
+                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.capabilityName())
         );
 
         assumeFalse(
             "Tests using subqueries are skipped since we don't support nested subqueries",
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using subqueries are skipped since we don't support nested disjunctive IN subqueries inside fork",
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
         );
 
         assumeFalse(
@@ -92,8 +103,9 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using query approximation are skipped since query approximation is not supported with FORK",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V6.capabilityName())
+            "Tests using query approximation are skipped since they contain FORKs",
+            testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

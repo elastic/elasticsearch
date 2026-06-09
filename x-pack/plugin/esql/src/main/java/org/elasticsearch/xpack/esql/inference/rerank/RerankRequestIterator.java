@@ -14,8 +14,10 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.RerankRequest;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 
@@ -23,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 
 /**
  * Iterator that converts a block of text strings into batched inference request items for reranking.
@@ -47,6 +51,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
     private final String queryText;
     private final int batchSize;
     private final int totalPositions;
+    private final TimeValue timeout;
 
     /**
      * Current position being processed in the input block.
@@ -72,14 +77,16 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      * @param queryText   The query text to use for reranking.
      * @param inputBlocks The input blocks containing text to rerank.
      * @param batchSize   The maximum number of documents to include in a single inference request.
+     * @param timeout     Timeout for each inference request.
      */
-    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize) {
+    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize, TimeValue timeout) {
         assert inputBlocks.length > 0 : "inputBlocks must not be empty";
         assert inputBlocks[0] != null : "inputBlocks[0] must not be null";
         this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.inputBlocks = inputBlocks;
         this.batchSize = batchSize;
+        this.timeout = timeout;
         this.totalPositions = inputBlocks[0].getPositionCount();
         this.inputBuffer = new ArrayList<>(batchSize);
         this.positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder(batchSize);
@@ -196,13 +203,13 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      * @param inputs The list of document texts to rerank.
      * @return An inference request, or null if there are no inputs.
      */
-    private InferenceAction.Request inferenceRequest(List<String> inputs) {
+    private RerankAction.Request inferenceRequest(List<String> inputs) {
         if (inputs.isEmpty()) {
             return null;
         }
 
-        // Create a defensive copy since the inputBuffer is reused for subsequent batches
-        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.copyOf(inputs)).setQuery(queryText).build();
+        var rerankRequest = new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryText), null, null, null);
+        return new RerankAction.Request(inferenceId, rerankRequest, timeout);
     }
 
     @Override
@@ -219,7 +226,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Factory for creating {@link RerankRequestIterator} instances.
      */
-    record Factory(String inferenceId, String queryText, ExpressionEvaluator[] inputEvaluators, int batchSize)
+    record Factory(String inferenceId, String queryText, ExpressionEvaluator[] inputEvaluators, int batchSize, TimeValue timeout)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
@@ -231,7 +238,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
                     inputBlocks[i] = (BytesRefBlock) inputEvaluators[i].eval(inputPage);
                 }
 
-                return new RerankRequestIterator(inferenceId, queryText, inputBlocks, batchSize);
+                return new RerankRequestIterator(inferenceId, queryText, inputBlocks, batchSize, timeout);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(inputBlocks);
                 throw e;

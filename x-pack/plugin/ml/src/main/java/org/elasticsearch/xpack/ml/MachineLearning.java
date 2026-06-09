@@ -726,6 +726,19 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Open anomaly detection jobs whose datafeed is stopped and that have not received data for
+     * longer than this duration will be automatically closed during nightly maintenance. Set to
+     * {@code -1} to disable auto-close.
+     */
+    public static final Setting<TimeValue> IDLE_JOB_AUTO_CLOSE_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.idle_job_auto_close_timeout",
+        TimeValue.timeValueHours(48),
+        TimeValue.MINUS_ONE,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
+    /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
      *
@@ -903,6 +916,7 @@ public class MachineLearning extends Plugin
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+            IDLE_JOB_AUTO_CLOSE_TIMEOUT,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
@@ -1112,7 +1126,9 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            machineLearningExtension.get(),
+            anomalyDetectionAuditor
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1214,7 +1230,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             jobResultsPersister,
             settings,
-            clusterService
+            clusterService,
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1415,6 +1432,7 @@ public class MachineLearning extends Plugin
             settings,
             threadPool,
             clusterService,
+            anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
@@ -1432,7 +1450,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),

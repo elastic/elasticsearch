@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `V_HAMMING` function [esql-v_hamming]
 
-:::{include} ../../_snippets/functions/layout/v_hamming.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/v_hamming.md
 :::

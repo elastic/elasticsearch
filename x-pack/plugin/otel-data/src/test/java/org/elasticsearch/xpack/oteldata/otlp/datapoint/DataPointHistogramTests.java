@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.HashSet;
+import java.util.List;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
@@ -51,16 +52,28 @@ public class DataPointHistogramTests extends ESTestCase {
         assertThat(validationErrors, contains(containsString("cumulative histogram metrics are not supported")));
     }
 
-    public void testHistogramInvalidBucketCountWithoutBounds() {
+    public void testHistogramSingleBucketWithoutBounds() {
         DataPoint.Histogram histo = new DataPoint.Histogram(
-            HistogramDataPoint.newBuilder().addBucketCounts(1).build(),
+            HistogramDataPoint.newBuilder().addBucketCounts(1).setCount(1).setSum(2.0).build(),
+            Metric.newBuilder()
+                .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
+                .build()
+        );
+        assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
+        assertThat(histo.isValid(validationErrors), equalTo(true));
+        assertThat(validationErrors, empty());
+    }
+
+    public void testHistogramInvalidBucketCountsLength() {
+        DataPoint.Histogram histo = new DataPoint.Histogram(
+            HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(1L, 2L)).build(),
             Metric.newBuilder()
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
         assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
         assertThat(histo.isValid(validationErrors), equalTo(false));
-        assertThat(validationErrors, contains(containsString("histogram with a single bucket and no explicit bounds is not supported")));
+        assertThat(validationErrors, contains(containsString("histogram bucket count must be one greater than explicit bounds count")));
     }
 
     public void testHistogramBucketBoundsNotSorted() {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -34,7 +35,8 @@ public class LookupJoinGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         if (schema.lookupIndices().isEmpty()) {
             return EMPTY_DESCRIPTION;

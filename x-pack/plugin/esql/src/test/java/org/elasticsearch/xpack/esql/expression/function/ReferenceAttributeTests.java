@@ -14,25 +14,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AbstractNamedExpressionSerializationTests;
 
-import java.util.function.Supplier;
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class ReferenceAttributeTests extends AbstractNamedExpressionSerializationTests<ReferenceAttribute> {
-    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
-        Source source = Source.EMPTY;
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
-        String name = randomAlphaOfLength(5);
-        Supplier<DataType> randomType = () -> randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally() || DataType.UNDER_CONSTRUCTION.contains(t),
-            () -> randomFrom(DataType.types())
-        );
-        DataType type = onlyRepresentable
-            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), randomType)
-            : randomType.get();
-        Nullability nullability = randomFrom(Nullability.values());
-        boolean synthetic = randomBoolean();
-        return new ReferenceAttribute(source, qualifier, name, type, nullability, new NameId(), synthetic);
-    }
-
     @Override
     protected ReferenceAttribute createTestInstance() {
         return randomReferenceAttribute(false);

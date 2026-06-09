@@ -116,6 +116,8 @@ Mary              |Sluis            |[-7.82, 3.48, 8.73, 10.35]
 ;
 
 sortingOnNumbersFromStrings
+skip_flattened_rewrite: field_extract_multivalue_null
+request_stored: skip
 from employees 
 | eval long_from_string = to_long(salary_change.keyword) 
 | sort long_from_string asc nulls last, emp_no 
@@ -342,4 +344,19 @@ emp_no:integer | gender:keyword | cnt:long
 10003          | M              | 1
 10004          | M              | 1
 10005          | M              | 1
+;
+
+
+topNLongRangeWildcardSort
+required_capability: date_range_field_type_v6
+required_capability: fix_topn_long_range_encoding
+
+// Exact query for https://github.com/elastic/elasticsearch/issues/150383.
+// The STATS makes the wildcard query result stable while still materializing
+// the long-range field through TopN.
+FROM mv_* | SORT decade | LIMIT 1000 | WHERE date_range IS NOT NULL | STATS MAX(decade)
+;
+
+MAX(decade):integer
+2000
 ;

@@ -61,7 +61,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (VectorData) args[1],
                 (QueryVectorBuilder) args[2],
                 (int) args[3],
-                (int) args[4],
+                (Integer) args[4],
                 (Float) args[5],
                 (RescoreVectorBuilder) args[7],
                 (Float) args[6]
@@ -83,7 +83,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             QUERY_VECTOR_BUILDER_FIELD
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
-        PARSER.declareInt(constructorArg(), NUM_CANDS_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VISIT_PERCENTAGE_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY);
         PARSER.declareField(
@@ -103,7 +103,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     private final Supplier<VectorData> queryVector;
     private final QueryVectorBuilder queryVectorBuilder;
     private final int k;
-    private final int numCands;
+    private final Integer numCands;
     private final Float visitPercentage;
     private final RescoreVectorBuilder rescoreVectorBuilder;
     private final Float similarity;
@@ -113,7 +113,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         float[] queryVector,
         QueryVectorBuilder queryVectorBuilder,
         int k,
-        int numCands,
+        Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -126,7 +126,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,
         int k,
-        int numCands,
+        Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
@@ -243,16 +243,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         assert queryVector != null : "query vector must be materialized at this point.";
-        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
-            field,
-            queryVector.get(),
-            null,
-            k,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            similarity
-        );
+        KnnSearchBuilder.Builder builder = new KnnSearchBuilder.Builder().field(field)
+            .queryVector(queryVector.get())
+            .k(k)
+            .visitPercentage(visitPercentage)
+            .rescoreVectorBuilder(rescoreVectorBuilder)
+            .similarity(similarity);
+        if (numCands != null) {
+            builder.numCandidates(numCands);
+        }
+        KnnSearchBuilder knnSearchBuilder = builder.build(k);
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }
@@ -274,7 +274,10 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(FIELD_FIELD.getPreferredName(), field);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+
+        if (numCands != null) {
+            builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
+        }
 
         if (visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
@@ -301,7 +304,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public boolean doEquals(Object o) {
         KnnRetrieverBuilder that = (KnnRetrieverBuilder) o;
         return k == that.k
-            && numCands == that.numCands
+            && Objects.equals(numCands, that.numCands)
             && Objects.equals(visitPercentage, that.visitPercentage)
             && Objects.equals(field, that.field)
             && Objects.equals(queryVector != null ? queryVector.get() : null, that.queryVector != null ? that.queryVector.get() : null)

@@ -67,9 +67,7 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initMetricExporter() throws Exception {
         exporter = OtlpHttpMetricExporter.builder()
             .setEndpoint(getClusterHosts().getFirst().toURI() + "/_otlp/v1/metrics")
             .addHeader("Authorization", "ApiKey " + createApiKey("metrics-*"))
@@ -100,10 +98,8 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
+    public void closeMeterProvider() throws Exception {
         meterProvider.close();
-        super.tearDown();
     }
 
     public void testIngestMetricViaMeterProvider() throws Exception {
@@ -462,10 +458,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         }
         assertThat(result.isSuccess(), is(true));
         refreshMetricsIndices();
-    }
-
-    private ObjectPath search(String target) throws IOException {
-        return ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_search")));
     }
 
     private static void refreshMetricsIndices() throws IOException {

@@ -352,6 +352,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
@@ -740,26 +741,45 @@ public class RestEsqlIT extends RestEsqlTestCase {
             String description = p.get("description").toString();
             switch (description) {
                 case "data" -> {
-                    // We force a page size of 10 so there are likely to be sleeps with the outbound buffer full
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange full"));
+                    /*
+                     * We force a page size of 10 so there are likely to be sleeps with the
+                     * outbound buffer full. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThanOrEqualTo(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange full")).or(equalTo("driver iterations"))));
                 }
                 case "node_reduce" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    // There *might* be exchange_full sleeps as well
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
                     Map<?, ?> counts = (Map<?, ?>) sleeps.get("counts");
                     assertThat(counts, either(hasKey((Object) "exchange empty")).or(hasKey("exchange empty OR exchange full")));
                     assertSleeps(
                         sleeps,
                         sleepMatcher(
-                            either(equalTo("exchange empty")).or(equalTo("exchange full")).or(equalTo("exchange empty OR exchange full"))
+                            either(equalTo("exchange empty")).or(equalTo("exchange full"))
+                                .or(equalTo("exchange empty OR exchange full"))
+                                .or(equalTo("driver iterations"))
                         )
                     );
                 }
                 case "final" -> {
-                    // There will always be sleeps on the reduce drivers because they won't have results ready
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    assertSleeps(sleeps, sleepMatcher("exchange empty"));
+                    /*
+                     * There will always be sleeps on the reduce drivers because they won't
+                     * have results ready. "Driver iterations" sleeps *may* happen if the
+                     * buffer doesn't fill up fast enough.
+                     */
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0)).extraOk()).extraOk()
+                    );
+                    assertSleeps(sleeps, sleepMatcher(either(equalTo("exchange empty")).or(equalTo("driver iterations"))));
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + description);
             }
@@ -813,28 +833,39 @@ public class RestEsqlIT extends RestEsqlTestCase {
      */
     private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
-        Map<DataType, String> typesAndValues = Map.ofEntries(
-            Map.entry(DataType.BOOLEAN, "\"true\""),
-            Map.entry(DataType.LONG, "-1234567890234567"),
-            Map.entry(DataType.INTEGER, "123"),
-            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
-            Map.entry(DataType.DOUBLE, "12.4"),
-            Map.entry(DataType.KEYWORD, "\"keyword\""),
-            Map.entry(DataType.TEXT, "\"some text\""),
-            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
-            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
-            Map.entry(DataType.IP, "\"192.168.30.1\""),
-            Map.entry(DataType.VERSION, "\"8.19.0\""),
-            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
-            Map.entry(DataType.GEO_SHAPE, """
-                {
-                  "type": "Point",
-                  "coordinates": [-77.03653, 38.897676]
-                }
-                """)
+        Map<DataType, String> typesAndValues = new HashMap<>(
+            Map.ofEntries(
+                Map.entry(DataType.BOOLEAN, "\"true\""),
+                Map.entry(DataType.LONG, "-1234567890234567"),
+                Map.entry(DataType.INTEGER, "123"),
+                Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+                Map.entry(DataType.DOUBLE, "12.4"),
+                Map.entry(DataType.KEYWORD, "\"keyword\""),
+                Map.entry(DataType.TEXT, "\"some text\""),
+                Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+                Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+                Map.entry(DataType.IP, "\"192.168.30.1\""),
+                Map.entry(DataType.VERSION, "\"8.19.0\""),
+                Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+                Map.entry(DataType.GEO_SHAPE, """
+                    {
+                      "type": "Point",
+                      "coordinates": [-77.03653, 38.897676]
+                    }
+                    """)
+            )
         );
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled()) {
+            typesAndValues.put(DataType.FLATTENED, """
+                {
+                  "foo": "a",
+                  "o": {
+                    "bar": "b"
+                  }
+                }
+                """);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
-            typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
                   "max": 14983.1
@@ -855,6 +886,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DATE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.FLATTENED);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }
@@ -1228,7 +1262,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0L))
+            .entry("bytes_read", greaterThanOrEqualTo(0L))
+            .entry("read_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1384,6 +1421,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
+        profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
+        profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
+        profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
     }
 
     static String signature(Map<String, Object> o) {
@@ -1405,10 +1445,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("rows_emitted", greaterThan(0))
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("readers_built", matchesMap().extraOk());
             case "AggregationOperator" -> matchesMap().entry("pages_processed", greaterThan(0))
                 .entry("rows_received", greaterThan(0))
@@ -1447,6 +1489,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("process_nanos", greaterThan(0))
                 .entry("processed_queries", List.of("*:*"))
                 .entry("slice_index", 0)
+                .entry("bytes_read", greaterThanOrEqualTo(0))
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
@@ -1569,6 +1612,29 @@ public class RestEsqlIT extends RestEsqlTestCase {
         } finally {
             // Clean up
             deleteIndex(indexName);
+        }
+    }
+
+    public void testBucketColumnMetadataCsvTxtFormat() throws IOException {
+        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+
+        Request indexRequest = new Request("POST", "/bucket_csv_test/_doc/");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"date\":\"1985-07-09T00:00:00.000Z\"}");
+        assertOK(client().performRequest(indexRequest));
+
+        try {
+            String query = "FROM bucket_csv_test | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) | LIMIT 10";
+            // CSV: verify the writer handles a metadata-bearing bucket column without error and produces correct output
+            String csvBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "csv", null, mode);
+            assertThat(csvBody, equalTo("c,bucket\r\n1,1985-07-01T00:00:00.000Z\r\n"));
+
+            // TXT: smoke-check only — the columnar writer pads/aligns differently, no exact match needed
+            String txtBody = runEsqlAsTextWithFormat(requestObjectBuilder().query(query), "txt", null, mode);
+            assertThat(txtBody, containsString("bucket"));
+            assertThat(txtBody, containsString("1985-07-01T00:00:00.000Z"));
+        } finally {
+            deleteIndex("bucket_csv_test");
         }
     }
 }

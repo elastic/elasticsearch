@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLongBas
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
@@ -238,6 +241,7 @@ public class ExpressionWritables {
         entries.add(ToBase64.ENTRY);
         entries.add(ToBoolean.ENTRY);
         entries.add(ToCartesianPoint.ENTRY);
+        entries.add(ToCounter.ENTRY);
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDateRange.ENTRY);
@@ -245,6 +249,7 @@ public class ExpressionWritables {
         entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToExponentialHistogram.ENTRY);
+        entries.add(ToGauge.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);
         entries.add(ToGeoPoint.ENTRY);
@@ -260,6 +265,7 @@ public class ExpressionWritables {
         entries.add(ToLongBase.ENTRY);
         entries.add(ToRadians.ENTRY);
         entries.add(ToString.ENTRY);
+        entries.add(ToText.ENTRY);
         entries.add(ToTDigest.ENTRY);
         entries.add(ToUnsignedLong.ENTRY);
         entries.add(ToVersion.ENTRY);

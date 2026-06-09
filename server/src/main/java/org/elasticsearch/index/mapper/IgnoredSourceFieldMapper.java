@@ -174,7 +174,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         @Override
         public void setNextReader(LeafReaderContext context) {
             try {
-                docValues = MultiValuedSortedBinaryDocValues.from(context.reader(), NAME);
+                docValues = MultiValuedSortedBinaryDocValues.fromMultiValued(context.reader(), NAME);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to load doc values for " + NAME, e);
             }
@@ -211,8 +211,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        // Ignored values are only expected in synthetic mode.
-        if (context.mappingLookup().isSourceSynthetic() == false) {
+        // Ignored values are only expected in synthetic and columnar_stored modes.
+        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
             assert context.getIgnoredFieldValues().isEmpty();
             return;
         }

@@ -14,14 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.util.function.Supplier;
 
 public record ExecutableInferenceRequest(
     RequestSender requestSender,
     Logger logger,
-    Request request,
+    OutboundRequest outboundRequest,
     ResponseHandler responseHandler,
     Supplier<Boolean> hasFinished,
     ActionListener<InferenceServiceResults> listener
@@ -29,10 +29,10 @@ public record ExecutableInferenceRequest(
 
     @Override
     public void run() {
-        var inferenceEntityId = request.getInferenceEntityId();
+        var inferenceEntityId = outboundRequest.getInferenceEntityId();
 
         try {
-            requestSender.send(logger, request, hasFinished, responseHandler, listener);
+            requestSender.send(logger, outboundRequest, hasFinished, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);

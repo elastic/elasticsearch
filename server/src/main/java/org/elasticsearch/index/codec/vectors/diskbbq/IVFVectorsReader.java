@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -138,6 +139,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         FloatVectorValues values,
         float visitRatio
     ) throws IOException;
+
+    /** Get the number of vectors to search, which is typically the total number of vectors in the segment or the
+     *  number of vectors in a slice if the segment is sliced.*/
+    protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
+        throws IOException {
+        return values.size();
+    }
 
     protected static IndexInput openDataInput(
         SegmentReadState state,
@@ -302,7 +310,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
-        FieldEntry entry = fields.get(fieldInfo.number);
+        final E entry = fields.get(fieldInfo.number);
         if (hasNoVectors(fieldInfo, entry)) {
             return;
         }
@@ -320,9 +328,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
 
         final FloatVectorValues values = getFloatVectorValues(field);
-        final int numVectors = values.size();
+        final IndexInput centroids = entry.centroidSlice(ivfCentroids);
+        final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
+        if (numVectors == 0) {
+            return; // nothing more to do if there are no vectors in this segment / slice
+        }
         final float approximateCost;
-        if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
+        if (esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll) {
             approximateCost = numVectors;
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
@@ -347,7 +359,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
+            centroids,
             target,
             postListSlice,
             acceptDocs,
@@ -362,7 +374,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             postListSlice,
             target,
             acceptDocsBits,
-            entry.centroidSlice(ivfCentroids)
+            entry.centroidSlice(ivfCentroids),
+            esAcceptDocs
         );
         long expectedDocs = 0;
         long actualDocs = 0;
@@ -549,13 +562,72 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
     }
 
+    /**
+     * Read the raw centroids and cluster sizes for the given field from this segment.
+     * Used by the adaptive merge strategy to bootstrap K-means with prior segment centroids.
+     * Implementations may return {@code null} if the format does not support reading centroid data
+     * (e.g. because the layout differs from the writer that consumes this data).
+     *
+     * @param fieldInfo the vector field to read centroids for
+     * @return centroid data, or {@code null} if unavailable
+     */
+    public abstract CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException;
+
+    /**
+     * Container for centroid data read from an existing segment. The centroid vectors are
+     * exposed as a streaming {@link ClusteringFloatVectorValues}
+     * so the merge path can iterate them without materializing the full {@code float[N][dim]}
+     * on the heap. The optional {@code backing} {@link IndexInput} owns any sliced resources
+     * required by the streaming view; {@link #close()} releases it.
+     */
+    public static final class CentroidData implements Closeable {
+        private final int numCentroids;
+        private final ClusteringFloatVectorValues centroids;
+        private final int[] clusterSizes;
+        private final float[] globalCentroid;
+        private final IndexInput backing;
+
+        public CentroidData(ClusteringFloatVectorValues centroids, int[] clusterSizes, float[] globalCentroid, IndexInput backing) {
+            assert centroids.size() == clusterSizes.length;
+            this.numCentroids = centroids.size();
+            this.centroids = centroids;
+            this.clusterSizes = clusterSizes;
+            this.globalCentroid = globalCentroid;
+            this.backing = backing;
+        }
+
+        public int numCentroids() {
+            return numCentroids;
+        }
+
+        public ClusteringFloatVectorValues centroids() {
+            return centroids;
+        }
+
+        public int[] clusterSizes() {
+            return clusterSizes;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (backing != null) {
+                backing.close();
+            }
+        }
+    }
+
     public abstract PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,
         FloatVectorValues values,
         IndexInput postingsLists,
         float[] target,
         Bits needsScoring,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs acceptDocs
     ) throws IOException;
 
     public interface PostingVisitor {

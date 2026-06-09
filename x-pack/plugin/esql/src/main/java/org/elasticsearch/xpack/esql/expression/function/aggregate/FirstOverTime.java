@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstExponentialHistogramByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -51,6 +52,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FirstOverTime.class)
         .ternary(FirstOverTime::new)
+        .capabilities("flattened")
         .name("first_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries(FirstOverTime::new)
@@ -64,7 +66,17 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "exponential_histogram", "tdigest" },
+        returnType = {
+            "long",
+            "integer",
+            "double",
+            "exponential_histogram",
+            "tdigest",
+            "date",
+            "date_nanos",
+            "flattened",
+            "ip",
+            "keyword" },
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -75,7 +87,21 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram", "tdigest" },
+            type = {
+                "counter_long",
+                "counter_integer",
+                "counter_double",
+                "long",
+                "integer",
+                "double",
+                "exponential_histogram",
+                "tdigest",
+                "date",
+                "date_nanos",
+                "flattened",
+                "ip",
+                "keyword",
+                "text" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
@@ -126,7 +152,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public DataType dataType() {
-        return field().dataType().noCounter();
+        return field().dataType().noCounter().noText();
     }
 
     @Override
@@ -136,7 +162,13 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
                 || dt == DataType.AGGREGATE_METRIC_DOUBLE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
-                || dt == DataType.TDIGEST,
+                || dt == DataType.TDIGEST
+                || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
+                || dt == DataType.FLATTENED
+                || dt == DataType.IP
+                || dt == DataType.KEYWORD
+                || dt == DataType.TEXT,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -151,12 +183,13 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG, COUNTER_LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> new FirstLongByTimestampAggregatorFunctionSupplier();
             case INTEGER, COUNTER_INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
-            case EXPONENTIAL_HISTOGRAM -> new FirstExponentialHistogramByTimestampAggregatorFunctionSupplier();
-            case TDIGEST -> new FirstTDigestByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
+            case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
+            case FLATTENED, KEYWORD, TEXT, IP -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

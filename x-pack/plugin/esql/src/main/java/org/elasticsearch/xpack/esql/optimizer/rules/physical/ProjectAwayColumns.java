@@ -42,6 +42,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
 
     @Override
     public PhysicalPlan apply(PhysicalPlan plan) {
+        return apply(plan, false);
+    }
+
+    private PhysicalPlan apply(PhysicalPlan plan, boolean isForkBranch) {
         Holder<Boolean> keepTraversing = new Holder<>(TRUE);
         // Invariant: if we add a projection with these attributes after the current plan node, the plan remains valid
         // and the overall output will not change.
@@ -55,11 +59,12 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
             // for non-unary execution plans, we apply the rule for each child
             if (currentPlanNode instanceof MergeExec mergeExec) {
                 keepTraversing.set(FALSE);
+
                 List<PhysicalPlan> newChildren = new ArrayList<>();
                 boolean changed = false;
 
                 for (var child : mergeExec.children()) {
-                    var newChild = apply(child);
+                    var newChild = apply(child, true);
 
                     if (newChild != child) {
                         changed = true;
@@ -85,9 +90,11 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     var logicalFragment = fragmentExec.fragment();
 
                     // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
-                    if (logicalFragment instanceof Aggregate == false
+                    // The only exception is when we are dealing with a FORK branch, because we might be dealing with a combination
+                    // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
+                    if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
-                        && logicalFragment instanceof TsInfo == false) {
+                        && logicalFragment instanceof TsInfo == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {
@@ -105,7 +112,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
-                        if (output.isEmpty()) {
+                        if (output.isEmpty() && isForkBranch == false) {
                             var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);

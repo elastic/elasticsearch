@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -245,7 +247,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        projectId -> false
+                        projectId -> false,
+                        mock(ProjectResolver.class),
+                        mock(TransformCloudCredentialManager.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -333,7 +337,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                         mock(TransformNode.class),
                         mock(CrossProjectModeDecider.class),
-                        projectId -> false
+                        projectId -> false,
+                        mock(ProjectResolver.class),
+                        mock(TransformCloudCredentialManager.class)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -470,7 +476,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
                     mock(CrossProjectModeDecider.class),
-                    projectId -> false
+                    projectId -> false,
+                    mock(ProjectResolver.class),
+                    mock(TransformCloudCredentialManager.class)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

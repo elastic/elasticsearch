@@ -122,7 +122,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
         );
     }
 
@@ -134,8 +134,17 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
         );
+    }
+
+    public void testFromMap_IgnoresUnknownFields() {
+        var map = new HashMap<String, Object>();
+        map.put(API_KEY, TEST_API_KEY);
+        map.put("some_unknown_field", "value");
+
+        var result = AzureOpenAiSecretSettings.fromMap(map);
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(new SecureString(TEST_API_KEY.toCharArray()), null)));
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

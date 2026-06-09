@@ -18,7 +18,9 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public class DocumentMapper {
     private final String type;
@@ -36,9 +38,10 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
-            MapperBuilderContext.root(false, false)
-        );
+        RootObjectMapper root = new RootObjectMapper.Builder(
+            MapperService.SINGLE_MAPPING_NAME,
+            mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+        ).build(MapperBuilderContext.root(false, false));
         MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
             .values()
             .stream()
@@ -73,48 +76,12 @@ public class DocumentMapper {
         this.indexVersion = version;
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
-
-        assert mapping.toCompressedXContent().equals(source)
-            || isSyntheticSourceMalformed(source, version)
-            || hasConfidenceIntervalDifference(source, mapping.toCompressedXContent())
-            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
-    }
-
-    /**
-     * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
-     * This got restored in v.8.10 to avoid confusion. The change is only restricted to mapping printout, it has no
-     * functional effect as the synthetic source already applies.
-     */
-    boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
-        return sourceMapper().isSynthetic()
-            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersions.V_8_10_0);
-    }
-
-    /**
-     * The confidence_interval dense vector mapping parameter was deprecated on upgrade to Lucene 10.4.
-     * Previously it was default to 0.0 and always visible in the mapping, now it is hidden unless
-     * explicitly set. The check allows the mappings to differ if one contains "confidence_interval:0.0"
-     * but the other doesn't.
-     * Strips out confidence_interval fields from both sources and compares them.
-     */
-    boolean hasConfidenceIntervalDifference(CompressedXContent source1, CompressedXContent source2) {
-        String s1 = stripConfidenceInterval(source1.string());
-        String s2 = stripConfidenceInterval(source2.string());
-        return s1.equals(s2);
-    }
-
-    private String stripConfidenceInterval(String json) {
-        // Remove "confidence_interval":0.0 and the comma before it if present
-        return json.replaceAll(",\"confidence_interval\":0\\.0", "")
-            // Remove "confidence_interval":0.0 and the comma after it if present
-            .replaceAll("\"confidence_interval\":0\\.0,", "");
     }
 
     public Mapping mapping() {
@@ -172,6 +139,17 @@ public class DocumentMapper {
                 );
             }
         }
+        if (settings.isSliceEnabled() && (routingFieldMapper().required() == false || routingFieldMapper().docValues() == false)) {
+            throw new IllegalArgumentException(
+                "mapping type ["
+                    + type()
+                    + "] must not configure [_routing] settings when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for index ["
+                    + settings.getIndex().getName()
+                    + "]"
+            );
+        }
 
         settings.getMode().validateMapping(mappingLookup);
         /*
@@ -196,6 +174,22 @@ public class DocumentMapper {
                     throw new IllegalArgumentException(
                         "cannot apply index sort to field [" + field + "] under nested object [" + nestedParent + "]"
                     );
+                }
+            }
+        }
+        if (settings.getIndexSortConfig().hasIndexSort()) {
+            Set<String> sortFields = Set.copyOf(settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING));
+            Collection<RuntimeField> runtimeFields = mapping().getRoot().runtimeFields();
+            for (RuntimeField rf : runtimeFields) {
+                for (MappedFieldType ft : rf.asMappedFieldTypes().toList()) {
+                    if (sortFields.contains(ft.name())) {
+                        throw new MapperParsingException(
+                            "runtime field ["
+                                + ft.name()
+                                + "] shadows an index sort field, "
+                                + "which would prevent shards from being allocated"
+                        );
+                    }
                 }
             }
         }

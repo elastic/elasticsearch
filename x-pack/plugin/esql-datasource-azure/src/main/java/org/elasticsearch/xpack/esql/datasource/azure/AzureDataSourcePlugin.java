@@ -12,11 +12,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing Azure Blob Storage support for ESQL.
@@ -37,22 +37,12 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory azureFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new AzureStorageProvider((AzureConfiguration) null);
-            }
-
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                AzureConfiguration azureConfig = AzureConfiguration.fromMap(config);
-                return new AzureStorageProvider(azureConfig);
-            }
-        };
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+            () -> new AzureStorageProvider(null, executor),
+            AzureConfiguration::fromQueryConfig,
+            config -> new AzureStorageProvider(config, executor)
+        );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
 

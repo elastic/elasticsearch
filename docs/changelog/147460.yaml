@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 147460
+summary: Fixed workflow `dataStream` descriptor
+type: bug

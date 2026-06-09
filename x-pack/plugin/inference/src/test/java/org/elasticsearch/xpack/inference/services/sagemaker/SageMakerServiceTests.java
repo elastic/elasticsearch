@@ -13,18 +13,22 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -41,10 +45,10 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchema;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStreamSchema;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,6 +62,7 @@ import static org.elasticsearch.action.ActionListener.assertOnce;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -68,6 +73,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -93,17 +99,18 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     private SageMakerClient client;
     private SageMakerSchemas schemas;
     private SageMakerService sageMakerService;
-    private ThreadPool threadPool;
+    private ThreadPool sageMakerThreadPool;
 
-    @Before
-    public void init() {
+    @Override
+    public void doInit() throws IOException {
+        super.doInit();
         modelBuilder = mock();
         client = mock();
         schemas = mock();
-        threadPool = mock();
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        sageMakerService = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, mockClusterServiceEmpty());
+        sageMakerThreadPool = mock();
+        when(sageMakerThreadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(sageMakerThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        sageMakerService = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, mockClusterServiceEmpty());
     }
 
     public void testSupportedTaskTypes() {
@@ -140,21 +147,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
-    public void testInferWithWrongModel() {
-        sageMakerService.infer(
-            mockUnsupportedModel(),
-            QUERY,
-            false,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertUnsupportedModel()
-        );
-    }
-
     private static Model mockUnsupportedModel() {
         Model model = mock();
         ModelConfigurations modelConfigurations = mock();
@@ -185,24 +177,72 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
-        sageMakerService.infer(
+        sageMakerService.infer(model, INPUT, false, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
+            verify(schemas, only()).schemaFor(eq(model));
+            verify(schema, times(1)).request(eq(model), assertRequest());
+            verify(schema, times(1)).response(eq(model), any(), any());
+        }));
+        verify(client, only()).invoke(any(), any(), any(), any(), any());
+        verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testRerankInfer() {
+        var model = mockModel();
+
+        SageMakerSchema schema = mock();
+        when(schemas.schemaFor(model)).thenReturn(schema);
+        mockInvoke();
+
+        var returnDocuments = randomOptionalBoolean();
+        var topN = randomNonNegativeIntOrNull();
+        sageMakerService.rerankInfer(
             model,
-            QUERY,
-            null,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
+            new RerankRequest(InferenceString.fromStringList(INPUT), InferenceString.ofText(QUERY), topN, returnDocuments, null),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).schemaFor(eq(model));
-                verify(schema, times(1)).request(eq(model), assertRequest());
+                verify(schema, times(1)).request(eq(model), assertRerankRequest(returnDocuments, topN));
                 verify(schema, times(1)).response(eq(model), any(), any());
             })
         );
-        verify(client, only()).invoke(any(), any(), any(), any());
+        verify(client, only()).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(SageMakerModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(
+                thrownException.getMessage(),
+                is("The amazon_sagemaker service does not support rerank with non-text inputs or queries")
+            );
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -215,18 +255,18 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
-        var service = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, clusterService);
+        var service = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, clusterService);
 
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
             capturedTimeout.set(ans.getArgument(2));
-            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(null);
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(4)).onResponse(null);
             return null;
-        }).when(client).invoke(any(), any(), any(), any());
+        }).when(client).invoke(any(), any(), any(), any(), any());
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, null, latchedListener);
+        service.infer(model, INPUT, false, null, InputType.SEARCH, null, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(configuredTimeout, capturedTimeout.get());
@@ -242,18 +282,18 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(15)).build()
         );
 
-        var service = new SageMakerService(modelBuilder, client, schemas, threadPool, Map::of, clusterService);
+        var service = new SageMakerService(modelBuilder, client, schemas, sageMakerThreadPool, Map::of, clusterService);
 
         var capturedTimeout = new AtomicReference<TimeValue>();
         doAnswer(ans -> {
             capturedTimeout.set(ans.getArgument(2));
-            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(null);
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(4)).onResponse(null);
             return null;
-        }).when(client).invoke(any(), any(), any(), any());
+        }).when(client).invoke(any(), any(), any(), any(), any());
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener);
+        service.infer(model, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(providedTimeout, capturedTimeout.get());
@@ -261,7 +301,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private SageMakerModel mockModel() {
         SageMakerModel model = mock();
-        when(model.override(null)).thenReturn(model);
+        when(model.override(any())).thenReturn(model);
         when(model.awsSecretSettings()).thenReturn(
             Optional.of(new AwsSecretSettings(new SecureString("test-accessKey"), new SecureString("test-secretKey")))
         );
@@ -270,19 +310,29 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private void mockInvoke() {
         doAnswer(ans -> {
-            ActionListener<InvokeEndpointResponse> responseListener = ans.getArgument(3);
+            ActionListener<InvokeEndpointResponse> responseListener = ans.getArgument(4);
             responseListener.onResponse(InvokeEndpointResponse.builder().build());
             return null; // Void
-        }).when(client).invoke(any(), any(), any(), any());
+        }).when(client).invoke(any(), any(), any(), any(), any());
     }
 
     private static SageMakerInferenceRequest assertRequest() {
         return assertArg(request -> {
-            assertThat(request.query(), equalTo(QUERY));
+            assertThat(request.query(), is(nullValue()));
             assertThat(request.input(), containsInAnyOrder(INPUT.toArray()));
             assertThat(request.inputType(), equalTo(InputType.UNSPECIFIED));
             assertNull(request.returnDocuments());
             assertNull(request.topN());
+        });
+    }
+
+    private static SageMakerInferenceRequest assertRerankRequest(Boolean returnDocuments, Integer topN) {
+        return assertArg(request -> {
+            assertThat(request.query(), is(QUERY));
+            assertThat(request.input(), is(INPUT));
+            assertThat(request.inputType(), is(InputType.UNSPECIFIED));
+            assertThat(request.returnDocuments(), is(returnDocuments));
+            assertThat(request.topN(), is(topN));
         });
     }
 
@@ -293,23 +343,23 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
         mockInvokeStream();
 
-        sageMakerService.infer(model, QUERY, null, null, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
+        sageMakerService.infer(model, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
             verify(schemas, only()).streamSchemaFor(eq(model));
             verify(schema, times(1)).streamRequest(eq(model), assertRequest());
             verify(schema, times(1)).streamResponse(eq(model), any());
         }));
-        verify(client, only()).invokeStream(any(), any(), any(), any());
+        verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
     private void mockInvokeStream() {
         doAnswer(ans -> {
-            ActionListener<SageMakerClient.SageMakerStream> responseListener = ans.getArgument(3);
+            ActionListener<SageMakerClient.SageMakerStream> responseListener = ans.getArgument(4);
             responseListener.onResponse(
                 new SageMakerClient.SageMakerStream(InvokeEndpointWithResponseStreamResponse.builder().build(), mock())
             );
             return null; // Void
-        }).when(client).invokeStream(any(), any(), any(), any());
+        }).when(client).invokeStream(any(), any(), any(), any(), any());
     }
 
     public void testInferError() {
@@ -320,32 +370,21 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvokeFailure(expectedException);
 
-        sageMakerService.infer(
-            model,
-            QUERY,
-            null,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertNoSuccessListener(ignored -> {
-                verify(schemas, only()).schemaFor(eq(model));
-                verify(schema, times(1)).request(eq(model), assertRequest());
-                verify(schema, times(1)).error(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
-            })
-        );
-        verify(client, only()).invoke(any(), any(), any(), any());
+        sageMakerService.infer(model, INPUT, false, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(ignored -> {
+            verify(schemas, only()).schemaFor(eq(model));
+            verify(schema, times(1)).request(eq(model), assertRequest());
+            verify(schema, times(1)).error(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
+        }));
+        verify(client, only()).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
     private void mockInvokeFailure(Exception e) {
         doAnswer(ans -> {
-            ActionListener<?> responseListener = ans.getArgument(3);
+            ActionListener<?> responseListener = ans.getArgument(4);
             responseListener.onFailure(e);
             return null; // Void
-        }).when(client).invoke(any(), any(), any(), any());
+        }).when(client).invoke(any(), any(), any(), any(), any());
     }
 
     public void testInferException() {
@@ -354,16 +393,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         SageMakerStreamSchema schema = mock();
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
-        doThrow(new IllegalArgumentException("wow, really?")).when(client).invokeStream(any(), any(), any(), any());
+        doThrow(new IllegalArgumentException("wow, really?")).when(client).invokeStream(any(), any(), any(), any(), any());
 
-        sageMakerService.infer(model, QUERY, null, null, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(e -> {
+        sageMakerService.infer(model, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(e -> {
             verify(schemas, only()).streamSchemaFor(eq(model));
             verify(schema, times(1)).streamRequest(eq(model), assertRequest());
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
             assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
         }));
-        verify(client, only()).invokeStream(any(), any(), any(), any());
+        verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -393,7 +432,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schema, times(1)).chatCompletionStreamResponse(eq(model), any());
             })
         );
-        verify(client, only()).invokeStream(any(), any(), any(), any());
+        verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -415,16 +454,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schema, times(1)).chatCompletionError(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
             })
         );
-        verify(client, only()).invokeStream(any(), any(), any(), any());
+        verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
     private void mockInvokeStreamFailure(Exception e) {
         doAnswer(ans -> {
-            ActionListener<?> responseListener = ans.getArgument(3);
+            ActionListener<?> responseListener = ans.getArgument(4);
             responseListener.onFailure(e);
             return null; // Void
-        }).when(client).invokeStream(any(), any(), any(), any());
+        }).when(client).invokeStream(any(), any(), any(), any(), any());
     }
 
     public void testUnifiedInferException() {
@@ -433,7 +472,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         SageMakerStreamSchema schema = mock();
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
-        doThrow(new IllegalArgumentException("wow, rude")).when(client).invokeStream(any(), any(), any(), any());
+        doThrow(new IllegalArgumentException("wow, rude")).when(client).invokeStream(any(), any(), any(), any(), any());
 
         sageMakerService.unifiedCompletionInfer(
             model,
@@ -447,14 +486,13 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 assertThat(e.getMessage(), equalTo("Failed to call SageMaker for inference id [some id]."));
             })
         );
-        verify(client, only()).invokeStream(any(), any(), any(), any());
+        verify(client, only()).invokeStream(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
     public void testChunkedInferWithWrongModel() {
         sageMakerService.chunkedInfer(
             mockUnsupportedModel(),
-            QUERY,
             INPUT.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,
@@ -475,7 +513,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             expectedInput.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,
@@ -486,7 +523,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schema, times(2)).response(eq(model), any(), any());
             }))
         );
-        verify(client, times(2)).invoke(any(), any(), any(), any());
+        verify(client, times(2)).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -499,7 +536,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             List.of(),
             null,
             INPUT_TYPE,
@@ -510,7 +546,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 verify(schema, never()).response(any(), any(), any());
             }))
         );
-        verify(client, never()).invoke(any(), any(), any(), any());
+        verify(client, never()).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -525,7 +561,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private static SageMakerInferenceRequest assertChunkRequest(Set<String> expectedInput) {
         return assertArg(request -> {
-            assertThat(request.query(), equalTo(QUERY));
+            assertThat(request.query(), is(nullValue()));
             assertThat(request.input(), hasSize(1));
             assertThat(request.input().get(0), in(expectedInput));
             assertThat(request.inputType(), equalTo(InputType.UNSPECIFIED));
@@ -549,7 +585,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             expectedInput.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,
@@ -561,7 +596,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
                 assertThat(chunkedInferences, containsInAnyOrder(expectedOutput));
             }))
         );
-        verify(client, times(2)).invoke(any(), any(), any(), any());
+        verify(client, times(2)).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
 
@@ -574,6 +609,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public InferenceService createInferenceService() {
         when(schemas.supportedTaskTypes()).thenReturn(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
         return sageMakerService;
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_UsesDefaultSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
     }
 
     @Override

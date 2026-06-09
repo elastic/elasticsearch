@@ -13,8 +13,9 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.60.1'
+def otelVersion = '1.62.0'
 def otelInstrumentationVersion = '2.26.1-alpha'
+def otelContribDiskBufferingVersion = '1.57.0-alpha'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
@@ -24,17 +25,23 @@ dependencies {
   implementation("io.opentelemetry:opentelemetry-exporter-otlp:${otelVersion}") {
     exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
   }
+  implementation("io.opentelemetry.contrib:opentelemetry-disk-buffering:${otelContribDiskBufferingVersion}") {
+    // we already have them
+    exclude group: 'io.opentelemetry', module: 'opentelemetry-sdk'
+  }
+  // disk-buffering's serialization layer (Wire) depends on Okio.
+  implementation "com.squareup.okio:okio-jvm:3.17.0"
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
-  runtimeOnly "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:${otelVersion}"
-  runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
+  runtimeOnly "co.elastic.apm:elastic-apm-agent-java8:1.55.6"
 
   testImplementation "io.opentelemetry:opentelemetry-sdk-testing:${otelVersion}"
 
@@ -59,4 +66,5 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+  mapping from: /okio.*/, to: 'okio'
 }

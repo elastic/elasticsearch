@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -274,7 +275,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(9, answer.size());
+        assertEquals(13, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -284,6 +285,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("is_partial", any(Boolean.class))
                 .entry("documents_found", 0)
                 .entry("values_loaded", 0)
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))
@@ -1647,6 +1652,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         });
     }
 
+    public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
+    }
+
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
         if (response instanceof ArrayList<?> columns) {
             var newColumns = new ArrayList<>();
@@ -1902,9 +1911,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             """.formatted(testIndexName(), randomLong()));
 
         var timeZone = randomZone();
-        var interval = randomFrom("1 hour", "1 day", "1 month");
+        var unit = randomFrom("hour", "day", "month");
         var functions = Stream.of("DATE_TRUNC(\"%s\", @timestamp)", "BUCKET(@timestamp, \"%s\")", "TBUCKET(\"%s\")")
-            .map(f -> f.formatted(interval))
+            .map(f -> f.formatted("1 " + unit))
             .toList();
 
         Object firstResultValues = null;
@@ -1931,7 +1940,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertResultMap(
                     result,
                     getResultMatcher(result),
-                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    matchesList().item(
+                        matchesMap() //
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            // meta is only present if request is routed to a node supporting this feature
+                            .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 1, "unit", unit)))
+                    ),
                     hasSize(greaterThanOrEqualTo(1))
                 );
 
@@ -1951,7 +1966,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testApproximationColumnMetadata() throws IOException {
-        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled());
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
         bulkLoadTestData(10);
 
         String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
@@ -2048,7 +2063,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+    protected static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
         throws IOException {
         Request request = prepareRequest(mode);
         if (mode == ASYNC) {

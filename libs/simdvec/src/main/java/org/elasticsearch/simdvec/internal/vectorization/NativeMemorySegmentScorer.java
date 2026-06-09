@@ -23,8 +23,8 @@ import java.lang.foreign.MemorySegment;
  * <p>Subclasses provide only the native dot-product function and bit-scale constants;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
  */
-abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q4Scorer,
-    NativeD2Q4Scorer, NativeD4Q4Scorer {
+abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q1Scorer,
+    NativeD1Q4Scorer, NativeD2Q4Scorer, NativeD2Q4PackedScorer, NativeD4Q4Scorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;
@@ -33,7 +33,6 @@ abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVec
 
     NativeMemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
-        assert dataLength >= 16 : "NativeMemorySegmentScorer requires dataLength >= 16, got " + dataLength;
     }
 
     private MemorySegment querySegment(byte[] q) {

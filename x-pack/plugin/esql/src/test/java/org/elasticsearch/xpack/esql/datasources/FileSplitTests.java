@@ -12,6 +12,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -162,5 +167,131 @@ public class FileSplitTests extends ESTestCase {
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
         assertNotEquals(a, c);
+    }
+
+    public void testRoundTripWithSplitStats() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data/file.parquet");
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(5000).sizeInBytes(100000);
+        b.addColumn("id", 0L, 1L, 5000L, 40000);
+        b.addColumn("name", 10L, "Alice", "Zara", 50000);
+        SplitStats stats = b.build();
+        FileSplit original = FileSplit.withSplitStats("file", path, 0, 4096, ".parquet", Map.of(), Map.of(), null, stats);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertEquals(original.hashCode(), deserialized.hashCode());
+        assertNotNull(deserialized.splitStats());
+        assertEquals(5000, deserialized.splitStats().rowCount());
+        assertEquals(2, deserialized.splitStats().columnCount());
+        assertNotNull(deserialized.statistics());
+        assertEquals(5000L, deserialized.statistics().get("_stats.row_count"));
+    }
+
+    public void testLegacyMapNormalizesToSplitStats() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> stats = Map.of("_stats.row_count", 1000L, "_stats.columns.age.null_count", 50L);
+        FileSplit split = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, stats);
+
+        assertNotNull(split.splitStats());
+        assertEquals(1000, split.splitStats().rowCount());
+        assertNotNull(split.statistics());
+        assertEquals(1000L, split.statistics().get("_stats.row_count"));
+    }
+
+    public void testSplitStatsAndMapEquality() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        Map<String, Object> statsMap = Map.of("_stats.row_count", 500L, "_stats.columns.x.null_count", 5L);
+        SplitStats.Builder b = new SplitStats.Builder().rowCount(500);
+        b.addColumn("x", 5L, null, null, -1);
+        SplitStats splitStats = b.build();
+
+        FileSplit fromMap = new FileSplit("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, statsMap);
+        FileSplit fromSplitStats = FileSplit.withSplitStats("file", path, 0, 100, ".parquet", Map.of(), Map.of(), null, splitStats);
+
+        assertEquals(fromMap, fromSplitStats);
+        assertEquals(fromMap.hashCode(), fromSplitStats.hashCode());
+    }
+
+    /**
+     * Null {@code readSchema} round-trips as null. This is the smoke test that the new wire-encoding
+     * branch on {@link FileSplit} doesn't accidentally invent a non-null value during deserialization.
+     */
+    public void testNamedWriteableRoundTripWithNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/file.csv");
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 1024, ".csv", Map.of(), Map.of(), null, null);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(original, deserialized);
+        assertNull(deserialized.readSchema());
+    }
+
+    /**
+     * Non-null {@code readSchema} round-trips via the primitive (count, name, typeName, nullable) wire
+     * encoding. Critical because {@code FileSplit} crosses the wire inside {@code DataNodeRequest} on a
+     * {@code RecyclerBytesStreamOutput} (not a {@code PlanStreamOutput}); the encoding therefore
+     * cannot delegate to {@code writeNamedWriteableCollection(Attribute)}, which would cast.
+     * Mixes {@code Nullability.TRUE} and {@code FALSE} attributes to prove the bit round-trips faithfully.
+     */
+    public void testNamedWriteableRoundTripWithNonNullReadSchema() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.TRUE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.INTEGER, Nullability.FALSE, null, false),
+            new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.DOUBLE, Nullability.TRUE, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(schema.size(), deserialized.readSchema().size());
+        for (int i = 0; i < schema.size(); i++) {
+            assertEquals(schema.get(i).name(), deserialized.readSchema().get(i).name());
+            assertEquals(schema.get(i).dataType(), deserialized.readSchema().get(i).dataType());
+            assertEquals(
+                "Nullability of " + schema.get(i).name() + " must round-trip",
+                schema.get(i).nullable(),
+                deserialized.readSchema().get(i).nullable()
+            );
+        }
+    }
+
+    /**
+     * UNKNOWN nullability is planner-internal and shouldn't survive analysis, but if it does
+     * reach wire encoding it must be conservatively reconstituted as nullable (TRUE), not as
+     * a stronger non-null guarantee (FALSE). Anything other than provable non-null is nullable.
+     */
+    public void testNamedWriteableRoundTripCoercesUnknownNullabilityToTrue() throws IOException {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> schema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.KEYWORD, Nullability.UNKNOWN, null, false)
+        );
+        FileSplit original = FileSplit.withReadSchema("file", path, 0, 2048, ".csv", Map.of(), Map.of(), null, schema);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeNamedWriteable(original);
+
+        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
+        FileSplit deserialized = (FileSplit) in.readNamedWriteable(ExternalSplit.class);
+
+        assertEquals(1, deserialized.readSchema().size());
+        assertEquals(
+            "UNKNOWN must reconstitute as TRUE (nullable), never as FALSE",
+            Nullability.TRUE,
+            deserialized.readSchema().get(0).nullable()
+        );
     }
 }

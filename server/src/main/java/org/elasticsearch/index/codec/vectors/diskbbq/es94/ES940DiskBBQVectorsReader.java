@@ -36,6 +36,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -80,6 +81,20 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
 
     private void ensureCompatibleEncoding(IndexInput metaInput, ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding)
         throws CorruptIndexException {
+        if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_PACKED) {
+            throw new CorruptIndexException(
+                "Packed 2-bit encoding requires version " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
+                metaInput
+            );
+        }
+        if (versionMeta >= ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2
+            && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY_STRIPED) {
+            throw new CorruptIndexException(
+                "Striped 2-bit encoding requires version before " + ES940DiskBBQVectorsFormat.VERSION_PACKED_INT2,
+                metaInput
+            );
+        }
         if (versionMeta < ES940DiskBBQVectorsFormat.VERSION_PACKED_INT4
             && quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED) {
             throw new CorruptIndexException(
@@ -244,7 +259,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return null;
     }
 
-    static class NextFieldEntry extends FieldEntry {
+    protected static class NextFieldEntry extends FieldEntry {
         private final ES940DiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;
@@ -600,7 +615,8 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         IndexInput indexInput,
         float[] target,
         Bits acceptDocs,
-        IndexInput centroidSlice
+        IndexInput centroidSlice,
+        ESAcceptDocs esAcceptDocs
     ) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
         final int bitsRequired = DirectWriter.bitsRequired(entry.numCentroids());
@@ -770,10 +786,10 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.acceptDocs = acceptDocs;
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
-            ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding =
-                quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED
-                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+            ES940OSQVectorsScorer.BitEncoding bitEncoding = switch (quantEncoding) {
+                case TWO_BIT_4BIT_QUERY_PACKED, FOUR_BIT_SYMMETRIC_PACKED -> ES940OSQVectorsScorer.BitEncoding.PACKED;
+                default -> ES940OSQVectorsScorer.BitEncoding.STRIPED;
+            };
             osqVectorsScorer = ESVectorUtil.getES940OSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -781,7 +797,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                int4Encoding
+                bitEncoding
             );
         }
 
@@ -987,6 +1003,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             }
             return scoredDocs;
         }
+    }
+
+    @Override
+    public CentroidData readCentroidData(FieldInfo fieldInfo) {
+        // The ES940 writer does not consume CentroidData during merge, so reading it is not implemented.
+        return null;
     }
 
 }

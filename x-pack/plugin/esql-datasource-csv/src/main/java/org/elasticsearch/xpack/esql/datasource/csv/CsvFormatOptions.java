@@ -23,7 +23,16 @@ import java.time.format.DateTimeFormatter;
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
  *                           (default: 10MB). Provides OOM protection against malformed files.
- * @param multiValueSyntax   syntax for multi-value fields: BRACKETS (default, [a,b,c]) or NONE
+ * @param multiValueSyntax   syntax for multi-value fields: NONE (default — standard CSV, no array
+ *                           parsing) or BRACKETS ([a,b,c] read as a multi-value)
+ * @param headerRow          when {@code true} (default), the first non-comment line is read as the
+ *                           schema header; when {@code false}, no header is read and column names
+ *                           are synthesized from {@link #columnPrefix}.
+ * @param columnPrefix       prefix used to synthesize column names when {@link #headerRow} is
+ *                           {@code false}. Counters are appended starting at 0 (e.g.
+ *                           {@code col0, col1, col2, ...}). Default: {@code "col"}. Ignored when
+ *                           {@code headerRow} is {@code true}. An empty prefix yields purely numeric
+ *                           names ({@code 0, 1, 2, ...}) which must be backtick-quoted in ES|QL.
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -34,7 +43,9 @@ public record CsvFormatOptions(
     Charset encoding,
     DateTimeFormatter datetimeFormatter,
     int maxFieldSize,
-    MultiValueSyntax multiValueSyntax
+    MultiValueSyntax multiValueSyntax,
+    boolean headerRow,
+    String columnPrefix
 ) {
 
     public enum MultiValueSyntax {
@@ -45,6 +56,9 @@ public record CsvFormatOptions(
     /** 10 MB default field size limit — generous for real-world data, prevents OOM on corrupt files. */
     static final int DEFAULT_MAX_FIELD_SIZE = 10 * 1024 * 1024;
 
+    /** Default prefix for synthesized column names when {@link #headerRow} is {@code false}. */
+    static final String DEFAULT_COLUMN_PREFIX = "col";
+
     public static final CsvFormatOptions DEFAULT = new CsvFormatOptions(
         ',',
         '"',
@@ -54,7 +68,9 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.BRACKETS
+        MultiValueSyntax.NONE,
+        true,
+        DEFAULT_COLUMN_PREFIX
     );
 
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
@@ -66,7 +82,9 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.BRACKETS
+        MultiValueSyntax.NONE,
+        true,
+        DEFAULT_COLUMN_PREFIX
     );
 
     public CsvFormatOptions {
@@ -84,6 +102,9 @@ public record CsvFormatOptions(
         }
         if (multiValueSyntax == null) {
             throw new IllegalArgumentException("multiValueSyntax must not be null");
+        }
+        if (columnPrefix == null) {
+            throw new IllegalArgumentException("columnPrefix must not be null");
         }
     }
 }

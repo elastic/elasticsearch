@@ -30,10 +30,11 @@ index patterns can be combined in a single `FROM` clause, separated by commas.
 
 ## Description
 
-Subqueries enable you to combine results from multiple independently processed
+Much like [views](/reference/query-languages/esql/esql-views.md),
+subqueries enable you to combine results from multiple independently processed
 data sources within a single query. Each subquery runs its own pipeline of
 processing commands (such as `WHERE`, `EVAL`, `STATS`, or `SORT`) and the
-results are combined together with results from other index patterns or subqueries
+results are combined together with results from other index patterns, views or subqueries
 in the `FROM` clause.
 
 Fields that exist in one source but not another are filled with `null` values.
@@ -65,7 +66,7 @@ Processing commands:
 - [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 - [`WHERE`](/reference/query-languages/esql/commands/where.md)
 
-The [`METADATA` fields](/reference/query-languages/esql/esql-metadata-fields.md)
+The [`METADATA` directive](/reference/query-languages/esql/esql-subquery.md#subqueries-with-metadata)
 is also supported on either the subquery or the outer `FROM`.
 
 ## Examples
@@ -77,7 +78,7 @@ The following examples show how to use subqueries within the `FROM` command.
 Use a subquery alongside a regular index pattern to combine results from
 different indices:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/basic_subquery.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/basic_subquery.md
 :::
 
 Rows from `employees` have `null` for `client_ip`, while rows from `sample_data`
@@ -87,7 +88,7 @@ have `null` for `emp_no` and `languages`, because each index has different field
 
 You can use one or more subqueries without specifying a regular index pattern:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_only.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_only.md
 :::
 
 The `FROM` clause contains only a subquery with no regular index pattern. The
@@ -98,7 +99,7 @@ projects the results.
 
 Apply a `WHERE` clause inside the subquery to pre-filter data before combining:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_filter.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_filter.md
 :::
 
 The `WHERE` inside the subquery filters `sample_data` to only rows where
@@ -109,7 +110,7 @@ metadata field shows which index each row originated from.
 
 Use `STATS` inside a subquery to aggregate data before combining with other sources:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_aggregation.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_aggregation.md
 :::
 
 The `STATS` inside the subquery aggregates `sample_data` by counting rows per
@@ -120,7 +121,7 @@ The `STATS` inside the subquery aggregates `sample_data` by counting rows per
 
 Multiple subqueries can be combined in a single `FROM` clause:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/multiple_subqueries.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/multiple_subqueries.md
 :::
 
 Two subqueries aggregate `sample_data` and `sample_data_str` separately, each
@@ -132,7 +133,7 @@ row's source.
 
 Enrich subquery results with a lookup join before combining:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_lookup_join.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_lookup_join.md
 :::
 
 The `LOOKUP JOIN` inside the subquery joins each `sample_data` row with the
@@ -143,10 +144,46 @@ The `LOOKUP JOIN` inside the subquery joins each `sample_data` row with the
 
 Use `SORT` and `LIMIT` inside a subquery to return only top results:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_sort.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_sort.md
 :::
 
 The subquery aggregates `sample_data` by `client_ip`, sorts by count in
 descending order, and limits to the top result. Only the `client_ip` with the
 highest count (`172.21.3.15` with 4 occurrences) is included when combined with
 `employees`.
+
+### Subqueries with METADATA
+
+The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a subquery.
+If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
+:::
+
+To see the combined values from within the subquery include the directive inside as well:
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata.md
+:::
+
+If you only have the directive within the subquery, null values will be returned for the indices outside the subquery:
+
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_inner.md
+:::
+
+## Limitations [esql-subquery-limitations]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
+## Comparing views, subqueries and FORK
+
+:::{include} _snippets/common/comparing_views_subqueries_fork.md
+:::
+
+## Related pages
+
+* [Query multiple sources](/reference/query-languages/esql/esql-multi.md): high-level overview of combining data from multiple indices, clusters, subqueries, and views.
+* [Define virtual indices using ES|QL views](/reference/query-languages/esql/esql-views.md): the closest alternative to subqueries, with a persisted, named definition.
+* [`FROM` command](/reference/query-languages/esql/commands/from.md): full reference for index expressions, where subqueries are used.
+* [`FORK` command](/reference/query-languages/esql/commands/fork.md): the other branching construct in ES|QL, which shares the same branching limits.
+* [Query multiple indices](/reference/query-languages/esql/esql-multi-index.md): how index patterns, wildcards, and date math combine sources in a single `FROM`.

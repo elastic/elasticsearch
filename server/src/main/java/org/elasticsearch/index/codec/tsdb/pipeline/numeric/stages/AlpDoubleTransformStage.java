@@ -71,6 +71,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     private final int[] candCounts = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] excPositions;
     private final long[] excValues;
+    private final long[] sortableScratch;
     private int cachedE = -1;
     private int cachedF = -1;
     private int cachedMaxAllowed = -1;
@@ -88,6 +89,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         }
         this.excPositions = new int[blockSize];
         this.excValues = new long[blockSize];
+        this.sortableScratch = new long[blockSize];
     }
 
     @Override
@@ -106,12 +108,14 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         }
 
         if (cachedE >= 0) {
-            final int bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, cachedE, cachedF);
+            System.arraycopy(values, 0, sortableScratch, 0, valueCount);
+            final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, cachedE, cachedF, excPositions, excValues);
             final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
-            if (bestExceptions <= cacheMaxAllowed && bestExceptions <= cachedMaxAllowed) {
-                writeAlpBlock(values, valueCount, cachedE, cachedF, context);
+            if (excCount <= cacheMaxAllowed && excCount <= cachedMaxAllowed) {
+                writeAlpMetadata(excCount, cachedE, cachedF, context);
                 return;
             }
+            System.arraycopy(sortableScratch, 0, values, 0, valueCount);
         }
 
         final int bestExceptions = AlpDoubleUtils.findBestEFForBlock(values, valueCount, efOut, candCounts);
@@ -136,6 +140,10 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
 
     private void writeAlpBlock(final long[] values, final int valueCount, final int e, final int f, final EncodingContext context) {
         final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, e, f, excPositions, excValues);
+        writeAlpMetadata(excCount, e, f, context);
+    }
+
+    private void writeAlpMetadata(final int excCount, final int e, final int f, final EncodingContext context) {
         final MetadataWriter metadata = context.metadata();
         metadata.writeByte((byte) e);
         metadata.writeByte((byte) f);

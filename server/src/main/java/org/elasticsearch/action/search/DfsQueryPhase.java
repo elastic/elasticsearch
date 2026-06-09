@@ -82,6 +82,7 @@ class DfsQueryPhase extends SearchPhase {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             final int shardIndex = dfsResult.getShardIndex();
             ShardSearchRequest shardSearchRequest = context.buildShardSearchRequest(context.shardIterators[shardIndex], shardIndex);
+            shardSearchRequest.canReturnNullResponseIfMatchNoDocs(context.hasShardResponse() && shardSearchRequest.scroll() == null);
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(shardIndex),
                 dfsResult.getContextId(),

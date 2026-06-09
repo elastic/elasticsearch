@@ -170,6 +170,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             trackTotalHitsUpTo,
             super.buildShardSearchRequest(shardIt, listener.requestIndex)
         );
+        // if we already received a search result we can inform the shard that it
+        // can return a null response if the request rewrites to match none rather
+        // than creating an empty response in the search thread pool.
+        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
+        request.canReturnNullResponseIfMatchNoDocs(hasShardResponse() && request.scroll() == null);
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 

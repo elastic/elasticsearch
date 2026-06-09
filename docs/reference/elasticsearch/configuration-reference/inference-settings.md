@@ -99,7 +99,7 @@ The OAuth2 token cache stores bearer tokens on each node for reuse across reques
 The CCM (Cloud Connected Mode) cache stores whether CCM is enabled for the Elastic Inference Service for this cluster and the associated key. CCM is only applicable for on-prem clusters.
 
 `xpack.inference.ccm.cache.weight`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of entries to store in the CCM cache. Defaults to `1`. Only one key is required to connect a cluster to Elastic Inference Service via Cloud Connect. Increasing this setting will not have any affect.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum number of entries to store in the CCM cache. Defaults to `1`. Only one key is required to connect a cluster to Elastic Inference Service through Cloud Connect. Increasing this setting will not have any affect.
 
 `xpack.inference.ccm.cache.expiry_time`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Specifies the maximum duration an entry is kept in the cache after it was last written. Must be between one minute (`1m`) and one hour (`1h`). Defaults to 15 minutes (`15m`).

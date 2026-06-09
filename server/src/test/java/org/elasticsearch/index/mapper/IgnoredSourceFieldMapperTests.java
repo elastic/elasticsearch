@@ -33,6 +33,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
         return createMapperService(
@@ -2660,6 +2662,26 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.endArray();
         }));
         assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+    }
+
+    public void testColumnarStoredKeywordArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
+            .documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 — sorted-deduped doc-values order would collapse it; arrival order must be preserved.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]")
+        );
     }
 
     public void testFormatSelectionByVersion() {

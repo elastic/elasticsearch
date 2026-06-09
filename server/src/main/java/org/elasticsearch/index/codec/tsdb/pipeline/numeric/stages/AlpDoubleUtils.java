@@ -202,10 +202,12 @@ final class AlpDoubleUtils {
 
     /**
      * Counts how many values in the block fail to round-trip through ALP with the given
-     * {@code (e, f)}. Used both to evaluate candidates during selection and to validate
-     * the cached pair from the previous block.
+     * {@code (e, f)}, bailing as soon as the count exceeds {@code maxAllowed}. The
+     * returned value is then exact when it is {@code <= maxAllowed} and otherwise any
+     * value greater than {@code maxAllowed}, which is all the caller needs to decide
+     * whether to accept the pair.
      */
-    static int countExceptions(final long[] values, int valueCount, int e, int f) {
+    static int countExceptions(final long[] values, int valueCount, int e, int f, int maxAllowed) {
         final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
         final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
         int exceptions = 0;
@@ -216,6 +218,9 @@ final class AlpDoubleUtils {
             final double decoded = encoded * decodeMul;
             if (originalBits != Double.doubleToRawLongBits(decoded)) {
                 exceptions++;
+                if (exceptions > maxAllowed) {
+                    return exceptions;
+                }
             }
         }
         return exceptions;

@@ -69,7 +69,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         for (int i = 0; i < blockSize; i++) {
             values[i] = NumericUtils.doubleToSortableLong((double) (1000 + i));
         }
-        assertEquals(0, AlpDoubleUtils.countExceptions(values, blockSize, 0, 0));
+        assertEquals(0, AlpDoubleUtils.countExceptions(values, blockSize, 0, 0, Integer.MAX_VALUE));
     }
 
     public void testCountExceptionsAllOnIdentityForIrrationals() {
@@ -78,7 +78,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         for (int i = 0; i < blockSize; i++) {
             values[i] = NumericUtils.doubleToSortableLong(Math.sqrt(i + 2) * Math.PI);
         }
-        assertEquals(blockSize, AlpDoubleUtils.countExceptions(values, blockSize, 0, 0));
+        assertEquals(blockSize, AlpDoubleUtils.countExceptions(values, blockSize, 0, 0, Integer.MAX_VALUE));
     }
 
     public void testComputeBitSavingsPositiveForIntegerDoubles() {

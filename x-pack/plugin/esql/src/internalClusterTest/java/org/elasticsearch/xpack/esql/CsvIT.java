@@ -128,6 +128,7 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
+    private static final QueryPragmas ALL_PRAGMAS = new QueryPragmas(Settings.EMPTY);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
     private static InternalTestCluster cluster;
@@ -307,6 +308,7 @@ public class CsvIT extends ESTestCase {
         );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
+        CsvTestUtils.checkPragma(testCase.pragmas);
 
         currentGroupName = groupName;
         // verify no prior failures

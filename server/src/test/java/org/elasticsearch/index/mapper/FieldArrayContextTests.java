@@ -182,16 +182,31 @@ public class FieldArrayContextTests extends ESTestCase {
     }
 
     /**
-     * Happy path: all columnar-branch preconditions hold (synthetic source, columnar, multi_value, no copy_to, no multi_fields). The
+     * Happy path: all columnar-branch preconditions hold (columnar, multi_value, no copy_to, no multi_fields). The
      * builder's leaf name should be returned with the {@code .offsets} suffix.
      */
     public void testColumnarBranchFiresWhenAllConditionsHold() {
         FieldMapper.Builder builder = newTestBuilder("field");
-        MapperBuilderContext context = MapperBuilderContext.root(true, false);
+        MapperBuilderContext syntheticContext = MapperBuilderContext.root(true, false);
+        MapperBuilderContext storedContext = MapperBuilderContext.root(false, false);
         assertEquals(
             "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
             getOffsetsFieldName(
-                context,
+                syntheticContext,
+                Mapper.SourceKeepMode.NONE,
+                true,
+                false,
+                builder,
+                IndexVersion.current(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                true,
+                true
+            )
+        );
+        assertEquals(
+            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+            getOffsetsFieldName(
+                storedContext,
                 Mapper.SourceKeepMode.NONE,
                 true,
                 false,
@@ -211,22 +226,7 @@ public class FieldArrayContextTests extends ESTestCase {
     public void testColumnarBranchSkipsWhenAnyConditionMissing() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext syntheticRoot = MapperBuilderContext.root(true, false);
-        MapperBuilderContext storedRoot = MapperBuilderContext.root(false, false);
 
-        // not synthetic source
-        assertNull(
-            getOffsetsFieldName(
-                storedRoot,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                false,
-                builder,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
         // not columnar
         assertNull(
             getOffsetsFieldName(

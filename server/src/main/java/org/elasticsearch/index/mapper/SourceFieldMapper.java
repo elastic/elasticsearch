@@ -262,7 +262,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if ((sourceMode == Mode.SYNTHETIC || sourceMode == Mode.COLUMNAR_STORED)
                 && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
                 throw new IllegalArgumentException(
-                    "filtering the stored _source is incompatible with [" + sourceMode.toString().toLowerCase(Locale.ROOT) + "] source"
+                    "filtering the stored _source is incompatible with " + sourceMode.toString().toLowerCase(Locale.ROOT) + " source"
                 );
             }
             if (mode.isConfigured() && sourceModeIsNoop == false) {

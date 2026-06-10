@@ -110,19 +110,6 @@ public class IvfAutoCalibration {
             return null;
         }
 
-        if (mergedVectorCount > RECALIBRATE_GROWTH_RATIO * largestSegmentDocs) {
-            logger.debug(
-                "Merge calibration: growth ratio [{}] exceeds threshold [{}], "
-                    + "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                (double) mergedVectorCount / largestSegmentDocs,
-                RECALIBRATE_GROWTH_RATIO,
-                mergeCtx.inputSegments(),
-                mergeCtx.boundedForceMerge() ? "bounded force" : "background",
-                mergeCtx.mergeMaxNumSegments()
-            );
-            return null;
-        }
-
         if (encodingDocCounts.size() > 1) {
             long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
             if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {

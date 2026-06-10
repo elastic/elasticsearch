@@ -2488,6 +2488,44 @@
   - is_true: timed_out
 
 ---
+"Search timeout aborts a long-running String indexOf augmentation loop":
+  - do:
+      indices.create:
+        index: test_indexof_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_indexof_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware indexOf reimplements the search with an explicit outer-position scan that
+  # polls PainlessScript._pollCancellation() between candidate positions.  Build a long haystack
+  # once via StringBuilder, then run a tight loop of never-matching indexOf calls.  Total scanned
+  # positions easily outlast the 100 ms search timeout; the cancellation poll inside the
+  # augmentation must fire so the search is cancelled.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_indexof_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < 100000; i++) { sb.append('a'); }
+                  String s = sb.toString();
+                  for (int j = 0; j < 999999; j++) { s.indexOf('Z'); }
+                  return true;
+  - is_true: timed_out
+
+---
 "Search timeout aborts a long-running String.replace augmentation loop":
   - do:
       indices.create:

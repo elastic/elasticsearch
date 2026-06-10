@@ -1128,4 +1128,134 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
     }
+
+    // --- String search augmentations: indexOf / lastIndexOf / contains ---
+
+    /**
+     * {@code String.indexOf} with a never-matching needle must scan every candidate position; the augmentation polls between
+     * positions so the cancel runnable fires from the scan itself rather than from any script-body back-edge.
+     */
+    public void testIndexOfAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.indexOf('Z');", params, new HashMap<>());
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-indexof");
+        });
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-indexof", ex.getCause().getMessage());
+        assertTrue("indexOf scan should fire the cancel runnable", callCount.get() >= 1);
+    }
+
+    /** Same as the no-arg case but starting from a non-zero index — the augmentation must still poll. */
+    public void testIndexOfWithFromIndexAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.indexOf('Z', 0);", params, new HashMap<>());
+        assertFires(script, "cancelled-indexof-fromindex");
+    }
+
+    /** {@code String.lastIndexOf} with a never-matching needle scans backwards through every candidate position and must poll. */
+    public void testLastIndexOfAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.lastIndexOf('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-lastindexof");
+    }
+
+    /** Same as the no-arg case but starting from a non-default index. */
+    public void testLastIndexOfWithFromIndexAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; s.lastIndexOf('Z', 1499);",
+            params,
+            new HashMap<>()
+        );
+        assertFires(script, "cancelled-lastindexof-fromindex");
+    }
+
+    /** {@code String.contains} delegates to indexOf and inherits its polling. */
+    public void testContainsAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("String s = params['big']; s.contains('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-contains");
+    }
+
+    /** Each new String search augmentation must take the no-poll fast path when no cancellation check is installed. */
+    public void testStringSearchAugmentationsNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; "
+                + "s.indexOf('Z'); "
+                + "s.indexOf('Z', 0); "
+                + "s.lastIndexOf('Z'); "
+                + "s.lastIndexOf('Z', 1499); "
+                + "s.contains('Z');",
+            params,
+            new HashMap<>()
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    // --- CharSequence regex augmentations: regex limit factor (Fix A) + per-match polling (Fix B) ---
+
+    /**
+     * Fix A: replaceAll with a regex that exhibits catastrophic backtracking on a moderate-sized input must hit the regex
+     * char-read limit factor and throw a CircuitBreakingException instead of running unbounded.  Closes a preexisting
+     * protection gap where the JDK Matcher was constructed on the raw receiver.
+     */
+    public void testReplaceAllRegexLimitFactorTripsCircuitBreaker() {
+        Map<String, Object> params = new HashMap<>();
+        // Classic catastrophic-backtracking input: "aaaa...X" against /(a+)+b/.
+        params.put("input", "a".repeat(40) + "X");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "params['input'].replaceAll(/(a+)+b/, m -> 'replaced');",
+            params,
+            new HashMap<>()
+        );
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertThat(ex.getCause().getMessage(), containsString("Regular expression considered too many characters"));
+    }
+
+    /** Same protection on replaceFirst. */
+    public void testReplaceFirstRegexLimitFactorTripsCircuitBreaker() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a".repeat(40) + "X");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "params['input'].replaceFirst(/(a+)+b/, m -> 'replaced');",
+            params,
+            new HashMap<>()
+        );
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertThat(ex.getCause().getMessage(), containsString("Regular expression considered too many characters"));
+    }
+
+    /**
+     * Fix B: replaceAll with a regex that matches many times runs the wrapped consumer per match; the per-match cancellation
+     * poll inside the augmentation fires the runnable so a long match-and-replace sweep honours the search timeout.
+     */
+    public void testReplaceAllRegexFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("params['input'].replaceAll(/a/, m -> 'b');", params, new HashMap<>());
+        assertFires(script, "cancelled-replaceall-regex");
+    }
+
+    /** Fast path for the regex replace augmentations: no runnable installed → must not throw. */
+    public void testReplaceAllRegexAndReplaceFirstNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "abc def abc");
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['input']; s.replaceAll(/abc/, m -> 'X'); s.replaceFirst(/abc/, m -> 'X');",
+            params,
+            new HashMap<>()
+        );
+        script.execute();  // must not throw
+    }
 }

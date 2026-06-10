@@ -26,7 +26,6 @@ import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
-import org.elasticsearch.datageneration.fields.leaf.DateFieldDataGenerator;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexMode;
@@ -309,11 +308,11 @@ public class ColumnarSourceIT extends ESIntegTestCase {
             .withNestedFieldsLimit(0)
             .withPredefinedFields(
                 List.of(
-                    new PredefinedField.WithGeneratorProvider(
+                    new PredefinedField.WithGenerator(
                         "@timestamp",
                         FieldType.DATE,
                         Map.of("type", "date"),
-                        DateFieldDataGenerator::new
+                        fieldMapping -> randomMillisUpToYear9999()
                     )
                 )
             )

@@ -213,10 +213,22 @@ class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
+        final long fetchSendNanos = System.nanoTime();
         var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
                 try {
+                    final long fetchRttFullMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - fetchSendNanos);
+                    context.getCpsMetrics()
+                        .ifPresent(
+                            c -> c.trackProjectFetchDiagnostics(
+                                shardTarget.getClusterAlias(),
+                                fetchRttFullMs,
+                                result.getFetchQueueWaitMs(),
+                                result.getFetchServiceMs(),
+                                result.getResponseBytesUncompressed()
+                            )
+                        );
                     progressListener.notifyFetchResult(shardIndex);
                     counter.onResult(result);
                 } catch (Exception e) {
@@ -227,6 +239,9 @@ class FetchSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 try {
+                    final long fetchRttFullMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - fetchSendNanos);
+                    context.getCpsMetrics()
+                        .ifPresent(c -> c.trackProjectFetchDiagnostics(shardTarget.getClusterAlias(), fetchRttFullMs, -1L, -1L, -1L));
                     logger.debug(() -> "[" + contextId + "] Failed to execute fetch phase", e);
                     progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
                     counter.onFailure(shardIndex, shardTarget, e);

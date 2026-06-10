@@ -390,6 +390,8 @@ The upstream `OpenTelemetryAppender` library hardcodes a `log4j.map_message.` pr
 
 ### <a id="sec-5-2"></a>5.2 Field mapping shape: semconv vs ECS vs custom
 
+**Update (2026-06-10):** Julio Camarero created a "Serverless Audit Log Field Reference" doc (2026-06-04, last updated 2026-06-08) that defines the canonical OTel/ECS field contract across ES, Kibana, and CP. That doc is the authoritative spec for PR 2 and supersedes the per-field table below. Read it before starting the custom appender implementation.
+
 The Gateway TDD asks emitting services to use OTel semconv where it exists, ECS where it doesn't, custom names as last resort. Most ES audit fields have a clean answer; some are genuinely ambiguous. The decision affects how downstream consumers query and join audit data.
 
 ES and Kibana audit records must use consistent field names — customers configure audit logging as a unified journey across both products, not per-product. The Kibana team must be part of the naming decisions on the hard rows.

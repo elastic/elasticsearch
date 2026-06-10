@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.esql;
 
+import com.diffplug.gradle.spotless.SpotlessExtension;
+
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -23,6 +25,7 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.idea.IdeaPlugin;
@@ -103,6 +106,14 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         });
         project.getPlugins().withType(IdeaPlugin.class, ideaPlugin -> {
             ideaPlugin.getModel().getModule().getSourceDirs().add(project.file(generatedPath));
+        });
+        project.getPluginManager().withPlugin("com.diffplug.spotless", spotlessPlugin -> {
+            project.getExtensions()
+                .getByType(SpotlessExtension.class)
+                .java(java -> { java.targetExclude("src/main/generated/**/*.java"); });
+        });
+        project.getTasks().withType(Checkstyle.class).configureEach(checkstyleTask -> {
+            checkstyleTask.exclude(element -> element.getFile().toString().contains("src/main/generated"));
         });
 
         project.getTasks().named("test", Test.class).configure(test -> {

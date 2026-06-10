@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -411,7 +411,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     public void testNotPushedThroughEvalWithComputedExpression() {
         Map<String, Object> metadata = statsMetadata(100L, "age", 0L, null);
         metadata.put("_stats.columns.age.min", 18);
-        Alias computedAlias = alias("computed_val", new Abs(Source.EMPTY, AGE));
+        Alias computedAlias = alias("computed_val", new Coalesce(Source.EMPTY, AGE, List.of()));
         EvalExec eval = new EvalExec(Source.EMPTY, externalSource(metadata), List.of(computedAlias));
         var agg = aggregateExec(eval, alias("m", new Min(Source.EMPTY, computedAlias.toAttribute())));
 

@@ -562,9 +562,10 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]")
         );
         defaultAnalyzer().error(
-            "from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages",
+            "from test | stats COALESCE(emp_no + languages, 0) % 2 WHERE languages > 1 by emp_no, languages",
             equalTo(
-                "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]"
+                "1:61: WHERE clause allowed only for aggregate functions, none found in "
+                    + "[COALESCE(emp_no + languages, 0) % 2 WHERE languages > 1]"
             )
         );
     }
@@ -801,8 +802,8 @@ public class VerifierTests extends ESTestCase {
 
     public void testBucketOnlyInAggs() {
         defaultAnalyzer().error(
-            "FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0",
-            equalTo("1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
+            "FROM test | WHERE COALESCE(BUCKET(emp_no, 100.), 0) > 0",
+            equalTo("1:28: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS or LIMIT BY command")
         );
         defaultAnalyzer().error(
             "FROM test | EVAL 3 + BUCKET(emp_no, 100.)",

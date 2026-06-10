@@ -92,10 +92,6 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             return new BlockFactoryProvider(new MockBlockFactory(builder));
         }
 
-        @Override
-        public void loadExtensions(ExtensionLoader loader) {
-            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
-        }
     }
 
     private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {

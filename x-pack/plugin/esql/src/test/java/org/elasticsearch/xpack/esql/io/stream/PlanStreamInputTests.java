@@ -114,7 +114,7 @@ public class PlanStreamInputTests extends ESTestCase {
             + delimiter
             + "| "
             + delimiter
-            + "WHERE emp_no == abs("
+            + "WHERE emp_no == COALESCE("
             + delimiter
             + "emp_no)"
             + delimiter;

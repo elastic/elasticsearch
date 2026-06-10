@@ -61,7 +61,6 @@ dependencies {
   testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
-
   testImplementation project(path: xpackModule('esql-datasource-csv'))
   testImplementation project(path: xpackModule('esql-datasource-ndjson'))
   testImplementation project(path: xpackModule('esql-datasource-http'))
@@ -106,6 +105,7 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  internalClusterTestImplementation project(path: ':x-pack:plugin:esql:function:math')
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
 }
@@ -391,7 +391,6 @@ tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 tasks.named('checkstyleMain').configure {
   excludes = ["**/*.java.st"]
   exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
-  exclude { normalize(it.file.toString()).contains("src/main/generated") }
 }
 
 def prop(Name, Type, type, TYPE, BYTES, Array) {

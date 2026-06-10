@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.function.math;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -27,9 +26,9 @@ import java.io.IOException;
 import java.util.List;
 
 public class Abs extends UnaryScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Abs.class)
         .unary(Abs::new)
+        .writeable("Abs", Abs::new)
         .capabilities(
             // Produce a {@code warning} and {@code null} when you run {@code ABS} on {@code Long.MIN_VALUE}.
             "min_warning"
@@ -63,7 +62,7 @@ public class Abs extends UnaryScalarFunction {
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return DEFINITION.writeableEntry().name;
     }
 
     @Evaluator(extraName = "Double")

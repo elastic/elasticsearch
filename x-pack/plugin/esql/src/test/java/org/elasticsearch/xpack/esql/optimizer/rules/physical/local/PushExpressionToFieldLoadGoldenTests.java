@@ -83,7 +83,7 @@ public class PushExpressionToFieldLoadGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
-                   a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
+                   a4 = COALESCE(LENGTH(last_name), 0) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """);

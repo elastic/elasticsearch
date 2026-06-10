@@ -46,7 +46,6 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
-        assertConstantResult("abs(vector(-1))", equalTo(1.0));
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
     }
 
@@ -75,7 +74,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             EsqlTestUtils.TEST_CFG.withZoneId(ZoneId.of("Europe/Paris"))
         );
 
-        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
+        var expression = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
         assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2023.0));
     }
 
@@ -87,7 +86,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             EsqlTestUtils.TEST_CFG
         );
 
-        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+        var expression = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(
             "year",
             Source.EMPTY,
             Literal.fromDouble(Source.EMPTY, 1712574000.0),
@@ -139,7 +138,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     private void assertTimeExtraction(PromqlFunctionRegistry.PromqlContext ctx, String function, double expected) {
-        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
+        var expression = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
         assertThat(function, as(expression.fold(FoldContext.small()), Double.class), equalTo(expected));
     }
 

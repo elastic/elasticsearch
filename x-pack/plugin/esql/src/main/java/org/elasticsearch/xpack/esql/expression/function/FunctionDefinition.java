@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -38,6 +40,7 @@ public class FunctionDefinition {
     private final String name;
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
+    private final NamedWriteableRegistry.Entry writeableEntry;
     private final BiConsumer<Source, List<Expression>> validate;
     private final FunctionBuilder builder;
     private final List<String> subCapabilities;
@@ -46,6 +49,7 @@ public class FunctionDefinition {
         String name,
         List<String> aliases,
         Class<? extends Function> clazz,
+        NamedWriteableRegistry.Entry writeableEntry,
         BiConsumer<Source, List<Expression>> validate,
         FunctionBuilder builder,
         List<String> subCapabilities
@@ -53,6 +57,7 @@ public class FunctionDefinition {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
+        this.writeableEntry = writeableEntry; // TODO require non-null here.
         this.validate = validate;
         this.builder = builder;
         this.subCapabilities = subCapabilities;
@@ -68,6 +73,10 @@ public class FunctionDefinition {
 
     public Class<? extends Function> clazz() {
         return clazz;
+    }
+
+    public NamedWriteableRegistry.Entry writeableEntry() {
+        return writeableEntry;
     }
 
     /**
@@ -96,12 +105,18 @@ public class FunctionDefinition {
      */
     public static class Builder<T extends Function> {
         private final Class<T> function;
+        private NamedWriteableRegistry.Entry writeableEntry;
         private BiConsumer<Source, List<Expression>> validate;
         private FunctionDefinition.FunctionBuilder builder;
         private List<String> capabilities = List.of();
 
         Builder(Class<T> function) {
             this.function = function;
+        }
+
+        public Builder<T> writeable(String name, Writeable.Reader<T> reader) {
+            this.writeableEntry = new NamedWriteableRegistry.Entry(Expression.class, name, reader);
+            return this;
         }
 
         /**
@@ -124,7 +139,7 @@ public class FunctionDefinition {
          * Build the {@link FunctionDefinition} with the given primary name and optional aliases.
          */
         public FunctionDefinition name(String name, String... aliases) {
-            return new FunctionDefinition(name, List.of(aliases), function, validate, builder, capabilities);
+            return new FunctionDefinition(name, List.of(aliases), function, writeableEntry, validate, builder, capabilities);
         }
 
         /**

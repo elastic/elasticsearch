@@ -125,6 +125,8 @@ public class SerializationTestUtils {
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KqlQueryBuilder.NAME, KqlQueryBuilder::new));
         entries.add(SingleValueQuery.ENTRY);
         entries.addAll(ExpressionWritables.getNamedWriteables());
+        // Includes entries for all functions discovered via SPI (e.g. from function plugin sub-projects on the test classpath).
+        entries.addAll(EsqlTestUtils.TEST_FUNCTION_REGISTRY.writeables());
         entries.addAll(PlanWritables.getNamedWriteables());
         entries.add(
             new NamedWriteableRegistry.Entry(

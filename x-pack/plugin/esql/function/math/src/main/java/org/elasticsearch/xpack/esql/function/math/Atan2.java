@@ -5,9 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.math;
+package org.elasticsearch.xpack.esql.function.math;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -31,11 +31,15 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 /**
- * Inverse cosine trigonometric function.
+ * The <a href="https://en.wikipedia.org/wiki/Atan2">angle</a> between the positive
+ * x-axis and the ray from the origin to the point (x , y) in the Cartesian plane,
+ * expressed in radians.
  */
 public class Atan2 extends EsqlScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Atan2", Atan2::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Atan2.class).binary(Atan2::new).name("atan2");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Atan2.class)
+        .binary(Atan2::new)
+        .writeable("Atan2", Atan2::new)
+        .name("atan2");
 
     private final Expression y;
     private final Expression x;
@@ -77,7 +81,7 @@ public class Atan2 extends EsqlScalarFunction {
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return DEFINITION.writeableEntry().name;
     }
 
     @Override

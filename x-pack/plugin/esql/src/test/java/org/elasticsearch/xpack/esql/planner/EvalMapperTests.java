@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
@@ -104,7 +103,6 @@ public class EvalMapperTests extends ESTestCase {
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Neg(Source.EMPTY, DOUBLE1),
-            new Abs(Source.EMPTY, DOUBLE1),
             new Equals(Source.EMPTY, DOUBLE1, DOUBLE2),
             new GreaterThan(Source.EMPTY, DOUBLE1, DOUBLE2, null),
             new GreaterThanOrEqual(Source.EMPTY, DOUBLE1, DOUBLE2, null),

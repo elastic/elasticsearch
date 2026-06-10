@@ -211,7 +211,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         if (request instanceof PreparedEsqlQueryRequest || randomBoolean()) {
             return request;
         }
-        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry(List.of())));
         var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
         var statement = parser.parse(request.query(), request.params(), inferenceSettings);
         return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");

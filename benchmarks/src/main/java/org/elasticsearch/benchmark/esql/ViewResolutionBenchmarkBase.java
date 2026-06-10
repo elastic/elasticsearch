@@ -151,7 +151,7 @@ public abstract class ViewResolutionBenchmarkBase {
         String scenario = getScenario();
         String queryFilter = getQueryFilter();
 
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry(List.of());
         InferenceSettings inferenceSettings = new InferenceSettings(Settings.EMPTY);
         SettingsValidationContext validationCtx = new SettingsValidationContext(false, false);
         TransportVersion minimumVersion = TransportVersion.current();
@@ -196,7 +196,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new AnalyzerContext(
                 config,
                 functionRegistry,
-                PromqlFunctionRegistry.INSTANCE,
+                new PromqlFunctionRegistry(List.of()),
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

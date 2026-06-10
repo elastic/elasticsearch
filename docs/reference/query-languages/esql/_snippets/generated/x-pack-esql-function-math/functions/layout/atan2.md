@@ -3,7 +3,7 @@
 
 ## Syntax
 
-:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/atan2.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql-function-math/functions/atan2.svg
 :alt: Embedded
 :class: text-center
 :::

@@ -53,6 +53,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -110,7 +111,7 @@ public class QueryPlanningBenchmark {
 
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
 
-        var functionRegistry = new EsqlFunctionRegistry();
+        var functionRegistry = new EsqlFunctionRegistry(List.of());
         parser = new EsqlParser(new EsqlConfig(functionRegistry));
 
         // Assume all nodes are on the current version for the benchmark.
@@ -120,7 +121,7 @@ public class QueryPlanningBenchmark {
             new AnalyzerContext(
                 config,
                 functionRegistry,
-                PromqlFunctionRegistry.INSTANCE,
+                new PromqlFunctionRegistry(List.of()),
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

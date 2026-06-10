@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
@@ -31,7 +35,10 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(ExpressionWritables.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ExpressionWritables.getNamedWriteables());
+        // Includes entries for all functions discovered via SPI (e.g. from function plugin sub-projects on the test classpath).
+        entries.addAll(EsqlTestUtils.TEST_FUNCTION_REGISTRY.writeables());
+        return new NamedWriteableRegistry(entries);
     }
 
     @Override

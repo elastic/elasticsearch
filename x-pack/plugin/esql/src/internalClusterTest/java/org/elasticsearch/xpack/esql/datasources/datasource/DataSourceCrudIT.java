@@ -630,7 +630,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
 
                 @Override
                 public void loadExtensions(ExtensionLoader loader) {
-                    // No-op: keeps the test closed-world; SPI still picks up TestDataSourcePlugin via META-INF/services.
+                    // Don't call super — SPI still picks up TestDataSourcePlugin via META-INF/services.
+                    initFunctionRegistry(List.of());
                 }
             });
         }

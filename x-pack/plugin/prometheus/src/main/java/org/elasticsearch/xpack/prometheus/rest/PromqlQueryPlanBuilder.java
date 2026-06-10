@@ -180,7 +180,7 @@ class PromqlQueryPlanBuilder {
 
     private static PromqlDataType getReturnType(LogicalPlan plan) {
         if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
+            PromqlFunctionDefinition def = new PromqlFunctionRegistry(List.of()).functionMetadata(unresolved.functionName());
             if (def == null) {
                 throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
             }

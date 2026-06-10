@@ -386,7 +386,8 @@ public class CsvIT extends ESTestCase {
 
         @Override
         public void loadExtensions(ExtensionLoader loader) {
-            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
+            // Don't call super — it would clash with the SPI discoverer that adds data source plugins.
+            initFunctionRegistry(List.of());
         }
 
         @Override

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -192,7 +191,6 @@ public class ExpressionWritables {
 
     public static List<NamedWriteableRegistry.Entry> unaryScalars() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.add(Abs.ENTRY);
         entries.add(Acos.ENTRY);
         entries.add(Acosh.ENTRY);
         entries.add(Asinh.ENTRY);

@@ -1,0 +1,9 @@
+area: ES|QL
+issues:
+ - 150640
+ - 150641
+ - 150644
+ - 150645
+pr: 150704
+summary: Make subquery with counter type not present in all branches behave more consistently
+type: bug

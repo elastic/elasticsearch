@@ -46,7 +46,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         float visitRatio,
         IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
-        BytesRef sliceId
+        BytesRef... sliceId
     ) {
         super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);

@@ -13,7 +13,7 @@ esplugin {
   name = 'esql-datasource-azure'
   description = 'Azure Blob Storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.azure.AzureDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons', 'workload-identity']
 }
 
 base {
@@ -34,6 +34,9 @@ dependencies {
   // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
   // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
   compileOnly project(':libs:arrow')
+
+  // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
+  compileOnly project(':modules:workload-identity:spi')
 
   // Azure Blob Storage - minimal set, versions aligned with repository-azure
   implementation 'com.azure:azure-storage-blob:12.27.1'

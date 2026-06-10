@@ -520,14 +520,14 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(syntheticSettings, topMapping(b -> b.startObject("_source").array("includes", "foo").endObject()))
         );
-        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [synthetic] source"));
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with synthetic source"));
 
         // synthetic source rejects excludes
         exc = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(syntheticSettings, topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject()))
         );
-        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [synthetic] source"));
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with synthetic source"));
 
         Settings columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
@@ -543,7 +543,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").array("includes", "foo").endObject())
             )
         );
-        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [columnar_stored] source"));
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with columnar_stored source"));
 
         // columnar_stored rejects excludes
         exc = expectThrows(
@@ -553,7 +553,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject())
             )
         );
-        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with [columnar_stored] source"));
+        assertThat(exc.getMessage(), containsString("filtering the stored _source is incompatible with columnar_stored source"));
     }
 
     public void testColumnarStoredModeRequiresColumnarIndex() {

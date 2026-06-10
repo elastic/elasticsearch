@@ -9,12 +9,15 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -141,5 +144,81 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(updatedA.getTotalShards(), equalTo(2));
         assertThat(updatedB.getStatus(), equalTo(SearchResponse.Cluster.Status.RUNNING));
         assertThat(updatedB.getTotalShards(), equalTo(1));
+    }
+
+    public void testFetchResultRefreshesTookWhenFetchPhaseEnabled() {
+        String cluster = "project-a";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(cluster, new SearchResponse.Cluster(cluster, "my-alias", false, null));
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
+        List<SearchShard> shards = List.of(new SearchShard(cluster, new ShardId("my-index", "uuid-a", 0)));
+
+        AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(1).nanos());
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
+        CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
+
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
+        listener.onFinalReduce(shards, null, null, 1);
+
+        SearchResponse.Cluster afterQuery = clusters.getCluster(cluster);
+        assertThat(afterQuery.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(afterQuery.getTook().millis(), equalTo(1L));
+
+        nowNanos.set(TimeValue.timeValueMillis(5).nanos());
+        listener.onFetchResult(0);
+
+        SearchResponse.Cluster afterFetch = clusters.getCluster(cluster);
+        assertThat(afterFetch.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(afterFetch.getTook().millis(), equalTo(5L));
+    }
+
+    public void testFetchResultDoesNotRefreshTookWhenFetchPhaseDisabled() {
+        String cluster = "project-a";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(cluster, new SearchResponse.Cluster(cluster, "my-alias", false, null));
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
+        List<SearchShard> shards = List.of(new SearchShard(cluster, new ShardId("my-index", "uuid-a", 0)));
+
+        AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(1).nanos());
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
+        CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
+
+        listener.onListShards(shards, Map.of(), clusters, false, timeProvider);
+        listener.onFinalReduce(shards, null, null, 1);
+        assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
+
+        nowNanos.set(TimeValue.timeValueMillis(5).nanos());
+        listener.onFetchResult(0);
+
+        assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
+    }
+
+    public void testFetchResultOnlyRefreshesClusterForShardIndex() {
+        String localCluster = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        String remoteCluster = "remote-a";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(localCluster, new SearchResponse.Cluster(localCluster, "nomatch*", false, "_origin"));
+        clusterMap.put(remoteCluster, new SearchResponse.Cluster(remoteCluster, "remote-index", false, null));
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
+        List<SearchShard> shards = List.of(new SearchShard(remoteCluster, new ShardId("remote-index", "uuid-r", 0)));
+
+        AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(0).nanos());
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
+        CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
+
+        // local cluster has no matching indices/shards and is finalized immediately with took=0
+        listener.onListShards(shards, Map.of(localCluster, 0), clusters, true, timeProvider);
+        listener.onFinalReduce(shards, null, null, 1);
+
+        assertThat(clusters.getCluster(localCluster).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+        assertThat(clusters.getCluster(localCluster).getTook().millis(), equalTo(0L));
+        assertThat(clusters.getCluster(remoteCluster).getTook().millis(), equalTo(0L));
+
+        nowNanos.set(TimeValue.timeValueMillis(12).nanos());
+        // shard index 0 belongs to remoteCluster only
+        listener.onFetchResult(0);
+
+        assertThat(clusters.getCluster(localCluster).getTook().millis(), equalTo(0L));
+        assertThat(clusters.getCluster(remoteCluster).getTook().millis(), equalTo(12L));
     }
 }

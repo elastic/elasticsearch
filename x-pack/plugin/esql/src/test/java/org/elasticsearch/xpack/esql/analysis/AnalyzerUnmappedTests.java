@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -1575,6 +1577,74 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 )
 
             );
+    }
+
+    // -----------------------------------------------------------------------
+    // DetermineUnmappedFieldsToKeep — pattern stored on EsRelation
+    // -----------------------------------------------------------------------
+
+    public void testUnmappedFieldsPatternNoCommand() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test"));
+        assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
+    }
+
+    public void testUnmappedFieldsPatternKeepStar() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP *"));
+        assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
+    }
+
+    public void testUnmappedFieldsPatternKeepWildcard() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name*"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of()));
+    }
+
+    public void testUnmappedFieldsPatternKeepExactName() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP salary"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("salary"), List.of()));
+    }
+
+    public void testUnmappedFieldsPatternKeepMultiplePatterns() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name*, salary"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*", "salary"), List.of()));
+    }
+
+    public void testUnmappedFieldsPatternDrop() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | DROP salary"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("salary")));
+    }
+
+    public void testUnmappedFieldsPatternRename() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | RENAME last_name AS x"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x")));
+    }
+
+    public void testUnmappedFieldsPatternKeepThenEval() {
+        // EVAL uses a literal so it does not reference a field excluded by KEEP
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name* | EVAL z = 1"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
+    }
+
+    public void testUnmappedFieldsPatternEvalThenKeep() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | EVAL z = 1 | KEEP first_name*"));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
+    }
+
+    public void testUnmappedFieldsPatternDropThenRename() {
+        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | DROP salary | RENAME last_name AS x"));
+        // RENAME is the outer node: its excludes ([x]) come first, then DROP's ([salary])
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x", "salary")));
+    }
+
+    /** Finds the single non-LOOKUP EsRelation in the plan and asserts its unmapped-fields pattern. */
+    private static void assertEsRelationPattern(LogicalPlan plan, UnmappedFieldsPattern expected) {
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat("expected exactly one EsRelation", relations, hasSize(1));
+        EsRelation esr = relations.get(0);
+        UnmappedFieldsAttribute annotation = esr.unmappedFieldsAnnotation();
+        if (annotation == null) {
+            throw new AssertionError("no UnmappedFieldsAttribute annotation on EsRelation");
+        }
+        assertThat(annotation.pattern(), equalTo(expected));
     }
 
     private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {

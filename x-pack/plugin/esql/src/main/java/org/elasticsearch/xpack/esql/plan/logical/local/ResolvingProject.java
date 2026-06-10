@@ -13,7 +13,10 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -28,19 +31,39 @@ import java.util.function.Function;
  */
 public class ResolvingProject extends Project {
     private final Function<List<Attribute>, List<? extends NamedExpression>> resolver;
+    /**
+     * The unmapped-fields glob pattern describing which additional source fields survive
+     * the KEEP/DROP/RENAME that created this node. Pre-computed at creation time so it
+     * remains available in the Finish Analysis batch (after {@code ResolveRefs} has already
+     * discarded the original wildcard expressions).
+     */
+    private final UnmappedFieldsPattern unmappedFieldsPattern;
 
-    public ResolvingProject(Source source, LogicalPlan child, Function<List<Attribute>, List<? extends NamedExpression>> resolver) {
-        this(source, child, resolver.apply(child.output()), resolver);
+    public ResolvingProject(
+        Source source,
+        LogicalPlan child,
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
+        UnmappedFieldsPattern unmappedFieldsPattern
+    ) {
+        this(
+            source,
+            child,
+            resolver.apply(child.output().stream().filter(a -> !(a instanceof UnmappedFieldsAttribute)).toList()),
+            resolver,
+            unmappedFieldsPattern
+        );
     }
 
     private ResolvingProject(
         Source source,
         LogicalPlan child,
         List<? extends NamedExpression> projections,
-        Function<List<Attribute>, List<? extends NamedExpression>> resolver
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
+        UnmappedFieldsPattern unmappedFieldsPattern
     ) {
         super(source, child, projections);
         this.resolver = resolver;
+        this.unmappedFieldsPattern = unmappedFieldsPattern;
     }
 
     @Override
@@ -52,29 +75,62 @@ public class ResolvingProject extends Project {
         return resolver;
     }
 
+    /**
+     * Computes the unmapped-fields pattern for the sub-plan rooted at this node.
+     * <ul>
+     *   <li>If this node was created from a KEEP, {@code unmappedFieldsPattern.includes()} is the
+     *       set of patterns to keep; child-node excludes (e.g. from EVAL) are appended.</li>
+     *   <li>If this node was created from a DROP or RENAME, {@code unmappedFieldsPattern.includes()}
+     *       is {@code ["*"]}, so the effective includes are inherited from the child (allowing a KEEP
+     *       lower in the tree to still restrict the field set).</li>
+     * </ul>
+     */
+    @Override
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        UnmappedFieldsPattern childPattern = child().unmappedFieldsToKeep();
+        // If our own includes is ["*"] (DROP or RENAME), inherit the child's (more specific) includes.
+        // Otherwise (KEEP with explicit patterns), use our own includes.
+        List<String> effectiveIncludes = unmappedFieldsPattern.includes().equals(List.of("*"))
+            ? childPattern.includes()
+            : unmappedFieldsPattern.includes();
+        List<String> allExcludes = new ArrayList<>(unmappedFieldsPattern.excludes());
+        allExcludes.addAll(childPattern.excludes());
+        return new UnmappedFieldsPattern(effectiveIncludes, allExcludes);
+    }
+
+    /**
+     * Static factory used by {@link NodeInfo} so that {@code projections()} is included as a
+     * property. This lets {@link org.elasticsearch.xpack.esql.core.tree.NodeInfo#transform} visit
+     * expressions inside the projections (needed by ResolveRefs).
+     */
+    static ResolvingProject create(
+        Source source,
+        LogicalPlan child,
+        List<? extends NamedExpression> projections,
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver,
+        UnmappedFieldsPattern unmappedFieldsPattern
+    ) {
+        return new ResolvingProject(source, child, projections, resolver, unmappedFieldsPattern);
+    }
+
     @Override
     protected NodeInfo<Project> info() {
-        return NodeInfo.create(
-            this,
-            (source, child, projections) -> new ResolvingProject(source, child, projections, this.resolver),
-            child(),
-            projections()
-        );
+        return NodeInfo.create(this, ResolvingProject::create, child(), projections(), resolver, unmappedFieldsPattern);
     }
 
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
-        return new ResolvingProject(source(), newChild, resolver);
+        return new ResolvingProject(source(), newChild, resolver, unmappedFieldsPattern);
     }
 
     @Override
     public Project withProjections(List<? extends NamedExpression> projections) {
-        return new ResolvingProject(source(), child(), projections, resolver);
+        return new ResolvingProject(source(), child(), projections, resolver, unmappedFieldsPattern);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), resolver);
+        return Objects.hash(super.hashCode(), resolver, unmappedFieldsPattern);
     }
 
     @Override
@@ -87,7 +143,9 @@ public class ResolvingProject extends Project {
         }
 
         ResolvingProject other = (ResolvingProject) obj;
-        return super.equals(obj) && Objects.equals(resolver, other.resolver);
+        return super.equals(obj)
+            && Objects.equals(resolver, other.resolver)
+            && Objects.equals(unmappedFieldsPattern, other.unmappedFieldsPattern);
     }
 
     public Project asProject() {

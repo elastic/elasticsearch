@@ -84,6 +84,33 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         return lazyResolved;
     }
 
+    /**
+     * Returns the pattern describing which additional source fields — those not already
+     * present in this plan's upstream {@link EsRelation} — would survive to this plan's
+     * output.
+     *
+     * <p>"Additional" means fields that are NOT already in {@link EsRelation}'s attribute
+     * list (mapped, partially mapped, or explicitly referenced unmapped). Such fields can
+     * only be kept or dropped, never renamed: they appear in the output under their
+     * original source name or not at all.
+     *
+     * <p>This is the foundation for {@code SET unmapped_fields = "LOAD_ALL"} semantics:
+     * before loading any extra fields from {@code _source}, the query is first inspected
+     * to find out which field names would be worth loading.
+     *
+     * <p>Must be called before {@link Keep}/{@link Drop}/{@link Rename} are converted to
+     * {@link Project} nodes by the analyzer's {@code ResolveRefs} rule, because wildcard
+     * patterns are lost after that conversion.
+     *
+     * <p>The default implementation throws {@link UnsupportedOperationException}. Subclasses
+     * that can appear before the {@code ResolveRefs} analysis stage must override this method.
+     * {@link UnaryPlan} provides a pass-through default for unary nodes that do not affect
+     * field visibility.
+     */
+    public UnmappedFieldsPattern unmappedFieldsToKeep() {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement unmappedFieldsToKeep()");
+    }
+
     public abstract boolean expressionsResolved();
 
     @Override

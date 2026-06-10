@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -214,6 +215,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
+
+        if (subclass == ResolvingProject.class) {
+            /*
+             * ResolvingProject.info() deliberately includes projections() beyond the
+             * longest-public-ctor parameters so that NodeInfo.transform can visit
+             * expressions inside the projections (needed by ResolveRefs).
+             */
+            expectedCount += 1;
+        }
 
         assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
@@ -611,6 +621,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return PromqlBuiltinFunctionDefinitions.VECTOR;
         }
 
+        if (argClass == UnmappedFieldsPattern.class) {
+            // UnmappedFieldsPattern is a record (final); cannot be mocked
+            return randomBoolean() ? UnmappedFieldsPattern.ALL : UnmappedFieldsPattern.NONE;
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -760,20 +775,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             Type[] argTypes = ctor.getGenericParameterTypes();
             Object[] args = new Object[argTypes.length];
 
-            if (transformed instanceof ResolvingProject transformedProject && changedArgValue instanceof LogicalPlan newChild) {
-                for (int i = 0; i < argTypes.length; i++) {
-                    if (i == changedArgOffset) {
-                        args[i] = changedArgValue;
-                    } else if (i == changedArgOffset + 2) {
-                        args[i] = transformedProject.resolver().apply(newChild.output());
-                    } else {
-                        args[i] = nodeCtorArgs[i];
-                    }
-                }
-            } else {
-                for (int i = 0; i < argTypes.length; i++) {
-                    args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
-                }
+            for (int i = 0; i < argTypes.length; i++) {
+                args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
             }
 
             T reflectionTransformed = ctor.newInstance(args);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,6 +29,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,9 +41,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -48,6 +53,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -531,6 +539,77 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
         }
+    }
+
+    public void testDuplicateSynonymSetsLogWarning() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        try (var mockLog = MockLog.capture(SynonymTokenFilterFactory.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "duplicate warning",
+                    SynonymTokenFilterFactory.class.getName(),
+                    Level.WARN,
+                    "Duplicate synonym set names*"
+                )
+            );
+            createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testTooManySynonymSetsRejected() {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
+        List<String> manySets = new ArrayList<>();
+        for (int i = 0; i <= SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER; i++) {
+            manySets.add("set-" + i);
+        }
+        settingsBuilder.putList("index.analysis.filter.my_synonyms.synonyms_set", manySets);
+        Settings settings = settingsBuilder.build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
+        );
+        assertThat(e.getMessage(), containsString("At most " + SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER));
+    }
+
+    /**
+     * When the cluster is not fully upgraded, creating an index with multiple synonym sets in a
+     * single filter must be rejected at index creation time. This prevents inconsistency
+     * during rolling upgrades, where old nodes would either error out or use no synonyms.
+     */
+    public void testMultipleSynonymSetsRejectedOnPartiallyUpgradedCluster() throws IOException {
+        FeatureService absentFeatureService = mock(FeatureService.class);
+        when(absentFeatureService.clusterHasFeature(any(), any())).thenReturn(false);
+        CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).featureService(absentFeatureService).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .put("index.analysis.filter.my_synonyms.updateable", "true")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, plugin));
+        assertThat(e.getMessage(), containsString("not supported until all nodes in the cluster have been upgraded"));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

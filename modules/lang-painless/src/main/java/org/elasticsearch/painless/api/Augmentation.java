@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.painless.PainlessScript;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -20,10 +21,13 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -34,6 +38,7 @@ import java.util.function.ObjIntConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -54,8 +59,45 @@ public class Augmentation {
         return receiver.group(name);
     }
 
+    /**
+     * Cancellation-aware wrapper around {@link Iterable#forEach}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element so a long iteration honours search
+     * timeouts.  Fast path delegates straight to the JDK when the script has no cancellation check
+     * installed.
+     */
+    public static <T> void forEach(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        for (T t : receiver) {
+            consumer.accept(t);
+            script._pollCancellation();
+        }
+    }
+
     // some groovy methods on iterable
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/lang/Iterable.html
+
+    /**
+     * Cancellation-aware {@code any}.  Returns true if {@code predicate} matches at least one element;
+     * short-circuits on the first match.  When iteration continues past a non-matching element the
+     * augmentation calls {@link PainlessScript#_pollCancellation()} so a worst-case (no-match) scan of
+     * a large collection still honours search timeouts.  Delegates to {@link #any(Iterable, Predicate)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> boolean any(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return any(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                return true;
+            }
+            script._pollCancellation();
+        }
+        return false;
+    }
 
     /** Iterates over the contents of an iterable, and checks whether a predicate is valid for at least one element. */
     public static <T> boolean any(Iterable<T> receiver, Predicate<T> predicate) {
@@ -105,9 +147,51 @@ public class Augmentation {
     // instead of covariant overrides for every possibility, we just return receiver as 'def' for now
     // that way if someone chains the calls, everything works.
 
-    /** Iterates through an Iterable, passing each item to the given consumer. */
-    public static <T> Object each(Iterable<T> receiver, Consumer<T> consumer) {
-        receiver.forEach(consumer);
+    /**
+     * Cancellation-aware {@code each} augmentation resolved by the lookup
+     * builder in script contexts whose base class supports cancellation.  Calls
+     * {@link PainlessScript#_pollCancellation()} once per element so the script's shared poll
+     * counter advances and the search timeout can interrupt a long iteration even when the consumer
+     * body is trivial or non-Painless.  When {@code _getCancellationCheck()} returns null (script
+     * context didn't wire a cancel runnable) the fast path delegates straight to
+     * {@link Iterable#forEach} with zero per-iteration overhead.
+     * <p>
+     * The script receiver is placed <em>before</em> the augmentation's receiver so that
+     * {@link org.elasticsearch.painless.FunctionRef#withSyntheticScriptCapture} (which prepends
+     * the script class at factoryMethodType position 0) maps directly to a method reference's
+     * leading capture without any position arithmetic.
+     */
+    public static <T> Object each(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return receiver;
+        }
+        // Poll the script's shared persistent counter once per element rather than keeping our own,
+        // so this iteration's polling decrements the same $cancelPoll that the consumer body and the
+        // rest of the script decrement — keeping the cadence amortised and respecting downstream work.
+        for (T t : receiver) {
+            consumer.accept(t);
+            script._pollCancellation();
+        }
+        return receiver;
+    }
+
+    /**
+     * Cancellation-aware {@code eachWithIndex} augmentation.  Visits each element of {@code receiver}
+     * paired with a zero-based index, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the script's shared poll counter advances and a search timeout can interrupt iteration
+     * even when the consumer body is trivial.  Delegates to {@link #eachWithIndex(Iterable, ObjIntConsumer)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> Object eachWithIndex(PainlessScript script, Iterable<T> receiver, ObjIntConsumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            return eachWithIndex(receiver, consumer);
+        }
+        int count = 0;
+        for (T t : receiver) {
+            consumer.accept(t, count++);
+            script._pollCancellation();
+        }
         return receiver;
     }
 
@@ -124,6 +208,25 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code every}.  Returns true only if {@code predicate} matches every element;
+     * short-circuits on the first non-match.  Polls {@link PainlessScript#_pollCancellation()} once per
+     * matching element so a worst-case (all-match) scan honours search timeouts.  Delegates to
+     * {@link #every(Iterable, Predicate)} when the script has no cancellation check installed.
+     */
+    public static <T> boolean every(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return every(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t) == false) {
+                return false;
+            }
+            script._pollCancellation();
+        }
+        return true;
+    }
+
+    /**
      * Used to determine if the given predicate is valid (i.e. returns true for all items in this iterable).
      */
     public static <T> boolean every(Iterable<T> receiver, Predicate<T> predicate) {
@@ -133,6 +236,27 @@ public class Augmentation {
             }
         }
         return true;
+    }
+
+    /**
+     * Cancellation-aware {@code findResults}.  Applies {@code filter} to every element and collects
+     * non-null results into a new list, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the full scan honours search timeouts.  Delegates to
+     * {@link #findResults(Iterable, Function)} when the script has no cancellation check installed.
+     */
+    public static <T, U> List<U> findResults(PainlessScript script, Iterable<T> receiver, Function<T, U> filter) {
+        if (script._getCancellationCheck() == null) {
+            return findResults(receiver, filter);
+        }
+        List<U> list = new ArrayList<>();
+        for (T t : receiver) {
+            U result = filter.apply(t);
+            if (result != null) {
+                list.add(result);
+            }
+            script._pollCancellation();
+        }
+        return list;
     }
 
     /**
@@ -151,18 +275,30 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code groupBy}.  Builds a {@link LinkedHashMap} grouping each element by the
+     * value returned from {@code mapper}, polling {@link PainlessScript#_pollCancellation()} once per
+     * element so the full scan honours search timeouts.  Delegates to
+     * {@link #groupBy(Iterable, Function)} when the script has no cancellation check installed.
+     */
+    public static <T, U> Map<U, List<T>> groupBy(PainlessScript script, Iterable<T> receiver, Function<T, U> mapper) {
+        if (script._getCancellationCheck() == null) {
+            return groupBy(receiver, mapper);
+        }
+        Map<U, List<T>> map = new LinkedHashMap<>();
+        for (T t : receiver) {
+            map.computeIfAbsent(mapper.apply(t), k -> new ArrayList<>()).add(t);
+            script._pollCancellation();
+        }
+        return map;
+    }
+
+    /**
      * Sorts all Iterable members into groups determined by the supplied mapping function.
      */
     public static <T, U> Map<U, List<T>> groupBy(Iterable<T> receiver, Function<T, U> mapper) {
         Map<U, List<T>> map = new LinkedHashMap<>();
         for (T t : receiver) {
-            U mapped = mapper.apply(t);
-            List<T> results = map.get(mapped);
-            if (results == null) {
-                results = new ArrayList<>();
-                map.put(mapped, results);
-            }
-            results.add(t);
+            map.computeIfAbsent(mapper.apply(t), k -> new ArrayList<>()).add(t);
         }
         return map;
     }
@@ -197,6 +333,24 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code sum(ToDoubleFunction)}.  Applies {@code function} to each element and
+     * accumulates the result, polling {@link PainlessScript#_pollCancellation()} once per element so
+     * the full scan honours search timeouts.  Delegates to {@link #sum(Iterable, ToDoubleFunction)} when
+     * the script has no cancellation check installed.
+     */
+    public static <T> double sum(PainlessScript script, Iterable<T> receiver, ToDoubleFunction<T> function) {
+        if (script._getCancellationCheck() == null) {
+            return sum(receiver, function);
+        }
+        double sum = 0;
+        for (T t : receiver) {
+            sum += function.applyAsDouble(t);
+            script._pollCancellation();
+        }
+        return sum;
+    }
+
+    /**
      * Sums the result of applying a function to each item of an Iterable.
      */
     public static <T> double sum(Iterable<T> receiver, ToDoubleFunction<T> function) {
@@ -207,8 +361,49 @@ public class Augmentation {
         return sum;
     }
 
+    /**
+     * Cancellation-aware wrapper around {@link Collection#removeIf}.  Iterates explicitly via the
+     * receiver's iterator so each {@link Predicate#test} invocation can be followed by a
+     * {@link PainlessScript#_pollCancellation()} call.  Fast path delegates straight to the JDK when
+     * the script has no cancellation check installed (preserving optimisations on collections that
+     * override removeIf, e.g. {@code ArrayList}).
+     */
+    public static <T> boolean removeIf(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.removeIf(predicate);
+        }
+        boolean removed = false;
+        Iterator<T> iter = receiver.iterator();
+        while (iter.hasNext()) {
+            if (predicate.test(iter.next())) {
+                iter.remove();
+                removed = true;
+            }
+            script._pollCancellation();
+        }
+        return removed;
+    }
+
     // some groovy methods on collection
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Collection.html
+
+    /**
+     * Cancellation-aware {@code collect(Function)}.  Maps every element of {@code receiver} via
+     * {@code function} into a new list, polling {@link PainlessScript#_pollCancellation()} once per
+     * element.  Delegates to {@link #collect(Collection, Function)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T, U> List<U> collect(PainlessScript script, Collection<T> receiver, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, function);
+        }
+        List<U> list = new ArrayList<>();
+        for (T t : receiver) {
+            list.add(function.apply(t));
+            script._pollCancellation();
+        }
+        return list;
+    }
 
     /**
      * Iterates through this collection transforming each entry into a new value using
@@ -223,6 +418,24 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code collect(Collection, Function)}.  Maps every element of {@code receiver}
+     * via {@code function} and appends each result to {@code collection}, polling
+     * {@link PainlessScript#_pollCancellation()} once per element.  Delegates to
+     * {@link #collect(Collection, Collection, Function)} when the script has no cancellation check
+     * installed.
+     */
+    public static <T, U> Object collect(PainlessScript script, Collection<T> receiver, Collection<U> collection, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, collection, function);
+        }
+        for (T t : receiver) {
+            collection.add(function.apply(t));
+            script._pollCancellation();
+        }
+        return collection;
+    }
+
+    /**
      * Iterates through this collection transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
@@ -231,6 +444,26 @@ public class Augmentation {
             collection.add(function.apply(t));
         }
         return collection;
+    }
+
+    /**
+     * Cancellation-aware {@code find}.  Returns the first element matching {@code predicate}, or
+     * {@code null}; short-circuits on the first match.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per non-matching element so a worst-case
+     * (no-match) scan honours search timeouts.  Delegates to {@link #find(Collection, Predicate)}
+     * when the script has no cancellation check installed.
+     */
+    public static <T> T find(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return find(receiver, predicate);
+        }
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                return t;
+            }
+            script._pollCancellation();
+        }
+        return null;
     }
 
     /**
@@ -243,6 +476,26 @@ public class Augmentation {
             }
         }
         return null;
+    }
+
+    /**
+     * Cancellation-aware {@code findAll}.  Collects every element matching {@code predicate}, polling
+     * {@link PainlessScript#_pollCancellation()} once per element so the full scan honours search
+     * timeouts.  Delegates to {@link #findAll(Collection, Predicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T> List<T> findAll(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return findAll(receiver, predicate);
+        }
+        List<T> list = new ArrayList<>();
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                list.add(t);
+            }
+            script._pollCancellation();
+        }
+        return list;
     }
 
     /**
@@ -259,12 +512,42 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResult(Function)}.  Delegates to the three-arg script-aware
+     * overload with a {@code null} default.
+     */
+    public static <T, U> Object findResult(PainlessScript script, Collection<T> receiver, Function<T, U> function) {
+        return findResult(script, receiver, null, function);
+    }
+
+    /**
      * Iterates through the collection calling the given function for each item
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
     public static <T, U> Object findResult(Collection<T> receiver, Function<T, U> function) {
         return findResult(receiver, null, function);
+    }
+
+    /**
+     * Cancellation-aware {@code findResult(Object, Function)}.  Returns the first non-null result of
+     * applying {@code function} to an element, or {@code defaultResult} when no element produces a
+     * non-null result.  Polls {@link PainlessScript#_pollCancellation()} after each null-yielding
+     * element so a worst-case (all-null) scan honours search timeouts.  Delegates to
+     * {@link #findResult(Collection, Object, Function)} when the script has no cancellation check
+     * installed.
+     */
+    public static <T, U> Object findResult(PainlessScript script, Collection<T> receiver, Object defaultResult, Function<T, U> function) {
+        if (script._getCancellationCheck() == null) {
+            return findResult(receiver, defaultResult, function);
+        }
+        for (T t : receiver) {
+            U value = function.apply(t);
+            if (value != null) {
+                return value;
+            }
+            script._pollCancellation();
+        }
+        return defaultResult;
     }
 
     /**
@@ -280,6 +563,32 @@ public class Augmentation {
             }
         }
         return defaultResult;
+    }
+
+    /**
+     * Cancellation-aware {@code split}.  Partitions {@code receiver} into matched and unmatched lists,
+     * polling {@link PainlessScript#_pollCancellation()} once per element so the full scan honours
+     * search timeouts.  Delegates to {@link #split(Collection, Predicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <T> List<List<T>> split(PainlessScript script, Collection<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return split(receiver, predicate);
+        }
+        List<T> matched = new ArrayList<>();
+        List<T> unmatched = new ArrayList<>();
+        List<List<T>> result = new ArrayList<>(2);
+        result.add(matched);
+        result.add(unmatched);
+        for (T t : receiver) {
+            if (predicate.test(t)) {
+                matched.add(t);
+            } else {
+                unmatched.add(t);
+            }
+            script._pollCancellation();
+        }
+        return result;
     }
 
     /**
@@ -302,8 +611,58 @@ public class Augmentation {
         return result;
     }
 
+    /**
+     * Cancellation-aware wrapper around {@link Map#forEach}.  Iterates the entry set and polls
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to the
+     * JDK when the script has no cancellation check installed.
+     */
+    public static <K, V> void forEach(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        for (Map.Entry<K, V> entry : receiver.entrySet()) {
+            consumer.accept(entry.getKey(), entry.getValue());
+            script._pollCancellation();
+        }
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Map#replaceAll}.  Walks the entry set, computes each
+     * new value via {@code function}, and writes it back through {@link Map.Entry#setValue}, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to the
+     * JDK when the script has no cancellation check installed.
+     */
+    public static <K, V> void replaceAll(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, V> function) {
+        if (script._getCancellationCheck() == null) {
+            receiver.replaceAll(function);
+            return;
+        }
+        for (Map.Entry<K, V> entry : receiver.entrySet()) {
+            entry.setValue(function.apply(entry.getKey(), entry.getValue()));
+            script._pollCancellation();
+        }
+    }
+
     // some groovy methods on map
     // see http://docs.groovy-lang.org/latest/html/groovy-jdk/java/util/Map.html
+
+    /**
+     * Cancellation-aware {@code collect(BiFunction)} on Map.  Maps every entry via {@code function}
+     * into a new list, polling {@link PainlessScript#_pollCancellation()} once per entry.  Delegates
+     * to {@link #collect(Map, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> List<T> collect(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> function) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, function);
+        }
+        List<T> list = new ArrayList<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            list.add(function.apply(kvPair.getKey(), kvPair.getValue()));
+            script._pollCancellation();
+        }
+        return list;
+    }
 
     /**
      * Iterates through this map transforming each entry into a new value using
@@ -318,6 +677,28 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code collect(Collection, BiFunction)} on Map.  Maps every entry via
+     * {@code function} and appends the result to {@code collection}, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #collect(Map, Collection, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Object collect(
+        PainlessScript script,
+        Map<K, V> receiver,
+        Collection<T> collection,
+        BiFunction<K, V, T> function
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return collect(receiver, collection, function);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            collection.add(function.apply(kvPair.getKey(), kvPair.getValue()));
+            script._pollCancellation();
+        }
+        return collection;
+    }
+
+    /**
      * Iterates through this map transforming each entry into a new value using
      * the function, adding the values to the specified collection.
      */
@@ -326,6 +707,25 @@ public class Augmentation {
             collection.add(function.apply(kvPair.getKey(), kvPair.getValue()));
         }
         return collection;
+    }
+
+    /**
+     * Cancellation-aware {@code count} on Map.  Counts entries matching {@code predicate}, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #count(Map, BiPredicate)} when the script has no cancellation check installed.
+     */
+    public static <K, V> int count(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return count(receiver, predicate);
+        }
+        int count = 0;
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                count++;
+            }
+            script._pollCancellation();
+        }
+        return count;
     }
 
     /** Counts the number of occurrences which satisfy the given predicate from inside this Map */
@@ -339,10 +739,40 @@ public class Augmentation {
         return count;
     }
 
-    /** Iterates through a Map, passing each item to the given consumer. */
-    public static <K, V> Object each(Map<K, V> receiver, BiConsumer<K, V> consumer) {
-        receiver.forEach(consumer);
+    /**
+     * Cancellation-aware {@code each} on Map.  Visits every entry, polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Fast path delegates straight to
+     * {@link Map#forEach} when the script has no cancellation check installed.
+     */
+    public static <K, V> Object each(PainlessScript script, Map<K, V> receiver, BiConsumer<K, V> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return receiver;
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            consumer.accept(kvPair.getKey(), kvPair.getValue());
+            script._pollCancellation();
+        }
         return receiver;
+    }
+
+    /**
+     * Cancellation-aware {@code every} on Map.  Returns true only if {@code predicate} matches every
+     * entry; short-circuits on the first non-match.  Polls {@link PainlessScript#_pollCancellation()}
+     * once per matching entry.  Delegates to {@link #every(Map, BiPredicate)} when the script has no
+     * cancellation check installed.
+     */
+    public static <K, V> boolean every(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return every(receiver, predicate);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue()) == false) {
+                return false;
+            }
+            script._pollCancellation();
+        }
+        return true;
     }
 
     /**
@@ -358,6 +788,25 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code find} on Map.  Returns the first entry matching {@code predicate}, or
+     * {@code null}; short-circuits on the first match.  Polls {@link PainlessScript#_pollCancellation()}
+     * once per non-matching entry.  Delegates to {@link #find(Map, BiPredicate)} when the script has
+     * no cancellation check installed.
+     */
+    public static <K, V> Map.Entry<K, V> find(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return find(receiver, predicate);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                return kvPair;
+            }
+            script._pollCancellation();
+        }
+        return null;
+    }
+
+    /**
      * Finds the first entry matching the predicate, or returns null.
      */
     public static <K, V> Map.Entry<K, V> find(Map<K, V> receiver, BiPredicate<K, V> predicate) {
@@ -367,6 +816,31 @@ public class Augmentation {
             }
         }
         return null;
+    }
+
+    /**
+     * Cancellation-aware {@code findAll} on Map.  Collects entries matching {@code predicate} into a
+     * new {@link LinkedHashMap} (or {@link TreeMap} when the receiver is one), polling
+     * {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #findAll(Map, BiPredicate)} when the script has no cancellation check installed.
+     */
+    public static <K, V> Map<K, V> findAll(PainlessScript script, Map<K, V> receiver, BiPredicate<K, V> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return findAll(receiver, predicate);
+        }
+        final Map<K, V> map;
+        if (receiver instanceof TreeMap) {
+            map = new TreeMap<>();
+        } else {
+            map = new LinkedHashMap<>();
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            if (predicate.test(kvPair.getKey(), kvPair.getValue())) {
+                map.put(kvPair.getKey(), kvPair.getValue());
+            }
+            script._pollCancellation();
+        }
+        return map;
     }
 
     /**
@@ -389,12 +863,45 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResult(BiFunction)} on Map.  Delegates to the four-arg script-aware
+     * overload with a {@code null} default.
+     */
+    public static <K, V, T> Object findResult(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> function) {
+        return findResult(script, receiver, null, function);
+    }
+
+    /**
      * Iterates through the map calling the given function for each item
      * but stopping once the first non-null result is found and returning that result.
      * If all results are null, null is returned.
      */
     public static <K, V, T> Object findResult(Map<K, V> receiver, BiFunction<K, V, T> function) {
         return findResult(receiver, null, function);
+    }
+
+    /**
+     * Cancellation-aware {@code findResult(Object, BiFunction)} on Map.  Returns the first non-null
+     * result of applying {@code function} to an entry, or {@code defaultResult} when none does.  Polls
+     * {@link PainlessScript#_pollCancellation()} after each null-yielding entry.  Delegates to
+     * {@link #findResult(Map, Object, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Object findResult(
+        PainlessScript script,
+        Map<K, V> receiver,
+        Object defaultResult,
+        BiFunction<K, V, T> function
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return findResult(receiver, defaultResult, function);
+        }
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T value = function.apply(kvPair.getKey(), kvPair.getValue());
+            if (value != null) {
+                return value;
+            }
+            script._pollCancellation();
+        }
+        return defaultResult;
     }
 
     /**
@@ -413,6 +920,27 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code findResults} on Map.  Applies {@code filter} to every entry and
+     * collects non-null results into a new list, polling {@link PainlessScript#_pollCancellation()}
+     * once per entry.  Delegates to {@link #findResults(Map, BiFunction)} when the script has no
+     * cancellation check installed.
+     */
+    public static <K, V, T> List<T> findResults(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> filter) {
+        if (script._getCancellationCheck() == null) {
+            return findResults(receiver, filter);
+        }
+        List<T> list = new ArrayList<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T result = filter.apply(kvPair.getKey(), kvPair.getValue());
+            if (result != null) {
+                list.add(result);
+            }
+            script._pollCancellation();
+        }
+        return list;
+    }
+
+    /**
      * Iterates through the map transforming items using the supplied function and
      * collecting any non-null results.
      */
@@ -428,25 +956,90 @@ public class Augmentation {
     }
 
     /**
+     * Cancellation-aware {@code groupBy} on Map.  Groups entries by the value returned from
+     * {@code mapper}, polling {@link PainlessScript#_pollCancellation()} once per entry.  Delegates to
+     * {@link #groupBy(Map, BiFunction)} when the script has no cancellation check installed.
+     */
+    public static <K, V, T> Map<T, Map<K, V>> groupBy(PainlessScript script, Map<K, V> receiver, BiFunction<K, V, T> mapper) {
+        if (script._getCancellationCheck() == null) {
+            return groupBy(receiver, mapper);
+        }
+        Map<T, Map<K, V>> map = new LinkedHashMap<>();
+        for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
+            T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
+            map.computeIfAbsent(mapped, k -> receiver instanceof TreeMap ? new TreeMap<K, V>() : new LinkedHashMap<K, V>())
+                .put(kvPair.getKey(), kvPair.getValue());
+            script._pollCancellation();
+        }
+        return map;
+    }
+
+    /**
      * Sorts all Map members into groups determined by the supplied mapping function.
      */
     public static <K, V, T> Map<T, Map<K, V>> groupBy(Map<K, V> receiver, BiFunction<K, V, T> mapper) {
         Map<T, Map<K, V>> map = new LinkedHashMap<>();
         for (Map.Entry<K, V> kvPair : receiver.entrySet()) {
             T mapped = mapper.apply(kvPair.getKey(), kvPair.getValue());
-            Map<K, V> results = map.get(mapped);
-            if (results == null) {
-                // try to preserve some properties of the receiver (see the groovy javadocs)
-                if (receiver instanceof TreeMap) {
-                    results = new TreeMap<>();
-                } else {
-                    results = new LinkedHashMap<>();
-                }
-                map.put(mapped, results);
-            }
-            results.put(kvPair.getKey(), kvPair.getValue());
+            // try to preserve some properties of the receiver (see the groovy javadocs)
+            map.computeIfAbsent(mapped, k -> receiver instanceof TreeMap ? new TreeMap<K, V>() : new LinkedHashMap<K, V>())
+                .put(kvPair.getKey(), kvPair.getValue());
         }
         return map;
+    }
+
+    // native wrappers for cancellation-aware iteration
+
+    /**
+     * Cancellation-aware wrapper around {@link List#replaceAll}.  Uses a {@link ListIterator} so each
+     * {@link UnaryOperator#apply} call can be followed by a {@link PainlessScript#_pollCancellation()}
+     * call.  Fast path delegates straight to the JDK when the script has no cancellation check
+     * installed (preserving optimisations on lists that override replaceAll, e.g. {@code ArrayList}).
+     */
+    public static <T> void replaceAll(PainlessScript script, List<T> receiver, UnaryOperator<T> operator) {
+        if (script._getCancellationCheck() == null) {
+            receiver.replaceAll(operator);
+            return;
+        }
+        ListIterator<T> iter = receiver.listIterator();
+        while (iter.hasNext()) {
+            iter.set(operator.apply(iter.next()));
+            script._pollCancellation();
+        }
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Iterator#forEachRemaining}.  Walks the receiver via
+     * {@link Iterator#hasNext}/{@link Iterator#next} and polls {@link PainlessScript#_pollCancellation()}
+     * once per element.  Fast path delegates straight to the JDK when the script has no cancellation
+     * check installed.
+     */
+    public static <T> void forEachRemaining(PainlessScript script, Iterator<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachRemaining(consumer);
+            return;
+        }
+        while (receiver.hasNext()) {
+            consumer.accept(receiver.next());
+            script._pollCancellation();
+        }
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator#forEachRemaining}.  Drives the receiver
+     * via {@link Spliterator#tryAdvance} so the augmentation can poll
+     * {@link PainlessScript#_pollCancellation()} between each element rather than letting the
+     * spliterator's bulk traversal run uninterrupted.  Fast path delegates straight to the JDK when
+     * the script has no cancellation check installed.
+     */
+    public static <T> void forEachRemaining(PainlessScript script, Spliterator<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachRemaining(consumer);
+            return;
+        }
+        while (receiver.tryAdvance(consumer)) {
+            script._pollCancellation();
+        }
     }
 
     // CharSequence augmentation
@@ -481,6 +1074,62 @@ public class Augmentation {
         m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
         m.appendTail(result);
         return result.toString();
+    }
+
+    /**
+     * Characters copied between cancellation polls inside the script-aware {@code replace}.  Kept large so each copy is an
+     * efficient bulk operation; since the script's persistent poll counter itself only fires every 1000 decrements, an
+     * actual cancellation check lands roughly every 64,000,000 characters.
+     */
+    private static final int REPLACE_POLL_INTERVAL = 64000;
+
+    /**
+     * Cancellation-aware augmentation for {@link String#replace(CharSequence, CharSequence)}.  The JDK call is O(length)
+     * but invisible to the cancellation budget, so a growing-string loop (e.g. {@code s = s.replace('A', 'AB')}) can burn
+     * unbounded CPU.  Reimplements the literal replace as a scan that polls {@link PainlessScript#_pollCancellation()} as
+     * it works, so a deadline interrupts it mid-call.  Delegates to the JDK method when no cancel check is set.
+     */
+    public static String replace(PainlessScript script, String receiver, CharSequence target, CharSequence replacement) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.replace(target, replacement);
+        }
+
+        String targetString = target.toString();
+        String replacementString = replacement.toString();
+        StringBuilder result = new StringBuilder();
+
+        if (targetString.isEmpty()) {
+            // Match the JDK: replacement before the first char, between every pair, and after the last.
+            result.append(replacementString);
+            for (int index = 0; index < receiver.length(); index++) {
+                result.append(receiver.charAt(index)).append(replacementString);
+                if (index % REPLACE_POLL_INTERVAL == 0) {
+                    script._pollCancellation();
+                }
+            }
+            return result.toString();
+        }
+
+        int from = 0;
+        for (int match = receiver.indexOf(targetString); match >= 0; match = receiver.indexOf(targetString, from)) {
+            appendChunked(script, result, receiver, from, match);
+            result.append(replacementString);
+            script._pollCancellation();
+            from = match + targetString.length();
+        }
+        appendChunked(script, result, receiver, from, receiver.length());
+        return result.toString();
+    }
+
+    /** Appends {@code sequence[start, end)} in chunks, polling after each so a single large copy cannot outrun a deadline. */
+    private static void appendChunked(PainlessScript script, StringBuilder result, CharSequence sequence, int start, int end) {
+        int index = start;
+        while (end - index > REPLACE_POLL_INTERVAL) {
+            result.append(sequence, index, index + REPLACE_POLL_INTERVAL);
+            script._pollCancellation();
+            index += REPLACE_POLL_INTERVAL;
+        }
+        result.append(sequence, index, end);
     }
 
     /**

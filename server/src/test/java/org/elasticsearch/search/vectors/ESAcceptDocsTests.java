@@ -38,7 +38,13 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
         {
             DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), null, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                null,
+                10
+            );
             assertEquals(iterator.cost(), acceptDocs.approximateCost());
             assertEquals(iterator.cost(), acceptDocs.cost());
             // iterate the docs ensuring they match
@@ -49,7 +55,13 @@ public class ESAcceptDocsTests extends ESTestCase {
         }
         {
             DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), null, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                null,
+                10
+            );
             Bits acceptDocsBits = acceptDocs.bits();
             for (int i = 0; i < 10; i++) {
                 assertEquals(bitSet.get(i), acceptDocsBits.get(i));
@@ -63,7 +75,13 @@ public class ESAcceptDocsTests extends ESTestCase {
             liveDocs.clear(1);
             liveDocs.clear(3);
             liveDocs.clear(9);
-            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(new TestScorerSupplier(iterator), liveDocs, 10);
+            TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
+            ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+                scorerSupplier::cost,
+                liveDocs,
+                10
+            );
             // verify approximate cost doesn't count deleted docs
             assertEquals(5L, acceptDocs.approximateCost());
             // actual cost should count only live docs
@@ -104,12 +122,14 @@ public class ESAcceptDocsTests extends ESTestCase {
             bitSet.set(docId);
         }
         DocIdSetIterator iterator = new BitSetIterator(bitSet, bitSet.cardinality());
+        TestScorerSupplier scorerSupplier = new TestScorerSupplier(iterator);
         ESAcceptDocs acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
-            new TestScorerSupplier(iterator),
+            () -> scorerSupplier.get(Long.MAX_VALUE).iterator(),
+            scorerSupplier::cost,
             null,
             10,
             0,
-            () -> new ESAcceptDocs.SliceAcceptDocs(3, 7)
+            () -> new ESAcceptDocs.SliceAcceptDocs(3, 8)
         );
         assertEquals(5L, acceptDocs.approximateCost());
         assertEquals(3L, acceptDocs.cost());
@@ -132,7 +152,7 @@ public class ESAcceptDocsTests extends ESTestCase {
         acceptedDocs.set(5);
         acceptedDocs.set(7);
         acceptedDocs.set(9);
-        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 7));
+        ESAcceptDocs acceptDocs = new ESAcceptDocs.BitsAcceptDocs(acceptedDocs, 10, 0, () -> new ESAcceptDocs.SliceAcceptDocs(3, 8));
         assertEquals(3L, acceptDocs.approximateCost());
         assertEquals(3L, acceptDocs.cost());
         DocIdSetIterator acceptDocsIterator = acceptDocs.iterator();

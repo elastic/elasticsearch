@@ -7,17 +7,25 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -40,6 +48,15 @@ import static org.mockito.Mockito.when;
  * Tests for S3StorageObject async read paths and dual-client wiring.
  */
 public class S3StorageObjectAsyncTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
@@ -66,20 +83,19 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
             .contentLength((long) PAYLOAD.length)
             .lastModified(Instant.parse("2026-04-01T12:00:00Z"))
             .build();
-        ResponseBytes<GetObjectResponse> responseBytes = ResponseBytes.fromByteArray(response, PAYLOAD);
 
-        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenReturn(
-            CompletableFuture.completedFuture(responseBytes)
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(
+            invocation -> completeTransformer(invocation.getArgument(1), response, PAYLOAD)
         );
 
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
 
-        obj.readBytesAsync(0, PAYLOAD.length, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 result.set(buffer);
                 latch.countDown();
             }
@@ -91,27 +107,27 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         });
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        ByteBuffer buf = result.get();
-        assertTrue("readBytesAsync must return a direct ByteBuffer", buf.isDirect());
-        byte[] bytes = new byte[buf.remaining()];
-        buf.get(bytes);
-        assertArrayEquals(PAYLOAD, bytes);
+        try (DirectReadBuffer drb = result.get()) {
+            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            byte[] bytes = new byte[drb.buffer().remaining()];
+            drb.buffer().get(bytes);
+            assertArrayEquals(PAYLOAD, bytes);
+        }
     }
 
     @SuppressWarnings("unchecked")
     public void testReadBytesAsyncCachesMetadata() throws Exception {
         Instant lastModified = Instant.parse("2026-04-01T12:00:00Z");
         GetObjectResponse response = GetObjectResponse.builder().contentRange("bytes 0-18/1024").lastModified(lastModified).build();
-        ResponseBytes<GetObjectResponse> responseBytes = ResponseBytes.fromByteArray(response, PAYLOAD);
 
-        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenReturn(
-            CompletableFuture.completedFuture(responseBytes)
+        when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(
+            invocation -> completeTransformer(invocation.getArgument(1), response, PAYLOAD)
         );
 
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
-        obj.readBytesAsync(0, PAYLOAD.length, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> fail()));
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> fail()));
         assertTrue(latch.await(5, TimeUnit.SECONDS));
 
         assertEquals(1024L, obj.length());
@@ -120,7 +136,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testReadBytesAsyncNotFound() throws Exception {
-        CompletableFuture<ResponseBytes<GetObjectResponse>> failedFuture = new CompletableFuture<>();
+        CompletableFuture<DirectReadBuffer> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(NoSuchKeyException.builder().statusCode(404).message("Not Found").build());
 
         when(mockAsyncClient.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenReturn(failedFuture);
@@ -130,9 +146,9 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 10, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
             }
 
@@ -154,9 +170,9 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
             }
 
@@ -178,9 +194,9 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, (long) Integer.MAX_VALUE + 1, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, (long) Integer.MAX_VALUE + 1, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer buffer) {
+            public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
             }
 
@@ -217,5 +233,29 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         expectThrows(RuntimeException.class, provider::close);
 
         verify(asyncClient).close();
+    }
+
+    private static CompletableFuture<DirectReadBuffer> completeTransformer(
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer,
+        GetObjectResponse response,
+        byte[] payload
+    ) {
+        CompletableFuture<DirectReadBuffer> future = transformer.prepare();
+        transformer.onResponse(response);
+        transformer.onStream(new SdkPublisher<>() {
+            @Override
+            public void subscribe(Subscriber<? super ByteBuffer> s) {
+                s.onSubscribe(new Subscription() {
+                    @Override
+                    public void request(long n) {}
+
+                    @Override
+                    public void cancel() {}
+                });
+                s.onNext(ByteBuffer.wrap(payload));
+                s.onComplete();
+            }
+        });
+        return future;
     }
 }

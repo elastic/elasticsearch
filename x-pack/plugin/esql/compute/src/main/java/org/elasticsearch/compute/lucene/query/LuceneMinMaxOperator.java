@@ -74,9 +74,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         String fieldName,
         NumberType numberType,
         int limit,
-        long initialResult
+        long initialResult,
+        java.util.function.LongSupplier directoryBytesRead
     ) {
-        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue, directoryBytesRead);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;

@@ -19,11 +19,11 @@ This functionality is in technical preview and might be changed or removed in a 
 Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
-## GET requests only (HTTP API) [promql-limitations-get-only]
+## Form-encoded POST requests (HTTP API) [promql-limitations-form-post]
 
-Only `GET` is supported on `/_prometheus/` routes in this preview.
-`POST` with `application/x-www-form-urlencoded` bodies is rejected as a CSRF safeguard.
-If your Prometheus-compatible client defaults to `POST` for queries, configure it to use `GET` instead.
+Routes that document `POST` accept parameters in an `application/x-www-form-urlencoded` body only when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true` on the Elasticsearch HTTP interface, and the request is authenticated.
+TLS that terminates before Elasticsearch (plain HTTP to the node) does not satisfy this check.
+Use `GET` with query-string parameters when `POST` is unavailable.
 
 ## Unsupported Prometheus query parameters (HTTP API) [promql-limitations-unsupported-query-params]
 

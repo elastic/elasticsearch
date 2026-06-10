@@ -12,7 +12,7 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,7 +40,10 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
                 try {
-                    BulkByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
+                    BulkByPaginatedSearchResponse response = updateByQuery().source("test")
+                        .refresh(true)
+                        .abortOnVersionConflict(false)
+                        .get();
                     assertThat(
                         response,
                         matcher().updated(either(equalTo(0L)).or(equalTo(1L))).versionConflicts(either(equalTo(0L)).or(equalTo(1L)))

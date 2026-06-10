@@ -18,13 +18,12 @@ For the *why* behind any item, follow its `[§x.y]` link into the PoC doc.
 
 ## PR delivery sequence
 
-**PR 1 — OTel audit log delivery foundation** *(submit now)*
+**PR 1 — OTel audit log delivery foundation** *(submitted as [#150687](https://github.com/elastic/elasticsearch/pull/150687), in review)*
 
-Establishes the permanent delivery pipeline. Files:
-- `modules/apm/`: `OtelSdkExportLogsSupplier` (SDK setup, gRPC exporter, `BatchLogRecordProcessor` with default settings, programmatic appender attachment), `OtelSdkSettings`, `APM`/`APMTelemetryProvider` wiring, `manage_threads` entitlement.
+Establishes the permanent delivery pipeline on the clean `audit-log` branch. Files:
+- `modules/apm/`: `OtelSdkExportLogsSupplier` (SDK setup, gRPC exporter, `BatchLogRecordProcessor` with default settings, programmatic appender attachment); `OtelSdkSettings` (with a cross-setting `Setting.Validator` on `TELEMETRY_OTEL_LOGS_ENABLED` that rejects `enabled=true` when `endpoint` is empty, validated via `ClusterSettings` at settings-load time); `APM`/`APMTelemetryProvider` wiring; `manage_threads` entitlement. Test-only: `OkHttpThreadsFilter` (exact-name suppression of OkHttp/Okio global daemon threads from the randomized leak checker) + `OkHttpThreadsFilterTests`.
 - `server/`: `TelemetryProvider.attemptFlushLogs`.
 - `test/external-modules/apm-integration/`: `RecordingApmServer` (gRPC dual-protocol), `OtelAuditLogsIT`, `OtlpLogsParser`, `ReceivedTelemetry`, build deps.
-- `x-pack/plugin/core/src/main/config/log4j2.properties`: comment block explaining programmatic attachment only — not the `project.id` pattern line.
 - `gradle/verification-metadata.xml`, `modules/apm/build.gradle`.
 
 The IT asserts on `log4j.map_message.`-prefixed attribute names — intentionally, because PR 2 is what fixes the prefix. No `project.id` assertion.
@@ -53,9 +52,9 @@ Delete the `withThreadContext` `project.id` write. If PR 149210 has also landed 
 
 ## Branch code status
 
-The PoC branch is the implementation basis for the in-scope items, not a throwaway prototype.
+PR 1 has been submitted from the clean `audit-log` branch, which was built by porting the Bucket 1 code from this PoC branch by hand (not cherry-picked — the PoC branched from a ~14k-commit-old merge base). The `audit-log` branch is the delivery branch going forward; this PoC branch retains the temporary shim code for demonstration.
 
-- **Kept and built on** — the OTel delivery layer in `modules/apm`: `OtelSdkExportLogsSupplier`, `OtelSdkSettings`, the `APM`/`APMTelemetryProvider` wiring, `manage_threads` entitlement, `attemptFlushLogs` plumbing, and the gRPC integration-test harness (`OtelAuditLogsIT`, `RecordingApmServer`). No overlap with Ankit's PRs. Complementary to PR 6718's `ServerlessAuditLoggingIT`: that test covers the customizer through the file appender; ours proves OTLP-on-the-wire. Items 1, 3, and 4 extend this code directly.
+- **Delivered in PR 1 (`audit-log` branch / [#150687](https://github.com/elastic/elasticsearch/pull/150687))** — the OTel delivery layer in `modules/apm`: `OtelSdkExportLogsSupplier`, `OtelSdkSettings`, the `APM`/`APMTelemetryProvider` wiring, `manage_threads` entitlement, `attemptFlushLogs` plumbing, and the gRPC integration-test harness (`OtelAuditLogsIT`, `RecordingApmServer`). No overlap with Ankit's PRs. Complementary to PR 6718's `ServerlessAuditLoggingIT`: that test covers the customizer through the file appender; ours proves OTLP-on-the-wire. Items 1, 3, and 4 extend this code directly.
 - **Temporary shim, excised by item 6** — the header-based `project.id` plumbing: two lines in `LoggingAuditTrail` (the `setThreadContextField(… X_ELASTIC_PROJECT_ID_HTTP_HEADER …)` write in `withThreadContext`), one pattern line in core `log4j2.properties`, and the `projectId()` assertion helper and its ~30 call sites in `LoggingAuditTrailTests`. Kept so the branch stays demonstrable without depending on the unmerged PRs; superseded by `ServerlessAuditLogCustomizer.enrich()` once PR 6718 lands. PR 149210 touches `LoggingAuditTrail` substantially (+113/−32), so a merge conflict is expected: take Ankit's version and drop our two lines.
 - **Build nothing new on the shim** — the OTel appender emits whatever is in the audit `StringMapMessage` and is agnostic to how `project.id` got there. When `enrich()` replaces the header-write, the appender is unchanged, so nothing built in the meantime needs to be redone.
 

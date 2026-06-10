@@ -231,7 +231,7 @@ This is a property we *inherit* from the OTel SDK, not one we engineered into ES
 ### <a id="sec-3-6"></a>3.6 Other tests (no regressions)
 
 - `:modules:apm:thirdPartyAudit` runs clean: no jar-hell or banned-API regression from the new dependencies.
-- `OtelSdkExportLogsSupplierTests` 7/7 passing; covers install/uninstall lifecycle of the supplier (idempotent install, detach on close, behavior when audit logger config is absent).
+- `OtelSdkExportLogsSupplierTests` passing; covers install/uninstall lifecycle of the supplier (idempotent install, detach on close, behavior when audit logger config is absent). The `PR 1` version moves endpoint-validation tests to use `ClusterSettings.validate()` (where the `Setting.Validator` fires) rather than asserting on `install()` throwing.
 - ES boots cleanly under `./gradlew run` with audit and OTel logs enabled. The supplier emits `OTel SDK logs export installed; endpoint=...`, and the node reaches `started`.
 - `manage_threads` entitlement registered in `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` for `io.opentelemetry.sdk.logs`. Without this, `BatchLogRecordProcessor`'s worker thread fails to start with `NotEntitledException`. (See [Appendix B](#sec-appendix-b).)
 

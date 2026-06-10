@@ -43,10 +43,7 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
             Settings.EMPTY,
             Set.of(OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED, OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT)
         );
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> clusterSettings.validate(settings, true)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, true));
         assertThat(e.getMessage(), containsString("telemetry.otel.logs.endpoint"));
     }
 

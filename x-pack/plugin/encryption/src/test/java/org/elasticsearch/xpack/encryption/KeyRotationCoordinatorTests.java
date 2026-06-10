@@ -267,7 +267,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         );
     }
 
-    public void testTickInstallsKeyAfterReloadActivatesPasswordWithoutClusterStateChange() {
+    public void testReloadImmediatelyTriggersInstallWhenActivePasswordActivated() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
         // Construct with empty settings: no active password is configured, so the listener path cannot install yet.
@@ -282,12 +282,11 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         );
 
         coordinator.reload(settingsWithActivePassword());
-        coordinator.tick();
 
         verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
     }
 
-    public void testTickRotatesPasswordAfterReloadWithoutClusterStateChange() {
+    public void testReloadImmediatelyTriggersPasswordRotationWhenActivePasswordIdChanges() {
         FeatureService featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
 
@@ -307,7 +306,38 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
         coordinator.reload(Settings.builder().setSecureSettings(rotated).build());
 
-        coordinator.tick();
+        verify(taskQueue).submitTask(
+            eq("rotate-project-encryption-key-password"),
+            isA(KeyRotationCoordinator.RotatePasswordTask.class),
+            any()
+        );
+    }
+
+    public void testReloadTriggersRotationAfterOnClusterStateChangedFiredWithStaleSettings() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+
+        // Pre-wrap a key under PASSWORD_ID so the rewrap path has something real to unwrap.
+        byte[] plaintextKey = randomKey();
+        ProjectEncryptionKeyMetadata.KeyEntry wrappedEntry = new ProjectEncryptionKeyMetadata.KeyEntry(
+            PasswordBasedEncryption.wrap(plaintextKey, PASSWORD_ID, PASSWORD_VALUE.toCharArray()).payload(),
+            0L
+        );
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", wrappedEntry), "k1", PASSWORD_ID);
+        ClusterState state = clusterStateWith(existing, true);
+        // Coordinator starts with v1 as active — matching the metadata, so no rotation yet.
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        // onClusterStateChanged fires first while cachedSettings still reflects the old active password (v1).
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        // reload() now delivers new settings (v2 active). It must immediately detect the mismatch and submit the rotation.
+        MockSecureSettings rotated = new MockSecureSettings();
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
+        coordinator.reload(Settings.builder().setSecureSettings(rotated).build());
 
         verify(taskQueue).submitTask(
             eq("rotate-project-encryption-key-password"),

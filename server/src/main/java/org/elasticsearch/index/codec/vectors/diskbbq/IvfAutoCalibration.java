@@ -7,11 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.MergeCalibrationContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -145,7 +149,7 @@ public class IvfAutoCalibration {
         float avgOversample = (float) (oversampleWeightedSum / totalDocs);
         boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
 
-        logger.info(
+        logger.debug(
             "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] "
                 + "input segments [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
             bestEncoding,

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 
 /**
  * Implemented by {@link org.apache.lucene.codecs.KnnVectorsReader} implementations that

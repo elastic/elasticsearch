@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -29,6 +29,7 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.*;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

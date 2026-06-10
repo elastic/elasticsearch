@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -16,6 +16,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +35,7 @@ public class IvfQueryConfigResolver {
     private final float mappingRescoreOversample;
     private final Float queryOversample;
 
-    IvfQueryConfigResolver(
+    public IvfQueryConfigResolver(
         boolean autoCalibrate,
         boolean mappingUsePrecondition,
         int quantBits,

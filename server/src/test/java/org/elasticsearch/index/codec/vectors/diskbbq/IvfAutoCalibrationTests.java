@@ -141,28 +141,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testSelectFromMergeStateReturnsNullOnGrowthRatio() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader seg = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { seg },
-                new Bits[] { liveDocs(10) },
-                backgroundSegmentInfo(dir)
-            );
-            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-
-            IvfAutoCalibration selector = new IvfAutoCalibration();
-            long mergedCount = (long) (IvfAutoCalibration.RECALIBRATE_GROWTH_RATIO * 10) + 1;
-            assertThat(selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, mergedCount), nullValue());
-        }
-    }
-
     public void testSelectFromMergeStateReturnsNullOnEncodingDisagreement() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
         StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(

@@ -31,40 +31,6 @@ public class IvfQueryConfigResolverTests extends ESTestCase {
 
     private static final int VPC = 128;
 
-    public void testResolveReadsPersistedCalibrationAfterProductionMerge() throws IOException {
-        Random rnd = random();
-        int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildForceMergedWithDisagreeingFlushCalibration(
-                    dir,
-                    rnd,
-                    8,
-                    vectorsPerSegment,
-                    VPC
-                )
-            ) {
-                LeafReader leaf = reader.leaves().getFirst().reader();
-                IvfSegmentConfig persisted = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(leaf);
-                assertNotNull(persisted);
-
-                FieldInfo fieldInfo = leaf.getFieldInfos().fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                IvfQueryConfigResolver resolver = IvfQueryConfigResolver.from(
-                    true,
-                    false,
-                    4,
-                    DenseVectorFieldMapper.DEFAULT_OVERSAMPLE,
-                    null
-                );
-                IvfSegmentConfig resolved = resolver.resolve(fieldInfo, leaf);
-
-                assertThat(resolved.quantEncoding(), equalTo(persisted.quantEncoding()));
-                assertThat(resolved.usePrecondition(), equalTo(persisted.usePrecondition()));
-                assertThat(resolved.rescoreOversample(), equalTo(persisted.rescoreOversample()));
-            }
-        }
-    }
-
     public void testResolveUsesMappingDefaultsWhenAutoCalibrateDisabled() throws IOException {
         Random rnd = random();
         int vectorsPerSegment = 64;

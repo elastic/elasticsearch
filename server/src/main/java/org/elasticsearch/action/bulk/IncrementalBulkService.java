@@ -225,7 +225,11 @@ public class IncrementalBulkService {
 
             if (bulkActionLevelFailure != null
                 || bulkSessionTask.notifyIfCancelled(
-                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
+                    ActionListener.wrap(
+                        ignored -> {},
+                        // Cancellation is not global failure.
+                        exception -> handleBulkFailure(false, exception)
+                    )
                 )) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -270,7 +274,14 @@ public class IncrementalBulkService {
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
-            if (bulkActionLevelFailure != null) {
+            if (bulkActionLevelFailure != null
+                || bulkSessionTask.notifyIfCancelled(
+                    ActionListener.wrap(
+                        ignored -> {},
+                        // Cancellation is not global failure.
+                        exception -> handleBulkFailure(false, exception)
+                    )
+                )) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
             } else {

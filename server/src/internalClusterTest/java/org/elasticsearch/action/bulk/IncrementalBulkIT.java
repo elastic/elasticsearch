@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
@@ -50,6 +51,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
@@ -535,8 +537,51 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     public void testCancellableIncrementBulkServiceHandler() throws Exception {
 
-        // Test Case 1: Cancellation arrive before the first client.Bulk
-        // Verify no client.Bulk is executed.
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+
+        try (Releasable ignored = executorService::shutdown) {
+            String index = "test";
+            createIndex(index);
+
+            // First handler.addItems() comes from test thread.
+            // Subsequent handler.addItems() comes from writer coordination.
+            String randomNodeName = internalCluster().getRandomNodeName();
+            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
+            IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, randomNodeName);
+
+            AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+
+            IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+            handler.cancel("before-first-addItems()", () -> {});
+
+            int numberOfChunks = randomIntBetween(5, 10);
+
+            for (int i = 0; i < numberOfChunks; i++) {
+                refCounted.incRef();
+                IndexingPressureStats before = indexingPressure.stats();
+                assertThat(before.getCurrentCoordinatingOps(), is(0L));
+                assertThat(before.getCurrentCoordinatingBytes(), is(0L));
+
+                handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> {});
+
+                IndexingPressureStats after = indexingPressure.stats();
+                assertThat(after.getCurrentCoordinatingOps(), is(0L));
+                assertThat(after.getCurrentCoordinatingBytes(), is(0L));
+
+            }
+
+            refCounted.incRef();
+            handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
+            IndexingPressureStats after = indexingPressure.stats();
+            assertThat(after.getCurrentCoordinatingOps(), is(0L));
+            assertThat(after.getCurrentCoordinatingBytes(), is(0L));
+            BulkResponse bulkResponse = future.actionGet();
+
+            bulkResponse.iterator().next();
+            handler.close();
+        }
 
     }
 

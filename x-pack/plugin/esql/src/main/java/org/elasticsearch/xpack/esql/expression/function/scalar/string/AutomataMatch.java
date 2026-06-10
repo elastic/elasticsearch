@@ -31,7 +31,7 @@ public class AutomataMatch {
     public static ExpressionEvaluator.Factory toEvaluator(Source source, ExpressionEvaluator.Factory field, Automaton utf32Automaton) {
         /*
          * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
-         * we couldn’t get a nice toDot - so we call UTF32ToUTF8 ourselves.
+         * we couldn't get a nice toDot - so we call UTF32ToUTF8 ourselves.
          */
         Automaton automaton;
         try {

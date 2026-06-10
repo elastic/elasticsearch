@@ -34,8 +34,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * The function that checks for the absence of a field in the output result.
- * An absence means that the input expression does not yield a non-null value.
+ * Returns true if the input expression yields no non-null values within the current aggregation context.
+ * Otherwise it returns false.
  */
 public class Absent extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Absent", Absent::new);
@@ -46,8 +46,6 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns true if the input expression yields no non-null values within the current aggregation context. "
-            + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = {

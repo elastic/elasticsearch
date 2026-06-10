@@ -28,6 +28,9 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Returns current date and time.
+ */
 public class Now extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Now", Now::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Now.class)
@@ -38,7 +41,6 @@ public class Now extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "date",
-        description = "Returns current date and time.",
         examples = {
             @Example(file = "date", tag = "docsNow"),
             @Example(file = "date", tag = "docsNowWhere", description = "To retrieve logs from the last hour:") }

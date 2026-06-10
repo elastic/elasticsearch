@@ -2,7 +2,9 @@
 
 ## Description
 
-Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. If `startTimestamp` is later than the `endTimestamp`, negative values are returned.
+Subtract the second argument from the third argument and return their difference
+in multiples of the unit specified in the first argument.
+If the second argument (start) is greater than the third argument (end), then negative values are returned.
 
 **Datetime difference units**
 
@@ -22,8 +24,8 @@ Subtracts the `startTimestamp` from the `endTimestamp` and returns the differenc
 | microsecond | microseconds, mcs |
 | nanosecond | nanoseconds, ns |
 
-Note that while there is an overlap between the function’s supported units and
-{{esql}}’s supported time span literals, these sets are distinct and not
+Note that while there is an overlap between the function's supported units and
+{{esql}}'s supported time span literals, these sets are distinct and not
 interchangeable. Similarly, the supported abbreviations are conveniently shared
 with implementations of this function in other established products and not
 necessarily common with the date-time nomenclature used by {{es}}.

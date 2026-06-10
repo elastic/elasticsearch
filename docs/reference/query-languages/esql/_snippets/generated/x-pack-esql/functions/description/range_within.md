@@ -2,5 +2,7 @@
 
 ## Description
 
-Returns true if the first argument is [within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) the second argument. Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.
+Returns true if the first argument is
+[within](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query)
+the second argument. Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.
 

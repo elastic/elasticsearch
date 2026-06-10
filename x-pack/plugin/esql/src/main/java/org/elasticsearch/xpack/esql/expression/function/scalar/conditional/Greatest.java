@@ -38,7 +38,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Returns the maximum value of multiple columns.
+ * Returns the maximum value from multiple columns. This is similar to {@link MvMax}
+ * except it is intended to run on multiple columns at once.
  */
 public class Greatest extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Greatest", Greatest::new);
@@ -74,8 +75,6 @@ public class Greatest extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
-        description = "Returns the maximum value from multiple columns. This is similar to <<esql-mv_max>>\n"
-            + "except it is intended to run on multiple columns at once.",
         note = "When run on `keyword` or `text` fields, this returns the last string in alphabetical order. "
             + "When run on `boolean` columns this will return `true` if any values are `true`.",
         examples = @Example(file = "math", tag = "greatest")

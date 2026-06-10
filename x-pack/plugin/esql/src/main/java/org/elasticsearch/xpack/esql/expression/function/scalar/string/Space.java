@@ -37,17 +37,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
+/**
+ * Returns a string made of {@code number} spaces.
+ */
 public class Space extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Space", Space::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Space.class).unary(Space::new).name("space");
 
     private static final long MAX_LENGTH = MB.toBytes(1);
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Returns a string made of `number` spaces.",
-        examples = @Example(file = "string", tag = "space")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "space"))
     public Space(
         Source source,
         @Param(name = "number", type = { "integer" }, description = "Number of spaces in result.") Expression number

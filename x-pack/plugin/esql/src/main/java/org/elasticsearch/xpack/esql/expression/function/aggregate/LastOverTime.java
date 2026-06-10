@@ -44,6 +44,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * Calculates the latest value of a field, where recency determined by the {@code @timestamp} field.
+ */
 public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -78,7 +81,6 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             "flattened",
             "ip",
             "keyword" },
-        description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

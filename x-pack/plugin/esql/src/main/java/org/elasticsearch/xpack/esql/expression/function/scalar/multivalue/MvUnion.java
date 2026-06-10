@@ -42,9 +42,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Returns the union of values from two multi-valued fields (all unique values from both inputs).
- * Example:
- *   Given set A = {"a","b","c"} and set B = {"b","c","d"}, MV_UNION(A, B) returns {"a", "b", "c", "d"}
+ * Returns all unique values from the combined input fields (set union). Null values are treated as
+ * empty sets; returns {@code null} only if both fields are null.
  */
 public class MvUnion extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvUnion", MvUnion::new);
@@ -73,8 +72,6 @@ public class MvUnion extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns all unique values from the combined input fields (set union). "
-            + "Null values are treated as empty sets; returns `null` only if both fields are null.",
         preview = true,
         examples = {
             @Example(file = "mv_union", tag = "testMvUnionWithIntValues"),

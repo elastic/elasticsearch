@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
+/**
+ * Returns a new string representing the input string converted to upper case.
+ */
 public class ToUpper extends ChangeCase {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToUpper", ToUpper::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToUpper.class).unaryConfig(ToUpper::new).name("to_upper");
@@ -30,11 +33,7 @@ public class ToUpper extends ChangeCase {
         "esql_serialize_source_functions_warnings"
     );
 
-    @FunctionInfo(
-        returnType = { "keyword" },
-        description = "Returns a new string representing the input string converted to upper case.",
-        examples = @Example(file = "string", tag = "to_upper")
-    )
+    @FunctionInfo(returnType = { "keyword" }, examples = @Example(file = "string", tag = "to_upper"))
     public ToUpper(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
         String expression. If `null`, the function returns `null`. The input can be a single-valued column or expression,
         or a multi-valued column or expression {applies_to}`stack: ga 9.1.0`.

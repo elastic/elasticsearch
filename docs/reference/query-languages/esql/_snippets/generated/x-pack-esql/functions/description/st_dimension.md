@@ -2,5 +2,12 @@
 
 ## Description
 
-Returns the topological dimension of the supplied geometry. Points and multi-points return `0`, lines and multi-lines return `1`, polygons and multi-polygons return `2`, and geometry collections return the maximum dimension of their components.
+Returns the topological dimension of the geometry.
+Points and multi-points have dimension 0, lines and multi-lines have dimension 1,
+polygons and multi-polygons have dimension 2, and geometry collections return the
+maximum dimension of their components.
+The function `st_dimension` is defined in the
+[OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at
+[PostGIS:ST_Dimension](https://postgis.net/docs/ST_Dimension.html).
 

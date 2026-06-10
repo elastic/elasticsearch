@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
 
 /**
- * Counts how many {@code toUnit} values fit into one {@code fromUnit} interval for the given date.
+ * Counts how many {@code to_unit} values are contained in a single {@code from_unit} period for {@code date}.
  */
 public class DateUnitCount extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -63,7 +63,6 @@ public class DateUnitCount extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = "long",
-        description = "Counts how many `to_unit` values are contained in a single `from_unit` period for `date`.",
         examples = @Example(
             description = "Count the number of days in February for a timestamp using explicit units.",
             file = "date",

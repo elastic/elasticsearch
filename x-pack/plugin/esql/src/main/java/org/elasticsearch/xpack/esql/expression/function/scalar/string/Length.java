@@ -33,13 +33,15 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Returns the character length of a string.
+ */
 public class Length extends UnaryScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Length", Length::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Length.class).unary(Length::new).name("length");
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Returns the character length of a string.",
         note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "length")
     )

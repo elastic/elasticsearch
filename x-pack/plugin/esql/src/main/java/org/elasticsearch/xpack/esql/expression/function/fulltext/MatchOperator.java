@@ -22,10 +22,18 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.List;
 
 /**
- * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
- * This is used as a convenience for generating documentation and for error message purposes - it’s  a way to represent
- * the match operator in the function syntax.
- * Serialization is provided as a way to pass the corresponding tests - serialization must be done to a Match class.
+ * Use the match operator ({@code :}) to perform a
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/match-query">match query</a>
+ * on the specified field. Using {@code :} is equivalent to using the {@code match} query in the
+ * Elasticsearch Query DSL.
+ *
+ * The match operator is equivalent to the {@link Match} function.
+ *
+ * For using the function syntax, or adding
+ * <a href="https://www.elastic.co/docs/reference/query-languages/query-dsl/match-query#match-field-params">match query parameters</a>,
+ * you can use the {@link Match} function.
+ *
+ * {@code :} returns true if the provided query matches the row.
  */
 public class MatchOperator extends Match implements ConfigurationAware {
 
@@ -35,16 +43,6 @@ public class MatchOperator extends Match implements ConfigurationAware {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        description = """
-            Use the match operator (`:`) to perform a <<query-dsl-match-query,match query>> on the specified field.
-            Using `:` is equivalent to using the `match` query in the Elasticsearch Query DSL.
-
-            The match operator is equivalent to the <<esql-match,match function>>.
-
-            For using the function syntax, or adding <<match-field-params,match query parameters>>, you can use the
-            <<esql-match,match function>>.
-
-            `:` returns true if the provided query matches the row.""",
         examples = {
             @Example(
                 file = "match-operator",

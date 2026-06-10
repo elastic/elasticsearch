@@ -79,14 +79,13 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 
 /**
- * Decay a numeric, spatial or date type value based on the distance of it to an origin.
+ * Calculates a relevance score that decays based on the distance of a numeric, spatial or date type
+ * value from a target origin, using configurable decay functions.
  *
- * This function uses the same {@link ScoreScriptUtils} implementations as Painless scripts,
- * ensuring consistent decay calculations across ES|QL and script contexts. The decay
- * functions support linear, exponential, and gaussian decay types for:
- * - Numeric types (int, long, double, unsigned_long)
- * - Spatial types (geo_point, cartesian_point)
- * - Temporal types (datetime, date_nanos)
+ * <h2>Implementation</h2>
+ * Uses the same {@link ScoreScriptUtils} implementations as Painless scripts, ensuring consistent
+ * decay calculations across ES|QL and script contexts. Supports linear, exponential, and gaussian
+ * decay types for numeric, spatial, and temporal types.
  */
 public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
@@ -132,8 +131,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        description = "Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value "
-            + "from a target origin, using configurable decay functions.",
         detailedDescription = """
             `DECAY` calculates a score between 0 and 1 based on how far a field value is from a specified origin point (called distance).
             The distance can be a numeric distance, spatial distance or temporal distance depending on the specific data type.

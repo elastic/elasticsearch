@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Appends values to a multi-value
+ * Concatenates values of two multi-value fields.
  */
 public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAppend", MvAppend::new);
@@ -77,7 +77,6 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
-        description = "Concatenates values of two multi-value fields.",
         examples = { @Example(file = "date", tag = "mv_append_date") }
     )
     public MvAppend(

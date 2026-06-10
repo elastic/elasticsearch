@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
+Returns the sign of the given number.
+It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
 

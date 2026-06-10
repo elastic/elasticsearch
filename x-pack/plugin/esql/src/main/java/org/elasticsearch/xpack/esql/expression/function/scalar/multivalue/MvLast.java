@@ -35,7 +35,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Converts a multivalue expression into a single valued column containing the last value. This is
+ * most useful when reading from a function that emits multivalued columns in a known order like
+ * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.Split}.
  */
 public class MvLast extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);
@@ -64,15 +66,11 @@ public class MvLast extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
-        description = """
-            Converts a multivalue expression into a single valued column containing the last
-            value. This is most useful when reading from a function that emits multivalued
-            columns in a known order like <<esql-split>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
+            underlying storage is not guaranteed. It is **frequently** ascending, but don't
             rely on that. If you need the maximum value use <<esql-mv_max>> instead of
-            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn’t a
+            `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a
             performance benefit to `MV_LAST`.""",
         examples = @Example(file = "string", tag = "mv_last")
     )

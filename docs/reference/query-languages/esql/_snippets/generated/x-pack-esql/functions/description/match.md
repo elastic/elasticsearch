@@ -2,7 +2,10 @@
 
 ## Description
 
-Use `MATCH` to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on the specified field. Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
+Use `MATCH` to perform a
+[match query](/reference/query-languages/query-dsl/query-dsl-match-query.md)
+on the specified field.
+Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.
 
 Match can be used on fields from the text family like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md),
 as well as other field types like keyword, boolean, dates, and numeric types.

@@ -38,11 +38,7 @@ public class MvAvg extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAvg", MvAvg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAvg.class).unary(MvAvg::new).name("mv_avg");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Converts a multivalued field into a single valued field containing the average of all of the values.",
-        examples = @Example(file = "math", tag = "mv_avg")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "math", tag = "mv_avg"))
     public MvAvg(
         Source source,
         @Param(

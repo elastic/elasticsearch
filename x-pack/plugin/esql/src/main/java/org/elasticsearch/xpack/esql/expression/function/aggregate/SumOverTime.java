@@ -37,7 +37,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 /**
- * Similar to {@link Sum}, but it is used to calculate the sum of values over a time series from the given field.
+ * Calculates the sum over time value of a field.
  */
 public class SumOverTime extends TimeSeriesAggregateFunction
     implements
@@ -61,7 +61,6 @@ public class SumOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = { "double", "long" },
-        description = "Calculates the sum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

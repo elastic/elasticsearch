@@ -81,6 +81,29 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
+    /**
+     * Verify that {@code {@link SpatialIntersects}} resolves to the correct {@code ST_INTERSECTS} link
+     * even though {@code camelToSnake("SpatialIntersects")} yields {@code spatial_intersects} rather than
+     * the registered function name {@code st_intersects}.
+     */
+    public void testJavadocLinkSpatialIntersects() {
+        String text = "This is the inverse of the {@link SpatialIntersects} function.";
+        String expected = "This is the inverse of the [`ST_INTERSECTS`]("
+            + ESQL
+            + "/functions-operators/spatial-functions/st_intersects.md) function.";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
+    /**
+     * Verify that {@code {@link CIDRMatch}} resolves correctly.
+     * {@code camelToSnake("CIDRMatch")} yields {@code c_i_d_r_match} which does not match.
+     */
+    public void testJavadocLinkCIDRMatch() {
+        String text = "see also {@link CIDRMatch}";
+        String expected = "see also [`CIDR_MATCH`](" + ESQL + "/functions-operators/ip-functions/cidr_match.md)";
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
     public void testOperatorLink() {
         String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
         String expected = """
@@ -525,10 +548,12 @@ public class DocsV3SupportTests extends ESTestCase {
         return callbacks;
     }
 
+    /**
+     * A test function with map parameters.
+     */
     public static class TestClassWithMapParam extends Function implements OptionalArgument {
         @FunctionInfo(
             returnType = "keyword",
-            description = "A test function with map parameters.",
             examples = { @Example(file = "stats", tag = "count") },
             appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
             preview = true
@@ -602,10 +627,12 @@ public class DocsV3SupportTests extends ESTestCase {
         }
     }
 
+    /**
+     * Returns the total number (count) of input values.
+     */
     public static class TestClass extends Function {
         @FunctionInfo(
             returnType = "long",
-            description = "Returns the total number (count) of input values.",
             type = FunctionType.AGGREGATE,
             examples = {
                 @Example(file = "stats", tag = "count"),
@@ -665,10 +692,12 @@ public class DocsV3SupportTests extends ESTestCase {
         }
     }
 
+    /**
+     * A preview test function.
+     */
     public static class TestPreviewClass extends Function {
         @FunctionInfo(
             returnType = "long",
-            description = "A preview test function.",
             examples = { @Example(file = "stats", tag = "count") },
             appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
             preview = true

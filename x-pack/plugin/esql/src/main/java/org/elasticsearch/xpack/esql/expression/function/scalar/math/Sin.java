@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Sine trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Sine_and_cosine">sine</a> of an angle.
  */
 public class Sin extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sin", Sin::new);
@@ -35,11 +35,7 @@ public class Sin extends AbstractTrigonometricFunction {
         .example("sin(some_metric)")
         .name("sin");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Sine_and_cosine[sine] of an angle.",
-        examples = @Example(file = "floats", tag = "sin")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "sin"))
     public Sin(
         Source source,
         @Param(

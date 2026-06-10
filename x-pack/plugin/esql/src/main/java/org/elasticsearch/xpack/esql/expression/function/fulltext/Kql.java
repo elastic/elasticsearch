@@ -59,7 +59,7 @@ import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.DEFAULT_FIELD_FI
 import static org.elasticsearch.xpack.kql.query.KqlQueryBuilder.TIME_ZONE_FIELD;
 
 /**
- * Full text function that performs a {@link KqlQuery} .
+ * Performs a KQL query. Returns true if the provided KQL query string matches the row.
  */
 public class Kql extends FullTextFunction implements OptionalArgument, ConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Kql", Kql::readFrom);
@@ -82,7 +82,6 @@ public class Kql extends FullTextFunction implements OptionalArgument, Configura
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
         detailedDescription = """
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

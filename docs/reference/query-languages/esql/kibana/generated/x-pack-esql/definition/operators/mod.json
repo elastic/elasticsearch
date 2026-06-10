@@ -4,7 +4,7 @@
   "operator" : "%",
   "name" : "mod",
   "titleName" : "modulo",
-  "description" : "Divide one number by another and return the remainder. If either field is multivalued then the result is `null`.",
+  "description" : "Divide one number by another and return the remainder. If either field is\nmultivalued then the result is `null`.",
   "signatures" : [
     {
       "params" : [

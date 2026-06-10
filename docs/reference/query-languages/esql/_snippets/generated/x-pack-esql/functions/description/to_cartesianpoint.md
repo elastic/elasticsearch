@@ -2,5 +2,7 @@
 
 ## Description
 
-Converts an input value to a `cartesian_point` value. A string will only be successfully converted if it respects the [WKT Point](https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry) format.
+Converts an input value to a `cartesian_point` value.
+A string will only be successfully converted if it respects the
+[WKT Point](https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry) format.
 

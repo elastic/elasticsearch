@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns whether the first geometry contains the second geometry. This is the inverse of the [ST_WITHIN](/reference/query-languages/esql/functions-operators/spatial-functions/st_within.md) function.
+Returns whether the first geometry contains the second geometry.
+This is the inverse of the [ST_WITHIN](/reference/query-languages/esql/functions-operators/spatial-functions/st_within.md) function.
 

@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the direction type (inbound, outbound, internal, external) given a source IP address, destination IP address, and a list of internal networks.
+Returns the direction type (inbound, outbound, internal, external) given
+a source IP address, destination IP address, and a list of internal networks.
 

@@ -31,6 +31,10 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * The value that is greater than half of all values and less than half of all values, also known as the 50%
+ * {@link Percentile}.
+ */
 public class Median extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Median", Median::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Median.class).unary(Median::new).name("median");
@@ -38,8 +42,6 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     // TODO: Add the compression parameter
     @FunctionInfo(
         returnType = "double",
-        description = "The value that is greater than half of all values and less than half of all values, "
-            + "also known as the 50% <<esql-percentile>>.",
         note = "Like <<esql-percentile>>, `MEDIAN` is <<esql-percentile-approximate,usually approximate>>.",
         appendix = """
             ::::{warning}

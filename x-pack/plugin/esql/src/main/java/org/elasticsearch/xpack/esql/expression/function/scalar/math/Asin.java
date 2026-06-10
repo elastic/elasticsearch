@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse cosine trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">arcsine</a> of the input numeric expression
+ * as an angle, expressed in radians.
  */
 public class Asin extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Asin", Asin::new);
@@ -35,12 +36,7 @@ public class Asin extends AbstractTrigonometricFunction {
         .example("asin(some_metric)")
         .name("asin");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arcsine] of the input\n"
-            + "numeric expression as an angle, expressed in radians.",
-        examples = @Example(file = "floats", tag = "asin")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "asin"))
     public Asin(
         Source source,
         @Param(

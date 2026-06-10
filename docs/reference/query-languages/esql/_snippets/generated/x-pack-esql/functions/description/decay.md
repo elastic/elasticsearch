@@ -2,7 +2,8 @@
 
 ## Description
 
-Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.
+Calculates a relevance score that decays based on the distance of a numeric, spatial or date type
+value from a target origin, using configurable decay functions.
 
 `DECAY` calculates a score between 0 and 1 based on how far a field value is from a specified origin point (called distance).
 The distance can be a numeric distance, spatial distance or temporal distance depending on the specific data type.

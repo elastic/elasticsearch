@@ -37,7 +37,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Locate function, given a string 'a' and a substring 'b', it returns the index of the first occurrence of the substring 'b' in 'a'.
+ * Returns an integer that indicates the position of a keyword substring within another string. Returns {@code 0} if the substring
+ * cannot be found. Note that string positions start from {@code 1}.
  */
 public class Locate extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Locate", Locate::new);
@@ -47,10 +48,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(returnType = "integer", description = """
-        Returns an integer that indicates the position of a keyword substring within another string.
-        Returns `0` if the substring cannot be found.
-        Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))
+    @FunctionInfo(returnType = "integer", examples = @Example(file = "string", tag = "locate"))
     public Locate(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,

@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
 /**
- * Sum all values of a field in matching documents.
+ * The sum of a numeric expression.
  */
 public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
@@ -93,13 +93,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
-        description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "sum"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate "
-                    + "the sum of each employee’s maximum salary changes, apply the "
+                    + "the sum of each employee's maximum salary changes, apply the "
                     + "`MV_MAX` function to each row and then sum the results",
                 file = "stats",
                 tag = "docsStatsSumNestedExpression"

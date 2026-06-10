@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.util.List;
 
 /**
- * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
+ * Calculates the percentile over time of a field.
  */
 public class PercentileOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, ToAggregator {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(PercentileOverTime.class)
@@ -42,7 +42,6 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

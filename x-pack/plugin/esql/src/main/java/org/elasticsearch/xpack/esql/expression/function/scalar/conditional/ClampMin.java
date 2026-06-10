@@ -38,7 +38,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Clamps input values to have a lower limit of min.
+ * Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.
  */
 public class ClampMin extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
@@ -53,7 +53,6 @@ public class ClampMin extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-        description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )

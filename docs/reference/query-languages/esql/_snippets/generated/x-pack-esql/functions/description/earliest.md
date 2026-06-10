@@ -2,5 +2,6 @@
 
 ## Description
 
-An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where the sort field (the second parameter) is implicit and is set to `@timestamp`.
+An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where the sort field (the second parameter) is implicit and is set to
+`@timestamp`.
 

@@ -29,6 +29,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 
+/**
+ * Converts an input value to a {@code cartesian_point} value.
+ * A string will only be successfully converted if it respects the
+ * <a href="https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry">WKT Point</a> format.
+ */
 public class ToCartesianPoint extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -45,14 +50,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
         Map.entry(TEXT, ToCartesianPointFromStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(
-        returnType = "cartesian_point",
-        description = """
-            Converts an input value to a `cartesian_point` value.
-            A string will only be successfully converted if it respects the
-            {wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.""",
-        examples = @Example(file = "spatial", tag = "to_cartesianpoint-str")
-    )
+    @FunctionInfo(returnType = "cartesian_point", examples = @Example(file = "spatial", tag = "to_cartesianpoint-str"))
     public ToCartesianPoint(
         Source source,
         @Param(

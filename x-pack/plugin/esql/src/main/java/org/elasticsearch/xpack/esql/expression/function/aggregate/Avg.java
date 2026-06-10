@@ -35,6 +35,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 
+/**
+ * The average of a numeric field.
+ */
 public class Avg extends AggregateFunction implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Avg.class).unary(Avg::new).name("avg");
@@ -47,7 +50,6 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
 
     @FunctionInfo(
         returnType = "double",
-        description = "The average of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "avg"),

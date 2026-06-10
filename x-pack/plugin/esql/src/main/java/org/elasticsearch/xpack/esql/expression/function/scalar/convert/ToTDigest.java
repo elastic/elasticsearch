@@ -35,6 +35,9 @@ import java.util.Map;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 
+/**
+ * Converts an untyped histogram to a TDigest, assuming the values are centroids.
+ */
 public class ToTDigest extends AbstractConvertFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -62,7 +65,6 @@ public class ToTDigest extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "tdigest",
-        description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
         examples = { @Example(file = "histogram", tag = "to_tdigest") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

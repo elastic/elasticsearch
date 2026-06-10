@@ -2,5 +2,7 @@
 
 ## Description
 
-Returns true if the two arguments overlap. The relation is symmetric — argument order does not matter. Supports any combination of `date` and `date_range`. When both arguments are `date`, this is equivalent to `a == b`.
+Returns true if the two arguments overlap. The relation is symmetric - argument order does not matter.
+Supports any combination of `date` and `date_range`.
+When both arguments are `date`, this is equivalent to `a == b`.
 

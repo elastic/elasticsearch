@@ -12,7 +12,7 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | 2147483648 | 2147483648.2 | foo | 2147483648 | 2147483648 | null |
 
 
-Note in this example the last conversion of the string isn’t possible.
+Note in this example the last conversion of the string isn't possible.
 When this happens, the result is a `null` value.
 In this case a _Warning_ header is added to the response.
 The header will provide information on the source of the failure:

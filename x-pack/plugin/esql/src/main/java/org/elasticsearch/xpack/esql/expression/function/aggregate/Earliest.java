@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * An alias for {@link First} where the sort field (second parameter) is set to {@code @timestamp}. This is not a time series function.
+ * An alias for {@link First} where the sort field (the second parameter) is implicit and is set to
+ * {@code @timestamp}.
  */
 public class Earliest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Earliest";
@@ -59,9 +60,6 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "tdigest",
             "unsigned_long",
             "version" },
-        description = """
-            An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where
-            the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_earliest_latest", tag = "earliest")
     )

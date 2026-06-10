@@ -2,7 +2,9 @@
 
 ## Description
 
-Converts a multivalued field into a single valued field containing the median absolute deviation.  It is calculated as the median of each data point’s deviation from the median of the entire sample. That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`.
+Converts a multivalued field into a single valued field containing the median absolute deviation.
+It is calculated as the median of each data point's deviation from the median of the entire sample.
+That is, for a random variable `X`, the median absolute deviation is `median(|median(X) - X|)`.
 
 ::::{note}
 If the field has an even number of values, the medians will be calculated as the average of the middle two values. If the value is not a floating point number, the averages are rounded towards 0.

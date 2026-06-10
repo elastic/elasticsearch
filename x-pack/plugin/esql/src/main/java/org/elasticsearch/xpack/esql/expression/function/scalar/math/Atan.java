@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse cosine trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">arctangent</a> of the input numeric
+ * expression as an angle, expressed in radians.
  */
 public class Atan extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Atan", Atan::new);
@@ -35,12 +36,7 @@ public class Atan extends AbstractTrigonometricFunction {
         .example("atan(some_metric)")
         .name("atan");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of the input\n"
-            + "numeric expression as an angle, expressed in radians.",
-        examples = @Example(file = "floats", tag = "atan")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "atan"))
     public Atan(
         Source source,
         @Param(

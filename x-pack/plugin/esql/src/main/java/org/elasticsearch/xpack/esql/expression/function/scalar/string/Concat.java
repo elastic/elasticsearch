@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * Join strings.
+ * Concatenates two or more strings.
  */
 public class Concat extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat", Concat::new);
@@ -46,11 +46,7 @@ public class Concat extends EsqlScalarFunction {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Concatenates two or more strings.",
-        examples = @Example(file = "eval", tag = "docsConcat")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "eval", tag = "docsConcat"))
     public Concat(
         Source source,
         @Param(name = "string1", type = { "keyword", "text" }, description = "Strings to concatenate.") Expression first,

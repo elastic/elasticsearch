@@ -2,5 +2,6 @@
 
 ## Description
 
-Converts a number in [radians](https://en.wikipedia.org/wiki/Radian) to [degrees](https://en.wikipedia.org/wiki/Degree_(angle)).
+Converts a number in [radians](https://en.wikipedia.org/wiki/Radian)
+to [degrees](https://en.wikipedia.org/wiki/Degree_(angle)).
 

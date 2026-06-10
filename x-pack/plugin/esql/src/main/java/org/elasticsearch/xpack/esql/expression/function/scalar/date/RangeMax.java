@@ -31,6 +31,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
+/**
+ * Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.
+ */
 public class RangeMax extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RangeMax", RangeMax::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(RangeMax.class).unary(RangeMax::new).name("range_max");
@@ -39,7 +42,6 @@ public class RangeMax extends UnaryScalarFunction {
         returnType = "date",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns the maximum (end) value of a date_range. For a date_range [x, y), it returns y.",
         examples = @Example(file = "date_range", tag = "range_max")
     )
     public RangeMax(

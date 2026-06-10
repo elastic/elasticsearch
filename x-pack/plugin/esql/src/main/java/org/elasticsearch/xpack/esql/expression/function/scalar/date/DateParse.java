@@ -55,6 +55,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
+/**
+ * Returns a date by parsing the second argument using the format specified in the first argument.
+ */
 public class DateParse extends EsqlConfigurationFunction implements TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -72,11 +75,7 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
     private final Expression second;
     private final Expression third;
 
-    @FunctionInfo(
-        returnType = "date",
-        description = "Returns a date by parsing the second argument using the format specified in the first argument.",
-        examples = @Example(file = "docs", tag = "dateParse")
-    )
+    @FunctionInfo(returnType = "date", examples = @Example(file = "docs", tag = "dateParse"))
     public DateParse(
         Source source,
         @Param(name = "datePattern", type = { "keyword", "text" }, description = """

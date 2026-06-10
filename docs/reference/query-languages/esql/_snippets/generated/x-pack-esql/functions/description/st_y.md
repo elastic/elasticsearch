@@ -2,5 +2,9 @@
 
 ## Description
 
-Extracts the `y` coordinate from the supplied point. If the point is of type `geo_point` this is equivalent to extracting the `latitude` value.
+Extracts the y-coordinate from a point geometry.
+For cartesian geometries, the y-coordinate is the second coordinate.
+For geographic geometries, the y-coordinate is the latitude.
+The function `st_y` is defined in the [OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at [PostGIS:ST_Y](https://postgis.net/docs/ST_Y.html).
 

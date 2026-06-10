@@ -2,5 +2,9 @@
 
 ## Description
 
-Computes the distance between two points. For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates. For geographic geometries, this is the circular distance along the great circle in meters.
+Computes the distance between two points.
+For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
+For geographic geometries, this is the circular distance along the great circle in meters.
+The function `st_distance` is defined in the [OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively it is described in PostGIS documentation at [PostGIS:ST_Distance](https://postgis.net/docs/ST_Distance.html).
 

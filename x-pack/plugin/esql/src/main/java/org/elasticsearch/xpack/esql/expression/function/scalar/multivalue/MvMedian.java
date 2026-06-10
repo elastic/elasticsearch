@@ -37,7 +37,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigInteger
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 
 /**
- * Reduce a multivalued field to a single valued field containing the median of the values.
+ * Converts a multivalued field into a single valued field containing the
+ * <a href="https://en.wikipedia.org/wiki/Median">median</a> value.
  */
 public class MvMedian extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMedian", MvMedian::new);
@@ -45,7 +46,6 @@ public class MvMedian extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the {wikipedia}/Median[median] value.",
         examples = {
             @Example(file = "math", tag = "mv_median"),
             @Example(

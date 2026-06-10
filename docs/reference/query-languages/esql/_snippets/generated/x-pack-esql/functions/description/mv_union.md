@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns all unique values from the combined input fields (set union). Null values are treated as empty sets; returns `null` only if both fields are null.
+Returns all unique values from the combined input fields (set union). Null values are treated as
+empty sets; returns `null` only if both fields are null.
 

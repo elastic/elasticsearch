@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * The function that checks for the presence of a field in the output result.
- * Presence means that the input expression yields any non-null value.
+ * Returns true if the input expression yields any non-null values within the current aggregation context.
+ * Otherwise it returns false.
  */
 public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
@@ -47,8 +47,6 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns true if the input expression yields any non-null values within the current aggregation context. "
-            + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = {

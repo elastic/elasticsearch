@@ -2,5 +2,7 @@
 
 ## Description
 
-Returns the result of `d * 2 ^ scaleFactor`, Similar to Java's `scalb` function. Result is rounded as if performed by a single correctly rounded floating-point multiply to a member of the double value set.
+Returns the result of `d * 2 ^ scaleFactor`, similar to Java's `scalb` function.
+Result is rounded as if performed by a single correctly rounded floating-point multiply
+to a member of the double value set.
 

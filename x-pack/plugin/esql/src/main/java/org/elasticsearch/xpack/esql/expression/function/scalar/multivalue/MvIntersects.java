@@ -45,21 +45,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Function that takes two multivalued expressions and checks if any values of one expression(subset) are
- * present(equals) in the other (superset).
- * <p>
- * Given Set A = {"a","b","c"} and Set B = {"c","d"}, the relationship between first (row) and second (column) arguments is:
- * <ul>
- *     <li>A, B &rArr; true (A ∩ B is a non-empty set)</li>
- *     <li>B, A &rArr; true (A ∩ B is a non-empty set)</li>
- *     <li>A, A &rArr; true (A ∩ A is a non-empty set</li>
- *     <li>B, B &rArr; true (B ∩ B is a non-empty set</li>
- *     <li>A, null &rArr; false (A ∩ &empty; is an empty set)</li>
- *     <li>null, A &rArr; false (&empty; ∩ A is an empty set)</li>
- *     <li>B, null &rArr; false (B ∩ &empty; is an empty set)</li>
- *     <li>null, B &rArr; false (&empty; ∩ B  is an empty set)</li>
- *     <li>null, null &rArr; false (&empty; ∩ &empty; is an empty set)</li>
- * </ul>
+ * Checks if any value yielded by the second multivalue expression is present in the values yielded by the first multivalue
+ * expression. Returns a boolean. Null values are treated as an empty set.
  */
 public class MvIntersects extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -74,8 +61,6 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Checks if any value yielded by the second multivalue expression is present in the values yielded by "
-            + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
             @Example(file = "mv_intersects", tag = "mv_intersects"),
             @Example(file = "mv_intersects", tag = "mv_intersects_bothsides"),

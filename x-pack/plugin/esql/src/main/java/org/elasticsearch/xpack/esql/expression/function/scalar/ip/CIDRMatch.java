@@ -47,15 +47,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPA
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
 /**
- * This function takes a first parameter of type IP, followed by one or more parameters evaluated to a CIDR specification:
- * <ul>
- * <li>a string literal;</li>
- * <li>a field of type keyword;</li>
- * <li>a function outputting a keyword.</li>
- * </ul><p>
- * The function will match if the IP parameter is within any (not all) of the ranges defined by the provided CIDR specs.
- * <p>
- * Example: `| eval cidr="10.0.0.0/8" | where cidr_match(ip_field, "127.0.0.1/30", cidr)`
+ * Returns true if the provided IP is contained in one of the provided CIDR blocks.
  */
 public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -70,11 +62,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     private final Expression ipField;
     private final List<Expression> matches;
 
-    @FunctionInfo(
-        returnType = "boolean",
-        description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
-        examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
-    )
+    @FunctionInfo(returnType = "boolean", examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs"))
     public CIDRMatch(
         Source source,
         @Param(

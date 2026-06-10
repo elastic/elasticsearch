@@ -46,8 +46,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Extracts a value from a JSON string using a {@link JsonPath} subset.
- * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
+ * Extracts a value from a JSON string using a subset of
+ * <a href="https://datatracker.ietf.org/doc/rfc9535">JSONPath</a> syntax.
+ *
+ * <h2>Implementation</h2>
+ * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}. Uses a {@link JsonPath} subset.
  */
 public class JsonExtract extends EsqlScalarFunction {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
@@ -72,9 +75,6 @@ public class JsonExtract extends EsqlScalarFunction {
         returnType = "keyword",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        description = """
-            Extracts a value from a JSON string using a subset of
-            [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.""",
         detailedDescription = """
             Paths can use dot notation (`user.address.city`), bracket
             notation (`['user']['address']['city']`), or a mix of both

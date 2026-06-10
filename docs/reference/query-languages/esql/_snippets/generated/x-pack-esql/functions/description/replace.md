@@ -2,5 +2,6 @@
 
 ## Description
 
-The function substitutes in the string `str` any match of the regular expression `regex` with the replacement string `newStr`.
+The function substitutes in the string `str` any match of the regular expression `regex`
+with the replacement string `newStr`.
 

@@ -26,8 +26,8 @@ FROM employees
 | [1985-11-19T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-21T00:00:00.000Z] | 1985-11-01T00:00:00.000Z |
 
 
-The goal isn’t to provide **exactly** the target number of buckets,
-it’s to pick a range that people are comfortable with that provides at most the target number of buckets.
+The goal isn't to provide **exactly** the target number of buckets,
+it's to pick a range that people are comfortable with that provides at most the target number of buckets.
 
 Combine `BUCKET` with an [aggregation](/reference/query-languages/esql/functions-operators/aggregation-functions.md) to create a histogram:
 
@@ -49,8 +49,8 @@ FROM employees
 
 
 ::::{note}
-`BUCKET` does not create buckets that don’t match any documents.
-That’s why this example is missing `1985-03-01` and other dates.
+`BUCKET` does not create buckets that don't match any documents.
+That's why this example is missing `1985-03-01` and other dates.
 ::::
 
 Asking for more buckets can result in a smaller range.
@@ -126,7 +126,7 @@ FROM employees
 
 
 Unlike the earlier example that intentionally filters on a date range, you rarely want to filter on a numeric range.
-You have to find the `min` and `max` separately. {{esql}} doesn’t yet have an easy way to do that automatically.
+You have to find the `min` and `max` separately. {{esql}} doesn't yet have an easy way to do that automatically.
 
 The range can be omitted if the desired bucket size is known in advance. Simply
 provide it as the second argument:
@@ -205,7 +205,7 @@ FROM employees
 | 801.0 | 800.0 | 1052.0 | 1050.0 |
 
 Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
-aggregation’s [`offset`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to
+aggregation's [`offset`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to
 take into account how the language handles expressions within the `STATS` command: if these contain functions or
 arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
 compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,

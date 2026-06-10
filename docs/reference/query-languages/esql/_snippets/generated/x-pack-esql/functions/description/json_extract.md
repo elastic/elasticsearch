@@ -2,7 +2,8 @@
 
 ## Description
 
-Extracts a value from a JSON string using a subset of [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.
+Extracts a value from a JSON string using a subset of
+[JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.
 
 Paths can use dot notation (`user.address.city`), bracket
 notation (`['user']['address']['city']`), or a mix of both

@@ -35,6 +35,16 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.function.Predicate;
 
+/**
+ * Use {@code LIKE} to filter data based on string patterns using wildcards. {@code LIKE} usually
+ * acts on a field placed on the left-hand side of the operator, but it can also act on a constant
+ * (literal) expression. The right-hand side of the operator represents the pattern.
+ *
+ * The following wildcard characters are supported:
+ *
+ * * {@code *} matches zero or more characters.
+ * * {@code ?} matches one character.
+ */
 public class WildcardLike extends RegexMatch<WildcardPattern> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -45,16 +55,6 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
     @FunctionInfo(
         returnType = "boolean",
-        description = """
-            Use `LIKE` to filter data based on string patterns using wildcards. `LIKE`
-            usually acts on a field placed on the left-hand side of the operator, but it can
-            also act on a constant (literal) expression. The right-hand side of the operator
-            represents the pattern.
-
-            The following wildcard characters are supported:
-
-            * `*` matches zero or more characters.
-            * `?` matches one character.""",
 
         // we use an inline example here because ?pattern not supported in csv-spec test
         detailedDescription = """

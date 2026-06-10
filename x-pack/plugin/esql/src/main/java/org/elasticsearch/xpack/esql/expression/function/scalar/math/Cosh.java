@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Cosine hyperbolic function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Hyperbolic_functions">hyperbolic cosine</a> of a number.
  */
 public class Cosh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Cosh", Cosh::new);
@@ -35,11 +35,7 @@ public class Cosh extends AbstractTrigonometricFunction {
         .example("cosh(some_metric)")
         .name("cosh");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of a number.",
-        examples = @Example(file = "floats", tag = "cosh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "cosh"))
     public Cosh(
         Source source,
         @Param(

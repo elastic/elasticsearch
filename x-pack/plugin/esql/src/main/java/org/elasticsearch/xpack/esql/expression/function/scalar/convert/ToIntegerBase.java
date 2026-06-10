@@ -32,7 +32,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
-//
+/**
+ * Converts a string value to an integer using a specified numeric base (radix).
+ * A leading {@code 0x} prefix is allowed when the base is 16.
+ */
 public class ToIntegerBase extends EsqlScalarFunction {
 
     private static final TransportVersion ESQL_BASE_CONVERSION = TransportVersion.fromName("esql_base_conversion");

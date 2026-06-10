@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse hyperbolic tangent function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">inverse hyperbolic tangent</a> of a number.
  */
 public class Atanh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Atanh", Atanh::new);
@@ -36,11 +36,7 @@ public class Atanh extends AbstractTrigonometricFunction {
         .example("atanh(some_metric)")
         .name("atanh");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic tangent] of a number.",
-        examples = @Example(file = "floats", tag = "atanh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "atanh"))
     public Atanh(
         Source source,
         @Param(

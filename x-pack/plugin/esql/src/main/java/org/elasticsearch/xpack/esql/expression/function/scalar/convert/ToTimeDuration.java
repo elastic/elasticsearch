@@ -20,17 +20,16 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 
+/**
+ * Converts an input value into a {@code time_duration} value.
+ */
 public class ToTimeDuration extends FoldablesConvertFunction {
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToTimeDuration.class)
         .unary(ToTimeDuration::new)
         .name("to_timeduration");
 
-    @FunctionInfo(
-        returnType = "time_duration",
-        description = "Converts an input value into a `time_duration` value.",
-        examples = @Example(file = "convert", tag = "castToTimeDuration")
-    )
+    @FunctionInfo(returnType = "time_duration", examples = @Example(file = "convert", tag = "castToTimeDuration"))
     public ToTimeDuration(
         Source source,
         @Param(

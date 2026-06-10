@@ -10,8 +10,12 @@ to convert it to a `long`, or
 [`TO_GEOSHAPE`](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape)
 to calculate the `geo_shape` bounding geometry.
 
-These functions are related to the [`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
-and the [`geohash_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).
+
+
+These functions are related to the
+[`geo_grid` query](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-geo-grid-query)
+and the
+[`geohash_grid` aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation).
 
 ```esql
 FROM airports

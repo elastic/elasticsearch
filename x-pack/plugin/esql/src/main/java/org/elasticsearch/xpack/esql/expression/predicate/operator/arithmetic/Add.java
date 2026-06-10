@@ -35,6 +35,12 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.ADD;
 
+/**
+ * Add two values. In case of numeric fields, if either field is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}. For dense_vector operations, both arguments should be
+ * dense_vectors. Inequal vector dimensions generate null result.
+ */
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
     public static final String OP_NAME = "Add";
@@ -52,11 +58,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             "datetime",
             "time_duration",
             "unsigned_long",
-            "dense_vector" },
-        description = """
-            Add two values. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.
-            For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
-            """
+            "dense_vector" }
     )
     public Add(
         Source source,

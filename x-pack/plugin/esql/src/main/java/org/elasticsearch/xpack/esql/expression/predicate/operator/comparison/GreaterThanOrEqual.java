@@ -22,6 +22,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
+/**
+ * Check if one field is greater than or equal to another. If either field is
+ * <a href="https://www.elastic.co/docs/reference/query-languages/esql/esql-multivalued-fields">multivalued</a>
+ * then the result is {@code null}.
+ */
 public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -45,8 +50,6 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     @FunctionInfo(
         operator = ">=",
         returnType = { "boolean" },
-        description = "Check if one field is greater than or equal to another. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",
         note = "This is pushed to the underlying search index if one side of the comparison is constant "
             + "and the other side is a field in the index that has both an <<mapping-index>> and <<doc-values>>."
     )

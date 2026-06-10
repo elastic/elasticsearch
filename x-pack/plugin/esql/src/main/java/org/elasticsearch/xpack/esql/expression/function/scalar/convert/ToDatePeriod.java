@@ -20,17 +20,16 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 
+/**
+ * Converts an input value into a {@code date_period} value.
+ */
 public class ToDatePeriod extends FoldablesConvertFunction {
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDatePeriod.class)
         .unary(ToDatePeriod::new)
         .name("to_dateperiod");
 
-    @FunctionInfo(
-        returnType = "date_period",
-        description = "Converts an input value into a `date_period` value.",
-        examples = @Example(file = "convert", tag = "castToDatePeriod")
-    )
+    @FunctionInfo(returnType = "date_period", examples = @Example(file = "convert", tag = "castToDatePeriod"))
     public ToDatePeriod(
         Source source,
         @Param(

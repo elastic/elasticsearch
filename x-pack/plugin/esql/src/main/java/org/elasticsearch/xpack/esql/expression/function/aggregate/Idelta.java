@@ -40,6 +40,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
+/**
+ * Calculates the idelta of a gauge. idelta is the absolute change between the last two data points
+ * (it ignores all but the last two data points in each time period).
+ * This function is very similar to delta, but is more responsive to recent changes.
+ */
 public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Idelta.class).ternary(Idelta::new).name("idelta");
@@ -54,9 +59,6 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "Calculates the idelta of a gauge. idelta is the absolute change between the last two data points ("
-            + "it ignores all but the last two data points in each time period). "
-            + "This function is very similar to delta, but is more responsive to recent changes.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },

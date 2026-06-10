@@ -251,6 +251,8 @@ import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.Magnitude;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -903,7 +905,8 @@ public class EsqlFunctionRegistry {
             return new FunctionDescription(def.name(), List.of(), null, null, false, FunctionType.SCALAR);
         }
         FunctionInfo functionInfo = functionInfo(def);
-        String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
+        SavedFunctionInfo savedInfo = savedFunctionInfo(def.clazz());
+        String functionDescription = savedInfo != null ? savedInfo.description() : "";
         String[] returnType = functionInfo == null ? new String[] { "?" } : removeUnderConstruction(functionInfo.returnType());
         var params = constructor.getParameters(); // no multiple c'tors supported
 
@@ -934,6 +937,19 @@ public class EsqlFunctionRegistry {
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
+    }
+
+    /**
+     * Loads the {@link SavedFunctionInfo} for the given function class, or {@code null}
+     * if no resource was written by the annotation processor (e.g., missing {@code @FunctionInfo}
+     * or no Javadoc).
+     */
+    public static SavedFunctionInfo savedFunctionInfo(Class<?> clazz) {
+        try {
+            return SavedFunctionInfo.load(clazz);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load function info for " + clazz.getName(), e);
+        }
     }
 
     private static boolean shouldRenderHint(Param.Hint hint) {

@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts a multivalued field into a single valued field containing the average of all of the values.
+Reduce a multivalued field to a single valued field containing the average value.
 

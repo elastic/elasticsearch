@@ -41,6 +41,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsig
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToUnsignedLong;
 
+/**
+ * Converts an input value to an unsigned long value. If the input parameter is of a date type,
+ * its value will be interpreted as milliseconds since the
+ * <a href="https://en.wikipedia.org/wiki/Unix_time">Unix epoch</a>, converted to unsigned long.
+ * Boolean {@code true} will be converted to unsigned long {@code 1}, {@code false} to {@code 0}.
+ */
 public class ToUnsignedLong extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -66,12 +72,8 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         returnType = "unsigned_long",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = """
-            Converts an input value to an unsigned long value. If the input parameter is of a date type,
-            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.
-            Boolean `true` will be converted to unsigned long `1`, `false` to `0`.""",
         examples = @Example(file = "ints", tag = "to_unsigned_long-str", explanation = """
-            Note that in this example, the last conversion of the string isn’t possible.
+            Note that in this example, the last conversion of the string isn't possible.
             When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 

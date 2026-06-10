@@ -23,15 +23,14 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
+/**
+ * Divide one number by another and return the remainder. If either field is
+ * <a href="/reference/query-languages/esql/esql-multivalued-fields.md">multivalued</a> then the result is {@code null}.
+ */
 public class Mod extends EsqlArithmeticOperation {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
 
-    @FunctionInfo(
-        operator = "%",
-        returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Divide one number by another and return the remainder. "
-            + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
-    )
+    @FunctionInfo(operator = "%", returnType = { "double", "integer", "long", "unsigned_long" })
     public Mod(
         Source source,
         @Param(name = "lhs", description = "A numeric value.", type = { "double", "integer", "long", "unsigned_long" }) Expression left,

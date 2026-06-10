@@ -33,6 +33,11 @@ import java.util.List;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * URL-encodes the input. All characters are
+ * <a href="https://en.wikipedia.org/wiki/Percent-encoding">percent-encoded</a> except for
+ * alphanumerics, {@code .}, {@code -}, {@code _}, and {@code ~}. Spaces are encoded as {@code +}.
+ */
 public final class UrlEncode extends UnaryScalarFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -48,8 +53,6 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "URL-encodes the input. All characters are {wikipedia}/Percent-encoding[percent-encoded] except "
-            + "for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
         examples = { @Example(file = "string", tag = "url_encode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

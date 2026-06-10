@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+/**
+ * Calculates the l2 norm between two dense_vectors.
+ */
 public class L2Norm extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "L2Norm", L2Norm::new);
@@ -54,7 +57,6 @@ public class L2Norm extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the l2 norm between two dense_vectors.",
         examples = { @Example(file = "vector-l2-norm", tag = "vector-l2-norm") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

@@ -62,18 +62,7 @@ public class ConfidenceInterval extends EsqlScalarFunction {
     private final Expression bucketCount;
     private final Expression confidenceLevel;
 
-    @FunctionInfo(
-        returnType = { "double", },
-        description = "Computes the confidence interval and its reliability for the given best estimate and bootstrap estimates. The "
-            + "output usually is an array with three values: lower bound, upper bound, and the fraction of trials that give a reliable "
-            + "interval. If no sensible interval is found, the function returns null instead. "
-            + "For example: CONFIDENCE_INTERVAL(10.0, [9.8, 9.9, 10.0, 10.1, 9, 9, 11, 11], 2, 4, 0.9) = [9.54, 10.46, 0.5]"
-            + "Explanation: the best estimate (based on all data) is 10.0, and there are 2 trials with 4 buckets each. "
-            + "The first trial has estimates [9.8, 9.9, 10.0, 10.1] and the second trial has estimates [9, 9, 11, 11]. "
-            + "The computed 90% confidence interval is [9.54, 10.46]. Only the first trial is considered reliable, because "
-            + "its values are nicely distributed around the best estimate. The second trial has very high kurtosis and is therefore"
-            + "considered unreliable. This leads to a reliability of 0.5 (1 reliable trial out of 2)."
-    )
+    @FunctionInfo(returnType = { "double", })
     public ConfidenceInterval(
         Source source,
         @Param(name = "bestEstimate", type = { "double" }, description = "Best estimate of the parameter") Expression bestEstimate,

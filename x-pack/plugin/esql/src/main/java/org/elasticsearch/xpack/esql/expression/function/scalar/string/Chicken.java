@@ -65,9 +65,7 @@ public class Chicken extends EsqlScalarFunction implements OptionalArgument {
     private final Expression message;
     private final Expression options;
 
-    @FunctionInfo(returnType = "keyword", description = """
-        Returns a string with the input text wrapped in ASCII art of a chicken saying the message.
-        This is an Easter egg function inspired by the classic "cowsay" command.""")
+    @FunctionInfo(returnType = "keyword")
     public Chicken(
         Source source,
         @Param(name = "message", type = { "keyword", "text" }, description = "The message for the chicken to say.") Expression message,

@@ -34,14 +34,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ES|QL function that mimics the behavior of {@code Math.copySign(double magnitude, double sign)}.
  * Returns a value with the magnitude of the first argument and the sign of the second argument.
+ * This function is similar to Java's Math.copySign(double magnitude, double sign) which is similar
+ * to `copysign` from <a href="https://en.wikipedia.org/wiki/IEEE_754">IEEE 754</a>.
  *
- * <p>
- * The output of this function is the MAGNITUDE with the SIGN from `sign` applied to it.
- * For that reason, we cast the SIGN to DOUBLE, which is the most general numeric type,
- * and allows us to write a single check for all possible types of `sign`.
- * However, the output type of this function is determined by the `magnitude` type.
+ * <h2>Implementation</h2>
+ * The output is the MAGNITUDE with the SIGN from {@code sign} applied to it. The SIGN is cast to DOUBLE,
+ * which is the most general numeric type, and allows a single check for all possible types of {@code sign}.
+ * However, the output type is determined by the {@code magnitude} type.
  */
 public class CopySign extends EsqlScalarFunction {
 
@@ -63,10 +63,7 @@ public class CopySign extends EsqlScalarFunction {
     private DataType dataType;
 
     @FunctionInfo(
-        description = """
-            Returns a value with the magnitude of the first argument and the sign of the second argument.
-            This function is similar to Java's Math.copySign(double magnitude, double sign) which is
-            similar to `copysign` from [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754).""",
+
         returnType = { "double", "integer", "long" },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
         examples = { @Example(file = "math", tag = "copy_sign") }

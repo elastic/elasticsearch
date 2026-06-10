@@ -38,11 +38,7 @@ public class MvCount extends AbstractMultivalueFunction {
         .capabilities("flattened")
         .name("mv_count");
 
-    @FunctionInfo(
-        returnType = "integer",
-        description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
-        examples = @Example(file = "string", tag = "mv_count")
-    )
+    @FunctionInfo(returnType = "integer", examples = @Example(file = "string", tag = "mv_count"))
     public MvCount(
         Source source,
         @Param(

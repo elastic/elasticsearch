@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the cube root of a number. The input can be any numeric value, the return value is always a double. Cube roots of infinities are null.
+Returns the cube root of a number. The input can be any numeric value, the return value is always a double.
+Cube roots of infinities are null.
 

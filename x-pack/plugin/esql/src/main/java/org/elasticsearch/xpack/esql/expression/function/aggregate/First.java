@@ -57,6 +57,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * This function calculates the earliest occurrence of the search field (the first parameter), where
+ * sorting order is determined by the sort field (the second parameter). This sorting order is
+ * always ascending and null values always sort last. Both fields support null, single-valued, and
+ * multi-valued input. If the earliest sort field value appears in multiple documents, this function
+ * is allowed to return any corresponding search field value.
+ */
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(First.class).binary(First::new).name("first");
@@ -86,17 +93,9 @@ public class First extends AggregateFunction implements ToAggregator {
             "tdigest",
             "unsigned_long",
             "version" },
-        description = """
-            This function calculates the earliest occurrence of the search field
-            (the first parameter), where sorting order is determined by the sort
-            field (the second parameter). This sorting order is always ascending
-            and null values always sort last. Both fields support null,
-            single-valued, and multi-valued input. If the earliest sort field
-            value appears in multiple documents, this function is allowed to
-            return any corresponding search field value.""",
         appendix = """
             ::::{warning}
-            This can use a significant amount of memory and ES|QL doesn’t yet
+            This can use a significant amount of memory and ES|QL doesn't yet
             grow aggregations beyond the memory available. This function will
             continue to work until it is used to collect more values than can
             fit into memory, in which case it will fail the query with a

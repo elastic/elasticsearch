@@ -3,7 +3,7 @@
 ### Supported function named parameters
 
 `analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
+:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index's default analyzer is used.
 
 `slop`
 :   (integer) Maximum number of positions allowed between matching tokens. Defaults to 0. Transposed terms have a slop of 2.

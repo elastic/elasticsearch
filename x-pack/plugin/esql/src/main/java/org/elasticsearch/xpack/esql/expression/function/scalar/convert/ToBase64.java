@@ -37,15 +37,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 
+/**
+ * Encode a string to a base64 string.
+ */
 public class ToBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToBase64", ToBase64::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToBase64.class).unary(ToBase64::new).name("to_base64");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Encode a string to a base64 string.",
-        examples = @Example(file = "string", tag = "to_base64")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "to_base64"))
     public ToBase64(
         Source source,
         @Param(name = "string", type = { "keyword", "text", "_tsid" }, description = "A string.") Expression string

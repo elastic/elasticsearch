@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * An alias for {@link Last} where the sort field (second parameter) is set to {@code @timestamp}. This is not a time series function.
+ * An alias for {@link Last} where the sort field (the second parameter) is implicit and is set to
+ * {@code @timestamp}.
  */
 public class Latest extends AggregateFunction implements OnlySurrogateExpression, TimestampAware {
     public static final String NAME = "Latest";
@@ -39,9 +40,6 @@ public class Latest extends AggregateFunction implements OnlySurrogateExpression
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
-        description = """
-            An alias for [`LAST`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md) where
-            the sort field (the second parameter) is implicit and is set to `@timestamp`.""",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = @Example(file = "stats_earliest_latest", tag = "latest")
     )

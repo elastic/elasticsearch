@@ -46,7 +46,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
- * Contains function, given a string 'a' and a substring 'b', returns true if the substring 'b' is in 'a'.
+ * Returns a boolean that indicates whether a keyword substring is within another string.
+ * Returns `null` if either parameter is null.
  */
 public class Contains extends EsqlScalarFunction implements OptionalArgument, TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Contains", Contains::new);
@@ -65,9 +66,6 @@ public class Contains extends EsqlScalarFunction implements OptionalArgument, Tr
 
     @FunctionInfo(
         returnType = "boolean",
-        description = """
-            Returns a boolean that indicates whether a keyword substring is within another string.
-            Returns `null` if either parameter is null.""",
         examples = @Example(file = "string", tag = "contains"),
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") }
     )

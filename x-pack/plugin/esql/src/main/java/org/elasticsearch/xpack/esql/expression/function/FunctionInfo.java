@@ -51,23 +51,15 @@ public @interface FunctionInfo {
     FunctionAppliesTo[] appliesTo() default {};
 
     /**
-     * The description of the function rendered in the docs and kibana's
-     * json files that drive their IDE-like experience. These should be
-     * complete sentences but can contain asciidoc syntax. It is rendered
-     * as a single paragraph.
-     */
-    String description() default "";
-
-    /**
      * Detailed descriptions of the function rendered in the docs. This is
-     * rendered as a single paragraph following {@link #description()} in
+     * rendered as a single paragraph following the class-level Javadoc in
      * the docs and is <strong>excluded</strong> from Kibana's IDE-like
      * experience. It can contain asciidoc syntax.
      */
     String detailedDescription() default "";
 
     /**
-     * A {@code NOTE} that's added after the {@link #description} in the docs.
+     * A {@code NOTE} that's added after the description in the docs.
      */
     String note() default "";
 

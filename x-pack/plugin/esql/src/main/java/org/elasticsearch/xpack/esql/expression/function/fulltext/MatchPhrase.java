@@ -52,7 +52,10 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 /**
- * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchPhraseQuery} .
+ * Use {@code MATCH_PHRASE} to perform a
+ * <a href="/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md">{@code match_phrase}</a>
+ * on the specified field.
+ * Using {@code MATCH_PHRASE} is equivalent to using the {@code match_phrase} query in the Elasticsearch Query DSL.
  */
 public class MatchPhrase extends SingleFieldFullTextFunction implements OptionalArgument {
 
@@ -77,10 +80,6 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     @FunctionInfo(
         returnType = "boolean",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
-        description = """
-            Use `MATCH_PHRASE` to perform a [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) on the
-            specified field.
-            Using `MATCH_PHRASE` is equivalent to using the `match_phrase` query in the Elasticsearch Query DSL.""",
         detailedDescription = """
             MatchPhrase can be used on <<text, text>> fields, as well as other field types like keyword, boolean, or date types.
             MatchPhrase is not supported for <<semantic-text, semantic_text>> or numeric types.
@@ -109,7 +108,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
                     type = "keyword",
                     valueHint = { "standard" },
                     description = "Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer"
-                        + " mapped for the field. If no analyzer is mapped, the index’s default analyzer is used."
+                        + " mapped for the field. If no analyzer is mapped, the index's default analyzer is used."
                 ),
                 @MapParam.MapParamEntry(
                     name = "slop",

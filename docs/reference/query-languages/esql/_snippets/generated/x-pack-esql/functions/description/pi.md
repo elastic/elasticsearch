@@ -2,5 +2,5 @@
 
 ## Description
 
-Returns [Pi](https://en.wikipedia.org/wiki/Pi), the ratio of a circle’s circumference to its diameter.
+Returns [Pi](https://en.wikipedia.org/wiki/Pi), the ratio of a circle's circumference to its diameter.
 

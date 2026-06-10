@@ -45,6 +45,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWho
 
 /**
  * Collects an aggregation as a <a href="https://en.wikipedia.org/wiki/Sparkline">sparkline</a>.
+ *
+ * <h2>Implementation</h2>
  * <p>
  *     Take this example:
  * </p>
@@ -100,7 +102,6 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },
-        description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
         preview = true,
         tsdbCompatible = false,

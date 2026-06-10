@@ -2,5 +2,7 @@
 
 ## Description
 
-Extracts the maximum value of the `y` coordinates from the supplied geometry. If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum `latitude` value.
+Extracts the maximum value of the `y` coordinates from the supplied geometry.
+If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the maximum
+`latitude` value.
 

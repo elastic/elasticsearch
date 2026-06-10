@@ -34,6 +34,9 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * The population standard deviation of a numeric field.
+ */
 public class StdDev extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StdDev.class).unary(StdDev::new).name("std_dev");
@@ -45,13 +48,12 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
-        description = "The population standard deviation of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "stdev"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the population standard "
-                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
+                    + "deviation of each employee's maximum salary changes, first use `MV_MAX` on each row, "
                     + "and then use `STD_DEV` on the result",
                 file = "stats",
                 tag = "docsStatsStdDevNestedExpression"

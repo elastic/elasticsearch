@@ -24,7 +24,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse cosine trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">arccosine</a> of {@code n} as an angle,
+ * expressed in radians.
  */
 public class Acos extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Acos", Acos::new);
@@ -35,11 +36,7 @@ public class Acos extends AbstractTrigonometricFunction {
         .example("acos(some_metric)")
         .name("acos");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an angle, expressed in radians.",
-        examples = { @Example(file = "floats", tag = "acos") }
-    )
+    @FunctionInfo(returnType = "double", examples = { @Example(file = "floats", tag = "acos") })
     public Acos(
         Source source,
         @Param(

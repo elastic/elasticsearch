@@ -2,5 +2,6 @@
 
 ## Description
 
-Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
+Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer.
+If the precision is a negative number, rounds to the number of digits left of the decimal point.
 

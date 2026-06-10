@@ -2,5 +2,6 @@
 
 ## Description
 
-Returns the values that appear in the first field, except those that appear in the second. Returns `null` if the first expression is null (nothing to remove) or the value of the first field if the second is null.
+Returns the values that appear in the first field, except those that appear in the second. Returns `null` if the first
+expression is null (nothing to remove) or the value of the first field if the second is null.
 

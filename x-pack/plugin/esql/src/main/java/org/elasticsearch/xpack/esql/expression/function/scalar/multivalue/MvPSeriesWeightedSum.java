@@ -44,7 +44,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
- * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
+ * Converts a multivalued expression into a single-valued column by multiplying every element on the input list by its corresponding
+ * term in P-Series and computing the sum.
  */
 public class MvPSeriesWeightedSum extends EsqlScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -58,13 +59,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     private final Expression field, p;
 
-    @FunctionInfo(
-        returnType = { "double" },
-
-        description = "Converts a multivalued expression into a single-valued column by multiplying every "
-            + "element on the input list by its corresponding term in P-Series and computing the sum.",
-        examples = @Example(file = "mv_pseries_weighted_sum", tag = "example")
-    )
+    @FunctionInfo(returnType = { "double" }, examples = @Example(file = "mv_pseries_weighted_sum", tag = "example"))
     public MvPSeriesWeightedSum(
         Source source,
         @Param(
@@ -76,7 +71,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             name = "p",
             type = { "double" },
             description = "It is a constant number that represents the *p* parameter in the P-Series. "
-                + "It impacts every element’s contribution to the weighted sum."
+                + "It impacts every element's contribution to the weighted sum."
         ) Expression p
     ) {
         super(source, Arrays.asList(field, p));
@@ -105,7 +100,7 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
         }
 
         if (p.dataType() == NULL) {
-            // If the type is `null` this parameter doesn’t have to be foldable. It’s effectively foldable anyway.
+            // If the type is `null` this parameter doesn't have to be foldable. It's effectively foldable anyway.
             // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
         }

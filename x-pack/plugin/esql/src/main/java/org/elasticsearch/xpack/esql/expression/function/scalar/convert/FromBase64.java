@@ -36,6 +36,9 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
+/**
+ * Decode a base64 string.
+ */
 public class FromBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -44,11 +47,7 @@ public class FromBase64 extends UnaryScalarFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FromBase64.class).unary(FromBase64::new).name("from_base64");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Decode a base64 string.",
-        examples = @Example(file = "string", tag = "from_base64")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "from_base64"))
     public FromBase64(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "A base64 string.") Expression string

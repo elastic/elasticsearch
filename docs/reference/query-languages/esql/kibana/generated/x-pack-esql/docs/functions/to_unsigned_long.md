@@ -2,7 +2,8 @@
 
 ### TO UNSIGNED LONG
 Converts an input value to an unsigned long value. If the input parameter is of a date type,
-its value will be interpreted as milliseconds since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to unsigned long.
+its value will be interpreted as milliseconds since the
+[Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to unsigned long.
 Boolean `true` will be converted to unsigned long `1`, `false` to `0`.
 
 ```esql

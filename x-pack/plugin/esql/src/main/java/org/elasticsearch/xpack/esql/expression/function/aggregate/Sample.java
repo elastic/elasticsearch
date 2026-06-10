@@ -47,6 +47,9 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
 
+/**
+ * Collects sample values for a field.
+ */
 public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
@@ -74,7 +77,6 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "long",
             "unsigned_long",
             "version" },
-        description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_sample", tag = "doc"),

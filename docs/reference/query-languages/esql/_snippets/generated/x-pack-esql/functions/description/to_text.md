@@ -2,5 +2,9 @@
 
 ## Description
 
-Converts an input value into a text.
+Converts a value to an expression of type `TEXT`. This is different from the [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md) function, which converts to
+`KEYWORD`. `TEXT` and `KEYWORD` data types are treated in ES|QL almost the same, the main difference is that
+`TEXT` is considered to be analyzed, while `KEYWORD` is not.
+This matters for functions like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) which will treat these data types
+differently.
 

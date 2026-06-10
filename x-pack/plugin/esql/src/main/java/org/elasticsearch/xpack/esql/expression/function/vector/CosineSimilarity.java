@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
+/**
+ * Calculates the cosine similarity between two dense_vectors.
+ */
 public class CosineSimilarity extends VectorSimilarityFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -59,7 +62,6 @@ public class CosineSimilarity extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Calculates the cosine similarity between two dense_vectors.",
         examples = { @Example(file = "vector-cosine-similarity", tag = "vector-cosine-similarity") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

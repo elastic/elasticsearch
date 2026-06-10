@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
- * Calculate spatial extent of all values of a field in matching documents.
+ * Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.
  */
 public final class SpatialExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -58,7 +58,6 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         returnType = { "geo_shape", "cartesian_shape" },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )

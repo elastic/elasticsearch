@@ -46,6 +46,12 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
+/**
+ * Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker
+ * algorithm with a specified tolerance. Vertices that fall within the tolerance distance from the
+ * simplified shape are removed. Unlike {@code ST_SIMPLIFY}, the resulting geometry is guaranteed to
+ * be topologically valid.
+ */
 public class StSimplifyPreserveTopology extends SpatialDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -72,10 +78,6 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction {
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
-        description = "Simplifies the input geometry by applying a topology-preserving variant of the Douglas-Peucker algorithm "
-            + "with a specified tolerance. "
-            + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
-            + "Unlike `ST_SIMPLIFY`, the resulting geometry is guaranteed to be topologically valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         examples = @Example(file = "spatial-jts", tag = "st_simplifypreservetopology"),

@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Tangent trigonometric function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Sine_and_cosine">tangent</a> of an angle.
  */
 public class Tan extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Tan", Tan::new);
@@ -35,11 +35,7 @@ public class Tan extends AbstractTrigonometricFunction {
         .example("tan(some_metric)")
         .name("tan");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Sine_and_cosine[tangent] of an angle.",
-        examples = @Example(file = "floats", tag = "tan")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "tan"))
     public Tan(
         Source source,
         @Param(

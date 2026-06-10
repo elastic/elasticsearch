@@ -45,10 +45,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 
 /**
- * This is the primary class for supporting the function ST_INTERSECTS.
- * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
- * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
+ * Returns true if two geometries intersect.
+ * They intersect if they have any point in common, including their interior points
+ * (points along lines or within polygons).
+ * This is the inverse of the {@link SpatialDisjoint ST_DISJOINT} function.
+ * In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
  */
 public class SpatialIntersects extends SpatialRelatesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -77,12 +78,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = """
-            Returns true if two geometries intersect.
-            They intersect if they have any point in common, including their interior points
-            (points along lines or within polygons).
-            This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
-            In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""",
         examples = @Example(file = "spatial", tag = "st_intersects-airports"),
         depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )

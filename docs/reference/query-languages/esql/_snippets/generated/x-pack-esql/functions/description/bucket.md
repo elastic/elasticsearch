@@ -2,5 +2,8 @@
 
 ## Description
 
-Creates groups of values - buckets - out of a datetime or numeric input. The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.
+Splits dates and numbers into a given number of buckets. There are two ways to invoke
+this function: with a user-provided span (explicit invocation mode), or a span derived
+from a number of desired buckets (as a hint) and a range (auto mode).
+In the former case, two parameters will be provided, in the latter four.
 

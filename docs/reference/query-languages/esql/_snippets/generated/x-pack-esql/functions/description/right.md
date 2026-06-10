@@ -2,5 +2,5 @@
 
 ## Description
 
-Return the substring that extracts *length* chars from *str* starting from the right.
+Returns the substring that extracts `length` chars from `str` starting from the right.
 

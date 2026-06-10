@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 /**
- * Truncates an IP value to a given prefix length.
+ * Truncates an IP to a given prefix length.
  */
 public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "IpPrefix", IpPrefix::new);
@@ -59,11 +59,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     private final Expression prefixLengthV4Field;
     private final Expression prefixLengthV6Field;
 
-    @FunctionInfo(
-        returnType = "ip",
-        description = "Truncates an IP to a given prefix length.",
-        examples = @Example(file = "ip", tag = "ipPrefix")
-    )
+    @FunctionInfo(returnType = "ip", examples = @Example(file = "ip", tag = "ipPrefix"))
     public IpPrefix(
         Source source,
         @Param(

@@ -50,10 +50,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
- * This is the primary class for supporting the function ST_CONTAINS.
- * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
- * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
+ * Returns whether the first geometry contains the second geometry.
+ * This is the inverse of the {@link SpatialWithin ST_WITHIN} function.
  */
 public class SpatialContains extends SpatialRelatesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -164,9 +162,6 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = """
-            Returns whether the first geometry contains the second geometry.
-            This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
         examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries"),
         depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )

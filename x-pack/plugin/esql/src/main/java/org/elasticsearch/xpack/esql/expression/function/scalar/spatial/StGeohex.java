@@ -47,7 +47,19 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
- * Calculates the geohex of geo_point geometries.
+ * Calculates the {@code geohex}, the H3 cell-id, of the supplied geo_point at the specified precision.
+ * The result is long encoded.
+ * Use <a href="/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md">{@code TO_STRING}</a>
+ * to convert the result to a string,
+ * <a href="/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md">{@code TO_LONG}</a>
+ * to convert it to a {@code long}, or
+ * <a href="/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md">{@code TO_GEOSHAPE}</a>
+ * to calculate the {@code geo_shape} bounding geometry.
+ * <p>
+ * These functions are related to the
+ * <a href="/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md">{@code geo_grid} query</a>
+ * and the
+ * <a href="/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md">{@code geohex_grid} aggregation</a>.
  */
 public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StGeohex", StGeohex::new);
@@ -119,18 +131,6 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         returnType = "geohex",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        description = """
-            Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-            The result is long encoded.
-            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
-            to convert the result to a string,
-            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
-            to convert it to a `long`, or
-            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
-            to calculate the `geo_shape` bounding geometry.
-
-            These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
-            and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
         examples = @Example(file = "spatial-grid", tag = "st_geohex-grid"),
         depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )

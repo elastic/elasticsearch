@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts a multivalued expression into a single valued column containing a count of the number of values.
+Reduce a multivalued field to a single valued field containing the count of values.
 

@@ -42,6 +42,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 
+/**
+ * Returns a string representation of a date, in the provided format.
+ */
 public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -55,11 +58,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     private final Expression field;
     private final Expression format;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Returns a string representation of a date, in the provided format.",
-        examples = @Example(file = "date", tag = "docsDateFormat")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "date", tag = "docsDateFormat"))
     public DateFormat(
         Source source,
         @Param(optional = true, name = "dateFormat", type = { "keyword", "text" }, description = """

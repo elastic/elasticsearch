@@ -36,8 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
- * an {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
+ * Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.
  */
 public class Score extends Function implements EvaluatorMapper {
 
@@ -50,7 +49,6 @@ public class Score extends Function implements EvaluatorMapper {
         returnType = "double",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
-        description = "Scores an expression. Only full text functions will be scored. Returns scores for all the resulting docs.",
         detailedDescription = """
             :::{tip}
             Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

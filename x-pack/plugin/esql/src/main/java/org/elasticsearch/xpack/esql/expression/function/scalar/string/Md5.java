@@ -25,6 +25,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
+/**
+ * Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).
+ */
 public class Md5 extends AbstractHashFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MD5", Md5::new);
@@ -37,11 +40,7 @@ public class Md5 extends AbstractHashFunction {
      */
     private static final Result<HashFunction, NoSuchAlgorithmException> MD5 = HashFunction.tryCreate("MD5");
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).",
-        examples = { @Example(file = "hash", tag = "md5") }
-    )
+    @FunctionInfo(returnType = "keyword", examples = { @Example(file = "hash", tag = "md5") })
     public Md5(Source source, @Param(name = "input", type = { "keyword", "text" }, description = "Input to hash.") Expression input) {
         super(source, input);
     }

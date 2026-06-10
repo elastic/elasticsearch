@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 /**
- * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
+ * Returns the substring that extracts {@code length} chars from {@code str} starting from the right.
  */
 public class Right extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Right", Right::new);
@@ -47,11 +47,7 @@ public class Right extends EsqlScalarFunction {
     private final Expression str;
     private final Expression length;
 
-    @FunctionInfo(
-        returnType = "keyword",
-        description = "Return the substring that extracts *length* chars from *str* starting from the right.",
-        examples = @Example(file = "string", tag = "right")
-    )
+    @FunctionInfo(returnType = "keyword", examples = @Example(file = "string", tag = "right"))
     public Right(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "The string from which to returns a substring.") Expression str,

@@ -33,7 +33,15 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 
-//
+/**
+ * Internal implementation of the two-argument base-conversion form of {@code TO_LONG}.
+ * Parses a string value as a long integer in the given numeric base.
+ * A leading {@code 0x} prefix is allowed for base 16.
+ *
+ * <h2>Implementation</h2>
+ * Used internally by {@code ToLongSurrogate} when two arguments are provided.
+ * The base must have already been converted to an integer by the caller.
+ */
 public class ToLongBase extends EsqlScalarFunction {
 
     private static final TransportVersion ESQL_BASE_CONVERSION = TransportVersion.fromName("esql_base_conversion");

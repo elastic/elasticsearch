@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Inverse hyperbolic sine function.
+ * Returns the <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">inverse hyperbolic sine</a> of a number.
  */
 public class Asinh extends AbstractTrigonometricFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Asinh", Asinh::new);
@@ -36,11 +36,7 @@ public class Asinh extends AbstractTrigonometricFunction {
         .example("asinh(some_metric)")
         .name("asinh");
 
-    @FunctionInfo(
-        returnType = "double",
-        description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic sine] of a number.",
-        examples = @Example(file = "floats", tag = "asinh")
-    )
+    @FunctionInfo(returnType = "double", examples = @Example(file = "floats", tag = "asinh"))
     public Asinh(
         Source source,
         @Param(

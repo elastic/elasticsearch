@@ -2,5 +2,9 @@
 
 ## Description
 
-Returns true if the supplied geometry is empty. An empty geometry is one that has no points, such as an empty geometry collection or an empty linestring.
+Returns true if the given geometry is empty.
+The function `st_isempty` is defined in the
+[OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at
+[PostGIS:ST_IsEmpty](https://postgis.net/docs/ST_IsEmpty.html).
 

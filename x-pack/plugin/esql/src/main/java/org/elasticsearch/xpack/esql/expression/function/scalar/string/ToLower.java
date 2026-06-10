@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 
+/**
+ * Returns a new string representing the input string converted to lower case.
+ */
 public class ToLower extends ChangeCase {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLower", ToLower::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLower.class).unaryConfig(ToLower::new).name("to_lower");
@@ -32,7 +35,6 @@ public class ToLower extends ChangeCase {
 
     @FunctionInfo(
         returnType = { "keyword" },
-        description = "Returns a new string representing the input string converted to lower case.",
         examples = {
             @Example(file = "string", tag = "to_lower"),
             @Example(file = "string", tag = "to_lower_mv", applies_to = "stack: ga 9.1.0") }

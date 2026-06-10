@@ -60,9 +60,14 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 /**
- * In a single-parameter mode, the function always uses the current time as the end of the range.
- * <br/>
- * Supported single parameter mode formats:
+ * Filters data for the given time range using the @timestamp attribute.
+ *
+ * <h2>Extra Notes</h2>
+ * In a single-parameter mode, the function always uses the current time as
+ * the end of the range.
+ * <p>
+ *     Supported single parameter mode formats:
+ * </p>
  * <ul>
  *     <li>TRANGE(1h) - [now - 1h; now] - supports time_duration (1h, 1min, etc) and period (1day, 1month, etc.)</li>
  * </ul>
@@ -91,7 +96,6 @@ public class TRange extends EsqlConfigurationFunction
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeString"),

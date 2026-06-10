@@ -43,11 +43,18 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.expression.function.grouping.Bucket.isStringOrDate;
 
 /**
- * Splits dates into buckets based on the {@code @timestamp} field.
- * <p>
+ * Creates groups of values - buckets - out of a {@code @timestamp} attribute.
+ * The size of the buckets can be provided directly as a duration or period.
+ * Alternatively, the bucket size can be chosen based on a recommended count
+ * and a range {applies_to}`stack: ga 9.4`.
+ *
+ * When using ES|QL in Kibana, the range can be derived automatically from the
+ * <a href="docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter">{@code @timestamp} filter</a>
+ * that Kibana adds to the query.
+ *
+ * <h2>Implementation</h2>
  * The {@code buckets} parameter works like {@link Bucket}: if it's a number, it's the target number of buckets;
  * if it's a duration or period, it's the explicit bucket size.
- * <p>
  * When using a target number of buckets, start/end bounds are needed and can be provided explicitly
  * as {@code from}/{@code to} parameters or derived automatically from the query DSL {@code @timestamp} range filter
  * via {@link TimestampBoundsAware}.
@@ -75,15 +82,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
-        description = """
-            Creates groups of values - buckets - out of a `@timestamp` attribute.
-            The size of the buckets can be provided directly as a duration or period.
-            Alternatively, the bucket size can be chosen based on a recommended count
-            and a range {applies_to}`stack: ga 9.4`.
-
-            When using ES|QL in Kibana, the range can be derived automatically from the
-            [`@timestamp` filter](docs-content://explore-analyze/query-filter/languages/esql-kibana.md#_standard_time_filter)
-            that Kibana adds to the query.""",
         examples = {
             @Example(
                 description = """

@@ -42,6 +42,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
+/**
+ * Returns a boolean that indicates whether a keyword string starts with another string.
+ */
 public class StartsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -55,11 +58,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
     private final Expression str;
     private final Expression prefix;
 
-    @FunctionInfo(
-        returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string starts with another string.",
-        examples = @Example(file = "docs", tag = "startsWith")
-    )
+    @FunctionInfo(returnType = "boolean", examples = @Example(file = "docs", tag = "startsWith"))
     public StartsWith(
         Source source,
         @Param(

@@ -2,5 +2,9 @@
 
 ## Description
 
-Returns the geometry type of the supplied geometry, as a string. For example: `ST_Point`, `ST_LineString`, `ST_Polygon`, `ST_MultiPoint`, `ST_MultiLineString`, `ST_MultiPolygon`, or `ST_GeometryCollection`.
+Returns the geometry type of the given geometry as a string.
+The function `st_geometry_type` is defined in the
+[OGC Simple Feature Access](https://www.ogc.org/standard/sfs/) standard.
+Alternatively, it is well described in PostGIS documentation at
+[PostGIS:ST_GeometryType](https://postgis.net/docs/ST_GeometryType.html).
 

@@ -38,10 +38,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Adds a function that takes two multivalued expressions that return a result where the values of the first multivalued expression are
- * returned except for values that exist as a value in the second expression.
- *
- * a = ["a","a","b","c"] b = ["b"] MV_DIFFERENCE(a,b) => ["a","a","c"]
+ * Returns the values that appear in the first field, except those that appear in the second. Returns {@code null} if the first
+ * expression is null (nothing to remove) or the value of the first field if the second is null.
  */
 public class MvDifference extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -74,8 +72,6 @@ public class MvDifference extends MvSetOperationFunction {
             "long",
             "unsigned_long",
             "version" },
-        description = "Returns the values that appear in the first field, except those that appear in the second. Returns `null` if the "
-            + "first expression is null (nothing to remove) or the value of the first field if the second is null.",
         preview = true,
         examples = { @Example(file = "mv_difference", tag = "mv_difference") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") }

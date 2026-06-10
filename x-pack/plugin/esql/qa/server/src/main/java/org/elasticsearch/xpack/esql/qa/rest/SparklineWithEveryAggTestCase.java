@@ -106,7 +106,7 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
 
     @ParametersFactory(argumentFormatting = "%s")
     public static List<Object[]> parameters() {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry(List.of()).snapshotRegistry();
         List<AggTestCase> params = new ArrayList<>();
 
         for (FunctionDefinition def : registry.listFunctions()) {

@@ -52,10 +52,15 @@ final class AlpDoubleUtils {
     private static final int CONSECUTIVE_WORSE_EXIT = 2;
 
     /**
-     * Spread threshold (in sortable-long deltas) above which the integer baseline loses
-     * its near-optimal compression. Below the threshold {@code delta > offset > bitPack}
-     * fits residuals into at most {@code ceil(log2(17))=5} bits per value and ALP cannot
-     * improve on that floor.
+     * Spread threshold (in sortable-long deltas) above which it is worth running the
+     * ALP search. Below the threshold {@code delta > offset > bitPack} fits residuals
+     * into at most {@code ceil(log2(17)) = 5} bits per value, which is the break-even
+     * point against ALP: any further per-value width reduction ALP might achieve is
+     * dominated by its per-block metadata cost (one byte each for {@code e} and
+     * {@code f}, a VInt for the exception count, plus {@link #DOUBLE_EXCEPTION_COST}
+     * bytes for every exception slot). Above the threshold the integer baseline jumps
+     * to 6 or more bits per value, which gives ALP enough per-value headroom to recover
+     * its overhead net.
      */
     static final long DELTA_SPREAD_THRESHOLD = 16L;
 
@@ -114,11 +119,19 @@ final class AlpDoubleUtils {
     /**
      * Returns {@code true} when consecutive sortable-long deltas have a non-zero base
      * stride and a spread no larger than {@link #DELTA_SPREAD_THRESHOLD}. This shape
-     * characterises monotonic doubles that stay inside a single IEEE 754 exponent (a slow
-     * drift gauge in a narrow range), where the downstream integer pipeline
-     * {@code delta > offset > gcd > bitPack} already reaches ~1 bit per value. Constant
-     * blocks (stride 0) return {@code false} because ALP handles them in 7 bytes versus
-     * the integer pipeline's 12.
+     * characterises doubles that are not literally constant but advance in near-uniform
+     * small increments (a slow-drift gauge staying inside a single IEEE 754 exponent),
+     * so the downstream integer pipeline {@code delta > offset > gcd > bitPack} reduces
+     * the residuals to a tight range that fits in 5 bits per value or fewer, which is at
+     * or below ALP's bit-width floor.
+     *
+     * <p>Constant blocks (stride 0) return {@code false} to keep ALP in play, because
+     * ALP wins on them: it picks {@code (e, f)} that collapses the repeated double
+     * down to a small integer mantissa, so the downstream bit-pack stores a tiny
+     * first value (1-2 bytes) plus three bytes of ALP metadata for roughly 7 bytes
+     * total per block. The integer pipeline would have to store the full sortable-long
+     * representation of the repeated double (8 bytes for the first value alone) plus
+     * its own metadata for roughly 12 bytes.
      *
      * <p>Callers use this as the gate to skip ALP entirely on blocks where the integer
      * pipeline is already near-optimal.
@@ -346,33 +359,93 @@ final class AlpDoubleUtils {
      * Exception slots are filled with the previous value (or zero at position zero) to
      * keep the bit-width of the mantissa stream low.
      *
+     * <p>When {@code als} is non-null and {@code valueCount >= 3}, the
+     * same pass also observes the sortable-long stride statistics and writes the
+     * {@link #hasNearConstantStride} decision into slot 0. The cache fast path in
+     * {@code AlpDoubleTransformStage} uses this signal as one of the ALP-skip
+     * conditions: when the flag is set, the caller restores values from snapshot,
+     * invalidates the cache, and lets the block flow through to the integer pipeline
+     * unchanged. Callers that do not need the observation pass {@code null} so the
+     * stride accumulators and the post-loop decision are elided.
+     *
      * @return the number of exceptions collected
      */
-    static int alpTransformBlock(final long[] values, int valueCount, int e, int f, final int[] excPositions, final long[] excValues) {
+    static int alpTransformBlock(
+        final long[] values,
+        int valueCount,
+        int e,
+        int f,
+        final int[] excPositions,
+        final long[] excValues,
+        final boolean[] nearConstStrideOut
+    ) {
         assert valueCount <= excPositions.length : "valueCount must not exceed exception scratch length";
+        if (valueCount == 0) {
+            return 0;
+        }
         final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
         final double decodeMul = POWERS_OF_TEN[f] * NEG_POWERS_OF_TEN[e];
+        final boolean observe = nearConstStrideOut != null && valueCount >= 3;
 
+        // NOTE: always write the rounded mantissa, even for exceptions. The decoder
+        // patches exception positions back to the original value from metadata, so
+        // the in-array value only matters for the downstream stages. Keeping the
+        // rounded mantissa preserves the block's natural shape (monotonicity, tight
+        // delta range) instead of injecting copies of the previous value or a zero
+        // at position 0.
+        final long sortable0 = values[0];
         int excCount = 0;
-        for (int i = 0; i < valueCount; i++) {
+        {
+            final long originalBits = sortableToDoubleBits(sortable0);
+            final double original = Double.longBitsToDouble(originalBits);
+            final long encoded = alpRound(original * mulFactor);
+            final double decoded = encoded * decodeMul;
+            values[0] = encoded;
+            if (originalBits != Double.doubleToRawLongBits(decoded)) {
+                excPositions[excCount] = 0;
+                excValues[excCount] = sortable0;
+                excCount++;
+            }
+        }
+
+        long prevSortable = sortable0;
+        long firstStride = 0;
+        long minStride = 0;
+        long maxStride = 0;
+        if (observe) {
+            firstStride = values[1] - sortable0;
+            minStride = firstStride;
+            maxStride = firstStride;
+        }
+
+        for (int i = 1; i < valueCount; i++) {
             final long sortable = values[i];
+            if (observe) {
+                final long stride = sortable - prevSortable;
+                if (stride < minStride) {
+                    minStride = stride;
+                }
+                if (stride > maxStride) {
+                    maxStride = stride;
+                }
+                prevSortable = sortable;
+            }
+
             final long originalBits = sortableToDoubleBits(sortable);
             final double original = Double.longBitsToDouble(originalBits);
             final long encoded = alpRound(original * mulFactor);
             final double decoded = encoded * decodeMul;
-
-            // NOTE: always write the rounded mantissa, even for exceptions. The decoder
-            // patches exception positions back to the original value from metadata, so
-            // the in-array value only matters for the downstream stages. Keeping the
-            // rounded mantissa preserves the block's natural shape (monotonicity, tight
-            // delta range) instead of injecting copies of the previous value or a zero
-            // at position 0.
             values[i] = encoded;
             if (originalBits != Double.doubleToRawLongBits(decoded)) {
                 excPositions[excCount] = i;
                 excValues[excCount] = sortable;
                 excCount++;
             }
+        }
+
+        if (observe) {
+            final long spread = maxStride - minStride;
+            nearConstStrideOut[0] = firstStride != 0 && spread >= 0 && spread <= DELTA_SPREAD_THRESHOLD;
         }
         return excCount;
     }

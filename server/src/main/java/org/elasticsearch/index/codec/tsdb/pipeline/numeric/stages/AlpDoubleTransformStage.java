@@ -27,14 +27,33 @@ import java.io.IOException;
  * {@code v == encoded * 10^f * 10^-e} bit-for-bit. Values whose round trip fails become
  * exceptions stored verbatim in metadata; the mantissa slot is filled with the previous
  * value (or zero at position 0) so the downstream bit-pack does not absorb an outlier.
- * Skipped up front when the integer baseline already compresses the block to ~1 bit per
- * value (near-constant-stride detector), and after search when no positive bit-width
- * reduction is achievable or the exception count exceeds the per-block budget.
+ *
+ * <p>The block passes through unchanged (ALP is skipped) under any of:
+ * <ul>
+ *   <li>the cache fast path's speculative transform observes near-constant-stride.
+ *       The block's doubles are not literally constant but they advance in
+ *       near-uniform small increments, so the integer pipeline
+ *       {@code delta > offset > gcd > bitPack} reduces the residuals to a tight
+ *       range that fits in 5 bits per value or fewer (see
+ *       {@link AlpDoubleUtils#DELTA_SPREAD_THRESHOLD}), which is at or below
+ *       ALP's bit-width floor. The cache entry is invalidated on this branch so
+ *       subsequent near-constant blocks short-circuit on the cheap pre-scan;
+ *   <li>no cache entry exists (first block, or invalidated above) and
+ *       {@link AlpDoubleUtils#hasNearConstantStride} returns true on the dedicated
+ *       pre-scan, for the same reason;
+ *   <li>{@link AlpDoubleUtils#findBestEFForBlock} produces an {@code (e, f)} with no
+ *       positive bit-width reduction ({@code bitsSaved <= 0});
+ *   <li>{@link AlpDoubleUtils#findBestEFForBlock} produces an exception count that
+ *       exceeds the budget allowed for the bit-width savings
+ *       ({@code bestExceptions > maxAllowed}).
+ * </ul>
  *
  * <p>The dominant per-block cost is the {@code (e, f)} search. The stage caches the
- * previous block's winner and revalidates with one {@link AlpDoubleUtils#countExceptions}
- * pass against a 5% freshness threshold and the cached dynamic threshold. On cache miss
- * the search runs via {@link AlpDoubleUtils#findBestEFForBlock}.
+ * previous block's winner and revalidates by running a speculative transform whose
+ * exception count must clear both a 5% freshness threshold and the cached dynamic
+ * threshold; the same pass also produces the near-constant-stride observation, so the
+ * dedicated pre-scan runs only on cache miss. On cache miss the search runs via
+ * {@link AlpDoubleUtils#findBestEFForBlock}.
  *
  * <h2>Example</h2>
  * <p>A sensor block {@code [22.5, 22.7, 22.6, ...]} encodes with {@code e=1, f=0} into
@@ -72,6 +91,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     private final int[] excPositions;
     private final long[] excValues;
     private final long[] sortableScratch;
+    private final boolean[] nearConstStrideOut = new boolean[1];
     private int cachedE = -1;
     private int cachedF = -1;
     private int cachedMaxAllowed = -1;
@@ -103,19 +123,35 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
         assert valueCount <= excPositions.length
             : "valueCount (" + valueCount + ") must not exceed blockSize (" + excPositions.length + ")";
 
-        if (AlpDoubleUtils.hasNearConstantStride(values, valueCount)) {
-            return;
-        }
-
         if (cachedE >= 0) {
             System.arraycopy(values, 0, sortableScratch, 0, valueCount);
-            final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, cachedE, cachedF, excPositions, excValues);
+            nearConstStrideOut[0] = false;
+            final int excCount = AlpDoubleUtils.alpTransformBlock(
+                values,
+                valueCount,
+                cachedE,
+                cachedF,
+                excPositions,
+                excValues,
+                nearConstStrideOut
+            );
+            if (nearConstStrideOut[0]) {
+                System.arraycopy(sortableScratch, 0, values, 0, valueCount);
+                cachedE = -1;
+                cachedF = -1;
+                cachedMaxAllowed = -1;
+                return;
+            }
             final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
             if (excCount <= cacheMaxAllowed && excCount <= cachedMaxAllowed) {
                 writeAlpMetadata(excCount, cachedE, cachedF, context);
                 return;
             }
             System.arraycopy(sortableScratch, 0, values, 0, valueCount);
+        }
+
+        if (AlpDoubleUtils.hasNearConstantStride(values, valueCount)) {
+            return;
         }
 
         final int bestExceptions = AlpDoubleUtils.findBestEFForBlock(values, valueCount, efOut, candCounts);
@@ -139,7 +175,7 @@ public final class AlpDoubleTransformStage implements NumericCodecStage {
     }
 
     private void writeAlpBlock(final long[] values, final int valueCount, final int e, final int f, final EncodingContext context) {
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, e, f, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, e, f, excPositions, excValues, null);
         writeAlpMetadata(excCount, e, f, context);
     }
 

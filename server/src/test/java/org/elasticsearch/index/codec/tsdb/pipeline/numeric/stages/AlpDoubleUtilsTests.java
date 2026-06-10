@@ -203,7 +203,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
 
         final int[] excPositions = new int[blockSize];
         final long[] excValues = new long[blockSize];
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues, null);
 
         assertEquals(1, excCount);
         assertEquals(7, excPositions[0]);
@@ -226,7 +226,7 @@ public class AlpDoubleUtilsTests extends ESTestCase {
 
         final int[] excPositions = new int[blockSize];
         final long[] excValues = new long[blockSize];
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues, null);
 
         assertEquals(1, excCount);
         assertEquals(0, excPositions[0]);
@@ -234,5 +234,56 @@ public class AlpDoubleUtilsTests extends ESTestCase {
         // an artificial spike below the block's actual scale. The rounded mantissa
         // (round(PI)=3 at e=0) keeps the slot at the right magnitude.
         assertEquals(3L, values[0]);
+    }
+
+    public void testAlpTransformBlockObservesConstantStride() {
+        final int blockSize = 16;
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong((double) ((1L << 52) + i));
+        }
+        final long[] snapshot = values.clone();
+
+        final int[] excPositions = new int[blockSize];
+        final long[] excValues = new long[blockSize];
+        final boolean[] observation = new boolean[1];
+        AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues, observation);
+
+        assertTrue(observation[0]);
+        assertEquals(AlpDoubleUtils.hasNearConstantStride(snapshot, blockSize), observation[0]);
+    }
+
+    public void testAlpTransformBlockObservesVariableStrideAsNotNearConstant() {
+        final long[] values = new long[] {
+            NumericUtils.doubleToSortableLong(1.5),
+            NumericUtils.doubleToSortableLong(1000.0),
+            NumericUtils.doubleToSortableLong(-50.0),
+            NumericUtils.doubleToSortableLong(123.456),
+            NumericUtils.doubleToSortableLong(0.001),
+            NumericUtils.doubleToSortableLong(9999.0) };
+        final long[] snapshot = values.clone();
+
+        final int[] excPositions = new int[values.length];
+        final long[] excValues = new long[values.length];
+        final boolean[] observation = new boolean[1];
+        AlpDoubleUtils.alpTransformBlock(values, values.length, 0, 0, excPositions, excValues, observation);
+
+        assertFalse(observation[0]);
+        assertEquals(AlpDoubleUtils.hasNearConstantStride(snapshot, values.length), observation[0]);
+    }
+
+    public void testAlpTransformBlockObservesConstantBlockAsNotNearConstant() {
+        final int blockSize = 8;
+        final long[] values = new long[blockSize];
+        java.util.Arrays.fill(values, NumericUtils.doubleToSortableLong(42.0));
+        final long[] snapshot = values.clone();
+
+        final int[] excPositions = new int[blockSize];
+        final long[] excValues = new long[blockSize];
+        final boolean[] observation = new boolean[1];
+        AlpDoubleUtils.alpTransformBlock(values, blockSize, 0, 0, excPositions, excValues, observation);
+
+        assertFalse(observation[0]);
+        assertEquals(AlpDoubleUtils.hasNearConstantStride(snapshot, blockSize), observation[0]);
     }
 }

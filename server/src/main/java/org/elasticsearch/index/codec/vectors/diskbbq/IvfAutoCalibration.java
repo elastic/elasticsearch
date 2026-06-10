@@ -26,16 +26,13 @@ import java.util.Map;
 /**
  * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled.
  * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
- * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@link #DEFAULT_CALIBRATED_OVERSAMPLE}.
+ * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@code Float.Nan} (no calibrated ovresample).
  */
 public class IvfAutoCalibration {
 
     private static final Logger logger = LogManager.getLogger(IvfAutoCalibration.class);
 
-    /**
-     * Default oversample used when the segment is too small for calibration.
-     */
-    public static final float DEFAULT_CALIBRATED_OVERSAMPLE = 3f;
+    public static final float NO_CALIBRATED_OVERSAMPLE = Float.NaN;
 
     public static final int MIN_VECTORS_FOR_CALIBRATION = 10_000;
 

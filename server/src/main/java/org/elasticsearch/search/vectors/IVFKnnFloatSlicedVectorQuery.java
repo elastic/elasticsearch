@@ -87,7 +87,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
             visitRatio,
             numCands,
-            originalK,
+            k,
             knnCollectorManager.longAccumulator
         );
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);

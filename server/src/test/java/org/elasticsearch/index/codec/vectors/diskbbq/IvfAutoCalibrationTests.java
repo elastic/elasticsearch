@@ -29,7 +29,11 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.*;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.MergeCalibrationContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
+import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -85,7 +89,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                     2f,
                     4f,
                     IvfAutoCalibration.mergeConfigResolver(VPC),
-                    DEFAULT_CALIBRATED_OVERSAMPLE
+                    NO_CALIBRATED_OVERSAMPLE
                 )
             ) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(reader.leaves().getFirst().reader());
@@ -378,7 +382,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 assertNotNull(persisted);
                 assertThat(persisted.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
                 assertFalse(persisted.usePrecondition());
-                assertThat(persisted.rescoreOversample(), equalTo(DEFAULT_CALIBRATED_OVERSAMPLE));
+                assertThat(persisted.rescoreOversample(), equalTo(NO_CALIBRATED_OVERSAMPLE));
             }
         }
     }
@@ -402,7 +406,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 );
                 assertNotNull(persisted);
                 assertThat(persisted.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
-                assertThat(persisted.rescoreOversample(), equalTo(DEFAULT_CALIBRATED_OVERSAMPLE));
+                assertThat(persisted.rescoreOversample(), equalTo(NO_CALIBRATED_OVERSAMPLE));
             }
         }
     }

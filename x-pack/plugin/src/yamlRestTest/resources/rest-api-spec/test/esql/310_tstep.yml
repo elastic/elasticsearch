@@ -40,7 +40,7 @@
         body:
           query: "FROM test_tstep_duration_bounds | STATS c = COUNT(*) BY b = TSTEP(1 hour, from_bound, to_bound) | SORT b"
   - match: { status: 400 }
-  - match: { error.reason: '/(?s).*must be constants.*/' }
+  - match: { error.reason: '/(?s).*must\ be\ constants.*/' }
 
 ---
 "TSTEP bucket count mode with non-constant from/to returns 400":
@@ -84,4 +84,4 @@
         body:
           query: "FROM test_tstep_count_bounds | STATS c = COUNT(*) BY b = TSTEP(2, from_bound, to_bound) | SORT b"
   - match: { status: 400 }
-  - match: { error.reason: '/(?s).*must be constant when using a target bucket count.*/' }
+  - match: { error.reason: '/(?s).*must\ be\ constant\ when\ using\ a\ target\ bucket\ count.*/' }

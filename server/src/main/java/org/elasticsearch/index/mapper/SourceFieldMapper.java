@@ -12,12 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -499,40 +495,37 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (mode != Mode.COLUMNAR_STORED) {
             return;
         }
-        List<LuceneDocument> docs = context.luceneDocumentsInShardIndexOrder();
-        int docId = docs.size() - 1;
-        try (var directory = new ByteBuffersDirectory()) {
-            try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
-                writer.addDocuments(docs);
-            }
-            try (var indexReader = DirectoryReader.open(directory)) {
-                var leafCtx = indexReader.leaves().get(0);
-                int[] docIds = new int[] { docId };
-                var sourceLoader = new SourceLoader.Synthetic(
-                    sourceFilter,
-                    () -> context.mappingLookup().getMapping().syntheticFieldLoader(sourceFilter),
-                    SourceFieldMetrics.NOOP,
-                    context.mappingLookup().getMapping().ignoredSourceFormat()
+        // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
+        // Build a lightweight in-memory LeafReader directly over the parsed document instead of
+        // writing it into a throwaway ByteBuffersDirectory/IndexWriter/DirectoryReader, which was
+        // the dominant cost of this method.
+        var reader = new ColumnarStoredLeafReader(context.doc());
+        var leafCtx = reader.getContext();
+        int docId = 0;
+        int[] docIds = new int[] { docId };
+        var sourceLoader = new SourceLoader.Synthetic(
+            sourceFilter,
+            () -> context.mappingLookup().getMapping().syntheticFieldLoader(sourceFilter),
+            SourceFieldMetrics.NOOP,
+            context.mappingLookup().getMapping().ignoredSourceFormat()
+        );
+        var sourceLeafLoader = sourceLoader.leaf(reader, docIds);
+        var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
+        storedFieldLoader.advanceTo(docId);
+        try (var b = XContentFactory.jsonBuilder()) {
+            sourceLeafLoader.write(storedFieldLoader, docId, b);
+            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
+            // Remove per-field fallback entries collected during parsing — their contents are
+            // subsumed by the whole-document entry written below, and binary doc values only allow
+            // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
+            // still used after indexing by block loaders or queries.
+            context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
+            IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
+                .writeIgnoredFields(
+                    List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
+                    context.indexSettings().getIndexVersionCreated(),
+                    false
                 );
-                var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
-                var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
-                storedFieldLoader.advanceTo(docId);
-                try (var b = XContentFactory.jsonBuilder()) {
-                    sourceLeafLoader.write(storedFieldLoader, docId, b);
-                    BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
-                    // Remove per-field fallback entries collected during parsing — their contents are
-                    // subsumed by the whole-document entry written below, and binary doc values only allow
-                    // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are
-                    // still used after indexing by block loaders or queries.
-                    context.doc().getFields().removeIf(f -> isRedundantInColumnarStoredSource(f.name()));
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
-                        .writeIgnoredFields(
-                            List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
-                            context.indexSettings().getIndexVersionCreated(),
-                            false
-                        );
-                }
-            }
         }
     }
 

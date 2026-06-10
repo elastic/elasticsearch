@@ -166,7 +166,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             featureService,
-            TimeSeriesIndexCreationWindowLocator.noOp() // PRTODO: Fix
+            TimeSeriesIndexCreationWindowLocator.noOp()
         );
     }
 
@@ -203,7 +203,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
             featureService,
-            TimeSeriesIndexCreationWindowLocator.noOp() // PRTODO: Fix
+            TimeSeriesIndexCreationWindowLocator.noOp()
         );
     }
 
@@ -366,6 +366,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             projectState.metadata()
         );
         Set<String> indicesThatRequireAlias = new HashSet<>();
+        LongSupplier nowSupplier = threadPool::absoluteTimeInMillis;
+        Map<String, Instant> tsdsStartWindows = new HashMap<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             // Delete requests should not attempt to create the index (if the index does not exist), unless an external versioning is used.
@@ -416,15 +418,54 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 } else if (writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
                     failureStoresToBeRolledOver.add(request.index());
                 }
-                if (IndexMode.TIME_SERIES == dataStream.getIndexMode()) {
-                    // PRTODO: Obtain document timestamp, which means externalizing how data streams do it
-                    // PRTODO: We need to check if a tsds is able to accept a document based on its date.
-                    // PRTODO: if it can't then check if the date can be supported by the tsds create index window
-                    var windowStart = null; // lifecycleWindowService.windowStart(projectState, dataStream);
-                    // PRTODO: We should memoize this window start for all data streams in the bulk request
-                    // PRTODO: Check document timestamp against window start, and if document is before window start
+                if (IndexMode.TIME_SERIES == dataStream.getIndexMode() && DocWriteRequest.OpType.CREATE == request.opType()) {
+                    maybeQueueTimeSeriesCreateIndexOperation(projectState.metadata(), dataStream, request, tsdsStartWindows, nowSupplier);
                 }
             }
+        }
+    }
+
+    /**
+     * Inspects if this time series data stream has a backing index to assign this document to, and if not, determines if it can create one.
+     * @param projectMetadata the project metadata used for looking up backing indices and examining data streams
+     * @param dataStream the data stream to inspect for start window
+     * @param request the write request to inspect for timestamp
+     * @param tsdsStartWindows any previously located tsds start windows
+     * @param nowSupplier current timestamp provider
+     */
+    private void maybeQueueTimeSeriesCreateIndexOperation( // PRTODO: Add however we're collecting or organizing these auto create requests
+        ProjectMetadata projectMetadata,
+        DataStream dataStream,
+        DocWriteRequest<?> request,
+        Map<String, Instant> tsdsStartWindows,
+        LongSupplier nowSupplier
+    ) {
+        // We need to check if a tsds is able to accept a document based on its date.
+        var documentTimestamp = DataStream.getDocumentTimestamp(getIndexWriteRequest(request));
+        var tsdsWriteIdx = dataStream.selectTimeSeriesWriteIndex(documentTimestamp, projectMetadata);
+        if (tsdsWriteIdx == null) {
+            // check if we're trying to write to the future
+            var now = nowSupplier.getAsLong();
+            if (documentTimestamp.toEpochMilli() > now) {
+                // just skip and let the error throw in BulkOperation
+                return;
+            }
+            // if there are no write indices then locate how far in the past we can create a tsds index
+            var windowStart = tsdsStartWindows.computeIfAbsent(
+                dataStream.getName(),
+                (dataStreamName) -> timeSeriesIndexCreationWindowLocator.locateCreateWindow(
+                    dataStream,
+                    projectMetadata,
+                    nowSupplier
+                )
+            );
+            // Check document timestamp against window start, and if document is before window start
+            if (documentTimestamp.isBefore(windowStart)) {
+                // just skip and let the error throw in BulkOperation
+                return;
+            }
+            // PRTODO: TBD auto create operation for the TSDS
+            //  (plus restructuring this added code as needed for tidiness)
         }
     }
 
@@ -465,7 +506,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
-            // PRTODO: We'd execute the new backfill tsds action here
             createIndices(indicesToAutoCreate, refs, indicesExceptions);
             rollOverDataStreams(bulkRequest, dataStreamsToBeRolledOver, false, refs, dataStreamExceptions);
             rollOverDataStreams(bulkRequest, failureStoresToBeRolledOver, true, refs, failureStoreExceptions);

@@ -985,7 +985,6 @@ class NodeConstruction {
             threadPool
         );
 
-        // PRTODO: To be injected where needed directly here, or via the injectors to transport bulk action
         final TimeSeriesIndexCreationWindowLocator timeSeriesIndexCreationWindowLocator =
             new TimeSeriesIndexCreationWindowLocator.CompositeLocator(
                 pluginsService.loadServiceProviders(TimeSeriesIndexCreationWindowLocator.class)

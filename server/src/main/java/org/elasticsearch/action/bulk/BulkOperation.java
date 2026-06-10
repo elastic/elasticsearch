@@ -347,8 +347,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
                 docWriteRequest.routing(project.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
-                // PRTODO: Unfortunately, if the tsds comes back with a timestamp error, we're long past creating anything
-                //  We'd need to double check this in the transport bulk action as part of the creation checks.
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, project);
                 if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, bulkItemRequest.id(), project)) {
                     continue;

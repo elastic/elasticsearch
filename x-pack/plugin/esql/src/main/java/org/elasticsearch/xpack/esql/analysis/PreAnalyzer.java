@@ -203,18 +203,18 @@ public class PreAnalyzer {
         return null;
     }
 
-    private static String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
+    private static String inferenceId(UnresolvedFunction func, FunctionDefinition def) {
         EsqlFunctionRegistry.FunctionDescription functionDescription = EsqlFunctionRegistry.description(def);
 
         for (int i = 0; i < functionDescription.args().size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
-            if (i >= f.arguments().size()) {
+            if (i >= func.arguments().size()) {
                 // Argument is missing. We will fail later during verifier, so just return null here.
                 return null;
             }
 
             if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
-                Expression inferenceId = f.arguments().get(i);
+                Expression inferenceId = func.arguments().get(i);
                 if (inferenceId != null && inferenceId.foldable() && DataType.isString(inferenceId.dataType())) {
                     return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
                 }

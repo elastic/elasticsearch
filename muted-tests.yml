@@ -614,9 +614,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testDeleteMountedFrozenIndexBeforeSwap
-  issue: https://github.com/elastic/elasticsearch/issues/150892
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
   issue: https://github.com/elastic/elasticsearch/issues/150897
@@ -644,9 +641,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors
-  issue: https://github.com/elastic/elasticsearch/issues/150977
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982

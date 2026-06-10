@@ -84,12 +84,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             throw new IllegalArgumentException("sliceField must be the first field of the index sort and of type STRING");
         }
 
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(
-            visitRatio,
-            numCands,
-            k,
-            knnCollectorManager.longAccumulator
-        );
+        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return NO_RESULTS;

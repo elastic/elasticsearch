@@ -39,6 +39,8 @@ public abstract class AbstractStringPattern implements StringPattern, NodeString
             return doCreateAutomaton(ignoreCase);
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        } catch (StackOverflowError e) {
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
         }
     }
 

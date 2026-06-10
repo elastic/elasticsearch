@@ -96,7 +96,7 @@ Items 1, 2, and 3 can be started in parallel.
 1b. **Resource attributes: `project.name`, `organization.id`, `service.name`, `service.type`**. The field reference doc requires these as `resource.attributes` in `OtelSdkExportLogsSupplier`:
    - `project.name` (required, custom): project name. Source TBD — *Ankit Sethi was researching as of 2026-06-10; coordinate before implementing.*
    - `organization.id` (required, ECS): Elastic organization ID. Source TBD (same research).
-   - `service.name` (required): must be deployment-mode-aware — `serverless-elasticsearch` (stateless), `hosted-elasticsearch` (ECH), `self-managed-elasticsearch` (self-managed). **PR 1 hardcodes `"elasticsearch"` — this is wrong and must be corrected in PR 2.**
+   - `service.name` (required): add a `telemetry.otel.logs.service.name` NodeScope setting defaulting to `"hosted-elasticsearch"`. Serverless overrides this to `"serverless-elasticsearch"` via controller-delivered settings; self-managed users set their own value. No runtime deployment-mode detection needed. **PR 1 hardcodes `"elasticsearch"` — replace with this setting in PR 2.** Existing file-based self-hosted audit logging is completely unaffected: the OTel delivery path only activates when `telemetry.otel.logs.enabled=true`, which defaults to `false`.
    - `service.type` = `"elasticsearch"` (required, ECS): add alongside `service.name`.
    *Can be done in PR 2.*
 

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
@@ -61,7 +60,7 @@ final class PrometheusLabelsPlanBuilder {
     static LogicalPlan buildPlan(String index, List<String> matchSelectors, Instant start, Instant end, int limit) {
         LogicalPlan plan = PrometheusPlanBuilderUtils.tsSource(index);
         plan = new Filter(Source.EMPTY, plan, PrometheusPlanBuilderUtils.filterExpression(matchSelectors, start, end));
-        plan = new MetricsInfo(Source.EMPTY, plan);
+        plan = PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, plan);
 
         // Expand the multivalued dimension_fields column into one row per label name
         UnresolvedAttribute dimField = new UnresolvedAttribute(Source.EMPTY, PrometheusPlanBuilderUtils.DIMENSION_FIELDS);

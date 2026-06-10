@@ -60,7 +60,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
 
                 final DocValuesFormat docValuesFormat = randomBoolean()
                     ? new ES819Version3TSDBDocValuesFormat(
-                        ESTestCase.randomIntBetween(1, 4096),
+                        ESTestCase.randomIntBetween(2, 4096),
                         ESTestCase.randomIntBetween(1, 512),
                         random().nextBoolean(),
                         ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode(),

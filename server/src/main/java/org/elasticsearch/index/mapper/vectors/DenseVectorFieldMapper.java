@@ -3387,7 +3387,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     mappingOversample,
                     queryOversample
                 );
-                final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
+                final String singleSliceRouting = extractSingleSliceRouting(sliceRouting, sliceEnabled);
                 if (singleSliceRouting != null) {
                     knnQuery = parentFilter != null
                         ? new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(

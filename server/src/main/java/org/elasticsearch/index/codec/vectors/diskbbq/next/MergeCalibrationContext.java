@@ -16,7 +16,6 @@ import java.util.Objects;
 
 /**
  * Summarizes Lucene merge metadata used for diskbbq auto-calibration decisions and logging.
- * <p>
  * Bounded (force-merge) merges are detected via {@code mergeMaxNumSegments} in the merged segment's
  * diagnostics (see Lucene {@code IndexWriter}): background merges use {@code -1} (unbounded); force
  * merges set a target segment count ({@code >= 1}).

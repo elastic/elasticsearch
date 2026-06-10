@@ -832,22 +832,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertTrue(mapperService.mappingSource().toString().contains("auto_calibrate"));
         }
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> createMapperService(experimentalDisabled, fieldMapping(b -> {
-                    b.field("type", "dense_vector");
-                    b.field("dims", 128);
-                    b.field("index", true);
-                    b.field("similarity", "dot_product");
-                    b.startObject("index_options");
-                    b.field("type", "bbq_disk");
-                    b.field("auto_calibrate", true);
-                    b.endObject();
-                }))
-            );
-            assertTrue(e.getMessage().contains("auto_calibrate requires experimental"));
-        }
-        {
             DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);

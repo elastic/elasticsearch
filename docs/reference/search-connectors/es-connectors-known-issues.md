@@ -150,6 +150,15 @@ The connector service has the following known issues:
     **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3.6, 9.4.3, and 9.5.0
 
 
+* **Jira Server/Data Center syncs fail to fetch issues**
+
+    [elastic/connectors#3710](https://github.com/elastic/connectors/pull/3710) migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint. That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
+
+    **Affected versions**: 8.18.8, 8.19.5, 9.0.8, 9.1.5, 9.2.0 and later. Jira Cloud is not affected.
+
+    **Fix**: Tracked in [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059). The connector falls back to the deprecated, offset-based `rest/api/2/search` endpoint for Server/Data Center deployments.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

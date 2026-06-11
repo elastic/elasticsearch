@@ -140,7 +140,10 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                     name = OUTPUT_FORMAT,
                     type = "keyword",
                     valueHint = { "regex", "tokens" },
-                    description = "The output format of the categories. Defaults to regex."
+                    description = "The output format of the categories. "
+                        + "Supported formats are `regex`, which outputs a regular expression matching the category, "
+                        + "and `tokens`, which outputs a human-readable representation of the category. "
+                        + "Defaults to `regex`."
                 ),
                 @MapParam.MapParamEntry(
                     name = SIMILARITY_THRESHOLD,

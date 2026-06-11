@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -571,22 +572,37 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("Unknown index [ds2]"));
     }
 
-    public void testCandidatePatternsEmptyWithoutDatasets() {
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("logs"), projectWith(Map.of(), Map.of())), equalTo(List.of()));
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("logs"), null), equalTo(List.of()));
+    public void testCandidateDatasetsEmptyWithoutDatasets() {
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs"), projectWith(Map.of(), Map.of()), RESOLVER), equalTo(List.of()));
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs"), null, RESOLVER), equalTo(List.of()));
     }
 
-    public void testCandidatePatternsCollectsMatchingRelationsOnly() {
+    public void testCandidateDatasetsResolvesToConcreteNames() {
         DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
 
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("logs"), project), equalTo(List.of("logs")));
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("log*,-logs_x"), project), equalTo(List.of("log*", "-logs_x")));
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_a"), project, RESOLVER), equalTo(List.of("logs_a")));
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_*"), project, RESOLVER), containsInAnyOrder("logs_a", "logs_b"));
+        // Exclusions apply within their own relation.
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("logs_*,-logs_b"), project, RESOLVER), equalTo(List.of("logs_a")));
         // No pattern can match a dataset name → no candidates.
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("metrics"), project), equalTo(List.of()));
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("metrics"), project, RESOLVER), equalTo(List.of()));
         // Remote-prefixed relations never participate in dataset rewriting.
-        assertThat(DatasetRewriter.candidatePatterns(relationOf("cluster-1:remote,logs"), project), equalTo(List.of()));
+        assertThat(DatasetRewriter.candidateDatasets(relationOf("cluster-1:remote,logs_a"), project, RESOLVER), equalTo(List.of()));
+    }
+
+    public void testCandidateDatasetsExclusionStaysPerRelation() {
+        // Two relations in one plan: the second excludes logs_a, the first includes it via a wildcard.
+        // Per-relation resolution means the exclusion never shadows the other relation's expansion.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan plan = new UnionAll(Source.EMPTY, List.of(relationOf("logs_*"), relationOf("logs_*,-logs_a")), List.of());
+        assertThat(DatasetRewriter.candidateDatasets(plan, project, RESOLVER), containsInAnyOrder("logs_a", "logs_b"));
     }
 
     public void testDatasetToDataSourceMap() {

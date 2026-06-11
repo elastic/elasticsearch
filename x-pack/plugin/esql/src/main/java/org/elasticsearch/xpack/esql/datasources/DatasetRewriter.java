@@ -56,9 +56,9 @@ public final class DatasetRewriter {
 
     /**
      * Built from {@link IndexResolver#DEFAULT_OPTIONS}; only delta is {@code resolveDatasets(true)}. Shared with
-     * {@link org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction.Request} so the security filter resolves the
-     * same patterns with the same semantics this rewriter then applies. {@code ALLOW_UNAVAILABLE_TARGETS} is what makes
-     * an unauthorized explicit dataset name indistinguishable from a missing one (filtered, not 403) — mirroring how
+     * {@link org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction.Request} so the security filter handles the
+     * candidate names with the same semantics this rewriter applies. {@code ALLOW_UNAVAILABLE_TARGETS} is what makes
+     * an unauthorized dataset name indistinguishable from a missing one (filtered, not 403) — mirroring how
      * unauthorized indices and views behave in FROM.
      */
     public static final IndicesOptions RESOLVER_OPTIONS = IndicesOptions.builder(IndexResolver.DEFAULT_OPTIONS)
@@ -68,14 +68,16 @@ public final class DatasetRewriter {
     private DatasetRewriter() {}
 
     /**
-     * The FROM patterns of {@code parsed} that could resolve to a registered dataset — the patterns that must be
-     * read-authorized via {@code EsqlResolveDatasetAction} before {@link #rewrite} strips the dataset names from the
-     * plan. Empty means no dataset can be involved and the authorization round-trip can be skipped entirely (the
-     * common, no-datasets path). Applies the same short-circuits {@link #rewrite} does: no project metadata, no
-     * registered datasets (the feature-flag off-switch), remote patterns (datasets are local-only; CCS relations are
-     * never rewritten).
+     * The concrete dataset names {@code parsed} would read if fully authorized — the names that must be
+     * read-authorized via {@code EsqlResolveDatasetAction} before {@link #rewrite} strips them from the plan.
+     * Each relation's patterns are resolved locally (wildcards, exclusions, date math) and classified
+     * independently, so exclusion semantics stay per-relation — an exclusion in one FROM never shadows an
+     * inclusion in another. Empty means no dataset can be involved and the authorization round-trip can be
+     * skipped entirely (the common, no-datasets path). Applies the same short-circuits {@link #rewrite} does:
+     * no project metadata, no registered datasets (the feature-flag off-switch), remote patterns (datasets
+     * are local-only; CCS relations are never rewritten).
      */
-    static List<String> candidatePatterns(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+    static List<String> candidateDatasets(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
         if (projectMetadata == null) {
             return List.of();
         }
@@ -83,10 +85,8 @@ public final class DatasetRewriter {
         if (datasetNames.isEmpty()) {
             return List.of();
         }
-        // LinkedHashSet: dedup across relations while preserving pattern order within each relation, so
-        // exclusion semantics ("ds*,-ds_foo") survive the union. Relations are concatenated; an exclusion
-        // from one relation can in principle shadow an inclusion from another, but FROM lists mixing the
-        // same dataset positively and negatively across subplans have no defined precedence anyway.
+        IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
+        Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
         Set<String> candidates = new LinkedHashSet<>();
         parsed.forEachUp(UnresolvedRelation.class, r -> {
             List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()));
@@ -95,8 +95,22 @@ public final class DatasetRewriter {
                     return;
                 }
             }
-            if (anyPatternCouldMatchDataset(patterns, datasetNames)) {
-                candidates.addAll(patterns);
+            if (anyPatternCouldMatchDataset(patterns, datasetNames) == false) {
+                return;
+            }
+            var resolved = resolver.resolveIndexAbstractions(
+                patterns,
+                RESOLVER_OPTIONS,
+                projectMetadata,
+                componentSelector -> indicesLookup.keySet(),
+                (name, selector) -> true,
+                true
+            );
+            for (String name : resolved.getLocalIndicesList()) {
+                IndexAbstraction abs = indicesLookup.get(name);
+                if (abs != null && abs.getType() == IndexAbstraction.Type.DATASET) {
+                    candidates.add(name);
+                }
             }
         });
         return List.copyOf(candidates);

@@ -22,12 +22,13 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
  * Read-authorizes and rewrites {@code FROM <dataset>} targets. The companion of {@link DatasetRewriter} that owns the
- * security round-trip: FROM patterns that could resolve to a registered dataset are first pushed through
- * {@link EsqlResolveDatasetAction} — an {@code IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the
- * security filter enforces a read on each dataset name, the DLS/FLS interceptor rejects restricted datasets, and the
- * dataset-datasource interceptor enforces {@code global.data_source: read} on the parent datasource — and only the
- * authorized names are then rewritten into external relations. Mirrors how {@code ViewResolver} routes view names
- * through {@code EsqlResolveViewAction}.
+ * security round-trip: the concrete dataset names the query would read (per-relation resolution of wildcards,
+ * exclusions and date math) are first pushed through {@link EsqlResolveDatasetAction} — an
+ * {@code IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security filter enforces a read on
+ * each dataset name, the DLS/FLS interceptor rejects restricted datasets, and the dataset-datasource interceptor
+ * enforces {@code global.data_source: read} on the parent datasource — and only the authorized names are then
+ * rewritten into external relations. Mirrors how {@code ViewResolver} routes view names through
+ * {@code EsqlResolveViewAction}.
  *
  * <p>When no FROM pattern can match a registered dataset (in particular whenever no datasets exist — the feature-flag
  * off path), the listener completes synchronously with the plan untouched and no request is sent.
@@ -54,14 +55,14 @@ public class DatasetResolver {
         IndexNameExpressionResolver indexNameExpressionResolver,
         ActionListener<LogicalPlan> listener
     ) {
-        List<String> patterns = DatasetRewriter.candidatePatterns(parsed, projectMetadata);
-        if (patterns.isEmpty()) {
+        List<String> candidates = DatasetRewriter.candidateDatasets(parsed, projectMetadata, indexNameExpressionResolver);
+        if (candidates.isEmpty()) {
             listener.onResponse(parsed);
             return;
         }
         var request = new EsqlResolveDatasetAction.Request(
             REST_MASTER_TIMEOUT_DEFAULT,
-            patterns.toArray(String[]::new),
+            candidates.toArray(String[]::new),
             DatasetRewriter.datasetToDataSourceMap(projectMetadata)
         );
         client.execute(

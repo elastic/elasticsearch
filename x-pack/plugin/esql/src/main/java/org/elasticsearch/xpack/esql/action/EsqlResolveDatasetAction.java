@@ -43,15 +43,14 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Read-authorization gate for {@code FROM <dataset>}: resolves the FROM patterns of a query that may target
- * datasets to the set of dataset names the caller is authorized to read. Mirrors {@link EsqlResolveViewAction}
- * for views — the {@link Request} is an {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)},
- * so the security filter resolves the patterns against the caller's permissions (a read on the dataset name;
- * unauthorized names are filtered like unauthorized indices and views, hiding their existence) and the
- * view/dataset DLS/FLS interceptor rejects DLS/FLS-restricted datasets. The request also implements
- * {@link DataSourceRequestInfo} so security's dataset-datasource interceptor can additionally enforce
- * {@code global.data_source: read} on the parent datasource of every dataset that survives resolution —
- * the same dual-axis model PUT dataset enforces on create.
+ * Read-authorization gate for {@code FROM <dataset>}: narrows the concrete dataset names a query would read
+ * to the subset the caller is authorized to read. Mirrors {@link EsqlResolveViewAction} for views — the
+ * {@link Request} is an {@link IndicesRequest.Replaceable} with {@code resolveDatasets(true)}, so the security
+ * filter checks each name against the caller's permissions (a read on the dataset name; unauthorized names are
+ * filtered like unauthorized indices and views, hiding their existence) and the view/dataset DLS/FLS interceptor
+ * rejects DLS/FLS-restricted datasets. The request also implements {@link DataSourceRequestInfo} so security's
+ * dataset-datasource interceptor can additionally enforce {@code global.data_source: read} on the parent
+ * datasource of every dataset that survives the filter — the same dual-axis model PUT dataset enforces on create.
  */
 public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataAction<
     EsqlResolveDatasetAction.Request,
@@ -86,6 +85,10 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         listener.onResponse(new Response(Set.copyOf(datasets)));
     }
 
+    /**
+     * Unlike the view sibling, deliberately carries no remote/CPS plumbing ({@code allowsRemoteIndices},
+     * project routing): datasets are local-only and remote-prefixed relations never reach this action.
+     */
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable, DataSourceRequestInfo {
 
         private String[] indices;
@@ -93,7 +96,7 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         private ResolvedIndexExpressions resolvedIndexExpressions;
 
         /**
-         * @param indices             the FROM patterns that may resolve to datasets
+         * @param indices             the concrete dataset names the query would read if fully authorized
          * @param datasetToDataSource registered dataset name → parent datasource name, captured from the coordinator's
          *                            cluster state. {@link #dataSourceNames()} derives from it for whatever names are
          *                            in {@link #indices()} at evaluation time, so after the security filter replaces

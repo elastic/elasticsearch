@@ -54,9 +54,10 @@ import static org.hamcrest.Matchers.startsWith;
  * the per-format <em>reader</em>: every format reader emits a per-record token on the
  * {@code _rowPosition} channel (columnar formats — Parquet/ORC — a file-global row index; text
  * formats — CSV/NDJSON — a file-global byte offset or per-record counter), and
- * {@code VirtualColumnIterator} composes {@code _id} as {@code <location>:<token>} via
+ * {@code VirtualColumnIterator} composes {@code _id} as {@code <location>@<mtime>:<token>} via
  * {@code ExternalRowIdentity}. {@code _source} is composed from the reader's data blocks by
- * {@code SynthesizeExternalSource}, rendering every {@code BytesRefBlock} via {@code utf8ToString}.
+ * {@code SynthesizeExternalSource}, rendering each value per its declared type the way the
+ * response layer would.
  * A format-specific reader regression in any of those paths would otherwise pass with only the
  * CSV coverage in {@link FromDatasetIT}.
  *
@@ -182,7 +183,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
-            // _id is <location>:<token>, where <token> is an opaque, stable, per-record reference.
+            // _id is <location>@<mtime>:<token>, where <token> is an opaque, stable, per-record reference.
             // Its form is format-defined and intentionally NOT uniform across readers: columnar
             // formats (Parquet/ORC) emit a file-global row index, text formats emit a file-global
             // byte offset, etc. So we assert the contract — same location prefix, distinct, parseable
@@ -202,6 +203,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
                 previousToken = token;
             }
             String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
+            assertTrue("location prefix [" + prefix0 + "] must carry the @<mtime> identity salt", prefix0.matches(".*@\\d+"));
             for (String id : ids) {
                 assertThat("all rows come from one file, so share one location prefix", id, startsWith(prefix0));
             }

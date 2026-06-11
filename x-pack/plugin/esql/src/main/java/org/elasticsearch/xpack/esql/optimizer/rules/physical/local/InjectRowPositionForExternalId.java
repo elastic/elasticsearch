@@ -26,7 +26,7 @@ import java.util.List;
  * {@link ExternalSourceExec} whose bound output references the standard {@code _id} metadata column
  * or the {@code _file.record_ref} virtual column. The reader-emitted {@code _rowPosition} channel
  * carries each record's file-global, split-invariant position; the producer pipeline composes
- * {@code _id} as {@code <location>:<rowPosition>} per row and exposes the masked physical position
+ * {@code _id} as {@code <location>@<mtime>:<rowPosition>} per row and exposes the masked physical position
  * directly as {@code _file.record_ref} (see {@code ExternalRowIdentity} / {@code VirtualColumnIterator}).
  * <p>
  * Every file reader materializes {@code _rowPosition}: Parquet (Java) and ORC emit a file-global

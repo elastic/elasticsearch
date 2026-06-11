@@ -225,7 +225,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         // did not emit the channel, the iterator fails loud rather than synthesizing wrong ids.
         List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
         Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
-        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"), 1700000000000L);
 
         Exception e = expectThrows(
             org.elasticsearch.xpack.esql.core.QlIllegalArgumentException.class,

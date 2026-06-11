@@ -6303,7 +6303,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     //
     // Same physical record must carry the same _rowPosition value regardless of which split surfaced
     // it. The byte-offset emit (splitStartByte + bytesRead - lastRecordBytes) is the contract that
-    // makes _id (= <location>:<rowPosition>) stable across split layouts, which Security ingest dedup
+    // makes _id (= <location>@<mtime>:<rowPosition>) stable across split layouts, which Security ingest dedup
     // depends on. A regression where _rowPosition reverts to a per-iterator counter shows up here as
     // duplicate offsets across splits or as offsets that change when the split boundary moves.
 

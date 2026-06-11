@@ -13,14 +13,19 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 /**
  * Per-page composition of the {@code _id} metadata column for external datasets. The composed
- * value is a {@code <location>:<rowPosition>} string where {@code location} is a stable file
- * identity (the storage path) and {@code rowPosition} is the row's physical position within that
- * file, masked off from the optional {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded
- * extractor id used by the deferred-extraction path.
+ * value is a {@code <location>@<mtime>:<rowPosition>} string where {@code location} is a stable
+ * file identity (the storage path), {@code mtime} is the file's last-modified epoch millis
+ * ({@code 0} when the storage layer reports none), and {@code rowPosition} is the row's physical
+ * position within that file, masked off from the optional
+ * {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded extractor id used by the
+ * deferred-extraction path. The mtime salt makes ids from a file replaced in place under the
+ * same name distinct from the ids its predecessor produced — without it, a consumer caching by
+ * {@code _id} would silently conflate rows from two different file generations.
  * <p>
  * Allocation discipline: one {@link BytesRef} per file for the prefix; one {@code byte[]} plus
  * one {@code int[]} of offsets per page; zero per-row allocation (decimal-encoding of the row
@@ -39,22 +44,30 @@ public final class ExternalRowIdentity {
     /** Separator between location and row position in the rendered {@code _id}. */
     static final byte SEPARATOR = (byte) ':';
 
+    /** Separator between location and the mtime salt in the rendered {@code _id}. */
+    static final byte MTIME_SEPARATOR = (byte) '@';
+
     /** Maximum decimal digits in a {@code long} (signed, 19 digits for {@code Long.MAX_VALUE}). */
     private static final int MAX_LONG_DIGITS = 19;
 
     private ExternalRowIdentity() {}
 
     /**
-     * Build the per-file prefix bytes ({@code <location>:}). One allocation per file. The
+     * Build the per-file prefix bytes ({@code <location>@<mtime>:}). One allocation per file. The
      * returned {@link BytesRef} is held by the producer iterator for the lifetime of the file
-     * and reused across every page.
+     * and reused across every page. {@code mtimeMillis} is the file's last-modified epoch millis;
+     * callers pass {@code 0} when the storage layer reports none (the {@link FileList} convention
+     * for a missing mtime), keeping the id shape uniform either way.
      */
-    public static BytesRef prefix(StoragePath path) {
+    public static BytesRef prefix(StoragePath path, long mtimeMillis) {
         String location = path.toString();
         byte[] base = location.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] buf = new byte[base.length + 1];
+        byte[] mtime = Long.toString(mtimeMillis).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] buf = new byte[base.length + 1 + mtime.length + 1];
         System.arraycopy(base, 0, buf, 0, base.length);
-        buf[base.length] = SEPARATOR;
+        buf[base.length] = MTIME_SEPARATOR;
+        System.arraycopy(mtime, 0, buf, base.length + 1, mtime.length);
+        buf[buf.length - 1] = SEPARATOR;
         return new BytesRef(buf, 0, buf.length);
     }
 

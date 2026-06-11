@@ -840,7 +840,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Variant that also wires the per-file {@code _id} prefix when {@code _id} is requested.
      * Callers in multi-file paths pass the file's actual {@link StoragePath} so the rendered
-     * {@code _id} reflects which physical file each row came from.
+     * {@code _id} reflects which physical file each row came from. The prefix carries the file's
+     * mtime as an identity salt, resolved the same way {@link #mergeStandardMetadata} resolves
+     * {@code _version}: the per-file {@code _file.modified} value when the listing carried one,
+     * else the factory-level {@link #lastModifiedMillis}, else {@code 0} (unknown).
      */
     private CloseableIterator<Page> wrapWithVirtualColumns(
         CloseableIterator<Page> pages,
@@ -851,7 +854,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (partitionColumnNames.isEmpty()) {
             return pages;
         }
-        BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath) : null;
+        BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath, resolveMtimeMillis(partitionValuesForFile)) : null;
         return new VirtualColumnIterator(
             pages,
             attributes,
@@ -860,6 +863,21 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             producerBlockFactory(driverContext),
             idPrefix
         );
+    }
+
+    /**
+     * Resolves the mtime salt for the {@code _id} prefix. The per-file {@code _file.modified}
+     * value wins (multi-file paths build it from the listing via
+     * {@link FileMetadataColumns#extractValues}); the factory-level {@link #lastModifiedMillis}
+     * covers the single-file path; {@code 0} means the storage layer reported no mtime, matching
+     * the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList} missing-mtime convention.
+     */
+    private long resolveMtimeMillis(Map<String, Object> partitionValuesForFile) {
+        Object modified = partitionValuesForFile == null ? null : partitionValuesForFile.get(FileMetadataColumns.MODIFIED);
+        if (modified instanceof Long mtime) {
+            return mtime;
+        }
+        return lastModifiedMillis != null ? lastModifiedMillis : 0L;
     }
 
     /**

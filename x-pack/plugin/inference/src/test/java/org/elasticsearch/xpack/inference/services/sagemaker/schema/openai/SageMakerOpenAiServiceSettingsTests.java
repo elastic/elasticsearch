@@ -90,6 +90,19 @@ public class SageMakerOpenAiServiceSettingsTests extends InferenceSettingsTestCa
         assertThat(map, hasKey("dimensions_set_by_user"));
     }
 
+    public void testFromStorage_MissingDimensionsSetByUser_DefaultsToFalse() {
+        // Configs persisted before the field existed treat their dimensions as auto-discovered.
+        var validationException = new ValidationException();
+        var settings = OpenAiTextEmbeddingPayload.ApiServiceSettings.fromMap(
+            new HashMap<String, Object>(Map.of("dimensions", 123)),
+            ConfigurationParseContext.PERSISTENT,
+            validationException
+        );
+        validationException.throwIfValidationErrorsExist();
+        assertThat(settings.dimensions(), equalTo(123));
+        assertThat(settings.dimensionsSetByUser(), equalTo(false));
+    }
+
     public void testFromStorage_ReadsDimensionsSetByUser() {
         var validationException = new ValidationException();
         var map = new HashMap<String, Object>(Map.of("dimensions", 123, "dimensions_set_by_user", false));

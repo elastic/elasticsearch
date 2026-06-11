@@ -96,6 +96,30 @@ public class SageMakerElasticTextEmbeddingServiceSettingsTests extends Inference
         assertThat(map, hasKey("dimensions_set_by_user"));
     }
 
+    public void testFromStorage_MissingDimensionsSetByUser_AddsValidationError() {
+        // Persisted configs have always contained the field for this class, so a missing value indicates corrupt data.
+        var validationException = new ValidationException();
+        ElasticTextEmbeddingPayload.ApiServiceSettings.fromMap(
+            new HashMap<String, Object>(
+                Map.of(
+                    "dimensions",
+                    123,
+                    "similarity",
+                    SimilarityMeasure.COSINE.toString(),
+                    ELEMENT_TYPE_FIELD,
+                    DenseVectorFieldMapper.ElementType.FLOAT.toString()
+                )
+            ),
+            ConfigurationParseContext.PERSISTENT,
+            validationException
+        );
+        var exception = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
+        assertThat(
+            exception.getMessage(),
+            containsString("[service_settings] does not contain the required setting [dimensions_set_by_user]")
+        );
+    }
+
     public void testFromStorage_ReadsDimensionsSetByUser() {
         var validationException = new ValidationException();
         var map = new HashMap<String, Object>(

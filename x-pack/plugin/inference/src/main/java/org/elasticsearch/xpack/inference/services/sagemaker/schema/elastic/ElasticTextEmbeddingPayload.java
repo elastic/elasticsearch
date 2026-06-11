@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -336,13 +337,18 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
             );
             // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
             // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
-            // In a persisted config we read the stored value, falling back to that same inference for configs written before it existed.
+            // Persisted configs have always contained the field for this class, so a missing value is a validation error.
             boolean dimensionsSetByUser;
             if (ConfigurationParseContext.isRequestContext(context)) {
                 dimensionsSetByUser = dimensions != null;
             } else {
                 var storedDimensionsSetByUser = extractOptionalBoolean(serviceSettings, DIMENSIONS_SET_BY_USER_FIELD, validationException);
-                dimensionsSetByUser = storedDimensionsSetByUser != null ? storedDimensionsSetByUser : dimensions != null;
+                if (storedDimensionsSetByUser == null) {
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER_FIELD, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
+                dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
             }
 
             SimilarityMeasure similarity = ServiceUtils.extractRequiredEnum(

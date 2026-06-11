@@ -132,7 +132,7 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             null,
             null,
             null,
-            null,
+            false,
             TEST_SIMILARITY,
             TEST_ELEMENT_TYPE
         );
@@ -167,7 +167,8 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
             TEST_TARGET_CONTAINER_HOSTNAME,
             TEST_INFERENCE_COMPONENT_NAME,
             TEST_BATCH_SIZE,
-            TEST_DIMENSIONS
+            TEST_DIMENSIONS,
+            true
         );
 
         var serviceSettings = SageMakerServiceSettings.fromMap(
@@ -193,7 +194,7 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
     }
 
     public void testFromMap_OpenAiTextEmbedding_OnlyMandatoryFields_DefaultsAreUsed() {
-        var settingsMap = buildOpenAiTextEmbeddingServiceSettingsMap(TEST_ENDPOINT_NAME, TEST_REGION, null, null, null, null, null);
+        var settingsMap = buildOpenAiTextEmbeddingServiceSettingsMap(TEST_ENDPOINT_NAME, TEST_REGION, null, null, null, null, null, null);
 
         var serviceSettings = SageMakerServiceSettings.fromMap(
             SCHEMAS,
@@ -349,7 +350,8 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
         @Nullable String targetContainerHostname,
         @Nullable String inferenceComponentName,
         @Nullable Integer batchSize,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        @Nullable Boolean dimensionsSetByUser
     ) {
         var map = buildServiceSettingsMap(
             endpointName,
@@ -362,6 +364,9 @@ public class SageMakerServiceSettingsTests extends InferenceSettingsTestCase<Sag
         );
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
+        }
+        if (dimensionsSetByUser != null) {
+            map.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         return map;
     }

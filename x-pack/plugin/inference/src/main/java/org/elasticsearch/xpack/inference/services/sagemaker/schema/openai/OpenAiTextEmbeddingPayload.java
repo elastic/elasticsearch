@@ -202,7 +202,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             );
             // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
             // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
-            // In a persisted config we read the stored value, falling back to that same inference for configs written before it existed.
+            // In a persisted config we read the stored value, defaulting to false for configs persisted before the field existed.
             boolean dimensionsSetByUser;
             if (ConfigurationParseContext.isRequestContext(context)) {
                 dimensionsSetByUser = dimensions != null;
@@ -212,7 +212,7 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                     ServiceFields.DIMENSIONS_SET_BY_USER,
                     validationException
                 );
-                dimensionsSetByUser = storedDimensionsSetByUser != null ? storedDimensionsSetByUser : dimensions != null;
+                dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
             }
 
             return new ApiServiceSettings(dimensions, dimensionsSetByUser);

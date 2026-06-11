@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -117,14 +118,8 @@ import java.util.regex.Pattern;
  *   <caption>CSV options</caption>
  *   <tr><th>ES/ESQL key</th><th>Default</th><th>Description</th></tr>
  *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>Field separator character</td></tr>
- *   <tr><td>{@code dialect}</td><td>{@code quoted} ({@code .csv}) / {@code plain} ({@code .tsv})</td>
- *       <td>How a separator-that-is-data is written: {@code quoted} (fields wrap in the quote
- *           character, RFC 4180), {@code escaped} (backslash sequences, {@code \N} null —
- *           ClickHouse/MySQL/Postgres exports), or {@code plain} (every byte literal). The dialect
- *           picks the mechanism; {@code quote}/{@code escape} only carry the character and are
- *           rejected under a dialect that does not use them.</td></tr>
- *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character ({@code quoted} dialect only)</td></tr>
- *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character ({@code quoted}/{@code escaped} dialects)</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character</td></tr>
+ *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character inside quoted fields</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
  *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
@@ -426,17 +421,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // The dialect is authoritative for the MECHANISM (is quoting/escaping on at all); quote/escape
         // only carry the CHARACTER. Expand the dialect first, then overlay explicit character keys —
         // and reject a character the resolved dialect never consults, instead of silently ignoring it.
+        CsvFormatOptions.Dialect parsedDialect = CsvFormatOptions.Dialect.parse(
+            config.get(CONFIG_DIALECT) == null ? null : config.get(CONFIG_DIALECT).toString()
+        );
         CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
             config.get(CONFIG_MULTI_VALUE_SYNTAX),
             baseline.multiValueSyntax()
         );
-        CsvFormatOptions.Dialect parsedDialect = CsvFormatOptions.Dialect.parse(
-            config.get(CONFIG_DIALECT) == null ? null : config.get(CONFIG_DIALECT).toString()
-        );
         CsvFormatOptions.Dialect dialect = parsedDialect != null ? parsedDialect : baseline.dialect();
         if (parsedDialect == null && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
-            // Bracket cells carry quoted elements, so bare brackets selects QUOTED even on the
-            // no-quote .tsv baseline. An explicit non-quoted dialect + brackets is rejected below.
+            // Bracket multi-value cells are defined in the quoted world (["a","b,c"] carries quoted
+            // elements), so bare brackets selects the quoted dialect even where the extension
+            // baseline is no-quote (.tsv). An EXPLICIT non-quoted dialect + brackets is still
+            // rejected below — a default may be context-sensitive, a contradiction must stay loud.
             dialect = CsvFormatOptions.Dialect.QUOTED;
         }
         boolean quoteSet = isExplicitlySet(config.get(CONFIG_QUOTE));
@@ -1546,7 +1543,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                // UncheckedIOException, not RuntimeException: ExternalFailures.classify keys on the
+                // surfaced type, and burying the IOException turns a malformed-input 400 into a 500.
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -1760,7 +1759,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read CSV batch", e);
+                // UncheckedIOException, not RuntimeException: ExternalFailures.classify keys on the
+                // surfaced type, and burying the IOException turns a malformed-input 400 into a 500.
+                throw new UncheckedIOException("Failed to read CSV batch", e);
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;

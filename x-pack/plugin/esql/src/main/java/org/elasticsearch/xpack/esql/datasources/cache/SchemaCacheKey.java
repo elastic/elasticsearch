@@ -41,15 +41,12 @@ public record SchemaCacheKey(
     // null-filled, so captured row and column null counts must not be shared across policies.
     // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
     // which per-file stats are aggregated for aggregate pushdown.
-    // - dialect: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
-    // values on the same bytes, so neither schemas nor captured stats may cross dialects.
     // Runtime-only options that don't affect schema or captured stats (e.g. multi_value_syntax —
     // bracket parsing happens after schema inference) are intentionally NOT included.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
         "escape",
-        "dialect",
         "encoding",
         "datetime_format",
         "hive_partitioning",

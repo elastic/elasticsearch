@@ -132,10 +132,13 @@ public record CsvFormatOptions(
     );
 
     /**
-     * The {@code .tsv} baseline is {@link Dialect#PLAIN}: bulk TSV at rest (DB exports, Unix
-     * tooling, bioinformatics) does not quote, and a quoting reader glues records on a stray
-     * {@code "}. PLAIN never silently corrupts any input; ClickHouse-style files opt into full
-     * escape fidelity with {@code "dialect": "escaped"}. CSV keeps QUOTED — that ecosystem quotes.
+     * The {@code .tsv} baseline is {@link Dialect#PLAIN}, not {@link Dialect#QUOTED}: bulk TSV at
+     * rest (database exports, Unix tooling, bioinformatics) does not quote, and a quoting reader
+     * turns a stray {@code "} in that data into an unclosed quoted field that glues records
+     * together. PLAIN never silently corrupts any input — a ClickHouse-style escaped file reads
+     * with correct structure and visible {@code \N}/{@code \t} literals, one option away from full
+     * fidelity ({@code "dialect": "escaped"}). CSV keeps QUOTED: commas are common in text, so the
+     * CSV ecosystem quotes near-universally.
      */
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
         '\t',

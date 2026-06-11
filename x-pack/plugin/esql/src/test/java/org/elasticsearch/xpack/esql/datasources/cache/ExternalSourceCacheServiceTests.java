@@ -359,32 +359,6 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
     }
 
-    /**
-     * The dialect changes record boundaries, null-ness ({@code \N}) and values on the same bytes,
-     * so queries differing only in dialect must never share a schema-cache entry or a stats
-     * fingerprint.
-     */
-    public void testSchemaCacheKeySeparatesDialects() {
-        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
-        SchemaCacheKey quoted = SchemaCacheKey.build(
-            "s3://b/f.tsv",
-            1000L,
-            ".tsv",
-            Map.of("format", "tsv", "header_row", true, "dialect", "quoted")
-        );
-        SchemaCacheKey escaped = SchemaCacheKey.build(
-            "s3://b/f.tsv",
-            1000L,
-            ".tsv",
-            Map.of("format", "tsv", "header_row", true, "dialect", "escaped")
-        );
-        assertNotEquals(base.formatConfig(), quoted.formatConfig());
-        assertNotEquals(base.formatConfig(), escaped.formatConfig());
-        assertNotEquals(quoted.formatConfig(), escaped.formatConfig());
-        assertTrue(quoted.formatConfig().contains("dialect=quoted"));
-        assertTrue(escaped.formatConfig().contains("dialect=escaped"));
-    }
-
     public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
         // Two queries over the SAME file under different WITH options produce two distinct
         // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -269,7 +270,9 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             }
             return true;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            // UncheckedIOException, not RuntimeException: ExternalFailures.classify keys on the
+            // surfaced type, and burying the IOException turns a malformed-input 400 into a 500.
+            throw new UncheckedIOException(e);
         }
     }
 

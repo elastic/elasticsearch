@@ -1632,8 +1632,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                     options.quoteChar(),
                     delim,
                     SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                    options.encoding(),
-                    options.dialect().usesQuote()
+                    options.encoding()
                 );
                 while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;

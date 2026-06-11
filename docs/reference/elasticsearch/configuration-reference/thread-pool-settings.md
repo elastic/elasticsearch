@@ -18,7 +18,11 @@ There are several thread pools, but the important ones include:
 $$$search-threadpool$$$
 
 `search`
-:   For count/search operations at the shard level. Used also by fetch and other search related operations  Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors)` * 3) / 2) + 1`, and queue_size of `1000`.
+:   For count/search operations at the shard level. Used also by fetch and other search related operations  Thread pool type is `fixed` with a size of `int((`[`# of allocated processors`](#node.processors)` * 3) / 2) + 1`, and queue_size of `1000 * (int((`[`# of allocated processors`](#node.processors)` * 3) / 2) + 1)`.
+
+    :::{note}
+    In {{stack}} 8.x and earlier, the default queue_size was 1000.
+    :::
 
 $$$search-throttled$$$`search_throttled`
 :   For count/search/suggest/get operations on `search_throttled indices`. Thread pool type is `fixed` with a size of `1`, and queue_size of `100`.

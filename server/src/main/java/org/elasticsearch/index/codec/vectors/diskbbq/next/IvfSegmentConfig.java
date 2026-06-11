@@ -56,11 +56,11 @@ public record IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding quantEnc
 
     /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */
     public static int leafCollectorBudget(int resultK, float segmentOversample) {
-        return Math.round(2f * resultK * segmentOversample);
+        return Math.round(2f * resultK * Math.max(1, segmentOversample));
     }
 
     /** Shard-level merge cap across segments after approximate search. */
     public static int shardMergeBudget(int resultK, float maxSegmentOversample) {
-        return (int) Math.ceil(resultK * maxSegmentOversample);
+        return (int) Math.ceil(resultK * Math.max(1, maxSegmentOversample));
     }
 }

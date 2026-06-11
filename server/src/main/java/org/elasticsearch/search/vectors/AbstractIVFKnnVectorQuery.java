@@ -138,7 +138,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        float maxRescoreOversampleAcrossLeaves = Float.NEGATIVE_INFINITY;
+        float maxRescoreOversampleAcrossLeaves = 0;
         for (LeafReaderContext context : leafReaderContexts) {
             SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
             if (segmentReader == null) {

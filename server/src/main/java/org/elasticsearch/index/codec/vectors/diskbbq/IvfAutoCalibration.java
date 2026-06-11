@@ -15,7 +15,6 @@ import org.apache.lucene.index.MergeState;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.MergeCalibrationContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -35,12 +34,6 @@ public class IvfAutoCalibration {
     public static final float NO_CALIBRATED_OVERSAMPLE = Float.NaN;
 
     public static final int MIN_VECTORS_FOR_CALIBRATION = 10_000;
-
-    /**
-     * If the merged segment is more than this factor larger than the largest input segment,
-     * re-run calibration because prior metadata may not extrapolate well.
-     */
-    static final double RECALIBRATE_GROWTH_RATIO = 4.0;
 
     /**
      * Minimum fraction of total docs that must agree on a single encoding to skip re-calibration
@@ -67,12 +60,7 @@ public class IvfAutoCalibration {
      * Returns a merged {@link IvfSegmentConfig} if the data has not changed significantly,
      * or {@code null} if merge-time calibration should be performed.
      */
-    IvfSegmentConfig selectFromMergeState(
-        FieldInfo fieldInfo,
-        MergeState mergeState,
-        MergeCalibrationContext mergeCtx,
-        long mergedVectorCount
-    ) {
+    IvfSegmentConfig selectFromMergeState(FieldInfo fieldInfo, MergeState mergeState) {
         Map<ESNextDiskBBQVectorsFormat.QuantEncoding, Long> encodingDocCounts = new EnumMap<>(
             ESNextDiskBBQVectorsFormat.QuantEncoding.class
         );
@@ -114,12 +102,8 @@ public class IvfAutoCalibration {
             long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
             if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {
                 logger.debug(
-                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), "
-                        + "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                    (100.0 * maxEncDocs / totalDocs),
-                    mergeCtx.inputSegments(),
-                    mergeCtx.boundedForceMerge() ? "bounded force" : "background",
-                    mergeCtx.mergeMaxNumSegments()
+                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), " + "re-calibrating",
+                    (100.0 * maxEncDocs / totalDocs)
                 );
                 return null;
             }
@@ -134,15 +118,11 @@ public class IvfAutoCalibration {
         boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
 
         logger.debug(
-            "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] "
-                + "input segments [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
+            "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] ",
             bestEncoding,
             avgOversample,
             doPreconditionResult,
-            calibratedSegments,
-            mergeCtx.inputSegments(),
-            mergeCtx.boundedForceMerge() ? "bounded force" : "background",
-            mergeCtx.mergeMaxNumSegments()
+            calibratedSegments
         );
         return new IvfSegmentConfig(bestEncoding, doPreconditionResult, avgOversample);
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -29,12 +30,14 @@ import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestClientIT;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -53,6 +56,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
@@ -536,18 +540,17 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     }
 
     public void testCancellableIncrementBulkServiceHandler() throws Exception {
-
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 
         try (Releasable ignored = executorService::shutdown) {
             String index = "test";
             createIndex(index);
 
+            // Test Case 1: Cancel before the very first client.bulk()
             // First handler.addItems() comes from test thread.
-            // Subsequent handler.addItems() comes from writer coordination.
             String randomNodeName = internalCluster().getRandomNodeName();
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
-            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
+
             IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, randomNodeName);
 
             AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
@@ -569,18 +572,31 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 IndexingPressureStats after = indexingPressure.stats();
                 assertThat(after.getCurrentCoordinatingOps(), is(0L));
                 assertThat(after.getCurrentCoordinatingBytes(), is(0L));
-
             }
 
             refCounted.incRef();
             handler.lastItems(List.of(indexRequest(index)), refCounted::decRef, future);
-            IndexingPressureStats after = indexingPressure.stats();
-            assertThat(after.getCurrentCoordinatingOps(), is(0L));
-            assertThat(after.getCurrentCoordinatingBytes(), is(0L));
+            IndexingPressureStats finalStats = indexingPressure.stats();
+            assertThat(finalStats.getCurrentCoordinatingOps(), is(0L));
+            assertThat(finalStats.getCurrentCoordinatingBytes(), is(0L));
             BulkResponse bulkResponse = future.actionGet();
 
-            bulkResponse.iterator().next();
+            for (BulkItemResponse bulkItemResponse : bulkResponse) {
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [before-first-addItems()]"));
+            }
+
+            assertThat(handler.isCancelled(), is(true));
             handler.close();
+
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, randomNodeName);
+            // Test case 2: Cancel immediately after the first client bulk but before transportWriteAction submit to WRITE_THREAD_POOL
+            // Subsequent handler.addItems() comes from writer coordination.
+            // Subsequent handler.addItems() should short circuit.
+
+
+
         }
 
     }

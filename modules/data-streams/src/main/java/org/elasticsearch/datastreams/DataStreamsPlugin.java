@@ -270,7 +270,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         handlers.add(new RestDataStreamsStatsAction());
         handlers.add(new RestMigrateToDataStreamAction());
         handlers.add(new RestPromoteDataStreamAction());
-        handlers.add(new RestModifyDataStreamsAction());
+        handlers.add(new RestModifyDataStreamsAction(clusterSupportsFeature));
         handlers.add(new RestPutDataStreamLifecycleAction());
         handlers.add(new RestGetDataStreamLifecycleAction());
         handlers.add(new RestDeleteDataStreamLifecycleAction());

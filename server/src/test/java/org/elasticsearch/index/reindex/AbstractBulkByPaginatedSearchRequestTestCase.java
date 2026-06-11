@@ -50,7 +50,7 @@ public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends Abs
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
         int activeSlices = between(1, actualSlices);
-        int sliceId = between(0, actualSlices);
+        int sliceId = between(0, actualSlices - 1);
         original.setSlices(randomBoolean() ? actualSlices : AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());

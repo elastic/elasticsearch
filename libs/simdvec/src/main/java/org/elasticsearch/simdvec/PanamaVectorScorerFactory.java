@@ -28,7 +28,7 @@ import org.elasticsearch.simdvec.internal.vectorization.PanamaVectorConstants;
 import java.io.IOException;
 import java.util.Optional;
 
-final class Panama22VectorScorerFactory implements VectorScorerFactory {
+final class PanamaVectorScorerFactory implements VectorScorerFactory {
 
     @Override
     public boolean usesNative() {
@@ -207,6 +207,6 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
 
     @Override
     public String toString() {
-        return "Panama22VectorScorerFactory";
+        return "PanamaVectorScorerFactory";
     }
 }

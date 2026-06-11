@@ -62,7 +62,8 @@ public record SourceOperatorContext(
     int maxConcurrentOpenSegments,
     int maxRecordBytes,
     int parallelism,
-    @Nullable String datasetName
+    @Nullable String datasetName,
+    boolean deferredExtraction
 ) {
     /**
      * Single source of truth for the {@code max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -138,7 +139,8 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null
+            null,
+            false
         );
     }
 
@@ -178,7 +180,8 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null
+            null,
+            false
         );
     }
 
@@ -217,7 +220,8 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null
+            null,
+            false
         );
     }
 
@@ -254,7 +258,8 @@ public record SourceOperatorContext(
             DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1,
-            null
+            null,
+            false
         );
     }
 
@@ -290,6 +295,7 @@ public record SourceOperatorContext(
         private int parallelism = 1;
         @Nullable
         private String datasetName;
+        private boolean deferredExtraction;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -422,6 +428,17 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Whether the plan pairs this source with an {@code ExternalFieldExtractExec} consuming
+         * deferred-encoded columns. The operator factory keys deferred extraction off this flag,
+         * not off {@code _rowPosition} presence in the projection — the latter is also produced
+         * for plain {@code _id} composition with no extract operator downstream.
+         */
+        public Builder deferredExtraction(boolean deferredExtraction) {
+            this.deferredExtraction = deferredExtraction;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -446,7 +463,8 @@ public record SourceOperatorContext(
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
                 parallelism,
-                datasetName
+                datasetName,
+                deferredExtraction
             );
         }
     }

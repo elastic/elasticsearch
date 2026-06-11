@@ -2568,13 +2568,9 @@ public class EsqlCapabilities {
 
         /**
          * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
-         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Values are
-         * framework-synthesized: per-file constants (e.g. {@code _index}, {@code _version}) come from
-         * {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator}'s constant-block
-         * injection; {@code _id} is composed per row by {@code ExternalRowIdentity}; {@code _source} is
-         * built from the row's data columns by {@code SynthesizeExternalSource}. Pre-feature
-         * coordinators reject the METADATA names with {@code Unknown column}, so csv-spec tests that
-         * exercise these columns must gate on this capability.
+         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Pre-feature
+         * coordinators reject the names with {@code Unknown column}; tests exercising these columns
+         * gate on this capability.
          */
         EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 

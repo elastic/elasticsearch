@@ -39,15 +39,17 @@ import java.util.Set;
  */
 public final class ExternalMetadataColumns {
 
+    // Aliased from MetadataAttribute where it exports the name, so this registry cannot drift
+    // from the analyzer's binding source. The remainder have no exported constant there.
     public static final String ID = "_id";
-    public static final String INDEX = "_index";
+    public static final String INDEX = MetadataAttribute.INDEX;
     public static final String VERSION = "_version";
-    public static final String SCORE = "_score";
+    public static final String SCORE = MetadataAttribute.SCORE;
     public static final String SOURCE = "_source";
     public static final String IGNORED = "_ignored";
     public static final String INDEX_MODE = "_index_mode";
-    public static final String TSID = "_tsid";
-    public static final String SIZE = "_size";
+    public static final String TSID = MetadataAttribute.TSID_FIELD;
+    public static final String SIZE = MetadataAttribute.SIZE;
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side

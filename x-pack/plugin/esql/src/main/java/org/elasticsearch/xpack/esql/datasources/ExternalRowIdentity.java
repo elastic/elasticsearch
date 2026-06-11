@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
  * Per-page composition of the {@code _id} metadata column for external datasets. The composed
  * value is a {@code <location>@<mtime>:<rowPosition>} string where {@code location} is a stable
  * file identity (the storage path), {@code mtime} is the file's last-modified epoch millis
- * ({@code 0} when the storage layer reports none), and {@code rowPosition} is the row's physical
+ * (rendered as the {@code -} sentinel when the storage layer reports none, mirroring how
+ * {@code _version} treats a missing mtime as unknown rather than as epoch zero), and
+ * {@code rowPosition} is the row's physical
  * position within that file, masked off from the optional
  * {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded extractor id used by the
  * deferred-extraction path. The mtime salt makes ids from a file replaced in place under the
@@ -57,12 +59,14 @@ public final class ExternalRowIdentity {
      * returned {@link BytesRef} is held by the producer iterator for the lifetime of the file
      * and reused across every page. {@code mtimeMillis} is the file's last-modified epoch millis;
      * callers pass {@code 0} when the storage layer reports none (the {@link FileList} convention
-     * for a missing mtime), keeping the id shape uniform either way.
+     * for a missing mtime). The missing case renders as {@code -} rather than {@code 0} so the
+     * prefix never masquerades as a genuine epoch-0 mtime — the same 0-means-unknown reading
+     * {@code ExternalMetadataColumns} applies when it nulls {@code _version}.
      */
     public static BytesRef prefix(StoragePath path, long mtimeMillis) {
         String location = path.toString();
         byte[] base = location.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] mtime = Long.toString(mtimeMillis).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] mtime = (mtimeMillis == 0L ? "-" : Long.toString(mtimeMillis)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
         byte[] buf = new byte[base.length + 1 + mtime.length + 1];
         System.arraycopy(base, 0, buf, 0, base.length);
         buf[base.length] = MTIME_SEPARATOR;

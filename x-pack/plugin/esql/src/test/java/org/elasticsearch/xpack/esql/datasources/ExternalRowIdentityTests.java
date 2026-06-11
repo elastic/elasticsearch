@@ -42,7 +42,8 @@ public class ExternalRowIdentityTests extends ESTestCase {
      * A file replaced in place under the same name (new mtime) must produce different ids than
      * its predecessor — the mtime salt is what distinguishes the two file generations. A missing
      * mtime ({@code 0}, the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList}
-     * convention) keeps the same uniform shape.
+     * convention) renders the {@code -} sentinel so it cannot be mistaken for a genuine epoch-0
+     * mtime, matching {@code _version}'s 0-means-unknown treatment.
      */
     public void testMtimeSaltDistinguishesFileGenerations() {
         StoragePath path = StoragePath.of("s3://bucket/file.parquet");
@@ -58,7 +59,7 @@ public class ExternalRowIdentityTests extends ESTestCase {
             ) {
                 assertNotEquals("same row in two file generations must have distinct ids", asString(idsOne, 0), asString(idsTwo, 0));
                 assertEquals("s3://bucket/file.parquet@1700000099999:7", asString(idsTwo, 0));
-                assertEquals("missing mtime renders the 0 sentinel", "s3://bucket/file.parquet@0:7", asString(idsUnknown, 0));
+                assertEquals("missing mtime renders the - sentinel", "s3://bucket/file.parquet@-:7", asString(idsUnknown, 0));
             }
         }
     }

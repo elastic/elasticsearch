@@ -106,7 +106,7 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
      * not as a base64-encoded scalar or as the first value only.
      * {@link org.elasticsearch.compute.data.BlockUtils#toJavaObject} returns an {@code ArrayList}
      * for multi-value rows; the synthesizer's {@code renderValue} list branch must render each
-     * element. Regression guard for Julian's review thread on multi-value handling.
+     * element.
      */
     public void testMultiValueBytesRefRoundTripsAsJsonArray() throws Exception {
         try (IntBlock idCol = intBlock(7); BytesRefBlock tags = multiValueBytesRefBlock("alpha", "beta", "gamma")) {
@@ -127,8 +127,7 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
     /**
      * IP and VERSION columns carry wire-encoded {@link BytesRef}s (16-byte InetAddressPoint /
      * semver wire bytes); rendering them with {@code utf8ToString} emits garbage into
-     * {@code _source}. They must decode the same way the response layer does. Regression guard
-     * for Julian's type-blindness review comment.
+     * {@code _source}. They must decode the same way the response layer does.
      */
     public void testIpAndVersionRenderDecoded() throws Exception {
         try (

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.NullSpliceRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
@@ -809,10 +810,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (standardMetadataPerFileNames.isEmpty()) {
             return basePartitionValues;
         }
-        Long version = lastModifiedMillis;
-        Object modified = basePartitionValues == null ? null : basePartitionValues.get(FileMetadataColumns.MODIFIED);
-        if (modified instanceof Long longVersion) {
-            version = longVersion;
+        // Same key-present-vs-absent split as resolveMtimeMillis: a per-file extraction that
+        // reported no mtime must yield a null _version for that file, not the factory-level
+        // (first file's) mtime.
+        Long version;
+        if (basePartitionValues != null && basePartitionValues.containsKey(FileMetadataColumns.MODIFIED)) {
+            version = basePartitionValues.get(FileMetadataColumns.MODIFIED) instanceof Long longVersion ? longVersion : null;
+        } else {
+            version = lastModifiedMillis;
         }
         Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName, version);
         Map<String, Object> merged = new HashMap<>(stdConstants);
@@ -873,9 +878,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList} missing-mtime convention.
      */
     private long resolveMtimeMillis(Map<String, Object> partitionValuesForFile) {
-        Object modified = partitionValuesForFile == null ? null : partitionValuesForFile.get(FileMetadataColumns.MODIFIED);
-        if (modified instanceof Long mtime) {
-            return mtime;
+        // Key present = a per-file extraction ran for THIS file: a Long is its mtime; null means
+        // the storage layer reported none for this file — return the 0 sentinel rather than fall
+        // through, or an unknown-mtime file in a multi-file glob would inherit the factory-level
+        // (first file's) mtime as its _id salt. The factory fallback serves single-file paths,
+        // where no per-file extraction populated the map.
+        if (partitionValuesForFile != null && partitionValuesForFile.containsKey(FileMetadataColumns.MODIFIED)) {
+            return partitionValuesForFile.get(FileMetadataColumns.MODIFIED) instanceof Long mtime ? mtime : 0L;
         }
         return lastModifiedMillis != null ? lastModifiedMillis : 0L;
     }
@@ -919,6 +928,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         DriverContext driverContext
     ) throws IOException {
         if (deferredExtraction == false) {
+            // No paired extract operator: no registry, no refcount, nothing to decode downstream.
+            // A ColumnExtractorAware reader's iterator still ORs the installed high bits into every
+            // _rowPosition value, so install zero — the unencoded form — whenever the channel is
+            // projected for plain _id / _file.record_ref composition (which masks high bits anyway).
+            // Gate on the READER capability, not the iterator: stats/schema wrappers implement
+            // ColumnExtractorProducer as blind pass-throughs that throw when the delegate isn't one.
+            if (formatReader instanceof ColumnExtractorAware
+                && rowPositionChannelIndex(projectedColumns) >= 0
+                && pages instanceof ColumnExtractorProducer producer) {
+                producer.setExtractorId(0);
+            }
             return pages;
         }
         int rpChannel = rowPositionChannelIndex(projectedColumns);
@@ -1592,6 +1612,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Under UBN, the query projection may include columns missing from this file; the adapter
                 // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
                 List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
+                // Compressed-offset splits (bzip2 block-aligned / zstd-indexed): splitStartByte is a
+                // COMPRESSED position while text readers anchor _rowPosition in decompressed bytes —
+                // composing _id from that mix yields non-split-invariant, collision-prone tokens. Take
+                // the slot out of the reader's projection and null-splice it instead: null _id over
+                // these layouts, same honest carve-out parquet-rs gets.
+                boolean compressedOffsetSplit = "true".equals(fileSplit.config().get(FileSplitProvider.COMPRESSED_OFFSET_SPLIT_KEY));
+                int compressedRowPosSlot = compressedOffsetSplit ? SyntheticColumns.rowPositionIndexInNames(perFileCols) : -1;
+                if (compressedRowPosSlot >= 0) {
+                    List<String> withoutRowPosition = new ArrayList<>(perFileCols);
+                    withoutRowPosition.remove(compressedRowPosSlot);
+                    perFileCols = withoutRowPosition;
+                }
                 pages = openWithParallelism(
                     fileReader,
                     obj,
@@ -1619,7 +1651,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
-                pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
+                if (compressedRowPosSlot >= 0) {
+                    pages = new NullSpliceRowPositionStrategy(
+                        producerBlockFactory(state.driverContext),
+                        "compressed-offset split has no decompressed _rowPosition anchor"
+                    ).apply(pages, compressedRowPosSlot);
+                } else {
+                    pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
+                }
                 state.currentObject = obj;
                 state.currentObjectBytesSnapshot = readBytesOrZero(obj);
                 pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
@@ -1737,19 +1776,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         state.buffer.setCurrentSplit(state.currentSplitIndex);
         List<String> cols = state.projectedColumns;
 
-        // Per-file partition values so {@code _file.path/name/directory/size/modified} reflect
-        // *this* file rather than the factory's pre-resolution values. The merge order is:
-        // <ol>
-        // <li>Standard ES metadata constants ({@code _index}, {@code _version}, ...) — base layer.</li>
-        // <li>Hive-style partition values (carried in {@code partitionValues}) — overlay; a Hive
-        // partition column literally named {@code _index} therefore wins over the synthesized
-        // constant, matching what the user explicitly authored in the partition layout.</li>
-        // <li>{@code _file.*} values from {@link FileMetadataColumns#extractValues} — top layer;
-        // a hand-rolled {@code _file.size} column never leaks the factory value.</li>
-        // </ol>
-        // This matches the precedence implemented by {@link #mergeStandardMetadata} on the
-        // slice-queue and single-file paths (standard constants are base; Hive partitions then
-        // {@code _file.*} overlay).
+        // Per-file partition values so _file.path/name/directory/size/modified reflect *this*
+        // file rather than the factory's pre-resolution values. Merge precedence (base -> top):
+        // standard ES metadata constants, then Hive partition values, then _file.* values — the
+        // same order mergeStandardMetadata applies on the slice-queue and single-file paths.
         Map<String, Object> perFileValues = partitionValues;
         if (partitionColumnNames.isEmpty() == false) {
             perFileValues = new HashMap<>();

@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
  * page-emitting iterator (parquet-mr, ORC, CSV, NDJSON). {@link #apply} returns the inner
  * iterator unchanged — the work is already done before the dispatcher calls into the strategy.
  */
-public final class PassThroughRowPositionStrategy extends RowPositionStrategy {
+public final class PassThroughRowPositionStrategy implements RowPositionStrategy {
 
     public static final PassThroughRowPositionStrategy INSTANCE = new PassThroughRowPositionStrategy();
 

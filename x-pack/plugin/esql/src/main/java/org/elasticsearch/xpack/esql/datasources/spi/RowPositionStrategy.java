@@ -28,7 +28,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
  * <p>Adding a new strategy is the only change required to support a new reader family — every
  * dispatch site already calls {@code strategy.apply(inner, ctx)} polymorphically.
  */
-public abstract class RowPositionStrategy {
+public interface RowPositionStrategy {
 
     /**
      * Wrap (or pass through) the reader's inner page iterator so each page has the
@@ -41,7 +41,7 @@ public abstract class RowPositionStrategy {
      *                        dispatcher pre-computes this once per {@code reader.read()} so
      *                        strategies inspect a primitive instead of walking a list per call.
      */
-    public abstract CloseableIterator<Page> apply(CloseableIterator<Page> inner, int rowPositionSlot);
+    CloseableIterator<Page> apply(CloseableIterator<Page> inner, int rowPositionSlot);
 
     /**
      * Human-readable reason why this strategy emits the shape it does, available to wrapping
@@ -50,7 +50,7 @@ public abstract class RowPositionStrategy {
      * null. The default returns the simple class name; the null-splice strategy overrides to
      * expose its constructor reason.
      */
-    public String reason() {
+    default String reason() {
         return getClass().getSimpleName();
     }
 }

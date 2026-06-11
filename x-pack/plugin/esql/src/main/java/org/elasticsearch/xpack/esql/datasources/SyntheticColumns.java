@@ -38,19 +38,16 @@ import java.util.Set;
  * the user via the virtual {@code _file.record_ref} and through {@code _id}'s composition.
  *
  * <p>The {@link Kind} registry is the single source of truth for the set of synthetic columns,
- * their canonical names, and their attribute shapes. Dispatch sites that switch on {@link Kind}
- * use the arrow-{@code switch} form without a {@code default} case so the compiler enforces
- * exhaustiveness: adding a new {@link Kind} member forces every dispatch site to add an explicit
- * arm before it will compile.
+ * their canonical names, and their attribute shapes — consumers derive a kind's behavior from its
+ * accessors rather than dispatching per member.
  */
 public final class SyntheticColumns {
 
     /**
      * Registry of reader-synthesized internal channels. Each kind carries the canonical column
      * name and the attribute shape ({@link DataType} + {@link Nullability}) the engine expects.
-     * Adding a new kind here is the single change that grows the registry — every dispatch site
-     * that does {@code switch (kind)} without a {@code default} case will then fail to compile
-     * until it handles the new kind explicitly.
+     * Adding a new kind here is the single change that grows the registry; consumers read the
+     * shape off the member's accessors.
      */
     public enum Kind {
         /**

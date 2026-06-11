@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
  * (and the always-null set {@code _score / _ignored / _index_mode / _tsid / _size}) reaches into
  * the per-format <em>reader</em>: every format reader emits a per-record token on the
  * {@code _rowPosition} channel (columnar formats — Parquet/ORC — a file-global row index; text
- * formats — CSV/NDJSON — a file-global byte offset or per-record counter), and
+ * formats — CSV/NDJSON — a file-global byte offset), and
  * {@code VirtualColumnIterator} composes {@code _id} as {@code <location>@<mtime>:<token>} via
  * {@code ExternalRowIdentity}. {@code _source} is composed from the reader's data blocks by
  * {@code SynthesizeExternalSource}, rendering each value per its declared type the way the
@@ -232,9 +232,8 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
 
     public void testSourceRoundTripsRowColumnsWithDataKept() throws Exception {
         // Explicit-KEEP path: when the user lists the data columns in KEEP alongside _source, the
-        // synthesizer renders every column. This used to be the workaround for the pruning bug
-        // — kept here as the explicit-projection baseline; the narrowed-projection case is covered
-        // by {@link #testSourceSurvivesKeepNarrowingDataColumns}.
+        // synthesizer renders every column. Explicit-projection baseline; the narrowed-projection
+        // case is covered by testSourceSurvivesKeepNarrowingDataColumns.
         try (
             var response = run(
                 syncEsqlQueryRequest(

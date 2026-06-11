@@ -1045,15 +1045,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.encoding()
         );
         // _rowPosition byte-axis invariant: context.splitStartByte() and recordReader.bytesRead()
-        // must both be decompressed-bytes for the composed offset to be a file-global decompressed
-        // byte. Today's dispatch matrix guarantees this: SEGMENTABLE_UNCOMPRESSED splits over the
-        // raw file (decompressed == compressed); STREAM_ONLY_COMPRESSED decompresses BEFORE chunking
-        // via StreamingParallelParsingCoordinator, which threads decompressed offsets; bzip2 /
-        // zstd-indexed (SPLITTABLE_OR_INDEXED_COMPRESSED) currently falls back to single-threaded
-        // reads (splitStartByte == 0). When bzip2 / zstd-indexed macro-splitting gets enabled,
-        // splitStartByte will be a compressed offset while bytesRead is decompressed — the upstream
-        // call site MUST translate to a decompressed offset (or this reader must refuse the request)
-        // before _rowPosition stays correct across split layouts.
+        // must both be decompressed-byte offsets, or the composed file-global offset is garbage.
+        // Every current dispatch path honors this; a future compressed macro-split (bzip2 /
+        // zstd-indexed) would pass a compressed splitStartByte and MUST translate it first.
         //
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
         // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
@@ -1641,9 +1635,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Parallel to {@link #projectedIdx}: the {@link SyntheticColumns.Kind} at slots whose
          * {@code projectedIdx[i] < 0} (i.e. slots with no backing CSV source column), {@code null}
-         * elsewhere. Dispatch sites that distinguish synthetic kinds switch on this enum without a
-         * {@code default} case so the compiler enforces exhaustiveness when a new kind is added to
-         * {@link SyntheticColumns.Kind}.
+         * elsewhere.
          */
         private SyntheticColumns.Kind[] syntheticKinds;
         /**
@@ -2157,14 +2149,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 SyntheticColumns.Kind kind = syntheticKinds[i];
                 if (kind != null) {
-                    // Exhaustive arrow-switch with no default case: when a new Kind member is
-                    // added, this site fails to compile until an explicit arm is written.
-                    switch (kind) {
-                        case ROW_POSITION -> {
-                            projectedTypes[i] = kind.dataType();
-                            projectedAttrs[i] = SyntheticColumns.newAttribute(kind);
-                        }
-                    }
+                    // Registry-driven: the Kind carries its own attribute shape, so a new member
+                    // works here without a per-kind dispatch arm.
+                    projectedTypes[i] = kind.dataType();
+                    projectedAttrs[i] = SyntheticColumns.newAttribute(kind);
                     continue;
                 }
                 Attribute attr = schema.get(projectedIdx[i]);

@@ -1719,6 +1719,7 @@ public class LocalExecutionPlanner {
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .datasetName(externalSource.datasetName())
+            .deferredExtraction(externalSource.deferredExtraction())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

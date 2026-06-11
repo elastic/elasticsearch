@@ -264,11 +264,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
             // Deferred extraction fires when both signals are present: the reader is
-            // ColumnExtractorAware AND the projection contains _rowPosition (the latter is
-            // InsertExternalFieldExtraction's signal that a paired ExternalFieldExtractExec is
-            // downstream). Either signal alone is invalid — the builder rejects the mismatch.
-            boolean deferredExtraction = format instanceof ColumnExtractorAware
-                && SyntheticColumns.rowPositionIndexInNames(context.projectedColumns()) >= 0;
+            // ColumnExtractorAware AND the plan paired this source with an ExternalFieldExtractExec
+            // (the context flag InsertExternalFieldExtraction sets). _rowPosition presence in the
+            // projection is NOT a valid signal on its own — InjectRowPositionForExternalId also
+            // injects it for plain _id composition, where enabling deferred mode would create a
+            // SourceExtractors registry no extract operator ever closes.
+            boolean deferredExtraction = format instanceof ColumnExtractorAware && context.deferredExtraction();
 
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,

@@ -33,10 +33,9 @@ import java.util.List;
  * row index from footer/stripe metadata (Parquet-Java encodes an extractor id into the high bits
  * for the deferred-extraction path, which the composition path masks off); Parquet-RS splices an
  * all-null block so {@code _id} renders null per the disclosed carve-out; NDJSON and CSV both emit
- * a file-global byte offset (split start byte plus bytes consumed up to the record's first
- * character), so the same physical record carries the same {@code _rowPosition} regardless of
- * split layout. Reader-sourced and intrinsic to the record's position in the file on every
- * supported format.
+ * a file-global byte anchor (CSV: the record's start byte; NDJSON: the parser position just past
+ * the record's opening token — exact anchor is opaque, intrinsic position is the contract), so the
+ * same physical record carries the same {@code _rowPosition} regardless of split layout.
  * <p>
  * Sibling of {@link InsertExternalFieldExtraction}, which also injects {@code _rowPosition} but for
  * the deferred-extraction late-materialization path (it additionally requires a TopN above the

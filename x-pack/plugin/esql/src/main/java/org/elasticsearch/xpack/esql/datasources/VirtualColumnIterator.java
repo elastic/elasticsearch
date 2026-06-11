@@ -222,6 +222,14 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
         int producedBlocks = dataPage.getBlockCount();
         int expectedDataBlocks = dataColumnIndices.length;
+        // Same under-projection guard as projectAndReleaseSurplus: fail loud before touching block
+        // refcounts so a contract-breaking reader cannot leak the page through an out-of-bounds read.
+        if (producedBlocks < expectedDataBlocks) {
+            dataPage.releaseBlocks();
+            throw new IllegalStateException(
+                "format reader produced " + producedBlocks + " blocks, projection expects " + expectedDataBlocks
+            );
+        }
         int dataBlockIdx = 0;
         for (int idx : dataColumnIndices) {
             blocks[idx] = dataPage.getBlock(dataBlockIdx++);
@@ -232,15 +240,15 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
                 if (idx == idOutputIndex && idPrefix != null) {
-                    // _id = <path>:<masked physical position> from the reader-emitted _rowPosition
-                    // channel. Every file reader now emits this channel (the optimizer injects it for
-                    // _id / _file.record_ref), so there is no per-file counter fallback: a split-local
-                    // counter would reset to 0 each split and break _id repeatability across layouts.
+                    // _id = <location>@<mtime>:<masked physical position> from the reader-emitted
+                    // _rowPosition channel. Every file reader emits this channel (the optimizer
+                    // injects it for _id / _file.record_ref); a split-local counter would reset to 0
+                    // each split and break _id repeatability across layouts.
                     Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
                     blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
                 } else if (idx == recordRefOutputIndex) {
                     // _file.record_ref = the same masked physical position, surfaced directly as the
-                    // opaque per-record LONG token (no <path>: prefix).
+                    // opaque per-record LONG token (no location prefix).
                     Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
                     blocks[idx] = buildRecordRefBlock((LongBlock) rowPosBlock, positions);
                 } else if (idx == sourceOutputIndex) {

@@ -641,9 +641,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
                 // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
                 // the textual name from either shape without invoking the throwing accessor.
-                String name = requested instanceof org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression unr
-                    ? unr.pattern()
-                    : requested.name();
+                String name = requested instanceof UnresolvedMetadataAttributeExpression unr ? unr.pattern() : requested.name();
                 if (existing.contains(name)) {
                     continue;
                 }
@@ -2980,7 +2978,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 boolean isVirtualByType = attr instanceof VirtualAttribute;
                 boolean isVirtualByName = isVirtualByType == false
                     && hasExternalRelation
-                    && org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(attr.name());
+                    && FileMetadataColumns.NAMES.contains(attr.name());
                 if ((isVirtualByType || isVirtualByName) && explicitlyKept.contains(attr.name()) == false) {
                     continue;
                 }
@@ -3009,8 +3007,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // Pair with the strip: type-marker OR well-known _file.* name. KEEP _file.path on a
                     // projection whose VirtualAttribute marker was dropped downstream still counts as
                     // an explicit keep.
-                    if (projection instanceof VirtualAttribute
-                        || org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(projection.name())) {
+                    if (projection instanceof VirtualAttribute || FileMetadataColumns.NAMES.contains(projection.name())) {
                         names.add(projection.name());
                     }
                 }

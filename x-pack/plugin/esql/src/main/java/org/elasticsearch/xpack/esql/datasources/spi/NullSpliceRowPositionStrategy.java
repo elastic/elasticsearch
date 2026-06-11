@@ -25,11 +25,11 @@ import java.util.Objects;
  * {@link org.elasticsearch.compute.data.LongBlock} at the slot the user's projection requested.
  * <p>
  * The downstream {@code VirtualColumnIterator} composes {@code _id} from the row-position channel;
- * a null splice yields null record-refs and null {@code _id}-record-refs, matching the documented
+ * a null splice yields null {@code _file.record_ref} and null {@code _id}, matching the documented
  * "row-position unsupported on this reader" semantics. The {@link #reason()} string carries the
- * user-facing explanation for trace logs and operator-status snapshots.
+ * explanation the wrapping iterator embeds in its {@code describe()} output.
  */
-public final class NullSpliceRowPositionStrategy extends RowPositionStrategy {
+public final class NullSpliceRowPositionStrategy implements RowPositionStrategy {
 
     private final BlockFactory blockFactory;
     private final String reason;
@@ -63,8 +63,7 @@ public final class NullSpliceRowPositionStrategy extends RowPositionStrategy {
 
     /**
      * Splices an all-null {@link org.elasticsearch.compute.data.LongBlock} into every page at the
-     * {@code _rowPosition} output slot. Lifted verbatim from {@code ParquetRsFormatReader}'s
-     * historical {@code RowPositionNullInjector} so the byte-shape of emitted pages is unchanged.
+     * {@code _rowPosition} output slot.
      */
     private static final class NullSplicingIterator implements CloseableIterator<Page>, Describable {
         private final CloseableIterator<Page> inner;

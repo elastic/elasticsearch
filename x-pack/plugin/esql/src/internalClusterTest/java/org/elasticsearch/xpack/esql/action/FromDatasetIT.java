@@ -129,7 +129,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
      * Names every {@code testXxx} body PUTs. New tests must register their dataset name here so the
      * SUITE-scoped cluster doesn't carry state across methods.
      */
-    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "logs_dataset");
+    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "logs_dataset", "events_hive");
 
     @After
     public void cleanupRegistry() throws Exception {
@@ -401,6 +401,47 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
                 assertThat(row.get(1).toString(), equalTo("employees"));
+            }
+        }
+    }
+
+    public void testHivePartitionClaimingReservedNameIsRenamedAndSpecWins() throws Exception {
+        // Standard metadata names are dedicated: a Hive layout claiming /_index=.../ cannot
+        // redefine METADATA _index. End-to-end pin for the rename: _index carries the dataset
+        // name for every row, while the layout's value stays queryable under _partition._index.
+        Path root = createTempDir();
+        Path alpha = Files.createDirectories(root.resolve("_index=alpha"));
+        Files.writeString(alpha.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n");
+        Path beta = Files.createDirectories(root.resolve("_index=beta"));
+        Files.writeString(beta.resolve("part1.csv"), "emp_no:integer,first_name:keyword\n3,Carol\n");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("events_hive", "local_ds", root.toUri() + "**/*.csv", Map.of("format", "csv"))
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM events_hive METADATA _index | SORT emp_no | KEEP emp_no, _index, `_partition._index` | LIMIT 10"
+                ),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(3));
+            assertThat(columns.get(1).name(), equalTo("_index"));
+            assertThat(columns.get(2).name(), equalTo("_partition._index"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            String[] expectedPartition = { "alpha", "alpha", "beta" };
+            for (int i = 0; i < rows.size(); i++) {
+                assertThat("spec-defined _index must carry the dataset name", rows.get(i).get(1).toString(), equalTo("events_hive"));
+                assertThat("layout value stays queryable under the rename", rows.get(i).get(2).toString(), equalTo(expectedPartition[i]));
             }
         }
     }

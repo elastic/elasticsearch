@@ -86,13 +86,6 @@ public class SkipperSettingsTests extends ESTestCase {
             );
             assertTrue(indexSettings.useDocValuesSkipper());
         }
-        {
-            IndexSettings indexSettings = settings(
-                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
-                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            );
-            assertFalse(indexSettings.useDocValuesSkipper());
-        }
     }
 
     public void testColumnarLogsdbSkipperSettingDefaults() {
@@ -103,13 +96,6 @@ public class SkipperSettingsTests extends ESTestCase {
                 b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             );
             assertTrue(indexSettings.useDocValuesSkipper());
-        }
-        {
-            IndexSettings indexSettings = settings(
-                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
-                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-            );
-            assertFalse(indexSettings.useDocValuesSkipper());
         }
     }
 

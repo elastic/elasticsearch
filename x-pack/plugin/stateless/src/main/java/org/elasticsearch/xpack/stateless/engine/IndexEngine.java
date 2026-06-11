@@ -949,6 +949,7 @@ public class IndexEngine extends InternalEngine {
         lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
     }
 
+    @Override
     public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
         long lastLookup = lastDocIdAndVersionLookupMillis.get();
         return lastLookup > 0 && (engineConfig.getThreadPool().relativeTimeInMillis() - lastLookup) <= recencyThreshold.getMillis();

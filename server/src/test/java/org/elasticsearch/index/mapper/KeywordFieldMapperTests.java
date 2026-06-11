@@ -19,14 +19,17 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -41,6 +44,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -70,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
 
@@ -240,6 +245,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // used by TermVectorsService
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("field")), contains("1234"));
+    }
+
+    public void testDefaultsColumnarMode() throws Exception {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        IndexableField field = fields.get(0);
+
+        assertEquals(new BytesRef("1234"), field.binaryValue());
+        IndexableFieldType fieldType = field.fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.BINARY, fieldType.docValuesType());
     }
 
     public void testHighCardinalityFieldType() throws Exception {
@@ -1300,6 +1329,60 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
+    /**
+     * Verifies that {@link org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader}
+     * correctly reads byte lengths from a keyword field mapped with both {@code doc_values.cardinality: high} and
+     * {@code doc_values.multi_value: false}. With {@code multi_value: false} the doc-values are written as plain
+     * {@code BinaryDocValues} (no {@code .counts} companion field), so the loader takes the {@code SingleValued} code path. Three
+     * documents are indexed — two with values and one sparse — and the loader must return the correct byte lengths including {@code null}
+     * for the sparse document.
+     */
+    public void testMultiValueFalseHighCardinalityByteLengthBlockLoader() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("cardinality", "high")
+                    .field("multi_value", false)
+                    .endObject()
+            )
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapper.parse(source(b -> b.field("field", "foo"))).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> {})).rootDoc());
+            iw.addDocument(mapper.parse(source(b -> b.field("field", "elasticsearch"))).rootDoc());
+            iw.forceMerge(1);
+        }, reader -> {
+            assertThat(reader.leaves(), hasSize(1));
+            LeafReaderContext ctx = reader.leaves().get(0);
+            BlockLoader blockLoader = mapperService.fieldType("field")
+                .blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
+                    @Override
+                    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                        return MappedFieldType.FieldExtractPreference.DOC_VALUES;
+                    }
+
+                    @Override
+                    public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                        return new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.BYTE_LENGTH);
+                    }
+                });
+            var columnReaderSource = blockLoader.columnAtATimeReader(ctx);
+            assertNotNull("ByteLengthFromBytesRefDocValuesBlockLoader must support column-at-a-time reading", columnReaderSource);
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            try (BlockLoader.ColumnAtATimeReader columnReader = columnReaderSource.apply(breaker)) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                assertThat(block.size(), equalTo(3));
+                assertThat(block.get(0), equalTo("foo".length()));
+                assertThat(block.get(1), nullValue());
+                assertThat(block.get(2), equalTo("elasticsearch".length()));
+            }
+        });
+    }
+
     public void testFieldTypeWithSkipDocValues_LogsDbModeDisabledSetting() throws IOException {
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -1533,7 +1616,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().indexType().hasTerms());
-        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
@@ -1713,6 +1796,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // Binary values have no text representation; the keyword field must be skipped without NPE.
         ParsedDocument doc = mapper.parse(source);
         assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [host.name] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
     }
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {

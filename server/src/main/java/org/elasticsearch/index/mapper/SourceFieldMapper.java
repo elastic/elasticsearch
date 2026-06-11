@@ -503,9 +503,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return;
         }
         // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
-        // Build a lightweight in-memory LeafReader directly over the parsed document instead of
-        // writing it into a throwaway ByteBuffersDirectory/IndexWriter/DirectoryReader, which was
-        // the dominant cost of this method.
+        assert context.nonRootDocuments().iterator().hasNext() == false;
         var reader = new ColumnarStoredLeafReader(context.doc());
         var leafCtx = reader.getContext();
         int docId = 0;

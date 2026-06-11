@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -23,7 +25,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class PointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new PointFieldMapper.Builder("field", false).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new PointFieldMapper.Builder("field", false, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY))
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         String wktPoint = "POINT (42.0 27.1)";

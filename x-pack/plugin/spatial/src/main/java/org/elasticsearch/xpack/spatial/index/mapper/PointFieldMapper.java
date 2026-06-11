@@ -12,6 +12,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.geo.XYEncodingUtils;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
@@ -64,7 +66,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> indexed;
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
 
@@ -72,9 +74,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
         final Parameter<CartesianPoint> nullValue;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, boolean ignoreMalformedByDefault) {
+        public Builder(String name, boolean ignoreMalformedByDefault, IndexSettings indexSettings) {
             super(name);
+            this.indexSettings = indexSettings;
+            // In strict columnar mode the dense index is disabled by default in favor of doc values (and a skipper).
+            this.indexed = Parameter.indexParam(m -> builder(m).indexed.get(), () -> indexSettings.isIndexDisabledByDefault() == false);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.nullValue = nullValueParam(
                 m -> builder(m).nullValue.get(),
@@ -127,11 +133,18 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value()
             );
+            final IndexType indexType;
+            if (indexed.get() == false && hasDocValues.get() && Parameter.useColumnarDocValuesSkippers(indexSettings)) {
+                // In strict columnar mode the dense XY index is dropped by default; advertise a doc values skipper over the
+                // SORTED_NUMERIC (morton-encoded) doc values for uniformity with other columnar fields.
+                indexType = IndexType.skippers();
+            } else {
+                indexType = IndexType.points(indexed.get(), hasDocValues.get());
+            }
             PointFieldType ft = new PointFieldType(
                 context.buildFullName(leafName()),
-                indexed.get(),
+                indexType,
                 stored.get(),
-                hasDocValues.get(),
                 parser,
                 nullValue.get(),
                 context.isSourceSynthetic(),
@@ -142,7 +155,9 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings())
+    );
 
     private final Builder builder;
 
@@ -169,9 +184,12 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     protected void index(DocumentParserContext context, CartesianPoint point) {
         final boolean indexed = fieldType().indexType().hasPoints();
         final boolean hasDocValues = fieldType().hasDocValues();
+        final boolean hasDocValuesSkipper = fieldType().indexType().hasDocValuesSkipper();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {
             context.doc().add(new XYFieldWithDocValues(fieldType().name(), (float) point.getX(), (float) point.getY()));
+        } else if (hasDocValuesSkipper) {
+            context.doc().add(new XYDocValuesWithSkipper(fieldType().name(), (float) point.getX(), (float) point.getY()));
         } else if (hasDocValues) {
             context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         } else if (indexed) {
@@ -194,7 +212,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
+        return new Builder(leafName(), builder.ignoreMalformed.getDefaultValue().value(), builder.indexSettings).init(this);
     }
 
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
@@ -202,21 +220,20 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         private PointFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             CartesianPointParser parser,
             CartesianPoint nullValue,
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), stored, parser, nullValue, meta);
+            super(name, indexType, stored, parser, nullValue, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 
         // only used in test
         public PointFieldType(String name) {
-            this(name, true, false, true, null, null, false, Collections.emptyMap());
+            this(name, IndexType.points(true, true), false, null, null, false, Collections.emptyMap());
         }
 
         @Override
@@ -351,6 +368,48 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
             result.append('>');
             return result.toString();
+        }
+    }
+
+    /**
+     * Doc-values-only cartesian point field that additionally carries a range doc values skipper. Used in strict columnar mode,
+     * where the dense XY index is dropped by default and the SORTED_NUMERIC (morton-encoded) doc values advertise a sparse skipper
+     * for uniformity with other columnar fields. Note that point queries do not consult the skipper, so it provides no pruning
+     * benefit; it exists so that every doc-values field in a columnar index is structured consistently.
+     */
+    static class XYDocValuesWithSkipper extends Field {
+
+        private static final FieldType TYPE = new FieldType();
+
+        static {
+            TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            TYPE.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
+            TYPE.freeze();
+        }
+
+        XYDocValuesWithSkipper(String name, float x, float y) {
+            super(name, TYPE);
+            final int xEncoded = XYEncodingUtils.encode(x);
+            final int yEncoded = XYEncodingUtils.encode(y);
+            fieldsData = (((long) xEncoded) << 32) | (yEncoded & 0xFFFFFFFFL);
+        }
+
+        @Override
+        public Number numericValue() {
+            return (Long) fieldsData;
+        }
+
+        @Override
+        public String toString() {
+            final long encoded = (Long) fieldsData;
+            return getClass().getSimpleName()
+                + " <"
+                + name
+                + ':'
+                + XYEncodingUtils.decode((int) (encoded >>> 32))
+                + ','
+                + XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFFL))
+                + '>';
         }
     }
 }

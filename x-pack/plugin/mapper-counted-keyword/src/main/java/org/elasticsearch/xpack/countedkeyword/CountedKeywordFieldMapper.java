@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.countedkeyword;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -86,6 +88,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     private static final FieldType FIELD_TYPE_INDEXED;
     private static final FieldType FIELD_TYPE_NOT_INDEXED;
+    private static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
 
     static {
         FieldType indexed = new FieldType();
@@ -102,6 +105,14 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         notIndexed.setIndexOptions(IndexOptions.NONE);
         FIELD_TYPE_NOT_INDEXED = freezeAndDeduplicateFieldType(notIndexed);
 
+        // Strict columnar mode: drop the inverted index and add a range skipper over the SORTED_SET doc values.
+        FieldType withSkipDocValues = new FieldType();
+        withSkipDocValues.setDocValuesType(DocValuesType.SORTED_SET);
+        withSkipDocValues.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
+        withSkipDocValues.setTokenized(false);
+        withSkipDocValues.setOmitNorms(true);
+        withSkipDocValues.setIndexOptions(IndexOptions.NONE);
+        FIELD_TYPE_WITH_SKIP_DOC_VALUES = freezeAndDeduplicateFieldType(withSkipDocValues);
     }
 
     private static class CountedKeywordFieldType extends StringFieldType {
@@ -280,13 +291,16 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final SourceKeepMode indexSourceKeepMode;
-        private final boolean indexDisabledByDefault;
+        private final IndexSettings indexSettings;
 
-        protected Builder(String name, SourceKeepMode indexSourceKeepMode, boolean indexDisabledByDefault) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode, IndexSettings indexSettings) {
             super(name);
-            this.indexed = Parameter.indexParam(m -> toType(m).fieldType == FIELD_TYPE_INDEXED, indexDisabledByDefault == false);
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).fieldType == FIELD_TYPE_INDEXED,
+                indexSettings.isIndexDisabledByDefault() == false
+            );
             this.indexSourceKeepMode = indexSourceKeepMode;
-            this.indexDisabledByDefault = indexDisabledByDefault;
+            this.indexSettings = indexSettings;
         }
 
         @Override
@@ -307,13 +321,25 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 context.isSourceSynthetic()
             ).docValues(true).build(context);
             boolean isIndexed = indexed.getValue();
-            FieldType ft = isIndexed ? FIELD_TYPE_INDEXED : FIELD_TYPE_NOT_INDEXED;
+            final FieldType ft;
+            final IndexType indexType;
+            if (isIndexed) {
+                ft = FIELD_TYPE_INDEXED;
+                indexType = IndexType.terms(true, true);
+            } else if (Parameter.useColumnarDocValuesSkippers(indexSettings)) {
+                // In strict columnar mode the inverted index is dropped by default in favor of a doc values skipper.
+                ft = FIELD_TYPE_WITH_SKIP_DOC_VALUES;
+                indexType = IndexType.skippers();
+            } else {
+                ft = FIELD_TYPE_NOT_INDEXED;
+                indexType = IndexType.terms(false, true);
+            }
             return new CountedKeywordFieldMapper(
                 leafName(),
                 ft,
                 new CountedKeywordFieldType(
                     context.buildFullName(leafName()),
-                    IndexType.terms(isIndexed, true),
+                    indexType,
                     false,
                     new TextSearchInfo(ft, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
                     meta.getValue(),
@@ -322,7 +348,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 countFieldMapper,
                 indexSourceKeepMode,
-                indexDisabledByDefault
+                indexSettings
             );
         }
     }
@@ -403,17 +429,13 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new CountedKeywordFieldMapper.Builder(
-            n,
-            c.getIndexSettings().sourceKeepMode(),
-            c.getIndexSettings().isIndexDisabledByDefault()
-        )
+        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode(), c.getIndexSettings())
     );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
     private final SourceKeepMode indexSourceKeepMode;
-    private final boolean indexDisabledByDefault;
+    private final IndexSettings indexSettings;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
@@ -422,13 +444,13 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         BuilderParams builderParams,
         BinaryFieldMapper countFieldMapper,
         SourceKeepMode indexSourceKeepMode,
-        boolean indexDisabledByDefault
+        IndexSettings indexSettings
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
         this.indexSourceKeepMode = indexSourceKeepMode;
-        this.indexDisabledByDefault = indexDisabledByDefault;
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -512,7 +534,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSourceKeepMode, indexDisabledByDefault).init(this);
+        return new Builder(leafName(), indexSourceKeepMode, indexSettings).init(this);
     }
 
     @Override

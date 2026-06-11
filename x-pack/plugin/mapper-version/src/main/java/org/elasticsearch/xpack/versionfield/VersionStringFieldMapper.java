@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -22,6 +24,8 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
@@ -35,6 +39,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -64,6 +69,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +99,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
+        public static final FieldType FIELD_TYPE_WITH_SKIP_DOC_VALUES;
 
         static {
             FieldType ft = new FieldType();
@@ -100,19 +107,30 @@ public class VersionStringFieldMapper extends FieldMapper {
             ft.setOmitNorms(true);
             ft.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
+
+            // Strict columnar mode: drop the inverted index and store SORTED_SET doc values with a range skipper.
+            FieldType skip = new FieldType();
+            skip.setTokenized(false);
+            skip.setOmitNorms(true);
+            skip.setIndexOptions(IndexOptions.NONE);
+            skip.setDocValuesType(DocValuesType.SORTED_SET);
+            skip.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
+            FIELD_TYPE_WITH_SKIP_DOC_VALUES = freezeAndDeduplicateFieldType(skip);
         }
     }
 
     static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final IndexSettings indexSettings;
 
-        Builder(String name) {
+        Builder(String name, IndexSettings indexSettings) {
             super(name);
+            this.indexSettings = indexSettings;
         }
 
-        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(context.buildFullName(leafName()), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype, IndexType indexType) {
+            return new VersionStringFieldType(context.buildFullName(leafName()), indexType, fieldtype, meta.getValue());
         }
 
         @Override
@@ -122,8 +140,17 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
-            return new VersionStringFieldMapper(leafName(), fieldtype, buildFieldType(context, fieldtype), builderParams(this, context));
+            // In strict columnar mode the inverted index is dropped by default in favor of a doc values skipper.
+            final boolean useSkipper = Parameter.useColumnarDocValuesSkippers(indexSettings);
+            final FieldType fieldtype = new FieldType(useSkipper ? Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES : Defaults.FIELD_TYPE);
+            final IndexType indexType = useSkipper ? IndexType.skippers() : IndexType.terms(true, true);
+            return new VersionStringFieldMapper(
+                leafName(),
+                fieldtype,
+                buildFieldType(context, fieldtype, indexType),
+                builderParams(this, context),
+                indexSettings
+            );
         }
 
         @Override
@@ -132,18 +159,12 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(
-                name,
-                IndexType.terms(true, true),
-                false,
-                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                meta
-            );
+        private VersionStringFieldType(String name, IndexType indexType, FieldType fieldType, Map<String, String> meta) {
+            super(name, indexType, false, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
         }
 
         @Override
@@ -159,6 +180,27 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             return new FieldExistsQuery(name());
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType.hasTerms()) {
+                return new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            }
+            // Strict columnar mode: no inverted index, fall back to the doc values skipper.
+            failIfNotIndexedNorDocValuesFallback(context);
+            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+            if (indexType.hasTerms()) {
+                return new TermInSetQuery(name(), bytesRefs);
+            }
+            // Strict columnar mode: no inverted index, fall back to the doc values skipper.
+            failIfNotIndexedNorDocValuesFallback(context);
+            return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
         }
 
         @Override
@@ -187,6 +229,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             @Nullable MultiTermQuery.RewriteMethod method,
             SearchExecutionContext context
         ) {
+            // regexp queries brute-force the term dictionary; there is no doc values equivalent, so they require the inverted index.
+            failIfNotIndexed();
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -248,6 +292,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             SearchExecutionContext context,
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
+            // fuzzy queries brute-force the term dictionary; there is no doc values equivalent, so they require the inverted index.
+            failIfNotIndexed();
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -292,6 +338,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             boolean caseInsensitive,
             SearchExecutionContext context
         ) {
+            // wildcard queries brute-force the term dictionary; there is no doc values equivalent, so they require the inverted index.
+            failIfNotIndexed();
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -353,12 +401,18 @@ public class VersionStringFieldMapper extends FieldMapper {
         ) {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
-            return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+            if (indexType.hasTerms()) {
+                return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);
+            }
+            // Strict columnar mode: no inverted index, fall back to the doc values skipper (which accelerates range queries).
+            failIfNotIndexedNorDocValuesFallback(context);
+            return SortedSetDocValuesField.newSlowRangeQuery(name(), lower, upper, includeLower, includeUpper);
         }
 
         @Override
         public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
-
+            // The terms enumeration is backed by the inverted index, which is not present in strict columnar mode.
+            failIfNotIndexed();
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
@@ -380,10 +434,18 @@ public class VersionStringFieldMapper extends FieldMapper {
     }
 
     private final FieldType fieldType;
+    private final IndexSettings indexSettings;
 
-    private VersionStringFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, BuilderParams buildParams) {
+    private VersionStringFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
+        BuilderParams buildParams,
+        IndexSettings indexSettings
+    ) {
         super(simpleName, mappedFieldType, buildParams);
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -417,8 +479,13 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         EncodedVersion encoding = encodeVersion(versionString);
         BytesRef encodedVersion = encoding.bytesRef;
+        // In strict columnar mode {@code fieldType} is the skipper field type (SORTED_SET doc values + range skipper, no inverted
+        // index), so a single field writes the doc values with the skipper. Otherwise we write the inverted index term and a separate
+        // SORTED_SET doc values field.
         context.doc().add(new Field(fieldType().name(), encodedVersion, fieldType));
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
+        if (fieldType().indexType().hasDocValuesSkipper() == false) {
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
+        }
     }
 
     @Override
@@ -457,7 +524,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSettings).init(this);
     }
 
     @Override

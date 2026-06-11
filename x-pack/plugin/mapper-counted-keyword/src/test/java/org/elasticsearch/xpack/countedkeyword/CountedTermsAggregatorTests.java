@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.countedkeyword;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -41,9 +43,11 @@ public class CountedTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggregatesCountedKeywords() throws Exception {
-        FieldMapper mapper = new CountedKeywordFieldMapper.Builder("stacktraces", Mapper.SourceKeepMode.NONE, false).build(
-            MapperBuilderContext.root(false, false)
-        );
+        FieldMapper mapper = new CountedKeywordFieldMapper.Builder(
+            "stacktraces",
+            Mapper.SourceKeepMode.NONE,
+            IndexSettingsModule.newIndexSettings("test", Settings.EMPTY)
+        ).build(MapperBuilderContext.root(false, false));
         MappedFieldType fieldType = mapper.fieldType();
 
         CountedTermsAggregationBuilder aggregationBuilder = new CountedTermsAggregationBuilder("st").field("stacktraces");

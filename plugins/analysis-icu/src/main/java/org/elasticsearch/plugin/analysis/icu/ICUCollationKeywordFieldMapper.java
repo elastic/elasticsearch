@@ -17,6 +17,8 @@ import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -25,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -63,6 +66,17 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         DocValuesParameter.Values.Cardinality.LOW,
         true
     );
+
+    /**
+     * Doc values field type used in strict columnar mode: SORTED_SET doc values carrying a range skipper, with no inverted index.
+     */
+    private static final FieldType DOC_VALUES_WITH_SKIP_TYPE = new FieldType();
+
+    static {
+        DOC_VALUES_WITH_SKIP_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
+        DOC_VALUES_WITH_SKIP_TYPE.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
+        DOC_VALUES_WITH_SKIP_TYPE.freeze();
+    }
 
     public static final class CollationFieldType extends StringFieldType {
         private final Collator collator;
@@ -284,12 +298,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        private final boolean indexDisabledByDefault;
+        private final IndexSettings indexSettings;
 
-        public Builder(String name, boolean indexDisabledByDefault) {
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
-            this.indexDisabledByDefault = indexDisabledByDefault;
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
+            this.indexSettings = indexSettings;
         }
 
         Builder nullValue(String nullValue) {
@@ -367,9 +381,20 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             final DocValuesParameter.Values docValuesParams = docValuesPameters.getValue();
+            final IndexType indexType;
+            if (indexed.get() == false
+                && docValuesParams.enabled()
+                && usesBinaryDocValues(docValuesParams) == false
+                && Parameter.useColumnarDocValuesSkippers(indexSettings)) {
+                // In strict columnar mode the inverted index is dropped by default in favor of a doc values skipper over the
+                // SORTED_SET collation keys. The high-cardinality (binary doc values) path cannot carry a skipper.
+                indexType = IndexType.skippers();
+            } else {
+                indexType = IndexType.terms(indexed.get(), docValuesParams.enabled());
+            }
             CollationFieldType ft = new CollationFieldType(
                 context.buildFullName(leafName()),
-                IndexType.terms(indexed.get(), docValuesParams.enabled()),
+                indexType,
                 stored.getValue(),
                 collator,
                 nullValue.getValue(),
@@ -381,7 +406,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings().isIndexDisabledByDefault()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     private static class CollatorParams {
         private String rules;
@@ -502,7 +527,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final boolean indexDisabledByDefault;
+    private final IndexSettings indexSettings;
 
     protected ICUCollationKeywordFieldMapper(
         String simpleName,
@@ -522,7 +547,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexDisabledByDefault = builder.indexDisabledByDefault;
+        this.indexSettings = builder.indexSettings;
     }
 
     public DocValuesParameter.Values docValuesParams() {
@@ -546,7 +571,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexDisabledByDefault).init(this);
+        return new Builder(leafName(), indexSettings).init(this);
     }
 
     @Override
@@ -579,6 +604,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (docValuesParams.enabled()) {
             if (fieldType().usesBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
+            } else if (fieldType().indexType().hasDocValuesSkipper()) {
+                // Strict columnar mode: SORTED_SET doc values with a range skipper and no inverted index.
+                context.doc().add(new Field(fieldType().name(), binaryValue, DOC_VALUES_WITH_SKIP_TYPE));
             } else {
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }

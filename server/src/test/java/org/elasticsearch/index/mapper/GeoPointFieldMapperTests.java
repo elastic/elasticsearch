@@ -11,12 +11,14 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -763,6 +765,24 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
+        // geo_point only produces a skipper in strict columnar mode (see testColumnarModeUsesDocValuesSkipper), not via the generic
+        // index:false standard-skipper pathway exercised by MapperTestCase#testDocValuesSkippers.
         return false;
+    }
+
+    public void testColumnarModeUsesDocValuesSkipper() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "geo_point"))).documentMapper();
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertThat(fieldMapper.fieldType().indexType(), equalTo(IndexType.skippers()));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "41.12,-71.34")));
+        IndexableField f = doc.rootDoc().getField("field");
+        assertThat(f, instanceOf(GeoPointFieldMapper.LatLonDocValuesWithSkipper.class));
+        assertThat(f.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
+        // The dense BKD point index must be dropped.
+        assertThat(f.fieldType().pointDimensionCount(), equalTo(0));
     }
 }

@@ -1377,6 +1377,12 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("index", false, initializer, defaultValue);
         }
 
+        /**
+         * Returns an index parameter that defaults to {@code false} if doc values skippers should be used by default for the field,
+         * and {@code true} otherwise. This allows field mappers to default to not being indexed in favor of doc values skippers when
+         * the index settings indicate that doc values skippers should be used by default for the field (e.g. in time series mode or
+         * strict columnar mode), while still allowing users to explicitly enable indexing for fields where this is desired.
+         */
         public static Parameter<Boolean> indexParam(
             Function<FieldMapper, Boolean> initializer,
             IndexSettings indexSettings,
@@ -1401,6 +1407,22 @@ public abstract class FieldMapper extends Mapper {
                 return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ALL_FIELDS_USE_SKIPPERS);
             }
             return false;
+        }
+
+        /**
+         * Whether a field with doc values should default to a doc values skipper (a sparse range index over doc values, and no
+         * dense index) because the index is in strict columnar mode. This is the columnar counterpart to
+         * {@link #useTimeSeriesDocValuesSkippers(IndexSettings, boolean)}: in strict columnar mode the dense index is disabled by
+         * default, so any field that can carry a Lucene range skipper should advertise one. Gated on
+         * {@link IndexVersions#COLUMNAR_FIELDS_USE_SKIPPERS} so older columnar indexes keep their previous structure.
+         * <p>
+         * Callers remain responsible for only applying a skipper to doc values types that Lucene can range-skip
+         * (NUMERIC/SORTED_NUMERIC/SORTED/SORTED_SET); binary doc values cannot carry a skipper.
+         */
+        public static boolean useColumnarDocValuesSkippers(IndexSettings indexSettings) {
+            return indexSettings.getMode().isStrictColumnar()
+                && indexSettings.useDocValuesSkipper()
+                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_FIELDS_USE_SKIPPERS);
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {

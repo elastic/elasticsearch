@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.rank;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.DataInput;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

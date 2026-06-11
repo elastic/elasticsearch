@@ -16,11 +16,13 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.concurrent.TimeoutException;
 
 public class ExternalFailuresTests extends ESTestCase {
 
@@ -42,6 +44,10 @@ public class ExternalFailuresTests extends ESTestCase {
         var unavailable = new ExternalUnavailableException("store 503", new IOException());
         assertSame(unavailable, ExternalFailures.classify(unavailable));
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(unavailable)));
+
+        var throttled = new ExternalThrottledException("admission stalled", new TimeoutException());
+        assertSame(throttled, ExternalFailures.classify(throttled));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(ExternalFailures.classify(throttled)));
     }
 
     public void testCircuitBreakingAndCancellationKeepTheirStatus() {

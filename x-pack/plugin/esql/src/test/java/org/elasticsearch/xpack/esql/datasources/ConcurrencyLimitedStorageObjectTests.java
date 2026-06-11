@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -53,6 +55,23 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+
+    /**
+     * A genuine admission stall (permit held, never released, timeout expired with no progress)
+     * must surface as a 429-status {@link ExternalThrottledException}, not a 500 — same contract
+     * as the per-query layer (see {@code QueryBudgetedStorageObjectTests}).
+     */
+    public void testAcquireTimeoutSurfacesAsTooManyRequests() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50L);
+        limiter.acquire(); // exhaust the limiter and never release: a true stall
+        StorageObject delegate = mock(StorageObject.class);
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        ExternalThrottledException e = expectThrows(ExternalThrottledException.class, obj::length);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+
+        limiter.release();
+    }
 
     public void testStreamCloseReleasesPermit() throws Exception {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);

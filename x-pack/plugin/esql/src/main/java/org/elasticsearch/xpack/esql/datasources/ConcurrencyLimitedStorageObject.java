@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -226,7 +227,9 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             limiter.acquire();
         } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
+            // 429, not 500: a stalled admission queue is back-pressure the client should retry,
+            // not a bug in our reading code (see QueryBudgetedStorageObject#acquirePermit).
+            throw new ExternalThrottledException(e, "Failed to acquire concurrency permit for cloud API call: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);

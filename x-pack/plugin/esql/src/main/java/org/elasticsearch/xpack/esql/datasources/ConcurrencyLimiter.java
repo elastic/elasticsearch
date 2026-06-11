@@ -33,6 +33,13 @@ class ConcurrencyLimiter {
     private final long acquireTimeoutMs;
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
 
+    /**
+     * Timestamp of the last permit release, used by {@link #acquire()} to tell a healthy-but-slowly-
+     * draining pool apart from a genuinely stalled one (see {@link QueryConcurrencyBudget#acquire()}
+     * for the rationale — this is the node-global layer of the same progress-aware timeout).
+     */
+    private volatile long lastReleaseNanos;
+
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
 
@@ -40,6 +47,7 @@ class ConcurrencyLimiter {
         this.maxPermits = maxPermits;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.semaphore = maxPermits > 0 ? new Semaphore(maxPermits, true) : null;
+        this.lastReleaseNanos = System.nanoTime();
     }
 
     ConcurrencyLimiter(int maxPermits) {
@@ -50,11 +58,32 @@ class ConcurrencyLimiter {
         if (semaphore == null) {
             return;
         }
+        long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
         long startNanos = System.nanoTime();
-        boolean acquired = semaphore.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
-        if (acquired == false) {
+        long deadlineNanos = startNanos + timeoutNanos;
+        while (true) {
+            long waitNanos = deadlineNanos - System.nanoTime();
+            if (waitNanos > 0 && semaphore.tryAcquire(waitNanos, TimeUnit.NANOSECONDS)) {
+                break;
+            }
+            // Personal deadline expired without a permit. If the pool released a permit within the
+            // last timeout window it is draining, just slower than one personal timeout: keep
+            // waiting, with the deadline pushed to one window past the last observed release. Only
+            // a pool with no release for a full window is genuinely stalled.
+            long lastRelease = lastReleaseNanos;
+            long sinceLastReleaseNanos = System.nanoTime() - lastRelease;
+            if (sinceLastReleaseNanos < timeoutNanos) {
+                deadlineNanos = lastRelease + timeoutNanos;
+                continue;
+            }
             throw new TimeoutException(
-                "Timed out waiting for cloud API permit after [" + acquireTimeoutMs + "]ms (max permits [" + maxPermits + "])"
+                "Timed out waiting for cloud API permit after ["
+                    + acquireTimeoutMs
+                    + "]ms (max permits ["
+                    + maxPermits
+                    + "]), no permit released in the last ["
+                    + TimeUnit.NANOSECONDS.toMillis(sinceLastReleaseNanos)
+                    + "]ms"
             );
         }
         long waitMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
@@ -69,6 +98,7 @@ class ConcurrencyLimiter {
 
     void release() {
         if (semaphore != null) {
+            lastReleaseNanos = System.nanoTime();
             semaphore.release();
         }
     }

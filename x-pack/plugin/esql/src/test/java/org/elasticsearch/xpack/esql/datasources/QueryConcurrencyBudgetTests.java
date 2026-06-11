@@ -202,4 +202,148 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         assertNull(failure.get());
         assertEquals(0, budget.inFlight());
     }
+
+    /**
+     * The acquire timeout is progress-aware: a waiter whose personal timeout expires must keep
+     * waiting (and eventually acquire) as long as the pool keeps releasing permits at sub-timeout
+     * intervals. With one permit, a 500ms timeout, and 8 queued waiters each dwelling 100ms, the
+     * last waiter queues for ~900ms — far past its personal timeout — but every release lands well
+     * inside one timeout window, so nobody may time out.
+     */
+    public void testWaiterSurvivesPersonalTimeoutWhileHoldersMakeProgress() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 500L, null);
+        budget.acquire();
+
+        int waiters = 8;
+        CountDownLatch done = new CountDownLatch(waiters);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        for (int i = 0; i < waiters; i++) {
+            new Thread(() -> {
+                try {
+                    budget.acquire();
+                    try {
+                        Thread.sleep(100);
+                    } finally {
+                        budget.release();
+                    }
+                } catch (Exception e) {
+                    failure.compareAndSet(null, e);
+                }
+                done.countDown();
+            }).start();
+        }
+
+        Thread.sleep(100);
+        budget.release(); // start the drain chain; from here each waiter's release feeds the next
+        assertTrue(done.await(30, TimeUnit.SECONDS));
+        assertNull(failure.get());
+        assertEquals(0, budget.inFlight());
+    }
+
+    /**
+     * The stall-detection property is preserved: once releases stop, a waiter times out even if the
+     * pool made progress earlier. The single release here goes to the first queued waiter (which
+     * holds its permit), extending the second waiter's deadline exactly once — then no further
+     * release happens for a full timeout window and the timeout must fire.
+     */
+    public void testTimeoutFiresAfterProgressStops() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 500L, null);
+        budget.acquire();
+
+        CountDownLatch releaseHolder = new CountDownLatch(1);
+        AtomicReference<Exception> holderFailure = new AtomicReference<>();
+        Thread holder = new Thread(() -> {
+            try {
+                budget.acquire();
+                releaseHolder.await(30, TimeUnit.SECONDS);
+                budget.release();
+            } catch (Exception e) {
+                holderFailure.compareAndSet(null, e);
+            }
+        });
+        holder.start();
+        Thread.sleep(100); // make sure the holder is first in the FIFO wait queue
+
+        AtomicReference<Exception> caught = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            try {
+                budget.acquire();
+                budget.release();
+            } catch (Exception e) {
+                caught.set(e);
+            }
+            finished.countDown();
+        });
+        waiter.start();
+        Thread.sleep(200);
+
+        budget.release(); // the holder takes the permit and never releases: progress, then stall
+
+        assertTrue(finished.await(30, TimeUnit.SECONDS));
+        assertNotNull(caught.get());
+        assertTrue(caught.get() instanceof TimeoutException);
+        assertThat(caught.get().getMessage(), containsString("Timed out waiting"));
+
+        releaseHolder.countDown();
+        holder.join(5000);
+        assertNull(holderFailure.get());
+        waiter.join(5000);
+        assertEquals(0, budget.inFlight());
+    }
+
+    /**
+     * close() must unblock a waiter promptly even when the waiter is past its personal timeout and
+     * waiting on a progress-extended deadline. Setup mirrors {@link #testTimeoutFiresAfterProgressStops}
+     * (release goes to an earlier FIFO waiter, extending the second waiter's deadline), but close()
+     * arrives during the extended wait and must surface the existing "Budget was closed" path.
+     */
+    public void testCloseUnblocksExtendedWaiter() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 1000L, null);
+        budget.acquire();
+
+        CountDownLatch releaseHolder = new CountDownLatch(1);
+        AtomicReference<Exception> holderFailure = new AtomicReference<>();
+        Thread holder = new Thread(() -> {
+            try {
+                budget.acquire();
+                releaseHolder.await(30, TimeUnit.SECONDS);
+                budget.release();
+            } catch (Exception e) {
+                holderFailure.compareAndSet(null, e);
+            }
+        });
+        holder.start();
+        Thread.sleep(100); // make sure the holder is first in the FIFO wait queue
+
+        AtomicReference<Exception> caught = new AtomicReference<>();
+        CountDownLatch finished = new CountDownLatch(1);
+        Thread waiter = new Thread(() -> {
+            try {
+                budget.acquire();
+                budget.release();
+            } catch (Exception e) {
+                caught.set(e);
+            }
+            finished.countDown();
+        });
+        waiter.start();
+        Thread.sleep(600);
+
+        // The holder takes the permit; the release pushes the waiter's deadline to one timeout
+        // window past now (~t+1600ms), well past its personal deadline (~t+1100ms).
+        budget.release();
+        Thread.sleep(600); // now past the waiter's personal timeout: it waits on the extended deadline
+
+        budget.close();
+        assertTrue("close() did not unblock the extended waiter", finished.await(5, TimeUnit.SECONDS));
+        assertNotNull(caught.get());
+        assertTrue(caught.get() instanceof TimeoutException);
+        assertThat(caught.get().getMessage(), containsString("closed"));
+
+        releaseHolder.countDown();
+        holder.join(5000);
+        assertNull(holderFailure.get());
+        waiter.join(5000);
+    }
 }

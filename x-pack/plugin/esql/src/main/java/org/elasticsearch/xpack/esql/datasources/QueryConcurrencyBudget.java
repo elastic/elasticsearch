@@ -34,6 +34,14 @@ class QueryConcurrencyBudget implements Closeable {
     private final ConcurrencyBudgetAllocator allocator;
     private volatile boolean closed;
 
+    /**
+     * Timestamp of the last permit release (or budget increase), used by {@link #acquire()} to tell
+     * a healthy-but-slowly-draining pool apart from a genuinely stalled one. A waiter whose personal
+     * timeout expires keeps waiting as long as the pool released a permit within the last timeout
+     * window; the timeout only fires when no permit moved for a full window (a leak or a stall).
+     */
+    private volatile long lastReleaseNanos;
+
     private final AtomicLong lastWarnLogTime = new AtomicLong(0);
     private static final long WARN_LOG_INTERVAL_MS = 30_000;
     private static final long WARN_WAIT_THRESHOLD_MS = 5_000;
@@ -47,11 +55,20 @@ class QueryConcurrencyBudget implements Closeable {
         this.maxPermits = maxPermits;
         this.acquireTimeoutMs = acquireTimeoutMs;
         this.allocator = allocator;
+        this.lastReleaseNanos = System.nanoTime();
     }
 
     /**
      * Acquires a permit, blocking if the query is at its budget limit. Throws immediately if the
      * budget has been closed.
+     * <p>
+     * The acquire timeout is progress-aware rather than a hard per-waiter deadline: a fixed personal
+     * timeout turns a structurally over-subscribed but healthy pool (more demand than permits, with
+     * permits held across long read+parse dwells) into a failure cliff once FIFO queue depth times
+     * average dwell exceeds the timeout. So when a waiter's personal deadline expires but the pool
+     * released a permit within the last timeout window, the deadline is extended to one window past
+     * that release and the waiter keeps queueing. The timeout only fires when no permit was released
+     * for a full timeout window — preserving detection of genuine leaks and stalls.
      */
     void acquire() throws TimeoutException, InterruptedException {
         if (maxPermits <= 0) {
@@ -60,8 +77,9 @@ class QueryConcurrencyBudget implements Closeable {
         if (closed) {
             throw new TimeoutException("Budget is closed");
         }
+        long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
         long startNanos = System.nanoTime();
-        long deadlineNanos = startNanos + TimeUnit.MILLISECONDS.toNanos(acquireTimeoutMs);
+        long deadlineNanos = startNanos + timeoutNanos;
         lock.lock();
         try {
             while (inFlight >= maxPermits) {
@@ -70,12 +88,22 @@ class QueryConcurrencyBudget implements Closeable {
                 }
                 long waitNanos = deadlineNanos - System.nanoTime();
                 if (waitNanos <= 0) {
+                    long lastRelease = lastReleaseNanos;
+                    long sinceLastReleaseNanos = System.nanoTime() - lastRelease;
+                    if (sinceLastReleaseNanos < timeoutNanos) {
+                        // The pool made progress within one timeout window: keep waiting, with the
+                        // deadline pushed to one window past the last observed release.
+                        deadlineNanos = lastRelease + timeoutNanos;
+                        continue;
+                    }
                     throw new TimeoutException(
                         "Timed out waiting for query concurrency budget permit after ["
                             + acquireTimeoutMs
                             + "]ms (max permits ["
                             + maxPermits
-                            + "])"
+                            + "]), no permit released in the last ["
+                            + TimeUnit.NANOSECONDS.toMillis(sinceLastReleaseNanos)
+                            + "]ms"
                     );
                 }
                 permitAvailable.awaitNanos(waitNanos);
@@ -115,6 +143,7 @@ class QueryConcurrencyBudget implements Closeable {
             if (inFlight > 0) {
                 inFlight--;
             }
+            lastReleaseNanos = System.nanoTime();
             permitAvailable.signal();
         } finally {
             lock.unlock();
@@ -131,6 +160,8 @@ class QueryConcurrencyBudget implements Closeable {
         if (newMax > old) {
             lock.lock();
             try {
+                // A budget increase is progress for waiters, same as a release.
+                lastReleaseNanos = System.nanoTime();
                 permitAvailable.signalAll();
             } finally {
                 lock.unlock();

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -230,7 +231,10 @@ class QueryBudgetedStorageObject implements StorageObject {
         try {
             budget.acquire();
         } catch (TimeoutException e) {
-            throw new EsRejectedExecutionException("Failed to acquire query concurrency budget permit: " + e.getMessage());
+            // 429, not 500: a stalled admission queue is back-pressure the client should retry,
+            // not a bug in our reading code. ExternalFailures.classify passes ElasticsearchException
+            // through unchanged, so the status survives to the REST layer.
+            throw new ExternalThrottledException(e, "Failed to acquire query concurrency budget permit: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EsRejectedExecutionException("Interrupted while waiting for query concurrency budget permit: " + e);

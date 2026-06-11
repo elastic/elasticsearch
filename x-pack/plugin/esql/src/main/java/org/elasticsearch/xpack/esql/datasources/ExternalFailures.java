@@ -30,7 +30,7 @@ import java.util.Set;
  *     <li>{@link Error} (assertion failures, OOM, …) is rethrown — a JVM/programming fault must stay
  *     fatal, never be downgraded to a request error.</li>
  *     <li>An {@link ElasticsearchException} already carries its own status and is returned unchanged:
- *     this covers the {@link ExternalException} family (400/500/503) raised at the reader/storage
+ *     this covers the {@link ExternalException} family (400/429/500/503) raised at the reader/storage
  *     boundary, as well as {@code CircuitBreakingException} (429) and {@code TaskCancelledException}
  *     (400).</li>
  *     <li>An {@link IllegalArgumentException} already maps to 400; it is returned as-is.</li>

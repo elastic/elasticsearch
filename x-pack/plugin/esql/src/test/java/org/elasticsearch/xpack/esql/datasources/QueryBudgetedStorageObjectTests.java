@@ -12,9 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -53,6 +55,24 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
+
+    /**
+     * A genuine admission stall (permit held, never released, timeout expired with no progress)
+     * must surface as a 429-status {@link ExternalThrottledException}, not a 500: it is client
+     * back-pressure, not a server bug. {@code ExternalFailures.classify} passes
+     * {@code ElasticsearchException} through unchanged, so this status is what reaches the REST layer.
+     */
+    public void testAcquireTimeoutSurfacesAsTooManyRequests() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 50L, null);
+        budget.acquire(); // exhaust the budget and never release: a true stall
+        StorageObject delegate = mock(StorageObject.class);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        ExternalThrottledException e = expectThrows(ExternalThrottledException.class, obj::length);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
+
+        budget.release();
+    }
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);

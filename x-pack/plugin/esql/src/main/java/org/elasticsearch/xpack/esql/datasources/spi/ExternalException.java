@@ -25,6 +25,9 @@ import org.elasticsearch.xpack.esql.core.QlException;
  *     code.</li>
  *     <li>{@link ExternalUnavailableException} &rarr; 503, a retryable transport failure talking to
  *     the remote store.</li>
+ *     <li>{@link ExternalThrottledException} &rarr; 429, this node's own admission control (the
+ *     concurrency budget/limiter) timed out with no progress — too much concurrent demand, back off
+ *     and retry.</li>
  * </ul>
  * Subtypes extend {@link QlException} (rather than {@code QlClientException}/{@code QlServerException})
  * so they can share this single umbrella while each pinning its own status.
@@ -33,7 +36,7 @@ import org.elasticsearch.xpack.esql.core.QlException;
  * {@code ElasticsearchException}'s serialization registry, so crossing a node boundary turns them
  * into a {@code NotSerializableExceptionWrapper}. That wrapper <em>preserves {@link #status()}</em>
  * (it captures {@code ExceptionsHelper.status(this)} on the sending node and replays it on the
- * receiver), so the 400/500/503 distinction survives the data-node &rarr; coordinator hop and the
+ * receiver), so the 400/429/500/503 distinction survives the data-node &rarr; coordinator hop and the
  * REST layer still maps it correctly. What does <em>not</em> survive is the concrete Java type: a
  * remote receiver cannot {@code instanceof}-check these. That is fine because classification happens
  * co-located with the throw — {@code ExternalFailures.classify} runs inside

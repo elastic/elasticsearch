@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalThrottledException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -88,7 +89,10 @@ class ConcurrencyLimitedStorageProvider implements StorageProvider {
         try {
             limiter.acquire();
         } catch (TimeoutException e) {
-            throw new IOException("Failed to acquire concurrency permit for cloud API call", e);
+            // 429, not an IOException (which would classify as a 400 read failure): a stalled
+            // admission queue is back-pressure the client should retry (see
+            // QueryBudgetedStorageObject#acquirePermit).
+            throw new ExternalThrottledException(e, "Failed to acquire concurrency permit for cloud API call: {}", e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while waiting for concurrency permit", e);

@@ -61,4 +61,14 @@ fi
 GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
 echo "--- Running gradle tasks"
-java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
+if ! command -v java > /dev/null; then
+  if [[ "${JAVA_HOME:-}" ]]; then
+    export PATH="$JAVA_HOME/bin:$PATH"
+  fi
+fi
+
+if command -v java > /dev/null; then
+  java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
+else
+  "$GRADLEW" -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
+fi

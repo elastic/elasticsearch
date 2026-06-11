@@ -244,7 +244,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         }
         refresh(dataStreamName);
         assertDocCount(client(), dataStreamName, 100);
-        assertSource(dataStreamName, docs);
+        assertSource(dataStreamName, docs, sourceMode);
         assertDataStream(dataStreamName, sourceMode);
 
         String snapshotName = "my-snapshot";
@@ -260,7 +260,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         restoreSnapshot(repositoryName, snapshotName, true);
         assertDataStream(dataStreamName, sourceMode);
         assertDocCount(dataStreamName, 100);
-        assertSource(dataStreamName, docs);
+        assertSource(dataStreamName, docs, sourceMode);
     }
 
     static void snapshotAndFail(String arrayType) throws IOException {
@@ -387,7 +387,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         );
     }
 
-    static void assertSource(String indexName, String[] docs) throws IOException {
+    static void assertSource(String indexName, String[] docs, String sourceMode) throws IOException {
         Request searchReq = new Request("GET", "/" + indexName + "/_search");
         searchReq.addParameter("size", String.valueOf(docs.length));
         var response = client().performRequest(searchReq);
@@ -408,7 +408,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
                 }
             }
 
-            assertMap(actualSource, matchesMap(normalizeExpectedSource(expectedSource, actualSource)));
+            assertMap(actualSource, matchesMap(normalizeExpectedSource(expectedSource, actualSource, sourceMode)));
         }
     }
 
@@ -423,7 +423,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<?, ?> normalizeExpectedSource(Map<?, ?> expected, Map<?, ?> actualSource) {
+    private static Map<?, ?> normalizeExpectedSource(Map<?, ?> expected, Map<?, ?> actualSource, String sourceMode) {
         // Only normalize when columnar mode produces a flat synthetic _source. Stored-source
         // indexes preserve the original nested structure even in logsdb_columnar mode, so
         // we detect which case we're in by checking whether the actual source already has the
@@ -444,16 +444,22 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         // Detect which form the actual source uses and normalize to match.
         Object arr = normalized.remove("my_object_array");
         if (arr instanceof List<?> list) {
-            var flatMap = new java.util.LinkedHashMap<String, List<Object>>();
-            for (Object item : list) {
-                if (item instanceof Map<?, ?> m) {
-                    m.forEach((k, v) -> flatMap.computeIfAbsent(k.toString(), key -> new java.util.ArrayList<>()).add(v));
+            if ("synthetic".equals(sourceMode)) {
+                // synthetic source coalesces [{f1:a,f2:b},{f1:c,f2:d}] into {f1:[a,c], f2:[b,d]}
+                var flatMap = new java.util.LinkedHashMap<String, List<Object>>();
+                for (Object item : list) {
+                    if (item instanceof Map<?, ?> m) {
+                        m.forEach((k, v) -> flatMap.computeIfAbsent(k.toString(), key -> new java.util.ArrayList<>()).add(v));
+                    }
                 }
-            }
-            if (actualSource.containsKey("my_object_array")) {
-                normalized.put("my_object_array", flatMap);
+                if (actualSource.containsKey("my_object_array")) {
+                    normalized.put("my_object_array", flatMap);
+                } else {
+                    flatMap.forEach((k, v) -> normalized.put("my_object_array." + k, v));
+                }
             } else {
-                flatMap.forEach((k, v) -> normalized.put("my_object_array." + k, v));
+                // columnar_stored reconstructs from _ignored_source and preserves the original form
+                normalized.put("my_object_array", list);
             }
         }
         return normalized;

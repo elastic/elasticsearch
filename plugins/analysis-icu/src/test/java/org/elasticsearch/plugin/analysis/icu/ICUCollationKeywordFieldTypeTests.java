@@ -10,7 +10,6 @@
 package org.elasticsearch.plugin.analysis.icu;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.test.IndexSettingsModule;

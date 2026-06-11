@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,8 +42,10 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end integration for {@code FROM <dataset>}: creates a data source and a dataset via the
@@ -402,12 +405,13 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromDatasetIdMetadataRendersLocationAndRowPosition() throws Exception {
+    public void testFromDatasetIdMetadataIsOpaqueAndRecordRefCarriesByteOffset() throws Exception {
         // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
         // emits each record's file-global byte offset on the _rowPosition channel (splitStartByte +
         // bytes consumed up to the record's first character), matching NDJSON's shape so the value
-        // is identical regardless of split layout. VirtualColumnIterator composes _id as
-        // <location>:<token> via ExternalRowIdentity. The fixture writes
+        // is identical regardless of split layout. The raw token stays observable through
+        // _file.record_ref; _id itself is the opaque (location, mtime, token) hash via
+        // ExternalRowIdentity — fixed 32-char base64url, no path leak. The fixture writes
         // "emp_no:integer,first_name:keyword\n1,Alice\n2,Bob\n3,Carol\n", so the three sorted rows
         // sit at byte offsets 34, 42, 48 (header 34 bytes; "1,Alice\n" 8 bytes; "2,Bob\n" 6 bytes).
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -418,30 +422,33 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | KEEP emp_no, _id | LIMIT 10"), TIMEOUT)) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _id, _file.record_ref | SORT emp_no | KEEP emp_no, _id, `_file.record_ref` | LIMIT 10"
+                ),
+                TIMEOUT
+            )
+        ) {
             List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
+            assertThat(columns, hasSize(3));
             assertThat(columns.get(0).name(), equalTo("emp_no"));
             assertThat(columns.get(1).name(), equalTo("_id"));
+            assertThat(columns.get(2).name(), equalTo("_file.record_ref"));
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
-            List<String> ids = new ArrayList<>();
-            for (List<Object> row : rows) {
-                ids.add(row.get(1).toString());
+            long[] expectedOffsets = { 34, 42, 48 };
+            Set<String> distinctIds = new HashSet<>();
+            for (int i = 0; i < rows.size(); i++) {
+                String id = rows.get(i).get(1).toString();
+                assertTrue("rendered _id [" + id + "] must be fixed-length base64url", id.matches("[A-Za-z0-9_-]{32}"));
+                assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
+                distinctIds.add(id);
+                assertThat("file-global byte offset for row " + i, ((Number) rows.get(i).get(2)).longValue(), equalTo(expectedOffsets[i]));
             }
-            String[] expectedOffsets = { "34", "42", "48" };
-            for (int i = 0; i < ids.size(); i++) {
-                String id = ids.get(i);
-                int sep = id.lastIndexOf(':');
-                assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, org.hamcrest.Matchers.greaterThan(0));
-                assertThat("file-global byte offset for row " + i, id.substring(sep + 1), equalTo(expectedOffsets[i]));
-            }
-            String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
-            for (String id : ids) {
-                assertThat("all rows come from the same file, so share one location prefix", id, org.hamcrest.Matchers.startsWith(prefix0));
-            }
+            assertThat("all _id values are distinct", distinctIds, hasSize(3));
         }
     }
 

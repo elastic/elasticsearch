@@ -240,7 +240,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
                 if (idx == idOutputIndex && idPrefix != null) {
-                    // _id = <location>@<mtime>:<masked physical position> from the reader-emitted
+                    // _id = base64url(hash(location) | mtime | masked physical position) from the reader-emitted
                     // _rowPosition channel. Every file reader emits this channel (the optimizer
                     // injects it for _id / _file.record_ref); a split-local counter would reset to 0
                     // each split and break _id repeatability across layouts.

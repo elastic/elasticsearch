@@ -51,7 +51,7 @@ public final class SyntheticColumns {
      */
     public enum Kind {
         /**
-         * Per-record token. The substrate for {@code _id = <location>@<mtime>:<token>} composition and
+         * Per-record token. The substrate for {@code _id} composition (hashed with the file identity by {@code ExternalRowIdentity}) and
          * surfaced directly as the virtual {@code _file.record_ref} column. Format-defined
          * opaque value (file-global row index on columnar formats, file-global byte offset on
          * text formats). Nullability is UNKNOWN, not FALSE: readers without a row-position

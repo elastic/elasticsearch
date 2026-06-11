@@ -15,6 +15,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.ExternalRowIdentity;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -38,13 +39,13 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Per-format matrix for the standard metadata columns surfaced on {@code FROM <external-dataset>}.
@@ -173,41 +174,40 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         }
     }
 
-    public void testIdRendersLocationAndRowPosition() throws Exception {
+    public void testIdRendersOpaqueStableRowIdentity() throws Exception {
+        // _id is base64url(hash(location) | mtime | recordToken) — opaque by design: the storage
+        // path is hashed, never rendered, so dataset-layout details (bucket names, directory
+        // structure) cannot leak through _id into Kibana row keys, alert hashes, or logs. The
+        // record token is format-defined and intentionally NOT uniform across readers (columnar
+        // formats emit a file-global row index, text formats a byte anchor), so we assert the
+        // contract — fixed length, base64url charset, no path leak, per-row distinctness, and
+        // determinism across two runs of the same query — not specific values.
+        List<String> ids = collectIds();
+        assertThat(ids, hasSize(3));
+        for (String id : ids) {
+            assertTrue(
+                "rendered _id [" + id + "] must be fixed-length base64url",
+                id.matches("[A-Za-z0-9_-]{" + ExternalRowIdentity.RENDERED_LENGTH + "}")
+            );
+            assertThat("storage location must not leak into _id [" + id + "]", id, not(containsString("employees")));
+        }
+        assertThat("all _id values are distinct", new java.util.HashSet<>(ids), hasSize(3));
+
+        // Stability: the same physical rows compose the same ids on a second run.
+        assertThat("_id must be deterministic across runs", collectIds(), equalTo(ids));
+    }
+
+    private List<String> collectIds() throws Exception {
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | KEEP emp_no, _id | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
             assertThat(columns, hasSize(2));
             assertThat(columns.get(0).name(), equalTo("emp_no"));
             assertThat(columns.get(1).name(), equalTo("_id"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-
-            // _id is <location>@<mtime>:<token>, where <token> is an opaque, stable, per-record reference.
-            // Its form is format-defined and intentionally NOT uniform across readers: columnar
-            // formats (Parquet/ORC) emit a file-global row index, text formats emit a file-global
-            // byte offset, etc. So we assert the contract — same location prefix, distinct, parseable
-            // non-negative longs, strictly increasing in file order (rows are sorted by emp_no, which
-            // matches file order in the canonical fixture) — not specific values like 0,1,2.
             List<String> ids = new ArrayList<>();
-            for (List<Object> row : rows) {
+            for (List<Object> row : getValuesList(response)) {
                 ids.add(row.get(1).toString());
             }
-            long previousToken = -1;
-            for (String id : ids) {
-                int sep = id.lastIndexOf(':');
-                assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, greaterThan(0));
-                long token = Long.parseLong(id.substring(sep + 1));
-                assertThat("record token must be non-negative", token, greaterThanOrEqualTo(0L));
-                assertThat("record tokens must strictly increase in file order, got [" + id + "]", token, greaterThan(previousToken));
-                previousToken = token;
-            }
-            String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
-            assertTrue("location prefix [" + prefix0 + "] must carry the @<mtime> identity salt", prefix0.matches(".*@\\d+"));
-            for (String id : ids) {
-                assertThat("all rows come from one file, so share one location prefix", id, startsWith(prefix0));
-            }
-            assertThat("all _id values are distinct", new java.util.HashSet<>(ids), hasSize(3));
+            return ids;
         }
     }
 

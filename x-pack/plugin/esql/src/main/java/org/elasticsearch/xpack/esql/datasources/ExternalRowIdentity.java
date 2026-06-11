@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -16,62 +19,74 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * Per-page composition of the {@code _id} metadata column for external datasets. The composed
- * value is a {@code <location>@<mtime>:<rowPosition>} string where {@code location} is a stable
- * file identity (the storage path), {@code mtime} is the file's last-modified epoch millis
- * (rendered as the {@code -} sentinel when the storage layer reports none, mirroring how
- * {@code _version} treats a missing mtime as unknown rather than as epoch zero), and
- * {@code rowPosition} is the row's physical
- * position within that file, masked off from the optional
- * {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded extractor id used by the
- * deferred-extraction path. The mtime salt makes ids from a file replaced in place under the
- * same name distinct from the ids its predecessor produced — without it, a consumer caching by
- * {@code _id} would silently conflate rows from two different file generations.
+ * value is opaque: {@code base64url(murmur3_128(location).h1 | mtime | rowPosition)} — 24
+ * identity bytes rendered as a fixed {@value #RENDERED_LENGTH}-character URL-safe string. The
+ * location (storage path) is hashed, never rendered: file URIs are an implementation detail of
+ * the dataset layout and must not leak through {@code _id} into Kibana row keys, Security alert
+ * hashes, or logs. Same composition as the house precedent for synthesized ids,
+ * {@code TsidExtractingIdFieldMapper#createId}: murmur3-128 the high-entropy variable part,
+ * pack the scalar parts alongside, base64url-encode without padding.
  * <p>
- * Allocation discipline: one {@link BytesRef} per file for the prefix; one {@code byte[]} plus
- * one {@code int[]} of offsets per page; zero per-row allocation (decimal-encoding of the row
- * position runs inline on a stack-resident scratch buffer).
+ * The packed mtime is the identity salt: a file replaced in place under the same name produces
+ * ids distinct from its predecessor's — without it, a consumer caching by {@code _id} would
+ * silently conflate rows from two different file generations. {@code mtime == 0} is the
+ * {@link FileList} convention for "storage layer reported none" and packs as zero; {@code _id}
+ * stays well-formed and the honest unknown surfaces through {@code _version}'s null.
+ * <p>
+ * The row position is masked off the optional {@link ColumnExtractor#LOCAL_POSITION_BITS}-encoded
+ * extractor id used by the deferred-extraction path before it enters the identity bytes, so the
+ * same physical row composes the same {@code _id} regardless of extraction strategy.
+ * <p>
+ * Allocation discipline: one 16-byte {@link BytesRef} per file for the identity prefix; one
+ * exactly-sized {@code byte[]} plus one {@code int[]} of offsets per page; per-row packing and
+ * rendering run on two stack-resident scratch buffers, zero per-row allocation.
  */
 public final class ExternalRowIdentity {
 
     /**
      * Mask covering only the per-extractor physical row identity bits, used to strip any encoded
-     * extractor id off a {@code _rowPosition} value before it is rendered into the {@code _id}
-     * string. The deferred-extraction path emits encoded {@code (id << LOCAL_POSITION_BITS) |
-     * physical} values; we want only the physical part in the rendered id.
+     * extractor id off a {@code _rowPosition} value before it enters the identity bytes. The
+     * deferred-extraction path emits encoded {@code (id << LOCAL_POSITION_BITS) | physical}
+     * values; only the physical part is row identity.
      */
     static final long LOCAL_POSITION_MASK = (1L << ColumnExtractor.LOCAL_POSITION_BITS) - 1L;
 
-    /** Separator between location and row position in the rendered {@code _id}. */
-    static final byte SEPARATOR = (byte) ':';
+    /** Same seed as {@code TsidExtractingIdFieldMapper}. */
+    private static final long SEED = 0;
 
-    /** Separator between location and the mtime salt in the rendered {@code _id}. */
-    static final byte MTIME_SEPARATOR = (byte) '@';
+    /** Per-file prefix bytes: location-hash (8) + mtime (8). */
+    static final int PREFIX_BYTES = 16;
 
-    /** Maximum decimal digits in a {@code long} (signed, 19 digits for {@code Long.MAX_VALUE}). */
-    private static final int MAX_LONG_DIGITS = 19;
+    /** Identity bytes per row: {@link #PREFIX_BYTES} + row position (8). */
+    static final int IDENTITY_BYTES = PREFIX_BYTES + Long.BYTES;
+
+    /**
+     * Rendered length: base64url of {@value #IDENTITY_BYTES} bytes — no padding because
+     * {@code IDENTITY_BYTES % 3 == 0} — is exactly 32 characters.
+     */
+    public static final int RENDERED_LENGTH = (IDENTITY_BYTES / 3) * 4;
 
     private ExternalRowIdentity() {}
 
     /**
-     * Build the per-file prefix bytes ({@code <location>@<mtime>:}). One allocation per file. The
-     * returned {@link BytesRef} is held by the producer iterator for the lifetime of the file
-     * and reused across every page. {@code mtimeMillis} is the file's last-modified epoch millis;
-     * callers pass {@code 0} when the storage layer reports none (the {@link FileList} convention
-     * for a missing mtime). The missing case renders as {@code -} rather than {@code 0} so the
-     * prefix never masquerades as a genuine epoch-0 mtime — the same 0-means-unknown reading
-     * {@code ExternalMetadataColumns} applies when it nulls {@code _version}.
+     * Build the per-file identity prefix: {@code [murmur3_128(locationUtf8).h1 BE | mtimeMillis BE]},
+     * {@value #PREFIX_BYTES} bytes. One allocation per file; the returned {@link BytesRef} is held
+     * by the producer iterator for the lifetime of the file and reused across every page. Only the
+     * first 8 hash bytes are kept — the truncation {@code TsidExtractingIdFieldMapper} applies to
+     * the tsid hash; the packed mtime and row position keep same-file rows distinct regardless.
+     * {@code mtimeMillis} is the file's last-modified epoch millis; callers pass {@code 0} when
+     * the storage layer reports none (the {@link FileList} convention for a missing mtime).
      */
     public static BytesRef prefix(StoragePath path, long mtimeMillis) {
-        String location = path.toString();
-        byte[] base = location.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] mtime = (mtimeMillis == 0L ? "-" : Long.toString(mtimeMillis)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        byte[] buf = new byte[base.length + 1 + mtime.length + 1];
-        System.arraycopy(base, 0, buf, 0, base.length);
-        buf[base.length] = MTIME_SEPARATOR;
-        System.arraycopy(mtime, 0, buf, base.length + 1, mtime.length);
-        buf[buf.length - 1] = SEPARATOR;
+        byte[] location = path.toString().getBytes(StandardCharsets.UTF_8);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(location, 0, location.length, SEED, new MurmurHash3.Hash128());
+        byte[] buf = new byte[PREFIX_BYTES];
+        ByteUtils.writeLongBE(hash.h1, buf, 0);
+        ByteUtils.writeLongBE(mtimeMillis, buf, 8);
         return new BytesRef(buf, 0, buf.length);
     }
 
@@ -79,35 +94,33 @@ public final class ExternalRowIdentity {
      * Compose an {@code _id} block for one page. Output position count matches
      * {@code rowPositionBlock.getPositionCount()}; null row-positions yield null {@code _id}. The
      * block allocates against {@code factory} so its breaker bytes follow the producer-thread
-     * accounting path used by other constant-block allocations. Two-pass design: pass 1 walks
-     * the row-position block and writes {@code prefix + decimal(physical)} for each row directly
-     * into a single producer-side {@code backing} array while recording per-row offsets; pass 2
-     * walks {@code offsets[]} and feeds an {@code (offset, length)} scratch view per row to the
-     * vector / block builder. No {@link Long#toString} allocation.
+     * accounting path used by other constant-block allocations. Two-pass design: pass 1 walks the
+     * row-position block, packs {@code prefix + physicalPosition} into the identity scratch and
+     * base64url-renders each row directly into a single producer-side {@code backing} array while
+     * recording per-row offsets; pass 2 walks {@code offsets[]} and feeds an
+     * {@code (offset, length)} scratch view per row to the vector / block builder.
      */
     public static BytesRefBlock composePage(BytesRef prefix, LongBlock rowPositionBlock, BlockFactory factory) {
         int positions = rowPositionBlock.getPositionCount();
         if (positions == 0) {
             return (BytesRefBlock) factory.newConstantNullBlock(0);
         }
-        int prefixLen = prefix.length;
-        // Worst-case allocation: every row present + each row's decimal expansion at MAX_LONG_DIGITS.
-        // Bound is generous but fixed-size and avoids a second pass to size; the unused tail bytes
-        // are dropped via the (offset, length) view inside the per-row BytesRef. multiplyExact
-        // surfaces a pathological deep path × large page combination as ArithmeticException in
-        // production rather than as a silent int overflow downstream.
-        int worstCase = Math.multiplyExact(positions, prefixLen + MAX_LONG_DIGITS);
-        // The decoding scratch (`backing` + `offsets`) is plain heap, so reserve it against the
-        // breaker for its lifetime — at high parallelism the per-page worst case (positions ×
-        // prefix bytes) adds up to real memory that must not bypass accounting. The reservation
-        // is released after the builders below copy the bytes into their own (breaker-accounted)
-        // storage.
-        long scratchBytes = worstCase + (long) (positions + 1) * Integer.BYTES;
+        // Exact sizing: every non-null row renders exactly RENDERED_LENGTH bytes. multiplyExact
+        // surfaces a pathological page size as ArithmeticException in production rather than as
+        // a silent int overflow downstream.
+        int backingSize = Math.multiplyExact(positions, RENDERED_LENGTH);
+        // The rendering scratch (`backing` + `offsets`) is plain heap, so reserve it against the
+        // breaker for its lifetime — at high parallelism the per-page bytes add up to real memory
+        // that must not bypass accounting. The reservation is released after the builders below
+        // copy the bytes into their own (breaker-accounted) storage.
+        long scratchBytes = backingSize + (long) (positions + 1) * Integer.BYTES;
         factory.adjustBreaker(scratchBytes);
         try {
-            byte[] backing = new byte[worstCase];
+            byte[] backing = new byte[backingSize];
             int[] offsets = new int[positions + 1];
-            byte[] digits = new byte[MAX_LONG_DIGITS];
+            byte[] identity = new byte[IDENTITY_BYTES];
+            byte[] rendered = new byte[RENDERED_LENGTH];
+            System.arraycopy(prefix.bytes, prefix.offset, identity, 0, PREFIX_BYTES);
             int cursor = 0;
             boolean anyNull = false;
             for (int i = 0; i < positions; i++) {
@@ -119,12 +132,10 @@ public final class ExternalRowIdentity {
                 int valueIdx = rowPositionBlock.getFirstValueIndex(i);
                 long encoded = rowPositionBlock.getLong(valueIdx);
                 long physical = encoded & LOCAL_POSITION_MASK;
-                System.arraycopy(prefix.bytes, prefix.offset, backing, cursor, prefixLen);
-                cursor += prefixLen;
-                int digitCount = encodeDecimal(physical, digits);
-                // digits filled right-to-left in `digits` over the last digitCount positions
-                System.arraycopy(digits, MAX_LONG_DIGITS - digitCount, backing, cursor, digitCount);
-                cursor += digitCount;
+                ByteUtils.writeLongBE(physical, identity, PREFIX_BYTES);
+                Strings.BASE_64_NO_PADDING_URL_ENCODER.encode(identity, rendered);
+                System.arraycopy(rendered, 0, backing, cursor, RENDERED_LENGTH);
+                cursor += RENDERED_LENGTH;
             }
             offsets[positions] = cursor;
 
@@ -151,7 +162,7 @@ public final class ExternalRowIdentity {
             // Dense path: feed every row to the vector builder via a scratch view over the producer
             // backing array. The builder copies each appended BytesRef into its own internal buffer,
             // so the rendered vector is not literally backed by `backing` — the producer-side
-            // allocations here are the decoding scratch (`backing` + `offsets`), not the vector's
+            // allocations here are the rendering scratch (`backing` + `offsets`), not the vector's
             // storage.
             try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
                 BytesRef scratch = new BytesRef();
@@ -166,35 +177,5 @@ public final class ExternalRowIdentity {
         } finally {
             factory.adjustBreaker(-scratchBytes);
         }
-    }
-
-    /**
-     * Decimal-encode {@code value} into {@code out} right-aligned. {@code out} must have at least
-     * {@link #MAX_LONG_DIGITS} bytes. Returns the number of digits written.
-     * <p>
-     * Row position 0 is legitimate (the first row of a file) and renders as {@code "0"}. Negative
-     * inputs can only come from corruption (e.g. an unmasked sentinel) and render as {@code "0"}
-     * defensively; the {@code assert false} surfaces the bug class in CI while production stays
-     * resilient.
-     */
-    static int encodeDecimal(long value, byte[] out) {
-        if (value < 0L) {
-            assert false : "ExternalRowIdentity.encodeDecimal called with negative value " + value;
-            out[MAX_LONG_DIGITS - 1] = (byte) '0';
-            return 1;
-        }
-        if (value == 0L) {
-            out[MAX_LONG_DIGITS - 1] = (byte) '0';
-            return 1;
-        }
-        int pos = MAX_LONG_DIGITS;
-        long v = value;
-        while (v > 0) {
-            pos--;
-            int digit = (int) (v % 10);
-            out[pos] = (byte) ('0' + digit);
-            v /= 10;
-        }
-        return MAX_LONG_DIGITS - pos;
     }
 }

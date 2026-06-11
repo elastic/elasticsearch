@@ -16,50 +16,90 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * Unit tests for {@link ExternalRowIdentity}, the per-page composer of the {@code _id}
- * metadata column for external rows.
+ * metadata column for external rows. The contract under test: ids are opaque (no component —
+ * least of all the storage path — is recoverable by inspection), fixed-length base64url,
+ * deterministic for the same {@code (location, mtime, rowPosition)} triple, and distinct
+ * whenever any component of the triple differs.
  */
 public class ExternalRowIdentityTests extends ESTestCase {
 
+    private static final String BASE64_URL_PATTERN = "[A-Za-z0-9_-]{" + ExternalRowIdentity.RENDERED_LENGTH + "}";
+
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    public void testComposeBasicRoundTrip() {
+    /**
+     * Shape and distinctness: every rendered id is exactly {@code RENDERED_LENGTH} base64url
+     * characters, never contains the storage path or any textual fragment of it, and distinct
+     * row positions in one file yield distinct ids.
+     */
+    public void testComposeRendersOpaqueFixedLengthIds() {
         BytesRef prefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/file.parquet"), 1700000000000L);
 
         try (LongBlock rowPositions = positions(0L, 1L, 42L, 999L)) {
             try (BytesRefBlock ids = ExternalRowIdentity.composePage(prefix, rowPositions, blockFactory)) {
                 assertEquals(4, ids.getPositionCount());
-                assertEquals("s3://bucket/file.parquet@1700000000000:0", asString(ids, 0));
-                assertEquals("s3://bucket/file.parquet@1700000000000:1", asString(ids, 1));
-                assertEquals("s3://bucket/file.parquet@1700000000000:42", asString(ids, 2));
-                assertEquals("s3://bucket/file.parquet@1700000000000:999", asString(ids, 3));
+                Set<String> seen = new HashSet<>();
+                for (int i = 0; i < 4; i++) {
+                    String id = asString(ids, i);
+                    assertTrue("id [" + id + "] must be fixed-length base64url", id.matches(BASE64_URL_PATTERN));
+                    assertFalse("storage path must not leak into _id: " + id, id.contains("bucket"));
+                    assertFalse("storage path must not leak into _id: " + id, id.contains("file.parquet"));
+                    seen.add(id);
+                }
+                assertEquals("distinct row positions must yield distinct ids", 4, seen.size());
+            }
+        }
+    }
+
+    /** Same triple, two independent compositions: ids must be byte-for-byte identical. */
+    public void testComposeIsDeterministic() {
+        StoragePath path = StoragePath.of("s3://bucket/file.parquet");
+        try (LongBlock rowPositions = positions(0L, 7L, 123456789L)) {
+            try (
+                BytesRefBlock first = ExternalRowIdentity.composePage(ExternalRowIdentity.prefix(path, 42L), rowPositions, blockFactory);
+                BytesRefBlock second = ExternalRowIdentity.composePage(ExternalRowIdentity.prefix(path, 42L), rowPositions, blockFactory)
+            ) {
+                for (int i = 0; i < 3; i++) {
+                    assertEquals("same (location, mtime, rowPosition) must compose the same _id", asString(first, i), asString(second, i));
+                }
             }
         }
     }
 
     /**
-     * A file replaced in place under the same name (new mtime) must produce different ids than
-     * its predecessor — the mtime salt is what distinguishes the two file generations. A missing
-     * mtime ({@code 0}, the {@link org.elasticsearch.xpack.esql.datasources.spi.FileList}
-     * convention) renders the {@code -} sentinel so it cannot be mistaken for a genuine epoch-0
-     * mtime, matching {@code _version}'s 0-means-unknown treatment.
+     * Each component of the identity triple is load-bearing: a file replaced in place under the
+     * same name (new mtime) must produce different ids than its predecessor, a different location
+     * with the same mtime must produce different ids, and a missing mtime ({@code 0}, the
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FileList} convention) is just another
+     * salt value — well-formed, distinct from real generations.
      */
-    public void testMtimeSaltDistinguishesFileGenerations() {
+    public void testEveryTripleComponentDistinguishesIds() {
         StoragePath path = StoragePath.of("s3://bucket/file.parquet");
         BytesRef generationOne = ExternalRowIdentity.prefix(path, 1700000000000L);
         BytesRef generationTwo = ExternalRowIdentity.prefix(path, 1700000099999L);
         BytesRef unknownMtime = ExternalRowIdentity.prefix(path, 0L);
+        BytesRef sibling = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/other.parquet"), 1700000000000L);
 
         try (LongBlock rowPositions = positions(7L)) {
             try (
                 BytesRefBlock idsOne = ExternalRowIdentity.composePage(generationOne, rowPositions, blockFactory);
                 BytesRefBlock idsTwo = ExternalRowIdentity.composePage(generationTwo, rowPositions, blockFactory);
-                BytesRefBlock idsUnknown = ExternalRowIdentity.composePage(unknownMtime, rowPositions, blockFactory)
+                BytesRefBlock idsUnknown = ExternalRowIdentity.composePage(unknownMtime, rowPositions, blockFactory);
+                BytesRefBlock idsSibling = ExternalRowIdentity.composePage(sibling, rowPositions, blockFactory)
             ) {
-                assertNotEquals("same row in two file generations must have distinct ids", asString(idsOne, 0), asString(idsTwo, 0));
-                assertEquals("s3://bucket/file.parquet@1700000099999:7", asString(idsTwo, 0));
-                assertEquals("missing mtime renders the - sentinel", "s3://bucket/file.parquet@-:7", asString(idsUnknown, 0));
+                String one = asString(idsOne, 0);
+                String two = asString(idsTwo, 0);
+                String unknown = asString(idsUnknown, 0);
+                String other = asString(idsSibling, 0);
+                assertNotEquals("same row in two file generations must have distinct ids", one, two);
+                assertNotEquals("unknown-mtime generation must not collide with a real one", one, unknown);
+                assertNotEquals("same row in two different files must have distinct ids", one, other);
+                assertTrue("unknown mtime still renders a well-formed id", unknown.matches(BASE64_URL_PATTERN));
             }
         }
     }
@@ -67,8 +107,9 @@ public class ExternalRowIdentityTests extends ESTestCase {
     /**
      * Same physical row across two query runs with different extractor ids must produce the same
      * {@code _id} string. The extractor id occupies the high bits of the {@code _rowPosition}
-     * encoded value; the {@code _id} composer masks it off and renders only the physical position.
-     * This is the stability guarantee that makes {@code _id} usable for cross-source dedup.
+     * encoded value; the {@code _id} composer masks it off so only the physical position enters
+     * the identity bytes. This is the stability guarantee that makes {@code _id} usable for
+     * cross-source dedup.
      */
     public void testExtractorIdMaskedFromRenderedId() {
         BytesRef prefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/file.parquet"), 1700000000000L);
@@ -80,15 +121,15 @@ public class ExternalRowIdentityTests extends ESTestCase {
         long encodedRunB = (42L << ColumnExtractor.LOCAL_POSITION_BITS) | physical;
         assertNotEquals("sanity: the two encodings must differ before masking", encodedRunA, encodedRunB);
 
-        try (LongBlock posA = positions(encodedRunA); LongBlock posB = positions(encodedRunB)) {
+        try (LongBlock posA = positions(encodedRunA); LongBlock posB = positions(encodedRunB); LongBlock posPlain = positions(physical)) {
             try (
                 BytesRefBlock idA = ExternalRowIdentity.composePage(prefix, posA, blockFactory);
-                BytesRefBlock idB = ExternalRowIdentity.composePage(prefix, posB, blockFactory)
+                BytesRefBlock idB = ExternalRowIdentity.composePage(prefix, posB, blockFactory);
+                BytesRefBlock idPlain = ExternalRowIdentity.composePage(prefix, posPlain, blockFactory)
             ) {
                 String renderedA = asString(idA, 0);
-                String renderedB = asString(idB, 0);
-                assertEquals("extractor id must be masked off the rendered _id", renderedA, renderedB);
-                assertEquals("s3://bucket/file.parquet@1700000000000:" + physical, renderedA);
+                assertEquals("extractor id must be masked off the rendered _id", renderedA, asString(idB, 0));
+                assertEquals("encoded and unencoded forms of the same physical row must agree", renderedA, asString(idPlain, 0));
             }
         }
     }
@@ -102,35 +143,13 @@ public class ExternalRowIdentityTests extends ESTestCase {
             try (LongBlock rowPositions = builder.build()) {
                 try (BytesRefBlock ids = ExternalRowIdentity.composePage(prefix, rowPositions, blockFactory)) {
                     assertEquals(3, ids.getPositionCount());
-                    assertEquals("s3://bucket/file.parquet@1700000000000:7", asString(ids, 0));
+                    assertTrue("non-null row renders an id", asString(ids, 0).matches(BASE64_URL_PATTERN));
                     assertTrue("null row position renders null _id", ids.isNull(1));
-                    assertEquals("s3://bucket/file.parquet@1700000000000:8", asString(ids, 2));
+                    assertTrue("non-null row renders an id", asString(ids, 2).matches(BASE64_URL_PATTERN));
+                    assertNotEquals("distinct rows around the null must stay distinct", asString(ids, 0), asString(ids, 2));
                 }
             }
         }
-    }
-
-    public void testEncodeDecimal() {
-        byte[] buf = new byte[19];
-        // Row 0 is a legitimate first row in a file and renders as '0'.
-        assertEquals(1, ExternalRowIdentity.encodeDecimal(0L, buf));
-        assertEquals('0', buf[18]);
-
-        assertEquals(3, ExternalRowIdentity.encodeDecimal(123L, buf));
-        assertEquals('1', buf[16]);
-        assertEquals('2', buf[17]);
-        assertEquals('3', buf[18]);
-    }
-
-    /**
-     * Negative inputs can only come from corruption (e.g. an unmasked sentinel). The
-     * {@code assert false} surfaces the bug class in CI; the production-only fallthrough still
-     * renders {@code "0"} defensively. We exercise the assertion shape here so a future refactor
-     * that silently drops the assert is caught.
-     */
-    public void testEncodeDecimalAssertsOnNegative() {
-        byte[] buf = new byte[19];
-        expectThrows(AssertionError.class, () -> ExternalRowIdentity.encodeDecimal(-7L, buf));
     }
 
     private LongBlock positions(long... values) {

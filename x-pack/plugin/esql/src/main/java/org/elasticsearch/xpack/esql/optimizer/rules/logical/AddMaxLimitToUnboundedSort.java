@@ -81,6 +81,8 @@ public class AddMaxLimitToUnboundedSort extends OptimizerRules.ParameterizedOpti
         if (hasOnlyNativeFieldSorts(orderBy.order()) == false) {
             return orderBy;
         }
+        // TODO: Integer.MAX_VALUE is used as a sentinel for "unbounded". When limits become long or
+        // ES|QL supports fully streamed results, replace this with a dedicated flag on TopN/TopNExec.
         var maxLimit = new Literal(orderBy.source(), Integer.MAX_VALUE, DataType.INTEGER);
         return new TopN(orderBy.source(), orderBy.child(), orderBy.order(), maxLimit, false);
     }

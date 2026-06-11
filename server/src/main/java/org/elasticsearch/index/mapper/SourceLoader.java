@@ -207,9 +207,7 @@ public interface SourceLoader {
                 this.filter = filter;
                 this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
-                this.storedFieldLoaders = Map.copyOf(
-                    loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-                );
+                this.storedFieldLoaders = loader.storedFieldLoadersMap();
                 this.ignoredSourceFormat = ignoredSourceFormat;
                 if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
                     this.ignoredSourcedocValues = Objects.requireNonNull(
@@ -334,6 +332,14 @@ public interface SourceLoader {
          * so they can be included in the next document.
          */
         Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders();
+
+        /**
+         * Returns the stored-field loaders as a map. The default implementation builds the map
+         * from {@link #storedFieldLoaders()} on each call.
+         */
+        default Map<String, StoredFieldLoader> storedFieldLoadersMap() {
+            return Map.copyOf(storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        }
 
         /**
          * Build something to load doc values for this field or return

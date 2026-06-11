@@ -1027,6 +1027,11 @@ public class ObjectMapper extends Mapper {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private final boolean isFragment;
 
+        // Cached result of storedFieldLoadersMap(). Built once on first use and reused for the
+        // lifetime of this instance, which is safe because the keys (field paths) and the closure
+        // references are pure functions of the immutable mapping structure.
+        private Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> cachedStoredFieldLoadersMap;
+
         private boolean storedFieldLoadersHaveValues;
         private boolean docValuesLoadersHaveValues;
         private boolean ignoredValuesPresent;
@@ -1070,6 +1075,14 @@ public class ObjectMapper extends Mapper {
                     storedFieldLoadersHaveValues = true;
                     e.getValue().load(newValues);
                 }));
+        }
+
+        @Override
+        public Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoadersMap() {
+            if (cachedStoredFieldLoadersMap == null) {
+                cachedStoredFieldLoadersMap = SourceLoader.SyntheticFieldLoader.super.storedFieldLoadersMap();
+            }
+            return cachedStoredFieldLoadersMap;
         }
 
         @Override

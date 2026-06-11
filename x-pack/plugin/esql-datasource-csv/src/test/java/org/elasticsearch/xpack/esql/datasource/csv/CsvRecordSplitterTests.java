@@ -50,12 +50,52 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        // Quote-aware doubled-quote handling only applies when quoting is opted in (TSV default is unquoted).
+        RecordSplitter splitter = splitter(quotedTsv());
         String row1 = "\"a\"\"b\"\tc\n";
         byte[] buf = bytes(row1 + "d\te\n");
 
         assertEquals(row1.length(), splitter.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
         assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
+    }
+
+    /**
+     * The TSV dialect applies no quoting: an unbalanced field-start {@code "} is literal data and must
+     * not glue records across newlines. Pre-fix, the quote-aware scan opened quote state on the first
+     * row's field-start quote and skipped every following newline, gluing the rest of the input into
+     * one giant pseudo-record.
+     */
+    public void testTsvFieldStartUnbalancedQuoteDoesNotGlueRecords() throws IOException {
+        RecordSplitter splitter = splitter(CsvFormatOptions.TSV);
+        String row1 = "1\t\"broken\tc\n";
+        byte[] buf = bytes(row1 + "2\t\"also broken\te\n3\tf\tg\n");
+
+        assertEquals(row1.length(), splitter.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
+
+        int records = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+        while (splitter.findNextRecordBoundary(in) >= 0) {
+            records++;
+        }
+        assertEquals("a boundary must be found at every newline", 3, records);
+    }
+
+    /** Without the {@code quote} opt-in a quoted newline splits the record; with it, the old behavior returns. */
+    public void testTsvQuotingIsOptIn() throws IOException {
+        String data = "\"a\nb\"\tc\n";
+        byte[] buf = bytes(data);
+
+        assertEquals(
+            "unquoted TSV must end the record at the first newline",
+            "\"a\n".length(),
+            splitter(CsvFormatOptions.TSV).findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)))
+        );
+        assertEquals(
+            "WITH {\"quote\": \"\\\"\"} must restore quote-aware scanning",
+            buf.length,
+            splitter(quotedTsv()).findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)))
+        );
     }
 
     public void testBracketMvcNewlineDoesNotTerminateRecord() throws IOException {
@@ -91,6 +131,23 @@ public class CsvRecordSplitterTests extends ESTestCase {
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
             CsvFormatOptions.MultiValueSyntax.BRACKETS,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
+    }
+
+    /** Tab-delimited with quoting re-enabled — the shape produced by {@code WITH {"quote": "\""}} on TSV. */
+    private static CsvFormatOptions quotedTsv() {
+        return new CsvFormatOptions(
+            '\t',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );

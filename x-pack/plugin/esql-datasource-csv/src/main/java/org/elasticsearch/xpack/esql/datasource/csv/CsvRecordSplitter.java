@@ -90,6 +90,10 @@ final class CsvRecordSplitter implements RecordSplitter {
      * only at field start (after an unquoted {@code delimiter} or {@code \n}, optionally past field-leading
      * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
      * <p>
+     * With quoting disabled ({@link CsvFormatOptions#quoting()} {@code false} — the TSV dialect), the scan
+     * degenerates to a pure newline scan: no byte toggles quote state, every unescaped {@code \n} is a
+     * boundary, and {@code maxRecordBytes} enforcement is unchanged.
+     * <p>
      * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
      * {@code lastBoundary} only on a true unquoted record terminator. So a chunk the segmentator cut mid-record
      * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
@@ -104,6 +108,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         int recordStart = offset;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
+        boolean quoting = options.quoting();
         byte quoteAsByte = (byte) options.quoteChar();
         byte delimAsByte = (byte) options.delimiter();
         for (int i = offset; i < end; i++) {
@@ -139,7 +144,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = false;
             } else if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+            } else if (quoting && b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
             } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
                 fieldHasNonWhitespace = true;
@@ -200,6 +205,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         long consumed = 0;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
+        boolean quoting = options.quoting();
         byte quoteAsByte = (byte) options.quoteChar();
         byte escAsByte = (byte) options.escapeChar();
         byte delimAsByte = (byte) options.delimiter();
@@ -257,7 +263,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = false;
                 continue;
             }
-            if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+            if (quoting && b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
                 continue;
             }
@@ -301,12 +307,16 @@ final class CsvRecordSplitter implements RecordSplitter {
      * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
      * literal and does not toggle quote state. Returns the byte count up to and including the first
      * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
+     * <p>
+     * With quoting disabled ({@link CsvFormatOptions#quoting()} {@code false} — the TSV dialect), the
+     * scan degenerates to a pure newline scan with unchanged {@code maxRecordBytes} enforcement.
      */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
+        boolean quoting = options.quoting();
         byte quoteAsByte = (byte) options.quoteChar();
         byte delimAsByte = (byte) options.delimiter();
         while (true) {
@@ -343,7 +353,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+            } else if (quoting && b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
             } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
                 fieldHasNonWhitespace = true;

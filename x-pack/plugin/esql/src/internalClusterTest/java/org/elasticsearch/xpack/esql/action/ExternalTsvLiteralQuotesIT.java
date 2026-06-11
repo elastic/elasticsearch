@@ -79,6 +79,26 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Field-START unbalanced quotes on the gzip streaming-parallel path, spanning multiple chunks.
+     * Every row's middle column begins with a single literal {@code "}. Under the old quote-aware
+     * TSV dialect a field-start quote opened quote state, so rows glued pairwise (or, for an odd
+     * tail, ran past {@code max_record_size}); with the unquoted TSV dialect every newline is a
+     * record boundary, the count is exact, and the {@code "} survives as field data.
+     */
+    public void testGzipStreamOnlyFieldStartUnbalancedQuotes() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        int rows = 150_000;
+        Path file = writeTsv(rows, Codec.GZIP, QuoteShape.FIELD_START);
+        try {
+            assertCount(file, pragmas(4, "1mb"), rows);
+            assertFieldStartQuotePreservedAsData(file, pragmas(4, "1mb"));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
     /** Stream-only path with dense literal quotes throughout the data, default cap. */
     public void testGzipStreamOnlyDenseLiteralQuotes() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -133,7 +153,9 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         /** Row 0 has one literal mid-field quote, the rest are quote-free (forces a no-boundary chunk). */
         SINGLE_LEADING,
         /** Every row has an even number of literal mid-field quotes. */
-        DENSE
+        DENSE,
+        /** Every row's middle column STARTS with a single unbalanced literal quote. */
+        FIELD_START
     }
 
     private QueryPragmas pragmas(int parsingParallelism, String maxRecordSize) {
@@ -157,6 +179,22 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The literal {@code "} must survive as field data: with {@code header_row: false} the middle
+     * column is {@code col1}, and row 7's value is exactly {@code "b7} — leading quote intact, not
+     * stripped by any quote-aware tokenizer.
+     */
+    private void assertFieldStartQuotePreservedAsData(Path file, QueryPragmas pragmas) {
+        String query = "EXTERNAL \""
+            + StoragePath.fileUri(file)
+            + "\" WITH {\"header_row\": false} | WHERE col0 == \"f0_7\" | KEEP col1 | LIMIT 1";
+        try (var response = run(syncEsqlQueryRequest(query).pragmas(pragmas), TimeValue.timeValueMinutes(2))) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values.size(), equalTo(1));
+            assertThat(values.get(0).get(0), equalTo("\"b7"));
+        }
+    }
+
     private Path writeTsv(int rows, Codec codec, QuoteShape shape) throws Exception {
         Path file = createTempDir().resolve("quotes" + codec.ext);
         OutputStream os = Files.newOutputStream(file);
@@ -168,6 +206,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
                 String mid = switch (shape) {
                     case SINGLE_LEADING -> i == 0 ? "a\"b" : "a" + i; // one literal quote, only on row 0
                     case DENSE -> "x\"y\"z"; // two literal quotes every row
+                    case FIELD_START -> "\"b" + i; // unbalanced field-start quote, every row
                 };
                 w.write("f0_" + i + "\t" + mid + "\tf2_" + i + "\n");
             }

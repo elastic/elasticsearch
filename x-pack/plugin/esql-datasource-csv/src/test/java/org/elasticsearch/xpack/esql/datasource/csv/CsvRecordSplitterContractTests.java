@@ -46,6 +46,10 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
 
         Case bracket = bracketMvc(128);
         assertEquals(13L, bracket.newSplitter().findNextRecordBoundary(new ByteArrayInputStream(bytes("[multi\nline]\n"))));
+
+        // The unquoted TSV dialect has no quoting concept: the same shape ends at the first newline.
+        Case unquoted = unquotedNewlineScan(128);
+        assertEquals(7L, unquoted.newSplitter().findNextRecordBoundary(new ByteArrayInputStream(bytes("\"multi\nline\"\n"))));
     }
 
     public void testRecordTooLargeSentinel() throws IOException {
@@ -79,11 +83,33 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
     }
 
     private static Case[] cases(int maxRecordBytes) {
-        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes) };
+        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes), unquotedNewlineScan(maxRecordBytes) };
     }
 
     private static Case quotedFieldsOnly(int maxRecordBytes) {
-        return new Case("quoted-fields-only", () -> new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes));
+        // Tab-delimited with quoting enabled — the WITH {"quote": "\""} opt-in shape (the TSV
+        // default is unquoted, covered by the unquoted-newline-scan case below).
+        return new Case("quoted-fields-only", () -> new CsvRecordSplitter(quotedTsv(), maxRecordBytes));
+    }
+
+    private static Case unquotedNewlineScan(int maxRecordBytes) {
+        return new Case("unquoted-newline-scan", () -> new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes));
+    }
+
+    private static CsvFormatOptions quotedTsv() {
+        return new CsvFormatOptions(
+            '\t',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
     }
 
     private static Case bracketMvc(int maxRecordBytes) {

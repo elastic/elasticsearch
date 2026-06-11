@@ -14,11 +14,16 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Reads one logical CSV record at a time while enforcing the query's byte-sized record cap.
+ *
+ * <p>When {@code quoteChar} is {@link CsvFormatOptions#NO_QUOTE_CHAR} (the TSV dialect), quoting is
+ * disabled: no character toggles quote state and a record ends at the first {@code \n} (or
+ * {@code \r}/{@code \r\n}) unconditionally.
  */
 final class CsvLogicalRecordReader {
 
     private final Reader reader;
     private final char quoteChar;
+    private final boolean quoting;
     private final char delimiter;
     private final int maxRecordBytes;
     private final Charset charset;
@@ -33,6 +38,7 @@ final class CsvLogicalRecordReader {
         }
         this.reader = reader;
         this.quoteChar = quoteChar;
+        this.quoting = quoteChar != CsvFormatOptions.NO_QUOTE_CHAR;
         this.delimiter = delimiter;
         this.maxRecordBytes = maxRecordBytes;
         this.charset = charset;
@@ -107,7 +113,7 @@ final class CsvLogicalRecordReader {
                 fieldHasNonWhitespace = false;
                 continue;
             }
-            if (ch == quoteChar && fieldHasNonWhitespace == false) {
+            if (quoting && ch == quoteChar && fieldHasNonWhitespace == false) {
                 inQuotes = true;
                 sb.append((char) ch);
                 continue;

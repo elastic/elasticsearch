@@ -117,7 +117,9 @@ import java.util.regex.Pattern;
  *   <caption>CSV options</caption>
  *   <tr><th>ES/ESQL key</th><th>Default</th><th>Description</th></tr>
  *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>Field separator character</td></tr>
- *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "} (CSV); none (TSV)</td>
+ *       <td>Quoting character. The TSV dialect applies no quoting by default — a literal {@code "}
+ *           is field data; pass {@code "quote": "\""} to opt back in.</td></tr>
  *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character inside quoted fields</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
  *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
@@ -791,9 +793,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private Iterator<List<?>> newCsvIterator(CsvLogicalRecordReader recordReader) throws IOException {
         CsvSchema csvSchema = CsvSchema.emptySchema()
             .withColumnSeparator(options.delimiter())
-            .withQuoteChar(options.quoteChar())
             .withEscapeChar(options.escapeChar())
             .withNullValue(options.nullValue());
+        // No-quoting dialect (TSV default): the Jackson tokenizer must match the record-boundary
+        // scanner and the logical record reader, so a literal " byte stays plain field data.
+        csvSchema = options.quoting() ? csvSchema.withQuoteChar(options.quoteChar()) : csvSchema.withoutQuoteChar();
         return new CsvRecordIterator(recordReader, csvSchema);
     }
 
@@ -1338,6 +1342,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private static String[] splitHeaderCommaDelimiterBracketAware(String line, char quote, char esc) {
         final char delim = ',';
+        final boolean quoting = quote != CsvFormatOptions.NO_QUOTE_CHAR;
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -1371,7 +1376,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 fieldHasNonWhitespace = false;
                 continue;
             }
-            if (c == quote && fieldHasNonWhitespace == false) {
+            if (quoting && c == quote && fieldHasNonWhitespace == false) {
                 inQuotes = true;
                 continue;
             }
@@ -1392,6 +1397,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     private static String[] splitCommaDelimiterBracketAwareFields(String line, char quote, char esc) {
         final char delim = ',';
+        final boolean quoting = quote != CsvFormatOptions.NO_QUOTE_CHAR;
         List<String> entries = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
@@ -1432,7 +1438,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     bracketDepth--;
                 }
                 i++;
-            } else if (c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
+            } else if (quoting && c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 inQuotes = true;
                 quoteOpenAt = i;
                 i++;
@@ -2161,6 +2167,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private boolean splitAndConvertProjected(String line) {
             final char delim = ',';
             final char quote = options.quoteChar();
+            final boolean quoting = options.quoting();
             final char esc = options.escapeChar();
 
             StringBuilder current = new StringBuilder();
@@ -2219,7 +2226,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         bracketDepth--;
                     }
                     i++;
-                } else if (c == quote && fieldHasNonWhitespace == false) {
+                } else if (quoting && c == quote && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     inQuotes = true;
                     quoteOpenAt = i;

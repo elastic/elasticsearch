@@ -15,7 +15,10 @@ import java.time.format.DateTimeFormatter;
  * Configurable options for CSV/TSV parsing.
  *
  * @param delimiter          field separator character (default: comma)
- * @param quoteChar          character used to quote fields (default: double-quote)
+ * @param quoteChar          character used to quote fields (default: double-quote for CSV), or
+ *                           {@link #NO_QUOTE_CHAR} to disable quoting entirely (the TSV default —
+ *                           real-world TSV has no quoting concept; embedded separators are
+ *                           backslash-escaped, and a literal {@code "} is plain data)
  * @param escapeChar         character used to escape special characters (default: backslash)
  * @param commentPrefix      prefix for comment lines to skip (default: "//")
  * @param nullValue          string representation of null in the data (default: empty string)
@@ -53,6 +56,13 @@ public record CsvFormatOptions(
         BRACKETS
     }
 
+    /**
+     * Sentinel {@link #quoteChar} value meaning "no quoting": no character opens a quoted field, so a
+     * record always ends at the first unescaped {@code \n}. This is the TSV default. Quoting can be
+     * re-enabled per query via the {@code quote} WITH option.
+     */
+    public static final char NO_QUOTE_CHAR = '\0';
+
     /** 10 MB default field size limit — generous for real-world data, prevents OOM on corrupt files. */
     static final int DEFAULT_MAX_FIELD_SIZE = 10 * 1024 * 1024;
 
@@ -73,9 +83,17 @@ public record CsvFormatOptions(
         DEFAULT_COLUMN_PREFIX
     );
 
+    /**
+     * TSV dialect: tab-delimited and <strong>unquoted</strong>. Real-world TSV (ClickBench,
+     * mysqldump, Presto/Trino, ClickHouse {@code TSV}) carries no quoting — embedded tabs/newlines
+     * are backslash-escaped and a literal {@code "} byte is field data. Applying CSV quoting here is
+     * actively harmful: an unbalanced field-start {@code "} would glue records across newlines until
+     * the scan exceeds {@code max_record_size}. Users with genuinely quoted tab-separated data can
+     * opt back in with {@code WITH {"quote": "\""}}.
+     */
     public static final CsvFormatOptions TSV = new CsvFormatOptions(
         '\t',
-        '"',
+        NO_QUOTE_CHAR,
         '\\',
         "//",
         "",
@@ -106,5 +124,16 @@ public record CsvFormatOptions(
         if (columnPrefix == null) {
             throw new IllegalArgumentException("columnPrefix must not be null");
         }
+    }
+
+    /**
+     * Whether this dialect applies quoting at all. When {@code false} ({@link #quoteChar} is
+     * {@link #NO_QUOTE_CHAR}), no character toggles quote state anywhere in the pipeline — the
+     * record-boundary scanners, the logical record reader and the Jackson tokenizer all treat
+     * {@code "} (and every other byte) as plain field data, and a record ends at the first
+     * {@code \n} unconditionally.
+     */
+    public boolean quoting() {
+        return quoteChar != NO_QUOTE_CHAR;
     }
 }

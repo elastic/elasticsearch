@@ -1591,14 +1591,76 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * A field-leading quote opens a quoted field; an embedded {@code ""} is a literal quote and a lone
      * {@code "} closes the field. Pins the doubled-quote peek (the {@code peekByte} window) in both scanners.
+     * Quoting on TSV is opt-in via {@code WITH {"quote": "\""}} — the TSV default applies no quoting.
      */
     public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            .withConfig(Map.of("quote", "\""));
         String row1 = "\"a\"\"b\"\tc\n"; // quoted field a"b (doubled quote), then c
         byte[] buf = (row1 + "d\te\n").getBytes(StandardCharsets.UTF_8);
 
         assertEquals(row1.length(), reader.recordSplitter().findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
         assertEquals(buf.length - 1, reader.recordSplitter().findLastRecordBoundary(buf, buf.length));
+    }
+
+    /** The TSV dialect is unquoted by default; CSV keeps RFC 4180 quoting. */
+    public void testTsvDialectHasNoQuotingByDefault() {
+        assertFalse(CsvFormatOptions.TSV.quoting());
+        assertEquals(CsvFormatOptions.NO_QUOTE_CHAR, CsvFormatOptions.TSV.quoteChar());
+        assertTrue(CsvFormatOptions.DEFAULT.quoting());
+    }
+
+    /**
+     * TSV end-to-end with an unbalanced field-start {@code "}: the quote is literal data, the record
+     * ends at the newline, and the row count is exact. Pre-fix, the field-start quote opened quote
+     * state, glued both rows into one record, and the {@code "} was stripped by the tokenizer.
+     */
+    public void testTsvUnbalancedFieldStartQuoteIsLiteralData() throws IOException {
+        String tsv = "id:long\tname:keyword\n1\t\"alpha\n2\tbeta\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock name = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("\"alpha"), name.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("beta"), name.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    /** The logical record reader splits unquoted TSV on every newline, embedded unbalanced quotes and all. */
+    public void testTsvRecordReaderSplitsOnNewlineWithUnbalancedQuotes() throws IOException {
+        String data = "1\t\"x\tc\n2\td\te\n";
+        try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+            CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                br,
+                CsvFormatOptions.TSV.quoteChar(),
+                CsvFormatOptions.TSV.delimiter(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                CsvFormatOptions.TSV.encoding()
+            );
+            assertEquals("1\t\"x\tc", recordReader.readRecord(false));
+            assertEquals("2\td\te", recordReader.readRecord(false));
+            assertNull(recordReader.readRecord(false));
+        }
+    }
+
+    /** {@code WITH {"quote": "\""}} restores the quote-aware dialect on TSV — a quoted newline is field content. */
+    public void testTsvOptInQuoteRestoresQuoting() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            .withConfig(Map.of("quote", "\""));
+        String tsv = "id:long\tname:keyword\n1\t\"multi\nline\"\n";
+        StorageObject object = createStorageObject(tsv);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock name = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("multi\nline"), name.getBytesRef(0, new BytesRef()));
+        }
     }
 
     /** Oracle: the boundary scanner and {@link CsvFormatReader#readCsvRecord} must agree on record count, CSV and TSV. */

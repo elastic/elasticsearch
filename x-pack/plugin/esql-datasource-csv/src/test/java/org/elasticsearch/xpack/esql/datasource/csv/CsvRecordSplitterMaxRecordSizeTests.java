@@ -35,11 +35,28 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
     public void testQuotedFieldsOnlyReturnsRecordTooLargeForUnclosedQuote() throws IOException {
         int maxRecordBytes = 32;
-        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes);
+        // Tab-delimited with quoting opted in (the TSV default is unquoted and is covered below).
+        RecordSplitter splitter = new CsvRecordSplitter(quotedTsv(), maxRecordBytes);
         byte[] bytes = bytes("\"" + "x".repeat(maxRecordBytes + 1));
 
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(bytes)));
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findLastRecordBoundary(bytes, bytes.length));
+    }
+
+    /**
+     * The unquoted TSV dialect must NOT let an unbalanced field-start {@code "} inflate the apparent
+     * record: every newline is a boundary, so small records with stray quotes never trip the cap.
+     * Pre-fix, the quote-aware scan glued all four rows into one pseudo-record and returned
+     * {@code RECORD_TOO_LARGE}.
+     */
+    public void testTsvUnquotedFieldStartQuoteDoesNotInflateRecord() throws IOException {
+        int maxRecordBytes = 16;
+        RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes);
+        String row = "\"aaaa\tb\n"; // 8 bytes, unbalanced field-start quote
+        byte[] buf = bytes(row.repeat(4));
+
+        assertEquals(row.length(), splitter.findNextRecordBoundary(new ByteArrayInputStream(buf)));
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
     }
 
     public void testBracketMvcReturnsRecordTooLargeForUnclosedBracket() throws IOException {
@@ -125,6 +142,23 @@ public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
             null,
             CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
             CsvFormatOptions.MultiValueSyntax.BRACKETS,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
+    }
+
+    /** Tab-delimited with quoting re-enabled — the shape produced by {@code WITH {"quote": "\""}} on TSV. */
+    private static CsvFormatOptions quotedTsv() {
+        return new CsvFormatOptions(
+            '\t',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.NONE,
             true,
             CsvFormatOptions.DEFAULT_COLUMN_PREFIX
         );

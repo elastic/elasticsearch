@@ -1116,7 +1116,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.availableModes()));
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
@@ -1171,13 +1171,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         IndexableField field = parseDoc.getByKey(wildcardFieldType.fullPath());
         if (field != null) {
             doc.add(field);
-        }
-        // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
-        // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
-        String countsKey = wildcardFieldType.fullPath() + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        IndexableField countsField = parseDoc.getByKey(countsKey);
-        if (countsField != null) {
-            doc.add(countsField);
+            // SeparateCount format stores the value count in a companion numeric doc values field (".counts").
+            // It must be copied alongside the main binary field for MultiValuedSortedBinaryDocValues to decode values.
+            if (field instanceof MultiValuedBinaryDocValuesField.SeparateCount separateCount) {
+                doc.add(separateCount.countField());
+            } else {
+                fail("unexpected indexable field type: " + field.getClass().getName());
+            }
         }
         iw.addDocument(doc);
     }

@@ -14,9 +14,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;
 import org.mockito.Mockito;
@@ -28,7 +30,9 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests reindex with a script modifying the documents.
  */
-public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
+    ReindexRequest,
+    BulkByPaginatedSearchResponse> {
 
     public void testSetIndex() throws Exception {
         Object dest = randomFrom(new Object[] { 234, 234L, "pancake" });
@@ -165,7 +169,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             listener(),
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
-            null
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
     }
 

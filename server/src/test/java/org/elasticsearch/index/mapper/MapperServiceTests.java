@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.SourceFieldMapper.Mode;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -135,7 +136,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testSliceEnabledRequiresRouting() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertTrue(mapperService.documentMapper().routingFieldMapper().required());
@@ -211,6 +215,35 @@ public class MapperServiceTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals("cannot apply index sort to field [foo.bar] under nested object [foo]", invalidNestedException.getMessage());
+    }
+
+    public void testRuntimeFieldShadowingIndexSortFieldOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperService mapperService = createMapperService(
+            settings,
+            mapping(b -> b.startObject("@timestamp").field("type", "date").endObject())
+        );
+
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("@timestamp").field("type", "date").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
+    }
+
+    public void testRuntimeFieldShadowingIndexSortField() throws IOException {
+        Settings settings = Settings.builder().put("index.sort.field", "@timestamp").build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            createMapperService(settings, topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+                b.startObject("properties");
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.endObject();
+            }));
+        });
+        assertThat(e.getMessage(), containsString("runtime field [@timestamp] shadows an index sort field"));
     }
 
     public void testFieldAliasWithMismatchedNestedScope() throws Throwable {
@@ -390,7 +423,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
         };
 
-        for (IndexMode indexMode : IndexMode.values()) {
+        for (IndexMode indexMode : IndexMode.availableModes()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
         }
@@ -2015,5 +2048,90 @@ public class MapperServiceTests extends MapperServiceTestCase {
         // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
         assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepOnField() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            for (String value : List.of("all", "arrays", "none")) {
+                Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+                MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                    b.startObject("kw");
+                    b.field("type", "keyword");
+                    b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
+                    b.endObject();
+                })));
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on field [kw] in index using ["
+                            + indexMode
+                            + "] index mode"
+                    )
+                );
+            }
+        }
+    }
+
+    public void testColumnarModesRejectCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw] in [" + indexMode + "] index mode"));
+        }
+    }
+
+    public void testColumnarStoredSourceModeRejectsCopyToOnField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), Mode.COLUMNAR_STORED.toString())
+                .build();
+            String targetField = randomAlphanumericOfLength(8);
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                b.startObject("kw");
+                b.field("type", "keyword");
+                b.field("copy_to", targetField);
+                b.endObject();
+                b.startObject(targetField);
+                b.field("type", "keyword");
+                b.endObject();
+            })));
+            assertThat(e.getMessage(), containsString("[copy_to] is not allowed on field [kw]"));
+        }
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepIndexSetting() {
+        // The "all"" value is already rejected globally by the setting's value validator, so we only need to cover "arrays" here
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY, "arrays")
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, mapping(b -> {}))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[" + Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + indexMode + "] index mode"
+                )
+            );
+        }
     }
 }

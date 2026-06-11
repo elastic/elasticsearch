@@ -46,7 +46,7 @@ Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 
 ### Limit
 
-:::{include} ../examples/limit.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/basic.md
 :::
 
 ### With groups
@@ -55,7 +55,7 @@ stack: preview 9.4
 serverless: preview
 ```
 
-:::{include} ../examples/limit.csv-spec/limitBy.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/limitBy.md
 :::
 
 ### Group by multiple values
@@ -64,5 +64,5 @@ stack: preview 9.4
 serverless: preview
 ```
 
-:::{include} ../examples/limit.csv-spec/limitByMultipleGroups.md
+:::{include} ../../generated/x-pack-esql/commands/examples/limit.csv-spec/limitByMultipleGroups.md
 :::

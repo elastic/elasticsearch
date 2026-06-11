@@ -293,8 +293,11 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
-        commitService.markSplitting(sourceShardId, targetShardId);
-        SubscribableListener.<Releasable>newForked(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
+        SubscribableListener.newForked(l -> {
+            commitService.markSplitting(sourceShardId, targetShardId);
+            l.onResponse(null);
+        })
+            .<Releasable>andThen(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
             .<Releasable>andThen((l, permit) -> {
                 try (Releasable ignore = permit) {
                     objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
@@ -400,6 +403,20 @@ public class SplitSourceService {
     private void setupSourceShardStateMachine(IndexShard sourceShard) {
         activeSourceShards.compute(sourceShard, (shard, stateMachine) -> {
             if (stateMachine == null) {
+                /// `stateMachine` is `null` in two cases:
+                /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split.
+                ///    This is the first time a target shard contacts the source shard.
+                /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed
+                ///    the entry already.
+                /// We should specifically handle the latter case to not create a state machine for an already closed shard.
+                /// To do that we perform the state check below.
+                /// If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have been called.
+                /// So we are handling the case when it already executed.
+                /// If we don't observe `CLOSED`, we can rely on `cancelSplits` to be executed.
+                if (shard.state() == IndexShardState.CLOSED) {
+                    return null;
+                }
+
                 var newMachine = new SourceShardStateMachine(shard, () -> this.activeSourceShards.remove(shard));
                 newMachine.run();
                 return newMachine;
@@ -665,6 +682,10 @@ public class SplitSourceService {
         }
     }
 
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
+    /// We rely on this fact in [#setupSourceShardStateMachine(IndexShard)] to handle the possible race
+    /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
         activeTargetRequests.remove(indexShard);
         var stateMachine = activeSourceShards.remove(indexShard);
@@ -770,8 +791,7 @@ public class SplitSourceService {
             validateStateTransition(newState);
             this.currentState = newState;
 
-            // TODO relax logging once implementation is stable
-            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
+            logStateTransition(newState);
 
             switch (newState) {
                 case State.MonitoringTargetShards ignored -> {
@@ -827,6 +847,16 @@ public class SplitSourceService {
             }
         }
 
+        private void logStateTransition(State newState) {
+            if (newState instanceof State.Failed && cancelled.get()) {
+                logger.info(
+                    "Stopping split source shard state machine for shard {}, shard is closed. Will retry after recovery.",
+                    indexShard.shardId()
+                );
+            }
+            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
+        }
+
         private void validateStateTransition(State newState) {
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
             if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {
@@ -870,15 +900,9 @@ public class SplitSourceService {
             var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
                 @Override
                 public boolean test(ClusterState state) {
-                    if (cancelled.get()) {
+                    if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
                         return true;
                     }
-
-                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    // This shouldn't be possible.
-                    // If there is a new instance of the shard that already completed the split,
-                    // current instance of the shard should be removed and we would hit the cancelled branch above.
-                    assert split != null;
 
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
@@ -886,10 +910,14 @@ public class SplitSourceService {
                         // completed yet.
                         // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
                         // change that sets this shard to STARTED.
-                        // CLOSED is also possible if state change is applied to the shard but not yet reflected in the `cancelled`.
-                        // In this case we will eventually observe this change via `cancelled` and handle it properly.
                         return false;
                     }
+
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    // This shouldn't be possible.
+                    // If there is a new instance of the shard that already completed the split,
+                    // current instance of the shard should be removed and we would hit one of the branches above.
+                    assert split != null;
 
                     return split.targetsDone(indexShard.shardId().getId());
                 }
@@ -901,7 +929,7 @@ public class SplitSourceService {
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        if (cancelled.get()) {
+                        if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
                             return;
                         }
 

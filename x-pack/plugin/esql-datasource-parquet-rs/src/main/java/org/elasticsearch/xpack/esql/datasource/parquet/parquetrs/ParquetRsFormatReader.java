@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.ArrowToBlockConverter;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
@@ -41,9 +42,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,11 +52,12 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -74,7 +76,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FormatReader backed by a Rust parquet-rs native library via JNI.
@@ -142,6 +143,18 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             return this;
         }
         return new ParquetRsFormatReader(blockFactory, pushedExpressions, serializeConfig(config));
+    }
+
+    @Override
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        // ParquetRs forwards the entire config map to the native side as JSON, so every input
+        // key is "claimed" from the validator's perspective. Treating an unknown key as recognised
+        // here matches the historical permissive behaviour; tightening validation belongs in a
+        // dedicated parquet-rs change once the native side exposes a RECOGNIZED_KEYS set.
+        if (config == null || config.isEmpty()) {
+            return Configured.empty(this);
+        }
+        return new Configured<>(withConfig(config), config.keySet());
     }
 
     /**
@@ -556,12 +569,25 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator)) {
             ParquetRsBridge.getSchemaFFI(path, configJson, ffiSchema.memoryAddress());
             Schema arrowSchema = Data.importSchema(allocator, ffiSchema, null);
-            List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
-            for (Field field : arrowSchema.getFields()) {
-                attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), ArrowToEsql.dataTypeForField(field)));
-            }
-            return attributes;
+            return arrowSchemaToAttributes(arrowSchema);
         }
+    }
+
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
+    static List<Attribute> arrowSchemaToAttributes(Schema arrowSchema) {
+        List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
+        for (Field field : arrowSchema.getFields()) {
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(
+                new ReferenceAttribute(Source.EMPTY, null, field.getName(), ArrowToEsql.dataTypeForField(field), nullability, null, false)
+            );
+        }
+        return attributes;
     }
 
     @Override
@@ -607,13 +633,11 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
      * Iterates over batches from the native parquet-rs reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.
      */
-    static class ParquetRsBatchIterator implements CloseableIterator<Page>, Describable {
+    static class ParquetRsBatchIterator extends BufferingPageIterator implements Describable {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private boolean exhausted = false;
-        private Page nextPage;
         // describe() can be called from a different thread than iteration (driver/profiler vs compute);
         // volatile gives us safe publication of the cached plan string.
         private volatile String cachedPlan;
@@ -636,7 +660,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
         @Override
         public boolean hasNext() {
-            if (exhausted) {
+            // isClosed() guards the native handle: after closeInternal() frees it, a stray hasNext()/next()
+            // (early close via LIMIT/cancel leaves exhausted==false) would call nextBatch() on a freed
+            // ParquetReaderState — a native use-after-free. Mirrors the NdJson reader's post-close guard.
+            if (exhausted || isClosed()) {
                 return false;
             }
             if (nextPage != null) {
@@ -796,13 +823,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
 
         @Override
-        public void close() {
-            // Idempotent: the native side guards on handle != 0 but does not clear it for the caller,
-            // so a double-call would double-free the ParquetReaderState. Use an AtomicBoolean so the
-            // first close() wins regardless of which thread initiates it.
-            if (closed.compareAndSet(false, true)) {
-                ParquetRsBridge.closeReader(handle);
-            }
+        protected void closeInternal() {
+            // BufferingPageIterator.close() already guarantees a single, thread-safe invocation, so the native
+            // ParquetReaderState (which would double-free on a second closeReader) is torn down exactly once.
+            ParquetRsBridge.closeReader(handle);
         }
     }
 }

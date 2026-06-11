@@ -288,13 +288,17 @@ def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
   from(generateUpgradeCompatibilityFile)
 }
 
+def isCiSplitTask = { String taskName ->
+  taskName.startsWith("checkPart") || taskName.startsWith("releaseTestCheck") || taskName == 'functionalTests'
+}
+
 // TODO: This flag existed as a mechanism to disable bwc tests during a backport. It is no
 // longer used for that purpose, but instead a way to run only functional tests. We should
 // rework the functionalTests task to be more explicit about which tasks it wants to run
 // so that that this flag is no longer needed.
 boolean bwc_tests_enabled = true
-if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
-  // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
+if (project.gradle.startParameter.taskNames.any(isCiSplitTask)) {
+  // Disable BWC tests for split CI tasks and platform support tests as it's expected that this will run on its own check.
   bwc_tests_enabled = false
 }
 
@@ -544,7 +548,7 @@ gradle.projectsEvaluated {
 tasks.named("validateChangelogs").configure {
   def triggeredTaskNames = gradle.startParameter.taskNames
   onlyIf {
-    triggeredTaskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false
+    triggeredTaskNames.any(isCiSplitTask) == false
   }
 }
 
@@ -556,6 +560,65 @@ tasks.named("precommit") {
 tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')
   dependsOn gradle.includedBuild('build-tools-internal').task(':check')
+}
+
+[
+  releaseTestCheckEsqlEngine: [
+    ':x-pack:plugin:esql',
+    ':x-pack:plugin:esql:compute',
+    ':x-pack:plugin:esql:compute:ann',
+    ':x-pack:plugin:esql:compute:gen',
+    ':x-pack:plugin:esql:compute:test',
+    ':x-pack:plugin:esql:qa:testFixtures',
+    ':x-pack:plugin:esql:tools',
+    ':x-pack:plugin:esql-core',
+  ],
+  releaseTestCheckEsqlQa: [
+    ':x-pack:plugin:esql:qa:action',
+    ':x-pack:plugin:esql:qa:server',
+    ':x-pack:plugin:esql:qa:server:mixed-cluster',
+    ':x-pack:plugin:esql:qa:server:multi-clusters',
+    ':x-pack:plugin:esql:qa:server:single-node',
+    ':x-pack:plugin:esql:qa:server:multi-node',
+    ':x-pack:plugin:esql:qa:security',
+  ],
+  releaseTestCheckEsqlDatasourceCore: [
+    ':x-pack:plugin:esql-datasource-azure',
+    ':x-pack:plugin:esql-datasource-brotli',
+    ':x-pack:plugin:esql-datasource-bzip2',
+    ':x-pack:plugin:esql-datasource-compression-libs',
+    ':x-pack:plugin:esql-datasource-csv',
+    ':x-pack:plugin:esql-datasource-gcs',
+    ':x-pack:plugin:esql-datasource-grpc',
+    ':x-pack:plugin:esql-datasource-gzip',
+    ':x-pack:plugin:esql-datasource-http',
+    ':x-pack:plugin:esql-datasource-iceberg',
+    ':x-pack:plugin:esql-datasource-lz4',
+    ':x-pack:plugin:esql-datasource-ndjson',
+    ':x-pack:plugin:esql-datasource-netty-commons',
+    ':x-pack:plugin:esql-datasource-orc',
+  ],
+  releaseTestCheckEsqlDatasourceQa: [
+    ':x-pack:plugin:esql-datasource-csv:qa',
+    ':x-pack:plugin:esql-datasource-gcs:qa',
+    ':x-pack:plugin:esql-datasource-grpc:qa',
+    ':x-pack:plugin:esql-datasource-iceberg:qa',
+    ':x-pack:plugin:esql-datasource-ndjson:qa',
+    ':x-pack:plugin:esql-datasource-orc:qa',
+    ':x-pack:plugin:esql-datasource-parquet',
+    ':x-pack:plugin:esql-datasource-parquet-rs',
+    ':x-pack:plugin:esql-datasource-parquet-rs:qa',
+    ':x-pack:plugin:esql-datasource-parquet:qa',
+    ':x-pack:plugin:esql-datasource-s3',
+    ':x-pack:plugin:esql-datasource-snappy',
+    ':x-pack:plugin:esql-datasource-zstd',
+  ],
+].each { taskName, projectPaths ->
+  tasks.register(taskName) {
+    group = 'Verification'
+    description = "Runs ${taskName} tasks."
+    dependsOn projectPaths.collect { "${it}:releaseTestCheck" }
+  }
 }
 
 tasks.named("assemble").configure {

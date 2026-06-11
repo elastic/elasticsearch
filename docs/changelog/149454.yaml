@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 149454
+summary: Reject ES|QL requests for datasets with DLS or FLS
+type: enhancement

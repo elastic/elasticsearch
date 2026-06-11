@@ -106,6 +106,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 FOUR_BIT_SCALE,
                 1.0f,
                 centroidDp,
+                false,
                 scoresSegment
             );
         });

@@ -18,7 +18,6 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -157,7 +156,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedNumericDoubleValues dvs = docValuesFunc.apply(context);
-        final DoubleValues singleton = FieldData.unwrapSingleton(dvs);
+        final DoubleValues singleton = SortedNumericDoubleValues.unwrapSingleton(dvs);
         return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
     }
 

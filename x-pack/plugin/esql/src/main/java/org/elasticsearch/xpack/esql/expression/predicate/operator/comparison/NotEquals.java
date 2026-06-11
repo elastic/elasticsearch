@@ -10,17 +10,30 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Negatable;
+import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -37,6 +50,7 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DataType.DATE_RANGE, NotEqualsLongRangeEvaluator.Factory::new),
         Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
         Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
@@ -44,11 +58,12 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         Map.entry(DataType.GEOHASH, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOTILE, NotEqualsLongsEvaluator.Factory::new),
         Map.entry(DataType.GEOHEX, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, NotEqualsBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.DENSE_VECTOR, NotEqualsDenseVectorEvaluator.Factory::new),
+        Map.entry(DataType.FLATTENED, NotEqualsBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -69,8 +84,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -93,8 +110,10 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_range",
                 "dense_vector",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -164,8 +183,8 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
         return lhs != rhs;
     }
 
-    @Evaluator(extraName = "Keywords")
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return false == lhs.equals(rhs);
     }
 
@@ -176,6 +195,11 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
 
     @Evaluator(extraName = "Geometries")
     static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
+        return false == lhs.equals(rhs);
+    }
+
+    @Evaluator(extraName = "LongRange")
+    static boolean processLongRange(LongRangeBlockBuilder.LongRange lhs, LongRangeBlockBuilder.LongRange rhs) {
         return false == lhs.equals(rhs);
     }
 
@@ -202,5 +226,24 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     @Override
     public EsqlBinaryComparison negate() {
         return new Equals(source(), left(), right(), zoneId());
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (right() instanceof Literal lit && lit.value() instanceof Collection<?> == false && left() instanceof FieldExtract fe) {
+            Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return keyedName.map(kn -> {
+                    Object value = literalValueOf(right());
+                    if (value instanceof BytesRef br) {
+                        value = br.utf8ToString();
+                    }
+                    TermQuery termQuery = new TermQuery(source(), kn, value);
+
+                    return new SingleValueQuery(new NotQuery(source(), termQuery), kn, false);
+                }).orElseThrow();
+            }
+        }
+        return super.asQuery(pushdownPredicates, handler);
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -63,7 +64,7 @@ public class RestReindexActionTests extends RestActionTestCase {
     public void testSetScrollTimeout_default() throws IOException {
         FakeRestRequest restRequest = buildSimpleRequest().build();
         ReindexRequest request = action.buildRequest(restRequest);
-        assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
+        assertEquals(AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
     }
 
     public void testSetScrollTimeout_fromParameter() throws IOException {

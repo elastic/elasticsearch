@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -22,23 +24,32 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 
 import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.decimalType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
@@ -419,6 +430,468 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
         MessageType schema = Types.buildMessage().required(INT64).named("status").named("schema");
         assertFalse("empty expression list has no YES conjuncts", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateBareStartsWith() {
+        // Bare StartsWith is YES-eligible AND translates to a prefix-range FilterPredicate, so
+        // it is NOT "outside" the predicate — the shortcut may still fire.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("https://"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(sw));
+        assertFalse("bare StartsWith translates to a range FilterPredicate", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateNotStartsWith() {
+        // Not(StartsWith) is YES-eligible and exactly translatable (StartsWith is a leaf with a
+        // pure prefix-range FilterPredicate), so it pushes as FilterApi.not(range) and the
+        // trivially-passes shortcut stays enabled.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("https://"), DataType.KEYWORD));
+        Expression notSw = new Not(Source.EMPTY, sw);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(notSw));
+        assertFalse(
+            "Not(StartsWith) is exactly translatable (pure leaf, no silent-drop hazard)",
+            pushed.hasYesConjunctOutsideFilterPredicate(schema)
+        );
+    }
+
+    public void testNotStartsWithTranslatesToFilterPredicate() {
+        // Asserts the actual FilterPredicate emitted for Not(StartsWith) is non-null and is a
+        // Not over the StartsWith range. Apache-mr internally expands NOT(range) into the
+        // canonical OR-of-comparators when applying row-group / page stats.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("/admin/"), DataType.KEYWORD));
+        Expression notSw = new Not(Source.EMPTY, sw);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(notSw));
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("Not(StartsWith) must translate so row-group pruning can apply", fp);
+        assertThat(fp.toString(), containsString("not("));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // DOUBLE pushdown is unsafe when the physical column is NOT a native FLOAT/DOUBLE:
+    // parquet-mr's SchemaCompatibilityValidator rejects a doubleColumn predicate against an
+    // INT32/INT64/FIXED_LEN_BYTE_ARRAY/BINARY physical column at RowGroupFilter time (throws
+    // IllegalArgumentException), so any DECIMAL- or Float16-encoded column read as ESQL DOUBLE
+    // would crash a stats-based read. Build*Predicate / translateIn must peek at the file
+    // schema and refuse to translate those shapes, leaving the row to RECHECK / late-mat.
+    // These tests fail today (the predicate is built unconditionally) and pass after the fix.
+    // -----------------------------------------------------------------------------------
+
+    public void testDoubleEqAgainstDecimalInt32IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstDecimalInt64IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT64).as(decimalType(2, 18)).named("price").named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against INT64+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstDecimalFixedLenBinaryIsNotPushed() {
+        MessageType schema = Types.buildMessage()
+            .required(FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(decimalType(2, 30))
+            .named("price")
+            .named("test");
+        Expression expr = eq("price", DataType.DOUBLE, 100.0);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FIXED_LEN_BYTE_ARRAY+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstFloatIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(FLOAT).named("ratio").named("test");
+        Expression expr = eq("ratio", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FLOAT physical must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstFloat16IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(FIXED_LEN_BYTE_ARRAY).length(2).as(float16Type()).named("ratio").named("test");
+        Expression expr = eq("ratio", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        assertNull("DOUBLE predicate against FIXED_LEN_BYTE_ARRAY(2)+Float16 must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleInAgainstDecimalInt32IsNotPushed() {
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("price", DataType.DOUBLE),
+            List.of(lit(100.0, DataType.DOUBLE), lit(200.0, DataType.DOUBLE))
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(inExpr));
+
+        assertNull("IN over DOUBLE against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleRangeAgainstDecimalInt32IsNotPushed() {
+        // Range routes through buildPredicate twice (lower + upper); both must return null so
+        // the And built around them collapses and the whole Range is suppressed.
+        MessageType schema = Types.buildMessage().required(INT32).as(decimalType(2, 9)).named("price").named("test");
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("price", DataType.DOUBLE),
+            lit(10.0, DataType.DOUBLE),
+            true,
+            lit(100.0, DataType.DOUBLE),
+            true,
+            ZoneOffset.UTC
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(range));
+
+        assertNull("Range over DOUBLE against INT32+DECIMAL must be suppressed", pushed.toFilterPredicate(schema));
+    }
+
+    public void testDoubleEqAgainstNativeDoubleColumnIsPushed() {
+        // No-regression: native DOUBLE physical must keep going through pushdown unchanged.
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("score").named("test");
+        Expression expr = eq("score", DataType.DOUBLE, 0.5);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("score"));
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Nested STRUCT pushdown — dotted column names (e.g. event.action) flow through the
+    // same FilterPredicate translation as top-level names. The resolveNestedPrimitive
+    // helper walks the dotted path; FilterApi.binaryColumn / intColumn / longColumn etc.
+    // internally store the name as a multi-segment ColumnPath via ColumnPath.fromDotString,
+    // which is then compared against the multi-segment ColumnDescriptor.getPath() at row
+    // group filter time — so the dotted name must reappear verbatim in the predicate's
+    // toString. Per the prior PR's D2 rule, a literal top-level field literally named
+    // "event.action" wins over a nested resolution of the same dotted path.
+    // -----------------------------------------------------------------------------------
+    // Nested STRUCT type-shape helpers: each builds a single event-group schema with the
+    // requested leaf primitive and logical-type annotation.
+
+    private static MessageType nestedTimestamp(LogicalTypeAnnotation.TimeUnit unit) {
+        return Types.buildMessage().requiredGroup().required(INT64).as(timestampType(true, unit)).named("ts").named("event").named("test");
+    }
+
+    private static MessageType nestedDate() {
+        return Types.buildMessage().requiredGroup().required(INT32).as(dateType()).named("d").named("event").named("test");
+    }
+
+    private static MessageType nestedKeyword() {
+        return Types.buildMessage()
+            .requiredGroup()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("action")
+            .named("event")
+            .named("test");
+    }
+
+    public void testToFilterPredicateNestedTimestampMillis() {
+        MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
+        long millis = 1700000000000L;
+        Expression expr = eq("event.ts", DataType.DATETIME, millis);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(expr));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("event.ts"));
+        assertThat(repr, containsString(String.valueOf(millis)));
+    }
+
+    public void testToFilterPredicateNestedTimestampMicros() {
+        MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MICROS);
+        long millis = 1700000000000L;
+        Expression expr = eq("event.ts", DataType.DATETIME, millis);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.ts"));
+        assertThat(fp.toString(), containsString(String.valueOf(millis * 1000)));
+    }
+
+    public void testToFilterPredicateNestedTimestampNanos() {
+        MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.NANOS);
+        long millis = 1700000000000L;
+        Expression expr = eq("event.ts", DataType.DATETIME, millis);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.ts"));
+        assertThat(fp.toString(), containsString(String.valueOf(millis * 1_000_000L)));
+    }
+
+    public void testToFilterPredicateNestedDate() {
+        MessageType schema = nestedDate();
+        long millis = 86400000L * 19723;
+        int expectedDays = (int) (millis / ParquetPushedExpressions.MILLIS_PER_DAY);
+        Expression expr = eq("event.d", DataType.DATETIME, millis);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.d"));
+        assertThat(fp.toString(), containsString(String.valueOf(expectedDays)));
+    }
+
+    public void testToFilterPredicateNestedKeyword() {
+        MessageType schema = nestedKeyword();
+        Expression expr = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        // parquet-mr renders the column path with dots in toString — verify the dotted name
+        // round-trips end-to-end through FilterApi.binaryColumn -> ColumnPath.fromDotString.
+        // Note: the BytesRef literal is rendered as raw byte values (Binary{N constant bytes,
+        // [108, ...]}) rather than the ASCII text, so we cannot assert on "login" here.
+        assertThat(fp.toString(), containsString("event.action"));
+    }
+
+    public void testToFilterPredicateNestedLongRange() {
+        MessageType schema = Types.buildMessage().requiredGroup().required(INT64).named("id").named("event").named("test");
+        Expression range = new Range(
+            Source.EMPTY,
+            attr("event.id", DataType.LONG),
+            lit(10L, DataType.LONG),
+            true,
+            lit(99L, DataType.LONG),
+            true,
+            ZoneOffset.UTC
+        );
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(range)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.id"));
+    }
+
+    public void testToFilterPredicateNestedDoubleSkippedForNonDouble() {
+        // Nested physical INT64+DECIMAL is read as ESQL DOUBLE but parquet-mr rejects a
+        // doubleColumn predicate against an INT64 — must skip pushdown, mirror of top-level
+        // testDoubleEqAgainstDecimalInt64IsNotPushed.
+        MessageType schema = Types.buildMessage()
+            .requiredGroup()
+            .required(INT64)
+            .as(decimalType(2, 18))
+            .named("price")
+            .named("event")
+            .named("test");
+        Expression expr = eq("event.price", DataType.DOUBLE, 100.0);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateNestedDoublePushed() {
+        // Native DOUBLE under a struct must keep going through pushdown unchanged.
+        MessageType schema = Types.buildMessage().requiredGroup().required(DOUBLE).named("score").named("event").named("test");
+        Expression expr = eq("event.score", DataType.DOUBLE, 0.5);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.score"));
+    }
+
+    public void testToFilterPredicateNestedIsNull() {
+        MessageType schema = nestedKeyword();
+        Expression expr = new IsNull(Source.EMPTY, attr("event.action", DataType.KEYWORD));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        // IsNull lowers to eq(col, null). The dotted name must still appear.
+        assertThat(fp.toString(), containsString("event.action"));
+        assertThat(fp.toString(), containsString("null"));
+    }
+
+    public void testToFilterPredicateNestedIsNotNull() {
+        MessageType schema = nestedKeyword();
+        Expression expr = new IsNotNull(Source.EMPTY, attr("event.action", DataType.KEYWORD));
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("event.action"));
+    }
+
+    public void testToFilterPredicateNestedInList() {
+        MessageType schema = nestedKeyword();
+        Expression inExpr = new In(
+            Source.EMPTY,
+            attr("event.action", DataType.KEYWORD),
+            List.of(lit(new BytesRef("login"), DataType.KEYWORD), lit(new BytesRef("logout"), DataType.KEYWORD))
+        );
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("in("));
+        assertThat(repr, containsString("event.action"));
+    }
+
+    public void testToFilterPredicateNestedAnd() {
+        // Two conjuncts sharing the same parent path AND one top-level conjunct — verifies
+        // the dotted path resolves correctly per-leaf, alongside an exact top-level name.
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .named("id")
+            .requiredGroup()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("action")
+            .required(INT64)
+            .named("ts")
+            .named("event")
+            .named("test");
+
+        Expression action = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
+        Expression ts = new GreaterThan(Source.EMPTY, attr("event.ts", DataType.LONG), lit(0L, DataType.LONG), null);
+        Expression id = eq("id", DataType.LONG, 1L);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(action, ts, id));
+
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        assertThat(repr, containsString("event.action"));
+        assertThat(repr, containsString("event.ts"));
+        assertThat(repr, containsString("id"));
+    }
+
+    public void testToFilterPredicateNestedOrAndNot() {
+        MessageType schema = nestedKeyword();
+        Expression eq1 = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
+        Expression eq2 = eq("event.action", DataType.KEYWORD, new BytesRef("logout"));
+        Expression or = new Or(Source.EMPTY, eq1, eq2);
+        Expression notEq = new Not(
+            Source.EMPTY,
+            new NotEquals(Source.EMPTY, attr("event.action", DataType.KEYWORD), lit(new BytesRef("admin"), DataType.KEYWORD), null)
+        );
+        Expression and = new And(Source.EMPTY, or, notEq);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(and)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        String repr = fp.toString();
+        // The dotted name appears on every leaf; verify And/Or/Not nesting all preserve it.
+        assertThat(repr, containsString("event.action"));
+        assertThat(repr, containsString("and("));
+        assertThat(repr, containsString("or("));
+        assertThat(repr, containsString("not("));
+    }
+
+    public void testToFilterPredicateNestedDeepPath() {
+        // Four-level path a.b.c.d — verifies the walker does not stop after the first dot.
+        MessageType schema = Types.buildMessage()
+            .requiredGroup()
+            .requiredGroup()
+            .requiredGroup()
+            .required(INT64)
+            .named("d")
+            .named("c")
+            .named("b")
+            .named("a")
+            .named("test");
+        Expression expr = eq("a.b.c.d", DataType.LONG, 42L);
+
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString("a.b.c.d"));
+        assertThat(fp.toString(), containsString("42"));
+    }
+
+    public void testToFilterPredicateNestedPathMissingReturnsNull() {
+        // Schema has event.ts (DATETIME), but predicate references event.does_not_exist; the
+        // DATETIME path resolves the leaf via resolveNestedPrimitive and returns null when
+        // missing. KEYWORD/INT/LONG predicates bypass schema resolution and forward the
+        // dotted name straight to FilterApi.binaryColumn — parquet-mr's RowGroupFilter
+        // tolerates unknown columns at filter time, so they are not the right shape for
+        // testing the resolver. DATETIME exercises the resolver because it has to map epoch
+        // millis to the correct physical encoding.
+        MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
+        Expression expr = eq("event.does_not_exist", DataType.DATETIME, 1700000000000L);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateNestedPathLandsOnGroupReturnsNull() {
+        // The name resolves to an intermediate group ("event") rather than a primitive leaf
+        // — for DATETIME (which routes through resolveNestedPrimitive), the translator must
+        // return null since pushdown is meaningless against a group.
+        MessageType schema = nestedTimestamp(LogicalTypeAnnotation.TimeUnit.MILLIS);
+        Expression expr = eq("event", DataType.DATETIME, 1700000000000L);
+        assertNull(new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema));
+    }
+
+    public void testToFilterPredicateLiteralDottedNameWinsOverPath() {
+        // Schema has BOTH a literal top-level "event.action" and a nested struct event.action.
+        // Per the prior PR's D2 rule (preserved by resolveNestedPrimitive), the literal wins —
+        // the predicate type-shape is decided from the literal's primitive (BINARY here), not
+        // from the nested INT64 "event.action" leaf.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("event.action")
+            .requiredGroup()
+            .required(INT64)
+            .named("action")
+            .named("event")
+            .named("test");
+
+        // KEYWORD predicate succeeds because the literal field's primitive is BINARY.
+        Expression keywordEq = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
+        FilterPredicate keywordPred = new ParquetPushedExpressions(List.of(keywordEq)).toFilterPredicate(schema);
+        assertNotNull("literal BINARY 'event.action' wins → KEYWORD pushdown valid", keywordPred);
+        assertThat(keywordPred.toString(), containsString("event.action"));
+    }
+
+    public void testResolveNestedPrimitiveLiteralWinsOverPath() {
+        // Directly assert the helper's D2 contract.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("event.action")
+            .requiredGroup()
+            .required(INT64)
+            .named("action")
+            .named("event")
+            .named("test");
+
+        PrimitiveType resolved = ParquetPushedExpressions.resolveNestedPrimitive(schema, "event.action");
+        assertNotNull(resolved);
+        assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, resolved.getPrimitiveTypeName());
+    }
+
+    public void testResolveNestedPrimitiveDottedPathFallback() {
+        MessageType schema = nestedKeyword();
+        PrimitiveType resolved = ParquetPushedExpressions.resolveNestedPrimitive(schema, "event.action");
+        assertNotNull(resolved);
+        assertEquals(PrimitiveType.PrimitiveTypeName.BINARY, resolved.getPrimitiveTypeName());
+    }
+
+    public void testResolveNestedPrimitiveMissingPathReturnsNull() {
+        MessageType schema = nestedKeyword();
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "event.nope"));
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "nope"));
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "nope.also.missing"));
+    }
+
+    public void testResolveNestedPrimitiveLandsOnGroupReturnsNull() {
+        // "event" alone resolves to a GroupType, not a primitive — helper returns null.
+        MessageType schema = nestedKeyword();
+        assertNull(ParquetPushedExpressions.resolveNestedPrimitive(schema, "event"));
     }
 
     // --- helpers ---

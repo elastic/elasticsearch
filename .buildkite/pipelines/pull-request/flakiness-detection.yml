@@ -1,0 +1,8 @@
+steps:
+  - group: "flakiness-detection"
+    steps:
+      - label: "detect changed tests"
+        command: |
+          node .buildkite/scripts/flakiness-detection/entrypoints/pr.ts
+        timeout_in_minutes: 10
+        soft_fail: true

@@ -13,13 +13,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 
 public class CompletionSerializationTests extends AbstractLogicalPlanSerializationTests<Completion> {
 
@@ -120,6 +121,6 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
     }
 
     private Attribute randomAttribute() {
-        return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
+        return randomReferenceAttribute(randomBoolean());
     }
 }

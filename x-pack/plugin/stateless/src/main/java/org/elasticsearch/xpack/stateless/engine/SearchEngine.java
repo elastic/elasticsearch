@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -112,6 +113,8 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    // Used for filtering unowned documents from a shard during resharding.
+    private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
 
@@ -126,14 +129,7 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
-    private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-        (wrapper, referenceManager) -> acquireSearcherSupplier(
-            wrapper,
-            SearcherScope.EXTERNAL,
-            SplitShardCountSummary.UNSET,
-            referenceManager
-        )
-    );
+    private final RelocatedPITReaderTracker relocatedPITReaderTracker;
 
     @SuppressWarnings("this-escape")
     public SearchEngine(
@@ -142,14 +138,32 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        ReshardSearchFilters reshardSearchFilters
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.reshardSearchFilters = reshardSearchFilters;
         this.closedShardService = closedShardService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+            relocatedPITReader -> acquireSearcherSupplier(
+                relocatedPITReader.wrapper,
+                SearcherScope.EXTERNAL,
+                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                    r,
+                    shardId,
+                    engineConfig.getIndexSettings().getIndexMetadata(),
+                    engineConfig.getMapperService(),
+                    relocatedPITReader.reshardingMetadata,
+                    relocatedPITReader.splitShardCountSummary
+                ),
+                relocatedPITReader.pitReaderManager
+            )
+        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -233,6 +247,10 @@ public class SearchEngine extends Engine {
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager.addListener(completionStatsCache);
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
+                readerManager.addListener(refreshListener);
+            }
+            // SearchEngine has a single reader manager, so internal refresh listeners must also be wired onto it.
+            for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
@@ -738,7 +756,7 @@ public class SearchEngine extends Engine {
 
     @Override
     protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary summary) throws IOException {
-        return ReshardSearchFilters.maybeWrapDirectoryReader(
+        return reshardSearchFilters.maybeWrapDirectoryReader(
             reader,
             shardId,
             summary,
@@ -1207,6 +1225,8 @@ public class SearchEngine extends Engine {
         String segmentsFileName,
         Map<String, BlobLocation> metadata,
         Function<Searcher, Searcher> wrapper,
+        IndexReshardingMetadata relocatedReshardingMetadata,
+        SplitShardCountSummary relocatedSplitShardCountSummary,
         ActionListener<SearcherSupplier> listener
     ) {
         // we use a task queue to serialize opening readers for old commits with processing commit notifications
@@ -1270,7 +1290,13 @@ public class SearchEngine extends Engine {
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
                 var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
-                    new RelocatedPITReader(pitReaderManager, wrapper, store::decRef)
+                    new RelocatedPITReader(
+                        pitReaderManager,
+                        wrapper,
+                        relocatedReshardingMetadata,
+                        relocatedSplitShardCountSummary,
+                        store::decRef
+                    )
                 );
                 // From now on, the relocated PIT reader is owned by the relocatedPITReaderTracker
                 storeRef = null;
@@ -1316,7 +1342,7 @@ public class SearchEngine extends Engine {
 
         @FunctionalInterface
         interface SearcherSupplierFactory {
-            SearcherSupplier create(Function<Searcher, Searcher> wrapper, ReferenceManager<ElasticsearchDirectoryReader> referenceManager);
+            SearcherSupplier create(RelocatedPITReader relocatedPITReader);
         }
 
         private final SearcherSupplierFactory searcherSupplierFactory;
@@ -1367,7 +1393,7 @@ public class SearchEngine extends Engine {
             var storeRef = relocatedPITReader.storeRef();
 
             try (storeRef) {
-                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader.wrapper, pitReaderManager);
+                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader);
                 // searcherSupplierFactory.create() acquires its own store ref for the delegate's
                 // lifetime, so we can release ours (via the try-with-resources block) here.
                 return new SearcherSupplier(Function.identity()) {
@@ -1411,6 +1437,8 @@ public class SearchEngine extends Engine {
     private record RelocatedPITReader(
         ElasticsearchReaderManager pitReaderManager,
         Function<Searcher, Searcher> wrapper,
+        IndexReshardingMetadata reshardingMetadata,
+        SplitShardCountSummary splitShardCountSummary,
         Releasable storeRef
     ) implements Closeable {
         @Override

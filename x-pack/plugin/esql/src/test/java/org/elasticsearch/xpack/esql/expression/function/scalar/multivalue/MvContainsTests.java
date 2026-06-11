@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -252,6 +253,67 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
                 equalTo(result)
             );
         }));
+
+        if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
+            // Random case: nearly always false because random values rarely collide
+            suppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                List<Object> field1 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                List<Object> field2 = randomList(1, 10, FlattenedCases.RANDOM::get);
+                boolean result = field1.containsAll(field2);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(field1, DataType.FLATTENED, "field1"),
+                        new TestCaseSupplier.TypedData(field2, DataType.FLATTENED, "field2")
+                    ),
+                    "MvContainsBytesRefEvaluator[superset=Attribute[channel=0], subset=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    equalTo(result)
+                );
+            }));
+
+            // Subset fully inside superset → true
+            suppliers.add(
+                new TestCaseSupplier("flattened subset contained in superset", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                    BytesRef shared = FlattenedCases.RANDOM.get();
+                    List<Object> superset = List.of(shared, FlattenedCases.RANDOM.get());
+                    List<Object> subset = List.of(shared);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(superset, DataType.FLATTENED, "superset"),
+                            new TestCaseSupplier.TypedData(subset, DataType.FLATTENED, "subset")
+                        ),
+                        "MvContainsBytesRefEvaluator[superset=Attribute[channel=0], subset=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        equalTo(true)
+                    );
+                })
+            );
+
+            // Subset has an element outside the superset → false, even though the sets share one element.
+            // mv_intersects on the same data would return true (shared is in both), distinguishing the two functions.
+            suppliers.add(
+                new TestCaseSupplier("flattened subset partially outside superset", List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+                    BytesRef shared = FlattenedCases.RANDOM.get();
+                    BytesRef supersetExtra = FlattenedCases.RANDOM.get();
+                    List<Object> superset = List.of(shared, supersetExtra);
+                    // Ensure subsetExtra is not already in the superset, so MV_CONTAINS must return false.
+                    BytesRef subsetExtra;
+                    do {
+                        subsetExtra = FlattenedCases.RANDOM.get();
+                    } while (subsetExtra.equals(shared) || subsetExtra.equals(supersetExtra));
+                    List<Object> subset = List.of(shared, subsetExtra);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(superset, DataType.FLATTENED, "superset"),
+                            new TestCaseSupplier.TypedData(subset, DataType.FLATTENED, "subset")
+                        ),
+                        "MvContainsBytesRefEvaluator[superset=Attribute[channel=0], subset=Attribute[channel=1]]",
+                        DataType.BOOLEAN,
+                        equalTo(false)
+                    );
+                })
+            );
+        }
     }
 
     // Adjusted from static method anyNullIsNull in {@code AbstractFunctionTestCase#}

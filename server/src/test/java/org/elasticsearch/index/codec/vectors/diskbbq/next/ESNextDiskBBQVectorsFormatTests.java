@@ -210,7 +210,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 return new ESNextDiskBBQVectorsFormat(128, 4, null);
             }
         };
-        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)";
+        String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false, sliceField=null)";
 
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
@@ -673,7 +673,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             maxDoc = iterator.docID();
                         }
-                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc);
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc + 1);
                         Bits liveDocs = leafReader.getLiveDocs();
                         ESAcceptDocs acceptDocs;
                         if (applyFilter) {
@@ -683,7 +683,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                                 continue;
                             }
                             acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
-                                filterSupplier,
+                                () -> filterSupplier.get(Long.MAX_VALUE).iterator(),
+                                filterSupplier::cost,
                                 liveDocs,
                                 leafReader.maxDoc(),
                                 ord,

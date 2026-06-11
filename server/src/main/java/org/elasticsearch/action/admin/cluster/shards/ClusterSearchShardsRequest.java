@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.io.IOException;
@@ -33,6 +34,9 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private String routing;
     @Nullable
     private String preference;
+    @Nullable
+    private String searchSlice;
+    private boolean routingFromSlice;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     private ResolvedIndexExpressions resolvedIndexExpressions;
@@ -48,6 +52,13 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super(in);
         indices = in.readStringArray();
         routing = in.readOptionalString();
+        if (in.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            searchSlice = in.readOptionalString();
+            routingFromSlice = in.readBoolean();
+        } else {
+            searchSlice = null;
+            routingFromSlice = false;
+        }
         preference = in.readOptionalString();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
     }
@@ -57,6 +68,10 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
         super.writeTo(out);
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
+        if (out.getTransportVersion().supports(SliceIndexing.CLUSTER_SEARCH_SHARDS_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(searchSlice);
+            out.writeBoolean(routingFromSlice);
+        }
         out.writeOptionalString(preference);
         indicesOptions.writeIndicesOptions(out);
     }
@@ -123,6 +138,29 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     public ClusterSearchShardsRequest routing(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
+    }
+
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    public ClusterSearchShardsRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     /**

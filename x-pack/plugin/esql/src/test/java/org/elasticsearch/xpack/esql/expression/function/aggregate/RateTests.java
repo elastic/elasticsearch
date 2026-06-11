@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.Temporality;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,7 +27,6 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
@@ -38,7 +38,7 @@ public class RateTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    enum TemporalityParameter {
+    public enum TemporalityParameter {
         NULL_TEMPORALITY(null),
         CUMULATIVE(Temporality.CUMULATIVE.bytesRef()),
         DELTA(Temporality.DELTA.bytesRef()),
@@ -50,7 +50,7 @@ public class RateTests extends AbstractAggregationTestCase {
             this.byteValue = byteValue;
         }
 
-        BytesRef byteValue() {
+        public BytesRef byteValue() {
             return byteValue;
         }
     }
@@ -136,8 +136,9 @@ public class RateTests extends AbstractAggregationTestCase {
                     slices.add(0);
                     maxTimestamps.add(Long.MAX_VALUE);
                 }
+                timestamps = new ArrayList<>(timestamps.reversed());
                 TestCaseSupplier.TypedData timestampsField = TestCaseSupplier.TypedData.multiRow(
-                    timestamps.reversed(),
+                    timestamps,
                     DataType.DATETIME,
                     "timestamps"
                 );
@@ -153,7 +154,12 @@ public class RateTests extends AbstractAggregationTestCase {
                     "_max_timestamp"
                 );
 
-                List<Object> nonNullDataRows = dataRows.stream().filter(Objects::nonNull).toList();
+                List<Tuple<Long, Object>> nonNullDataRows = new ArrayList<>();
+                for (int i = 0; i < dataRows.size(); i++) {
+                    if (dataRows.get(i) != null) {
+                        nonNullDataRows.add(Tuple.tuple(timestamps.get(i), dataRows.get(i)));
+                    }
+                }
                 final Matcher<?> matcher = rateMatcher(nonNullDataRows, temporality);
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, timestampsField, temporalityType, sliceIndexType, nextTimestampType),
@@ -175,20 +181,20 @@ public class RateTests extends AbstractAggregationTestCase {
         );
     }
 
-    private static Matcher<?> rateMatcher(List<Object> nonNullDataRows, TemporalityParameter temporality) {
+    private static Matcher<?> rateMatcher(List<Tuple<Long, Object>> nonNullDataRows, TemporalityParameter temporality) {
         if (nonNullDataRows.size() < 2) {
             return Matchers.nullValue();
         }
-        double sum = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum();
-        double max = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).max().orElse(0.0);
-        if (max == -0.0) {
-            max = 0.0;
+        if (temporality == TemporalityParameter.INVALID) {
+            return Matchers.nullValue();
         }
-        return switch (temporality) {
-            case CUMULATIVE, NULL_TEMPORALITY -> Matchers.allOf(Matchers.greaterThanOrEqualTo(-0.0), Matchers.lessThanOrEqualTo(max));
-            case DELTA -> Matchers.allOf(Matchers.greaterThanOrEqualTo(-0.0), Matchers.lessThanOrEqualTo(sum));
-            case INVALID -> Matchers.nullValue();
-        };
+        List<Object> values = nonNullDataRows.stream().map(Tuple::v2).toList();
+        double increase = RateTestUtils.computeExpectedIncrease(values, temporality);
+        long maxTs = nonNullDataRows.getFirst().v1();
+        long minTs = nonNullDataRows.getLast().v1();
+        double timeRangeSeconds = (maxTs - minTs) / 1000.0;
+        double expectedRate = increase / timeRangeSeconds;
+        return Matchers.allOf(Matchers.greaterThanOrEqualTo(expectedRate * 0.9), Matchers.lessThanOrEqualTo(expectedRate * 1.1));
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

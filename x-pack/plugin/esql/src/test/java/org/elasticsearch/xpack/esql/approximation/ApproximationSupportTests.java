@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
@@ -61,33 +62,33 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -126,7 +127,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * These tests verify that each LogicalPlan and AggregateFunction is either explicitly
- * supported for approximation (by being on a whitelist in {@link Approximation}) or
+ * supported for approximation (by being on a whitelist in {@link ApproximationVerifier}) or
  * explicitly not supported (by being on a blacklist here).
  * This forces a conscious decision about whether LogicalPlans and AggregateFunctions
  * are supported for approximation or not.
@@ -134,52 +135,17 @@ import static org.hamcrest.Matchers.equalTo;
 public class ApproximationSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends LogicalPlan>> UNSUPPORTED_COMMANDS = Set.of(
-        // TODO: investigate whether these plans are supported or explain why not
-        Fuse.class,
-        FuseScoreEval.class,
-        Lookup.class,
-        MMR.class,
-        Subquery.class,
-        NamedSubquery.class,
-
-        // Non-unary plans are not supported yet.
-        // These require more complicated expression tree traversal.
-        Fork.class,
-        UnionAll.class,
-        ViewUnionAll.class,
-        ParameterizedQuery.class,
-
         // Timeseries indices are not supported yet.
-        // They require chained Stats commands.
+        // They require chained stats commands.
         TimeSeriesAggregate.class,
+        TimeSeriesCollapse.class,
 
-        // These source commands makes no sense for approximation.
-        Explain.class,
-        ShowInfo.class,
-        MetricsInfo.class,
-        ExternalRelation.class,
-        TsInfo.class,
-
-        // The plans are superclasses of other plans.
-        LogicalPlan.class,
-        LeafPlan.class,
-        UnaryPlan.class,
-        BinaryPlan.class,
-        InferencePlan.class,
-        CompoundOutputEval.class,
-
-        // These plans don't occur in a correct analyzed query.
-        UnresolvedRelation.class,
-        UnresolvedExternalRelation.class,
-        Drop.class,
-        Keep.class,
-        InlineStats.class,
-        LookupJoin.class,
-        Rename.class,
-        ResolvingProject.class,
-        SparklineGenerateEmptyBuckets.class,
+        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
+        // substitutions phase, before any approximation logic runs.
+        Dedup.class, // rewritten to LimitBy
 
         // PromQL plans are not supported yet.
+        // They require chained stats commands.
         PromqlCommand.class,
         UnresolvedPromqlFunction.class,
         LiteralSelector.class,
@@ -197,13 +163,47 @@ public class ApproximationSupportTests extends ESTestCase {
         VectorBinaryArithmetic.class,
         VectorBinaryComparison.class,
         VectorBinaryOperator.class,
-        VectorConversionFunction.class
+        VectorConversionFunction.class,
+
+        // Fuse is not supported, because it uses an aggregate internally,
+        // leading to a chained stats.
+        Fuse.class,
+        FuseScoreEval.class,
+
+        // These source commands makes no sense for approximation.
+        Explain.class,
+        ShowInfo.class,
+        MetricsInfo.class,
+        ExternalRelation.class,
+        TsInfo.class,
+
+        // The plans are superclasses of other plans.
+        LogicalPlan.class,
+        LeafPlan.class,
+        UnaryPlan.class,
+        BinaryPlan.class,
+        InferencePlan.class,
+        CompoundOutputEval.class,
+
+        // These plans don't occur in a correct analyzed query.
+        AntiJoin.class,
+        Drop.class,
+        InlineStats.class,
+        Keep.class,
+        MarkJoin.class,
+        Lookup.class,
+        LookupJoin.class,
+        ParameterizedQuery.class,
+        Rename.class,
+        ResolvingProject.class,
+        SemiJoin.class,
+        SparklineGenerateEmptyBuckets.class,
+        UnresolvedExternalRelation.class,
+        UnresolvedRelation.class,
+        ViewShadowRelation.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
-        // TODO: investigate whether these aggs are supported or explain why not
-        HistogramMerge.class,
-
         // Counting distinct values is hard to approximate.
         // For more details, see:
         // - https://arxiv.org/pdf/2202.02800
@@ -230,9 +230,12 @@ public class ApproximationSupportTests extends ESTestCase {
         SpatialExtent.class,
         SpatialCentroid.class,
 
-        // These multi-valued aggs are not suitable for approximation.
+        // These multivalued aggs are not suitable for approximation.
         DimensionValues.class,
         Values.class,
+
+        // Histograms are not suitable for approximation.
+        HistogramMerge.class,
 
         // These aggs are superclasses of other aggs.
         AggregateFunction.class,
@@ -259,6 +262,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Increase.class,
         Irate.class,
         LegacyIrate.class,
+        DeltaOnlyHistogramMergeOverTime.class,
         HistogramMergeOverTime.class,
         LastOverTime.class,
         MaxOverTime.class,
@@ -304,20 +308,17 @@ public class ApproximationSupportTests extends ESTestCase {
     @Before
     public void assume() {
         assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
-        testAllClassesListed(
-            LogicalPlan.class,
-            List.of(Approximation.SUPPORTED_COMMANDS, Approximation.SUPPORTED_COMMANDS_AFTER_STATS, UNSUPPORTED_COMMANDS)
-        );
+        testAllClassesListed(LogicalPlan.class, List.of(ApproximationVerifier.SUPPORTED_COMMANDS.keySet(), UNSUPPORTED_COMMANDS));
     }
 
     public void testAllAggregationsWhitelistedOrBlacklisted() throws Exception {
         testAllClassesListed(
             AggregateFunction.class,
-            List.of(Approximation.SUPPORTED_SINGLE_VALUED_AGGS, Approximation.SUPPORTED_MULTIVALUED_AGGS, UNSUPPORTED_AGGS)
+            List.of(ApproximationVerifier.SUPPORTED_SINGLE_VALUED_AGGS, ApproximationVerifier.SUPPORTED_MULTIVALUED_AGGS, UNSUPPORTED_AGGS)
         );
     }
 

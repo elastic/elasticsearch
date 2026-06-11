@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriod;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
@@ -89,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -123,6 +125,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -214,6 +218,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chunk;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -321,16 +326,37 @@ public class EsqlFunctionRegistry {
     private final Map<Class<? extends Function>, String> names = new HashMap<>();
     private final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversions = new LinkedHashMap<>();
 
-    private SnapshotFunctionRegistry snapshotRegistry = null;
+    private final EsqlFunctionRegistry snapshotRegistry;
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
+        this(false);
+    }
+
+    @SuppressWarnings("this-escape")
+    private EsqlFunctionRegistry(boolean snapshot) {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
+        if (snapshot) {
+            if (Build.current().isSnapshot() == false) {
+                throw new IllegalStateException("build snapshot function registry for non-snapshot build");
+            }
+            register(snapshotFunctions());
+            buildDataTypesForStringLiteralConversion(snapshotFunctions());
+            snapshotRegistry = this;
+        } else {
+            snapshotRegistry = Build.current().isSnapshot() ? new EsqlFunctionRegistry(true) : this;
+        }
     }
 
+    /**
+     * Testing constructor — makes a minimal registry with <strong>just</strong> the provided functions.
+     * The registry is its own snapshot registry so that function resolution in snapshot builds works
+     * without losing the custom functions.
+     */
     EsqlFunctionRegistry(FunctionDefinition... functions) {
+        snapshotRegistry = this;
         register(functions);
     }
 
@@ -522,6 +548,7 @@ public class EsqlFunctionRegistry {
                 ToBoolean.DEFINITION,
                 ToCartesianPoint.DEFINITION,
                 ToCartesianShape.DEFINITION,
+                ToCounter.DEFINITION,
                 ToDatePeriod.DEFINITION,
                 ToDatetime.DEFINITION,
                 ToDateNanos.DEFINITION,
@@ -529,6 +556,7 @@ public class EsqlFunctionRegistry {
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
+                ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
                 ToGeotile.DEFINITION,
                 ToGeohex.DEFINITION,
@@ -620,22 +648,17 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 // date_range functions
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                ToText.DEFINITION } };
+                ToText.DEFINITION,
+                FieldExtract.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
-        if (Build.current().isSnapshot() == false) {
-            return this;
-        }
-        var snapshotRegistry = this.snapshotRegistry;
-        if (snapshotRegistry == null) {
-            snapshotRegistry = new SnapshotFunctionRegistry();
-            this.snapshotRegistry = snapshotRegistry;
-        }
         return snapshotRegistry;
     }
 
@@ -648,6 +671,15 @@ public class EsqlFunctionRegistry {
             }
         }
         return false;
+    }
+
+    private static final Set<Class<? extends Function>> SNAPSHOT_FUNCTION_CLASSES = Arrays.stream(snapshotFunctions())
+        .flatMap(Arrays::stream)
+        .map(FunctionDefinition::clazz)
+        .collect(Collectors.toUnmodifiableSet());
+
+    public static boolean isSnapshotOnly(Class<? extends Function> functionClass) {
+        return SNAPSHOT_FUNCTION_CLASSES.contains(functionClass);
     }
 
     public static String normalizeName(String name) {
@@ -878,10 +910,11 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
+        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe--; // skip the implicit @timestamp parameter
+        }
         if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameter (last or last before Configuration)
-        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
-            countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
+            countOfParamsToDescribe--; // skip the implicit temporality parameter
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {
             // this isn't enforced by the contract, but the convention is: func(..., Expression timestamp, Configuration config)
@@ -1006,17 +1039,6 @@ public class EsqlFunctionRegistry {
         return dataTypesForStringLiteralConversions.get(clazz);
     }
 
-    private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {
-        SnapshotFunctionRegistry() {
-            if (Build.current().isSnapshot() == false) {
-                throw new IllegalStateException("build snapshot function registry for non-snapshot build");
-            }
-            register(snapshotFunctions());
-            buildDataTypesForStringLiteralConversion(snapshotFunctions());
-        }
-
-    }
-
     void register(FunctionDefinition[]... groupFunctions) {
         for (FunctionDefinition[] group : groupFunctions) {
             register(group);
@@ -1111,7 +1133,7 @@ public class EsqlFunctionRegistry {
         } else {
             addCapabilities(filterAliases, capabilities, true);
             if (capabilities.all()) {
-                new SnapshotFunctionRegistry().addCapabilities(filterAliases, capabilities, false);
+                snapshotRegistry().addCapabilities(filterAliases, capabilities, false);
             }
         }
     }

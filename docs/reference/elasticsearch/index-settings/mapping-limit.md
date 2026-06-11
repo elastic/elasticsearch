@@ -122,7 +122,7 @@ Runtime fields also count towards the limit:
       "day_of_week": {
         "type": "keyword",
         "script": {
-          "source": "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+          "source": "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
         }
       }
     }

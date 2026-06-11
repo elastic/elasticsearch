@@ -38,7 +38,7 @@ PUT my-index/
         "script": {
           "source":
           """emit(doc['@timestamp'].value.dayOfWeekEnum
-          .getDisplayName(TextStyle.FULL, Locale.ROOT))"""
+          .getDisplayName(TextStyle.FULL, Locale.ENGLISH))"""
         }
       }
     },
@@ -67,7 +67,7 @@ GET my-index/_search
       "script": {
         "source":
         """emit(doc['@timestamp'].value.dayOfWeekEnum
-        .getDisplayName(TextStyle.FULL, Locale.ROOT))"""
+        .getDisplayName(TextStyle.FULL, Locale.ENGLISH))"""
       }
     }
   },

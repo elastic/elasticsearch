@@ -110,7 +110,7 @@ PUT kibana_sample_data_ecommerce/_mapping
     "full_day_name": {
       "type": "keyword",
       "script": {
-        "source": """emit(doc['order_date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        "source": """emit(doc['order_date'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
         """
       }
     }
@@ -156,31 +156,31 @@ Response:
       "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "Thu",
+          "key": "Thursday",
           "doc_count": 775
         },
         {
-          "key": "Fri",
+          "key": "Friday",
           "doc_count": 770
         },
         {
-          "key": "Sat",
+          "key": "Saturday",
           "doc_count": 736
         },
         {
-          "key": "Sun",
+          "key": "Sunday",
           "doc_count": 614
         },
         {
-          "key": "Tue",
+          "key": "Tuesday",
           "doc_count": 609
         },
         {
-          "key": "Wed",
+          "key": "Wednesday",
           "doc_count": 592
         },
         {
-          "key": "Mon",
+          "key": "Monday",
           "doc_count": 579
         }
       ]

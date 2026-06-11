@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 151093
+summary: Optimize literal action automaton builds
+type: enhancement

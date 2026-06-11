@@ -67,6 +67,14 @@ if ! command -v java > /dev/null; then
   fi
 fi
 
+which java
+echo "$JAVA_HOME"
+echo "$PATH"
+
+echo java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
+
+set -x
+
 if command -v java > /dev/null; then
   java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
 else

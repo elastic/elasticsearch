@@ -2,6 +2,7 @@ config:
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"
+  allow-labels: "Team:Delivery"
 steps:
   - group: packaging-tests-windows-sample
     steps:
@@ -22,6 +23,35 @@ steps:
           diskType: hyperdisk-balanced
           diskSizeGb: 350
           preemptible: true
-          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
+          spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+  - group: platform-support-windows
+    steps:
+      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"
+        command: |
+          .\.buildkite\scripts\run-script.ps1 bash .buildkite/scripts/windows-run-gradle.sh --continue
+        timeout_in_minutes: 420
+        matrix:
+          setup:
+            image:
+              - windows-2025
+            GRADLE_TASK:
+              - checkPart1
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: n4-standard-16
+          diskType: pd-ssd
+          diskSizeGb: 350
+        env:
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1

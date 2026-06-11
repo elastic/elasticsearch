@@ -149,26 +149,20 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     public void testFromMapGoogleVertexAi_UrlPresent_Failure() {
         assertValidationFailure(
             buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, TEST_MODEL_ID, TEST_URL, null, null, null),
-            Strings.format(
-                """
-                    Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] must \
-                    not be provided. Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
-                TEST_URL,
-                null
-            )
+            Strings.format("""
+                Validation Failed: 1: [provider] is either [GOOGLE] or null. \
+                For Google Vertex AI models [uri] and [streaming_uri] must not be provided. Remove [url] and [streaming_url] fields. \
+                Provided values: [uri] is [%s], [streaming_uri] is [%s];""", TEST_URL, null)
         );
     }
 
     public void testFromMapGoogleVertexAi_StreamingUrlPresent_Failure() {
         assertValidationFailure(
             buildServiceSettingsMap(TEST_PROJECT_ID, TEST_LOCATION, TEST_MODEL_ID, null, TEST_STREAMING_URL, null, null),
-            Strings.format(
-                """
-                    Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] \
-                    must not be provided. Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
-                null,
-                TEST_STREAMING_URL
-            )
+            Strings.format("""
+                Validation Failed: 1: [provider] is either [GOOGLE] or null. \
+                For Google Vertex AI models [uri] and [streaming_uri] must not be provided. Remove [url] and [streaming_url] fields. \
+                Provided values: [uri] is [%s], [streaming_uri] is [%s];""", null, TEST_STREAMING_URL)
         );
     }
 
@@ -207,7 +201,8 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             Strings.format(
                 """
                     Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] \
-                    must not be provided. Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
+                    must not be provided. \
+                    Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
                 TEST_URL,
                 TEST_STREAMING_URL
             )
@@ -220,7 +215,8 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
             Strings.format(
                 """
                     Validation Failed: 1: [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] \
-                    must not be provided. Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
+                    must not be provided. \
+                    Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s];""",
                 TEST_URL,
                 TEST_STREAMING_URL
             )

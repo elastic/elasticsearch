@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -58,6 +59,12 @@ public final class ExchangeSourceHandler {
 
     private final AtomicInteger nextSinkId = new AtomicInteger();
     private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Sink IDs for which all pages have been fetched. Used by
+     * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} to determine when a
+     * source has no more data without relying on zero-row sentinel pages in the exchange buffer.
+     */
+    private final Set<Integer> completedSinks = ConcurrentCollections.newConcurrentSet();
 
     /**
      * Creates a new ExchangeSourceHandler.
@@ -172,18 +179,32 @@ public final class ExchangeSourceHandler {
     }
 
     /**
-     * Wraps {@link RemoteSink} with a fetch loop and error handling
+     * Wraps {@link RemoteSink} with a fetch loop and error handling.
+     * Pages arriving from the remote sink are tagged with the sink's ID (via
+     * {@link Page#tagSourceId(int)}) so that the coordinator's
+     * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} can route them to
+     * per-source queues for K-way sorted merge. Completed sinks are recorded in
+     * {@link ExchangeSourceHandler#completedSinks} so the merge operator knows when a source is
+     * done without relying on sentinel pages in the exchange buffer.
      */
     private final class RemoteSinkFetcher {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
+        private final int sinkId;
         private final boolean failFast;
         private final Runnable onPageFetched;
         private final ActionListener<Void> completionListener;
 
-        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, Runnable onPageFetched, ActionListener<Void> completionListener) {
+        RemoteSinkFetcher(
+            RemoteSink remoteSink,
+            int sinkId,
+            boolean failFast,
+            Runnable onPageFetched,
+            ActionListener<Void> completionListener
+        ) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
+            this.sinkId = sinkId;
             this.onPageFetched = onPageFetched;
             this.failFast = failFast;
             this.completionListener = completionListener;
@@ -199,6 +220,11 @@ public final class ExchangeSourceHandler {
                     Page page = resp.takePage();
                     if (page != null) {
                         onPageFetched.run();
+                        // Tag the page in-place with this sink's ID so SortedMergeSourceOperator
+                        // can route it to the correct per-source queue. tagSourceId() mutates the
+                        // field directly without copying or touching ref counts; this is safe because
+                        // takePage() gives us exclusive ownership of the page object.
+                        page.tagSourceId(sinkId);
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
@@ -239,6 +265,10 @@ public final class ExchangeSourceHandler {
         void onSinkComplete() {
             if (finished == false) {
                 finished = true;
+                // Record this sink as fully fetched so that SortedMergeSourceOperator can detect
+                // when all sources are exhausted without relying on sentinel pages in the buffer
+                // (which would interfere with BatchDriver's requirement that all pages carry BatchMetadata).
+                completedSinks.add(sinkId);
                 outstandingSinks.finishInstance();
                 completionListener.onResponse(null);
             }
@@ -278,7 +308,7 @@ public final class ExchangeSourceHandler {
                 fetchExecutor.execute(new ActionRunnable<>(refs.acquire()) {
                     @Override
                     protected void doRun() {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, this.listener);
+                        var fetcher = new RemoteSinkFetcher(remoteSink, sinkId, failFast, onPageFetched, this.listener);
                         fetcher.fetchPage();
                     }
 
@@ -293,6 +323,28 @@ public final class ExchangeSourceHandler {
                 });
             }
         }
+    }
+
+    /**
+     * Returns the number of remote sinks (data nodes) that have been registered via
+     * {@link #addRemoteSink}. This count is stable by the time any page can arrive from a data
+     * node, because {@link #addRemoteSink} is called synchronously before the data node's plan is
+     * dispatched over the network. The
+     * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} uses this to
+     * determine when it has heard from every registered sink — at which point it is safe to start
+     * the K-way merge.
+     */
+    public int numRegisteredRemoteSinks() {
+        return nextSinkId.get();
+    }
+
+    /**
+     * Returns the set of sink IDs whose pages have all been fetched. Used by
+     * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} to track which
+     * sources are exhausted without relying on sentinel pages in the exchange buffer.
+     */
+    public Set<Integer> completedSinks() {
+        return completedSinks;
     }
 
     /**

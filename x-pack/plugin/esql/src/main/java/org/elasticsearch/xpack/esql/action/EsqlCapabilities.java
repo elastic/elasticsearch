@@ -16,6 +16,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddMaxLimitToUnboundedSort;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -3063,6 +3064,16 @@ public class EsqlCapabilities {
          * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
          */
         PROMQL_HISTOGRAM_QUANTILE,
+
+        /**
+         * Streaming sorted-merge for unbounded sorts: any genuinely unbounded {@code SORT} over a
+         * Lucene-backed index (e.g. before a {@code LOOKUP JOIN} whose post-join {@code WHERE} blocks
+         * limit push-down, or before {@code MV_EXPAND}) is executed using per-shard exchange sinks and
+         * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} for K-way merge,
+         * avoiding a {@code TopNOperator(MAX_VALUE)} that pre-allocates ~16 GB on the heap.
+         * Gated on {@link AddMaxLimitToUnboundedSort#STREAMING_SORT_VERSION}.
+         */
+        STREAMING_SORT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

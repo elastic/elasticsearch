@@ -46,6 +46,17 @@ public final class Page implements Writeable, Releasable {
     private final BatchMetadata batchMetadata;
 
     /**
+     * Source node identity for sorted K-way merge on the coordinator. Set locally by
+     * {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler} when a page arrives
+     * from a remote sink; never serialized over the wire.
+     * <ul>
+     *   <li>{@code -1} — unset (normal page not involved in sorted merge)</li>
+     *   <li>{@code >= 1} — tagged data page from remote sink with that ID</li>
+     * </ul>
+     */
+    private int sourceId = -1;
+
+    /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
      * circuit breaker for the {@link Block}s. The {@link Page} reference should be
      * removed shortly after this and reading {@linkplain Block}s after release
@@ -264,6 +275,27 @@ public final class Page implements Writeable, Releasable {
             block.incRef();
         }
         return new Page(false, positionCount, blocks.clone(), metadata);
+    }
+
+    /**
+     * Returns the source node identifier set by the exchange infrastructure for sorted K-way merge.
+     * Returns {@code -1} when not set (normal page). Values {@code >= 1} indicate the sink ID that
+     * produced the page. Never serialized.
+     */
+    public int sourceId() {
+        return sourceId;
+    }
+
+    /**
+     * Tags this page with the given source (sink) ID in-place. Must only be called by
+     * {@link org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler} immediately after
+     * taking exclusive ownership of the page from a response (before any other thread can see it).
+     * This does not copy or change ref-counts: the caller retains the same page object with just
+     * the tag field updated.
+     */
+    public void tagSourceId(int id) {
+        assert id >= 1 : "sourceId must be >= 1, got " + id;
+        this.sourceId = id;
     }
 
     /**

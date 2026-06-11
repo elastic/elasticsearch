@@ -225,7 +225,13 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     }
 
     private static boolean canPushLimit(TopNExec topn, PlannerSettings plannerSettings) {
-        return Foldables.limitValue(topn.limit(), topn.sourceText()) <= plannerSettings.luceneTopNLimit();
+        int limit = Foldables.limitValue(topn.limit(), topn.sourceText());
+        if (limit <= plannerSettings.luceneTopNLimit()) {
+            return true;
+        }
+        // Large or unbounded limit: only push for field-only sorts. Score sorts require
+        // TopScoreDocCollectorManager, which OOMs at MAX_VALUE and is not used here.
+        return topn.order().stream().noneMatch(o -> MetadataAttribute.isScoreAttribute(o.child()));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

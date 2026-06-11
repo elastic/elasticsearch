@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -52,6 +55,24 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                         "Physical plan contains remote executing operation [{}] in local part. "
                             + "This usually means this command is incompatible with some of the preceding commands.",
                         p.nodeName()
+                    )
+                );
+            }
+
+            // A TopNExec with MAX_VALUE limit added by AddMaxLimitToUnboundedSort can only be handled
+            // by the coordinator's SortedMergeSourceOperator when the sort was successfully pushed to
+            // data nodes (inputOrdering == SORTED). If the sort could NOT be pushed (e.g. a non-sortable
+            // field type), the data arrives unsorted and buffering MAX_VALUE rows would OOM. Reject here.
+            if (p instanceof TopNExec topNExec
+                && topNExec.inputOrdering() != TopNOperator.InputOrdering.SORTED
+                && topNExec.limit() instanceof Literal lit
+                && lit.value() instanceof Integer limitInt
+                && limitInt == Integer.MAX_VALUE) {
+                failures.add(
+                    fail(
+                        topNExec,
+                        "SORT [{}] with an unbounded limit is not supported for this field type. Add a LIMIT before the sort.",
+                        topNExec.sourceText()
                     )
                 );
             }

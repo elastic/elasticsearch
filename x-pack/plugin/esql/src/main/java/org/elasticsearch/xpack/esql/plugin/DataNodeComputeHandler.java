@@ -27,6 +27,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
@@ -50,9 +51,12 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -69,6 +73,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -498,6 +503,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
+        // null for the single-sink path; set for the per-shard sorted-merge path
+        private final List<ExchangeSinkHandler> perShardSinks;
+        private final AtomicInteger perShardSinkCounter;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -519,6 +527,35 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink.createExchangeSink(() -> {});
+            this.searchContexts = searchContexts;
+            this.planTimeProfile = new PlanTimeProfile();
+            this.perShardSinks = null;
+            this.perShardSinkCounter = null;
+        }
+
+        DataNodeRequestExecutor(
+            EsqlFlags flags,
+            DataNodeRequest request,
+            CancellableTask parentTask,
+            List<ExchangeSinkHandler> perShardSinks,
+            AtomicInteger perShardSinkCounter,
+            boolean failFastOnShardFailure,
+            Map<ShardId, Exception> shardLevelFailures,
+            ComputeListener computeListener,
+            AcquiredSearchContexts searchContexts
+        ) {
+            this.flags = flags;
+            this.request = request;
+            this.parentTask = parentTask;
+            this.exchangeSink = null;
+            this.blockingSink = null;
+            // All shards run concurrently in a single batch so the sorted merge can start immediately.
+            this.maxConcurrentShards = request.shards().size();
+            this.perShardSinks = perShardSinks;
+            this.perShardSinkCounter = perShardSinkCounter;
+            this.failFastOnShardFailure = failFastOnShardFailure;
+            this.shardLevelFailures = shardLevelFailures;
+            this.computeListener = computeListener;
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
         }
@@ -556,7 +593,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
-                            exchangeService.finishSinkHandler(request.sessionId(), e);
+                            if (perShardSinks != null) {
+                                for (int i = 0; i < perShardSinks.size(); i++) {
+                                    exchangeService.finishSinkHandler(request.sessionId() + "[s" + i + "]", e);
+                                }
+                            } else {
+                                exchangeService.finishSinkHandler(request.sessionId(), e);
+                            }
                         } finally {
                             ref.onFailure(e);
                         }
@@ -574,6 +617,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         batchListener.onResponse(DriverCompletionInfo.EMPTY);
                         return;
                     }
+                    final Supplier<ExchangeSink> sinkSupplier = (perShardSinks != null)
+                        ? () -> perShardSinks.get(perShardSinkCounter.getAndIncrement()).createExchangeSink(pagesProduced::incrementAndGet)
+                        : () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet);
                     var computeContext = new ComputeContext(
                         sessionId,
                         ComputeService.DATA_DESCRIPTION,
@@ -583,7 +629,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration,
                         configuration.newFoldContext(),
                         null,
-                        () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
+                        sinkSupplier,
+                        null
                     );
                     computeService.runCompute(
                         parentTask,
@@ -670,6 +717,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
+            if (perShardSinks != null) {
+                // Sorted-merge path: all shards ran in a single batch; per-shard sinks complete
+                // naturally when their drivers finish. The ExchangeSourceHandler detects completion
+                // via completedSinks tracking — no blockingSink or additional listeners needed here.
+                return;
+            }
             if (lastBatchIndex < request.shards().size() && exchangeSink.isFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
@@ -692,6 +745,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     }
 
+    /**
+     * Returns true when the node-level reduction plan contains a sorted-merge TopN — i.e. the plan
+     * inserted by {@code AddMaxLimitToUnboundedSort} with a {@code MAX_VALUE} limit
+     * that was subsequently marked as {@code SORTED} by {@link ComputeService#reductionPlan}.  In
+     * that case each shard must write to its own {@link ExchangeSinkHandler} so that
+     * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} can K-way merge
+     * the already-sorted per-shard streams without buffering all rows in a single
+     * {@link org.elasticsearch.compute.operator.topn.TopNQueue}.
+     *
+     * <p>We search the whole plan tree (not just the direct child of {@code ExchangeSinkExec})
+     * because late-materialization can insert a {@code ProjectExec} between the sink and the
+     * {@code TopNExec}.
+     */
+    private static boolean needsSortedMerge(PhysicalPlan nodeReducePlan) {
+        if (nodeReducePlan instanceof ExchangeSinkExec == false) {
+            return false;
+        }
+        return nodeReducePlan.collectFirstChildren(
+            p -> p instanceof TopNExec topN
+                && topN.inputOrdering() == TopNOperator.InputOrdering.SORTED
+                && topN.limit() instanceof Literal lit
+                && lit.value() instanceof Integer limitInt
+                && limitInt == Integer.MAX_VALUE
+                && topN.child() instanceof ExchangeSourceExec
+        ).isEmpty() == false;
+    }
+
     private void runComputeOnDataNode(
         CancellableTask task,
         String externalId,
@@ -711,33 +791,87 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
             )
         ) {
+            final boolean isSortedMerge = needsSortedMerge(reducePlan);
             var parentListener = computeListener.acquireAvoid();
             try {
                 // run compute with target shards
                 var externalSink = exchangeService.getSinkHandler(externalId);
-                var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
-                task.addListener(() -> {
-                    exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
-                    exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
-                });
                 EsqlFlags flags = computeService.createFlags();
-                int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
-                DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
-                    flags,
-                    request,
-                    task,
-                    internalSink,
-                    maxConcurrentShards,
-                    failFastOnShardFailure,
-                    shardLevelFailures,
-                    computeListener,
-                    searchContexts
-                );
+
+                final ExchangeSourceHandler exchangeSource;
+                final DataNodeRequestExecutor dataNodeRequestExecutor;
+
+                if (isSortedMerge) {
+                    // Sorted merge path: each shard gets its own ExchangeSinkHandler so that
+                    // SortedMergeSourceOperator can K-way merge per-shard sorted streams on the
+                    // data node without buffering all data in a single TopNQueue(MAX_VALUE).
+                    int numShards = request.shards().size();
+                    List<ExchangeSinkHandler> perShardSinks = new ArrayList<>(numShards);
+                    for (int i = 0; i < numShards; i++) {
+                        perShardSinks.add(
+                            exchangeService.createSinkHandler(request.sessionId() + "[s" + i + "]", request.pragmas().exchangeBufferSize())
+                        );
+                    }
+                    task.addListener(() -> {
+                        exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
+                        for (int i = 0; i < numShards; i++) {
+                            exchangeService.finishSinkHandler(
+                                request.sessionId() + "[s" + i + "]",
+                                new TaskCancelledException(task.getReasonCancelled())
+                            );
+                        }
+                    });
+                    exchangeSource = new ExchangeSourceHandler(numShards, searchExecutor);
+                    for (int i = 0; i < numShards; i++) {
+                        final String shardSinkId = request.sessionId() + "[s" + i + "]";
+                        final ExchangeSinkHandler shardSink = perShardSinks.get(i);
+                        exchangeSource.addRemoteSink(
+                            shardSink::fetchPageAsync,
+                            true,
+                            () -> {},
+                            1,
+                            ActionListener.running(() -> exchangeService.finishSinkHandler(shardSinkId, null))
+                        );
+                    }
+                    AtomicInteger sinkCounter = new AtomicInteger(0);
+                    dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                        flags,
+                        request,
+                        task,
+                        perShardSinks,
+                        sinkCounter,
+                        failFastOnShardFailure,
+                        shardLevelFailures,
+                        computeListener,
+                        searchContexts
+                    );
+                } else {
+                    // Original single-sink path
+                    var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+                    task.addListener(() -> {
+                        exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
+                        exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(task.getReasonCancelled()));
+                    });
+                    int maxConcurrentShards = request.pragmas().maxConcurrentShardsPerNode();
+                    exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
+                    exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+                    dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                        flags,
+                        request,
+                        task,
+                        internalSink,
+                        maxConcurrentShards,
+                        failFastOnShardFailure,
+                        shardLevelFailures,
+                        computeListener,
+                        searchContexts
+                    );
+                }
+
                 dataNodeRequestExecutor.start();
                 // run the node-level reduction
-                var exchangeSource = new ExchangeSourceHandler(1, searchExecutor);
-                exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
+                ExchangeSourceHandler exchangeSourceForContext = isSortedMerge ? exchangeSource : null;
                 computeService.runCompute(
                     task,
                     new ComputeContext(
@@ -749,7 +883,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,
-                        () -> externalSink.createExchangeSink(() -> {})
+                        () -> externalSink.createExchangeSink(() -> {}),
+                        exchangeSourceForContext
                     ),
                     reducePlan,
                     plannerSettings,
@@ -772,7 +907,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onResponse(null);
             } catch (Exception e) {
                 exchangeService.finishSinkHandler(externalId, e);
-                exchangeService.finishSinkHandler(request.sessionId(), e);
+                // best-effort cleanup; handlers may not exist if setup failed before creation
+                int numShards = needsSortedMerge(reducePlan) ? request.shards().size() : 0;
+                if (numShards > 0) {
+                    for (int i = 0; i < numShards; i++) {
+                        exchangeService.finishSinkHandler(request.sessionId() + "[s" + i + "]", e);
+                    }
+                } else {
+                    exchangeService.finishSinkHandler(request.sessionId(), e);
+                }
                 parentListener.onFailure(e);
             }
         }
@@ -898,7 +1041,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     configuration,
                     configuration.newFoldContext(),
                     null,
-                    () -> externalSink.createExchangeSink(() -> {})
+                    () -> externalSink.createExchangeSink(() -> {}),
+                    null
                 );
                 computeService.runCompute(
                     task,

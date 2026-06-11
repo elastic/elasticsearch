@@ -2918,4 +2918,46 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
+
+    /**
+     * SORT _score | LOOKUP JOIN without a pushable LIMIT: {@code _score} is a MetadataAttribute, not a plain
+     * FieldAttribute, so {@code AddMaxLimitToUnboundedSort} does not apply (the streaming-sort
+     * optimisation is only valid for native Lucene field sorts). The sort remains an unbounded {@code OrderBy}
+     * in the logical plan and is rejected by the logical verifier before physical planning.
+     */
+    public void testScoreSortBeforeLookupJoinRejectedAsUnboundedSort() {
+        Exception e = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            FROM test METADATA _score
+            | RENAME languages AS language_code
+            | SORT _score
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "foo"
+            | LIMIT 10
+            """));
+        assertThat(e.getMessage(), containsString("Unbounded SORT not supported yet"));
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
+
+    /**
+     * SORT on an EVAL-computed field before LOOKUP JOIN: the computed field is a ReferenceAttribute,
+     * not a FieldAttribute, so the sorted-merge rule does not apply and the sort remains unbounded.
+     */
+    public void testEvalSortBeforeLookupJoinRejectedAsUnboundedSort() {
+        Exception e = expectThrows(VerificationException.class, () -> plannerOptimizer.plan("""
+            FROM test
+            | EVAL language_code = languages, sort_key = languages + 1
+            | SORT sort_key
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "foo"
+            | LIMIT 10
+            """));
+        assertThat(e.getMessage(), containsString("Unbounded SORT not supported yet"));
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
 }

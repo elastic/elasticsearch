@@ -6193,3 +6193,50 @@ FROM sample_data
 message:keyword | type:keyword
 ;
 
+###############################################
+# Tests for SORT before LOOKUP JOIN (sorted merge)
+###############################################
+
+// SORT before LOOKUP JOIN (no LIMIT before join) exercises the sorted-merge execution path:
+// AddMaxLimitToUnboundedSort inserts TopN(MAX_VALUE) so the sort is pushed to data nodes as
+// LuceneSearchAfterSortedSourceOperator, and SortedMergeSourceOperator K-way merges on the
+// coordinator without pre-allocating a MAX_VALUE priority queue.
+
+sortBeforeLookupJoinAscending
+required_capability: join_lookup_v12
+required_capability: streaming_sort
+
+FROM employees
+| EVAL language_code = languages
+| SORT emp_no
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+sortBeforeLookupJoinDescending
+required_capability: join_lookup_v12
+required_capability: streaming_sort
+
+FROM employees
+| EVAL language_code = languages
+| SORT emp_no DESC
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no DESC
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10093          | 3                     | Spanish
+10092          | 1                     | English
+10091          | 3                     | Spanish
+;
+

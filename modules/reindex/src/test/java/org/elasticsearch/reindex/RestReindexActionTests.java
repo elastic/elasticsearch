@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;

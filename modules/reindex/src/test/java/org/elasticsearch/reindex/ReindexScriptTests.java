@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.SliceIndexing;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.ScriptService;

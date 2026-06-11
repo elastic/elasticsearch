@@ -22,11 +22,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
-<<<<<<< HEAD
 import org.elasticsearch.index.SliceIndexing;
-=======
 import org.elasticsearch.index.VersionType;
->>>>>>> upstream/main
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;

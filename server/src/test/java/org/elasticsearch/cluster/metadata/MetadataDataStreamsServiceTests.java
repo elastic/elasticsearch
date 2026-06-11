@@ -78,12 +78,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(indexToAdd, false);
 
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
         ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
-            originalProject,
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
         IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -136,12 +137,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(indexToAdd, false);
 
         ProjectMetadata projectMetadata = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
         ProjectMetadata newState = MetadataDataStreamsService.modifyDataStream(
-            projectMetadata,
+            clusterState.projectState(projectMetadata.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(projectMetadata.id());
 
         IndexAbstraction ds = newState.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -181,12 +183,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         final IndexMetadata indexToRemove = backingIndices[randomIntBetween(0, numBackingIndices - 2)];
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
         ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
-            originalProject,
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
         IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -225,11 +228,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         final IndexMetadata indexToRemove = backingIndices[numBackingIndices - 1];
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalProject,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove.getIndex().getName())),
                 this::getMapperService,
                 Settings.EMPTY
@@ -276,8 +280,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(indexToAdd, false);
 
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
         ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
-            originalProject,
+            clusterState.projectState(originalProject.id()),
             List.of(
                 DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
                 DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName()),
@@ -285,7 +290,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             ),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(originalProject.id());
 
         IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -331,24 +336,26 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         mb.put(indexToAdd, false);
 
         ProjectMetadata originalProject = mb.build();
-        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
-            originalProject,
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
-        newProject = MetadataDataStreamsService.modifyDataStream(
-            newProject,
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
-        newProject = MetadataDataStreamsService.modifyDataStream(
-            newProject,
+        clusterState = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
             List.of(DataStreamAction.addBackingIndex(dataStreamName, indexToAdd.getIndex().getName())),
             this::getMapperService,
             Settings.EMPTY
         );
+        ProjectMetadata newProject = clusterState.metadata().getProject(originalProject.id());
 
         IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
         assertThat(ds, notNullValue());
@@ -379,11 +386,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         final String missingDataStream = randomAlphaOfLength(5);
 
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalProject,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.addBackingIndex(missingDataStream, indexToAdd.getIndex().getName())),
                 this::getMapperService,
                 Settings.EMPTY
@@ -413,10 +421,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
         final String missingIndex = randomAlphaOfLength(5);
         ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                originalProject,
+                clusterState.projectState(originalProject.id()),
                 List.of(DataStreamAction.addBackingIndex(dataStreamName, missingIndex)),
                 this::getMapperService,
                 Settings.EMPTY
@@ -440,12 +449,13 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             .build();
         var brokenProject = ProjectMetadata.builder(project).put(broken).build();
 
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(brokenProject).build();
         var result = MetadataDataStreamsService.modifyDataStream(
-            brokenProject,
+            clusterState.projectState(brokenProject.id()),
             List.of(DataStreamAction.removeBackingIndex(dataStreamName, broken.getIndices().get(0).getName())),
             this::getMapperService,
             Settings.EMPTY
-        );
+        ).metadata().getProject(brokenProject.id());
         assertThat(result.dataStreams().get(dataStreamName).getIndices(), hasSize(1));
         assertThat(result.dataStreams().get(dataStreamName).getIndices().get(0), equalTo(originalDs.getIndices().get(1)));
     }
@@ -455,10 +465,11 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         var project = DataStreamTestHelper.getProjectWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
 
         String indexToRemove = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.modifyDataStream(
-                project,
+                clusterState.projectState(project.id()),
                 List.of(DataStreamAction.removeBackingIndex(dataStreamName, indexToRemove)),
                 this::getMapperService,
                 Settings.EMPTY

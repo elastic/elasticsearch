@@ -212,18 +212,13 @@ public class MetadataDataStreamsService {
             submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return modifyDataStream(
-                        currentState.projectState(projectId),
-                        request.getActions(),
-                        indexMetadata -> {
-                            try {
-                                return indicesService.createIndexMapperServiceForValidation(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
-                            }
-                        },
-                        clusterService.getSettings()
-                    );
+                    return modifyDataStream(currentState.projectState(projectId), request.getActions(), indexMetadata -> {
+                        try {
+                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    }, clusterService.getSettings());
                 }
             });
         }
@@ -326,25 +321,10 @@ public class MetadataDataStreamsService {
     /**
      * Computes the resulting cluster state after applying all requested data stream modifications in order.
      *
-     * @param currentProject current project metadata
-     * @param actions ordered list of modifications to perform
-     * @return resulting cluster state after all modifications have been performed
-     */
-    static ProjectMetadata modifyDataStream(
-        ProjectMetadata currentProject,
-        Iterable<DataStreamAction> actions,
-        Function<IndexMetadata, MapperService> mapperSupplier,
-        Settings nodeSettings
-    ) {
-        // PRTODO: REMOVE
-        return null;
-    }
-
-    /**
-     * Computes the resulting cluster state after applying all requested data stream modifications in order.
-     *
      * @param projectState current project state
      * @param actions ordered list of modifications to perform
+     * @param mapperSupplier supplies mapper services for indices on demand
+     * @param nodeSettings settings from the cluster service
      * @return resulting cluster state after all modifications have been performed
      */
     static ClusterState modifyDataStream(

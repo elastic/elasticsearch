@@ -131,7 +131,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         @Override
         public String[] dataSourceNames() {
             // The constructor always sets indices and the security filter replaces with a non-null array.
-            // Returning empty on null would silently skip the datasource check downstream — fail loudly instead.
+            // Returning empty on null would silently skip the datasource check downstream — fail instead:
+            // AssertionError under tests, NPE from the stream below in production. Never silently empty.
             assert indices != null;
             return Arrays.stream(indices).map(datasetToDataSource::get).filter(Objects::nonNull).distinct().toArray(String[]::new);
         }

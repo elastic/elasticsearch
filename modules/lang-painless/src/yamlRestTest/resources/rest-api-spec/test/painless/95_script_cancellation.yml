@@ -2415,6 +2415,79 @@
   - is_true: timed_out
 
 ---
+"Search timeout aborts a long-running Stream forEach augmentation loop":
+  - do:
+      indices.create:
+        index: test_stream_foreach_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_stream_foreach_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Stream.forEach drives the JDK terminal-op pipeline; the wrapping Consumer
+  # polls once per element so a long iteration honours the search timeout.  Build a 50k list once,
+  # then run stream().forEach() inside an outer for loop ~1000 times so the total per-element
+  # polling adds up past the 100 ms budget.  (Nesting forEach as a lambda body is rejected by
+  # Painless because Stream.forEach returns void and a Consumer lambda's body must produce a value.)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_stream_foreach_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  for (int j = 0; j < 1000; j++) { a.stream().forEach(y -> y.toString()); }
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running IntStream reduce augmentation loop":
+  - do:
+      indices.create:
+        index: test_intstream_reduce_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_intstream_reduce_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware IntStream.reduce wraps its IntBinaryOperator to poll per element so the
+  # 100 ms timeout cancels even a long-running reduce.  Nested each() over a 50k list invokes
+  # stream().mapToInt().reduce() on the same list; the outer each lambda body returns the int
+  # result of reduce (non-void), so Painless's lambda value requirement is satisfied.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_intstream_reduce_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.stream().mapToInt(y -> y).reduce(0, (m, n) -> m + n));
+                  return true;
+  - is_true: timed_out
+
+---
 "Search timeout aborts a long-running String.replace augmentation loop":
   - do:
       indices.create:

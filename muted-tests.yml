@@ -668,3 +668,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/151090
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testUnhollowOnUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/151100

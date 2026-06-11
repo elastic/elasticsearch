@@ -46,8 +46,8 @@ import java.util.concurrent.TimeUnit;
  * cycles per measurement sample.
  */
 @Fork(value = 1)
-@Warmup(iterations = 5)
-@Measurement(iterations = 5)
+@Warmup(iterations = 2)
+@Measurement(iterations = 3)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)

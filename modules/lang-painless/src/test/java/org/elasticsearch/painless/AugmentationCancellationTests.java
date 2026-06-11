@@ -899,4 +899,233 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
     }
+
+    // --- Stream<T> terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code Stream.forEach} drives the pipeline and must poll. */
+    public void testStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().forEach(x -> x.toString());"), "cancelled-stream-foreach");
+    }
+
+    /** {@code Stream.forEachOrdered} drives the pipeline and must poll. */
+    public void testStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().forEachOrdered(x -> x.toString());"), "cancelled-stream-foreachordered");
+    }
+
+    /** {@code Stream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().allMatch(x -> true);"), "cancelled-stream-allmatch");
+    }
+
+    /** {@code Stream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().anyMatch(x -> false);"), "cancelled-stream-anymatch");
+    }
+
+    /** {@code Stream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().noneMatch(x -> false);"), "cancelled-stream-nonematch");
+    }
+
+    /** {@code Stream.reduce(BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce((a, b) -> a);"), "cancelled-stream-reduce");
+    }
+
+    /** {@code Stream.reduce(identity, BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce(0, (a, b) -> a);"), "cancelled-stream-reduce-identity");
+    }
+
+    /** {@code Stream.reduce(identity, BiFunction, BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceWithBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce(0, (a, b) -> a, (a, b) -> a);"), "cancelled-stream-reduce-bifunction");
+    }
+
+    /** {@code Stream.collect(Supplier, BiConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b));"),
+            "cancelled-stream-collect"
+        );
+    }
+
+    // --- IntStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code IntStream.forEach} drives the pipeline and must poll. */
+    public void testIntStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).forEach(x -> x);"), "cancelled-intstream-foreach");
+    }
+
+    /** {@code IntStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testIntStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).forEachOrdered(x -> x);"), "cancelled-intstream-foreachordered");
+    }
+
+    /** {@code IntStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testIntStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).allMatch(x -> true);"), "cancelled-intstream-allmatch");
+    }
+
+    /** {@code IntStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testIntStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).anyMatch(x -> false);"), "cancelled-intstream-anymatch");
+    }
+
+    /** {@code IntStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testIntStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).noneMatch(x -> false);"), "cancelled-intstream-nonematch");
+    }
+
+    /** {@code IntStream.reduce(IntBinaryOperator)} scans the whole stream and must poll. */
+    public void testIntStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).reduce((a, b) -> a);"), "cancelled-intstream-reduce");
+    }
+
+    /** {@code IntStream.reduce(int, IntBinaryOperator)} scans the whole stream and must poll. */
+    public void testIntStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).reduce(0, (a, b) -> a);"), "cancelled-intstream-reduce-identity");
+    }
+
+    /** {@code IntStream.collect(Supplier, ObjIntConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testIntStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).collect(() -> new ArrayList(), (l, i) -> l.add(i), (a, b) -> a.addAll(b));"),
+            "cancelled-intstream-collect"
+        );
+    }
+
+    // --- LongStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code LongStream.forEach} drives the pipeline and must poll. */
+    public void testLongStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).forEach(x -> x);"), "cancelled-longstream-foreach");
+    }
+
+    /** {@code LongStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testLongStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).forEachOrdered(x -> x);"), "cancelled-longstream-foreachordered");
+    }
+
+    /** {@code LongStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testLongStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).allMatch(x -> true);"), "cancelled-longstream-allmatch");
+    }
+
+    /** {@code LongStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testLongStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).anyMatch(x -> false);"), "cancelled-longstream-anymatch");
+    }
+
+    /** {@code LongStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testLongStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).noneMatch(x -> false);"), "cancelled-longstream-nonematch");
+    }
+
+    /** {@code LongStream.reduce(LongBinaryOperator)} scans the whole stream and must poll. */
+    public void testLongStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).reduce((a, b) -> a);"), "cancelled-longstream-reduce");
+    }
+
+    /** {@code LongStream.reduce(long, LongBinaryOperator)} scans the whole stream and must poll. */
+    public void testLongStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).reduce(0L, (a, b) -> a);"), "cancelled-longstream-reduce-identity");
+    }
+
+    /** {@code LongStream.collect(Supplier, ObjLongConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testLongStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "",
+                "big.stream().mapToLong(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+            ),
+            "cancelled-longstream-collect"
+        );
+    }
+
+    // --- DoubleStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code DoubleStream.forEach} drives the pipeline and must poll. */
+    public void testDoubleStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).forEach(x -> x);"), "cancelled-doublestream-foreach");
+    }
+
+    /** {@code DoubleStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testDoubleStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).forEachOrdered(x -> x);"),
+            "cancelled-doublestream-foreachordered"
+        );
+    }
+
+    /** {@code DoubleStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testDoubleStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).allMatch(x -> true);"), "cancelled-doublestream-allmatch");
+    }
+
+    /** {@code DoubleStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testDoubleStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).anyMatch(x -> false);"), "cancelled-doublestream-anymatch");
+    }
+
+    /** {@code DoubleStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testDoubleStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).noneMatch(x -> false);"), "cancelled-doublestream-nonematch");
+    }
+
+    /** {@code DoubleStream.reduce(DoubleBinaryOperator)} scans the whole stream and must poll. */
+    public void testDoubleStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).reduce((a, b) -> a);"), "cancelled-doublestream-reduce");
+    }
+
+    /** {@code DoubleStream.reduce(double, DoubleBinaryOperator)} scans the whole stream and must poll. */
+    public void testDoubleStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).reduce(0.0d, (a, b) -> a);"),
+            "cancelled-doublestream-reduce-identity"
+        );
+    }
+
+    /** {@code DoubleStream.collect(Supplier, ObjDoubleConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testDoubleStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "",
+                "big.stream().mapToDouble(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+            ),
+            "cancelled-doublestream-collect"
+        );
+    }
+
+    /**
+     * Each new stream-terminal script-aware augmentation must take the no-poll fast path when the
+     * script has no cancellation check installed.  Exercises representative methods across all four
+     * stream types in one script execution.
+     */
+    public void testStreamTerminalAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.stream().forEach(x -> x.toString()); "
+                + "big.stream().allMatch(x -> true); "
+                + "big.stream().reduce((a, b) -> a); "
+                + "big.stream().reduce(0, (a, b) -> a); "
+                + "big.stream().reduce(0, (a, b) -> a, (a, b) -> a); "
+                + "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToInt(x -> x).forEach(x -> x); "
+                + "big.stream().mapToInt(x -> x).allMatch(x -> true); "
+                + "big.stream().mapToInt(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToInt(x -> x).reduce(0, (a, b) -> a); "
+                + "big.stream().mapToInt(x -> x).collect(() -> new ArrayList(), (l, i) -> l.add(i), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToLong(x -> x).forEach(x -> x); "
+                + "big.stream().mapToLong(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToLong(x -> x).reduce(0L, (a, b) -> a); "
+                + "big.stream().mapToLong(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToDouble(x -> x).forEach(x -> x); "
+                + "big.stream().mapToDouble(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToDouble(x -> x).reduce(0.0d, (a, b) -> a); "
+                + "big.stream().mapToDouble(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
 }

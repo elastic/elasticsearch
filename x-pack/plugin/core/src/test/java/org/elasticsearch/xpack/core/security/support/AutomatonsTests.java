@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -18,7 +20,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
@@ -147,6 +152,68 @@ public class AutomatonsTests extends ESTestCase {
         }
     }
 
+    public void testLiteralPartitionMatchesGeneralBuilderLanguage() {
+        assertSameLanguageBothBuilders(List.of("read", "write", "manage"));
+        assertSameLanguageBothBuilders(List.of("a", "a", "b"));
+        assertSameLanguageBothBuilders(List.of("read"));
+        assertSameLanguageBothBuilders(List.of("read", "write", "indices:data/read/*", "/clu.*ter/"));
+        assertSameLanguageBothBuilders(List.of("indices:data/read/*", "/clu.*ter/"));
+        assertSameLanguageBothBuilders(List.of("a", "*", "*foo*", "bar*", "*baz"));
+        assertSameLanguageBothBuilders(List.of("foo\\*", "lit1", "lit2"));
+        assertSameLanguageBothBuilders(List.of("fo?o*", "lit1", "lit2"));
+    }
+
+    public void testLiteralPartitionMatchesGeneralBuilderLanguageRandomized() {
+        for (int iter = 0; iter < 50; iter++) {
+            final Set<String> input = new LinkedHashSet<>();
+            final int count = randomIntBetween(1, 60);
+            for (int i = 0; i < count; i++) {
+                input.add(randomPattern());
+            }
+            assertSameLanguageBothBuilders(input);
+        }
+    }
+
+    public void testLiteralPartitionMatchesGeneralBuilderForLongLiteral() {
+        assertSameLanguageBothBuilders(List.of(randomAlphaOfLength(1000), "lit1", "lit2")); // at the bound: literal bucket
+        assertSameLanguageBothBuilders(List.of(randomAlphaOfLength(1001), "lit1", "lit2")); // over the bound: general path
+    }
+
+    public void testLiteralPartitionMatchesGeneralBuilderForLongNonAsciiLiteral() {
+        final String twoByteChar = "\u00e9"; // 'é' encodes to 2 bytes in UTF-8
+        final String atByteBound = twoByteChar.repeat(500);   // 1000 UTF-8 bytes: still eligible for the literal bucket
+        final String overByteBound = twoByteChar.repeat(501); // 1002 UTF-8 bytes: must fall to the general path
+        assertEquals(1000, new BytesRef(atByteBound).length);
+        assertEquals(1002, new BytesRef(overByteBound).length);
+        assertSameLanguageBothBuilders(List.of(atByteBound, "lit1", "lit2"));
+        assertSameLanguageBothBuilders(List.of(overByteBound, "lit1", "lit2"));
+    }
+
+    private static void assertSameLanguageBothBuilders(Collection<String> patterns) {
+        final Automaton original = Automatons.buildPatternsAutomaton(patterns, false);
+        final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);
+        assertTrue(
+            "literal partition diverged from the general builder for " + patterns,
+            AutomatonTestUtil.sameLanguage(original, partitioned)
+        );
+        // CharacterRunAutomaton matching requires a deterministic automaton.
+        assertTrue("literal partition produced a non-deterministic automaton for " + patterns, partitioned.isDeterministic());
+    }
+
+    private String randomPattern() {
+        final String body = randomAlphaOfLengthBetween(1, 8);
+        return switch (between(0, 6)) {
+            case 0 -> body;                                      // literal
+            case 1 -> body + "*";                                // trailing wildcard
+            case 2 -> "*" + body;                                // leading wildcard
+            case 3 -> "*" + body + "*";                          // infix wildcard
+            case 4 -> body.charAt(0) + "?" + body.substring(1);  // embedded single-char wildcard
+            case 5 -> "/" + body + ".*/";                        // lucene regex
+            case 6 -> body + "\\*";                              // escaped trailing star (literal "*")
+            default -> throw new AssertionError("unreachable");
+        };
+    }
+
     public void testSettingMaxDeterminizedStates() {
         try {
             assertNotEquals(10000, Automatons.getMaxDeterminizedStates());
@@ -155,11 +222,24 @@ public class AutomatonsTests extends ESTestCase {
             Automatons.updateConfiguration(settings);
             assertEquals(10000, Automatons.getMaxDeterminizedStates());
 
-            final List<String> names = new ArrayList<>(4096);
+            final List<String> literals = new ArrayList<>(4096);
             for (int i = 0; i < 4096; i++) {
-                names.add(randomAlphaOfLength(64));
+                literals.add(randomAlphaOfLength(64));
             }
-            TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(names));
+            // A large all-literal union is compiled via Automata.makeStringUnion, which builds a minimal DFA directly without
+            // determinization, so the max_determinized_states work limit does not apply and the build succeeds.
+            final CharacterRunAutomaton literalRun = new CharacterRunAutomaton(Automatons.patterns(literals));
+            for (String literal : literals) {
+                assertTrue(literalRun.run(literal));
+            }
+
+            // Non-literal patterns still go through the general builder's determinization, which honors the work limit and
+            // fails fast when exceeded. Prefixing each literal with "*" turns the same large set into suffix patterns.
+            final List<String> wildcards = new ArrayList<>(4096);
+            for (String literal : literals) {
+                wildcards.add("*" + literal);
+            }
+            TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class, () -> Automatons.patterns(wildcards));
             assertThat(e.getDeterminizeWorkLimit(), equalTo(10000));
         } finally {
             Automatons.updateConfiguration(Settings.EMPTY);

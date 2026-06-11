@@ -88,7 +88,7 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(2024, file1.get("year"));
 
         assertWarnings(
-            "Hive partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "Partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
             "partition column [_index] surfaced as [_partition._index]"
         );
     }

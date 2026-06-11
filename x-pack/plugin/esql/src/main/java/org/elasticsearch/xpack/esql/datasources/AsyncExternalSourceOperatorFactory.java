@@ -1077,12 +1077,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
             return pages;
         }
-        // When deferred extraction is enabled for this factory, the reader appends the synthetic
-        // {@link ColumnExtractor#ROW_POSITION_COLUMN} to the file's data columns (see
-        // {@link #perFileQueryProjection}). Tell the adapter where to find it so the block flows
-        // through to downstream operators unchanged. When deferred extraction is off, the
-        // reader's output has only data columns and the adapter ignores this slot.
-        int rowPositionInputIndex = deferredExtraction ? mapping.width() : -1;
+        // The reader appends the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN} to the
+        // per-file projection whenever the query projection carries it — for deferred extraction
+        // AND for plain _id / _file.record_ref composition (see {@link #perFileQueryProjection}).
+        // Its input slot is its position in the per-file projection: the reader emits blocks in
+        // projection order, so this index addresses the reader's output page directly. Deriving
+        // the slot from the deferred flag or from {@code mapping.width()} is wrong on both arms:
+        // non-deferred readers also emit the channel (dropping it here starves the downstream
+        // VirtualColumnIterator of a block it counts on), and width() is the OUTPUT width, which
+        // diverges from the input slot whenever the file is missing query columns under UBN.
+        int rowPositionInputIndex = SyntheticColumns.rowPositionIndexInNames(perFileCols);
         // Per-file source types are only needed to disambiguate LongBlock under a KEYWORD cast.
         // Every other cast path is self-contained and ignores the array, so we skip the lookup
         // for mappings that have no KEYWORD slots — i.e. virtually every file split outside the

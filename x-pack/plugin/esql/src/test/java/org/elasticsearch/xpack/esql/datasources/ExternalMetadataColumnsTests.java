@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.Map;
 
@@ -41,5 +42,22 @@ public class ExternalMetadataColumnsTests extends ESTestCase {
         Map<String, Object> constants = ExternalMetadataColumns.extractPerFileConstants("events", 0L);
         assertTrue(constants.containsKey(ExternalMetadataColumns.VERSION));
         assertNull(constants.get(ExternalMetadataColumns.VERSION));
+    }
+
+    /**
+     * Drift tripwire: every name the analyzer can bind on an external relation
+     * ({@code MetadataAttribute.ATTRIBUTES_MAP}) must be in the dedicated set. A new standard
+     * metadata name added to the analyzer registry without a matching entry here would bind on
+     * external datasets, escape the partition-rename guard, and then fail at runtime in the
+     * producer pipeline — this assertion turns that into a compile-adjacent test failure naming
+     * the missing entry.
+     */
+    public void testStandardNamesCoverEveryBindableMetadataName() {
+        for (String name : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            assertTrue(
+                "metadata name [" + name + "] is bindable on external relations but missing from STANDARD_NAMES",
+                ExternalMetadataColumns.STANDARD_NAMES.contains(name)
+            );
+        }
     }
 }

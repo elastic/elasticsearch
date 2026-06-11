@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.net.URLDecoder;
@@ -47,9 +46,10 @@ public final class HivePartitionDetector implements PartitionDetector {
      * {@code METADATA _index} would silently return the partition value instead of its
      * spec-defined meaning (the dataset name). A directory like {@code /_index=foo/} surfaces as
      * {@code _partition._index} — the spec name keeps its meaning, the layout's value stays
-     * queryable, and a {@code Warning} header discloses each rename.
+     * queryable, and a {@code Warning} header discloses each rename. Shared by every detector;
+     * see {@link ReservedPartitionNames}.
      */
-    public static final String RESERVED_RENAME_PREFIX = "_partition.";
+    public static final String RESERVED_RENAME_PREFIX = ReservedPartitionNames.RESERVED_RENAME_PREFIX;
 
     HivePartitionDetector() {}
 
@@ -137,38 +137,19 @@ public final class HivePartitionDetector implements PartitionDetector {
      */
     private static Map<String, String> surfacedNames(Set<String> referenceKeys) {
         Map<String, String> surfaced = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
-        SkipWarnings warnings = null;
+        List<String> renamed = new ArrayList<>(0);
         for (String key : referenceKeys) {
-            if (isReservedName(key) == false) {
-                surfaced.put(key, key);
-                continue;
+            String surface = ReservedPartitionNames.surface(key);
+            if (surface.equals(key) == false) {
+                if (referenceKeys.contains(surface)) {
+                    return null;
+                }
+                renamed.add(key);
             }
-            String renamed = RESERVED_RENAME_PREFIX + key;
-            if (referenceKeys.contains(renamed)) {
-                return null;
-            }
-            surfaced.put(key, renamed);
-            if (warnings == null) {
-                warnings = new SkipWarnings(
-                    "Hive partition columns shadowing reserved metadata names were renamed;"
-                        + " reference them by the "
-                        + RESERVED_RENAME_PREFIX
-                        + "* name."
-                );
-            }
-            warnings.add("partition column [" + key + "] surfaced as [" + renamed + "]");
+            surfaced.put(key, surface);
         }
+        ReservedPartitionNames.warnRenamed(renamed);
         return surfaced;
-    }
-
-    /**
-     * Whether a partition key collides with the dedicated metadata namespace: standard metadata
-     * names, the {@code _file.*} family, or a reader-synthesized channel name.
-     */
-    private static boolean isReservedName(String key) {
-        return ExternalMetadataColumns.STANDARD_NAMES.contains(key)
-            || FileMetadataColumns.NAMES.contains(key)
-            || SyntheticColumns.NAMES.contains(key);
     }
 
     private static Map<String, String> extractPartitions(StoragePath storagePath) {

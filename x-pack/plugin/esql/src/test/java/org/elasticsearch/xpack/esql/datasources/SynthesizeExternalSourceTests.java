@@ -184,15 +184,20 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
      * new type's {@code _source} rendering has to be added intentionally.
      */
     public void testUnhandledDataTypeFailsLoud() throws Exception {
-        try (BytesRefBlock wkb = bytesRefBlock("not really wkb")) {
-            String[] names = { "location" };
-            DataType[] types = { DataType.GEO_POINT };
-            Block[] blocks = { wkb };
-            EsqlIllegalArgumentException thrown = expectThrows(
-                EsqlIllegalArgumentException.class,
-                () -> SynthesizeExternalSource.composePage(names, types, blocks, 1, blockFactory)
-            );
-            assertTrue("message must name the unhandled type: " + thrown.getMessage(), thrown.getMessage().contains("geo_point"));
+        for (DataType unhandled : new DataType[] { DataType.GEO_POINT, DataType.AGGREGATE_METRIC_DOUBLE }) {
+            try (BytesRefBlock payload = bytesRefBlock("opaque payload")) {
+                String[] names = { "weird" };
+                DataType[] types = { unhandled };
+                Block[] blocks = { payload };
+                EsqlIllegalArgumentException thrown = expectThrows(
+                    EsqlIllegalArgumentException.class,
+                    () -> SynthesizeExternalSource.composePage(names, types, blocks, 1, blockFactory)
+                );
+                assertTrue(
+                    "message must name the unhandled type: " + thrown.getMessage(),
+                    thrown.getMessage().contains(unhandled.typeName())
+                );
+            }
         }
     }
 

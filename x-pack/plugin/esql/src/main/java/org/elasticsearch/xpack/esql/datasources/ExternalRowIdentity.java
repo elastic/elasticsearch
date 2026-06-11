@@ -93,63 +93,74 @@ public final class ExternalRowIdentity {
         // surfaces a pathological deep path × large page combination as ArithmeticException in
         // production rather than as a silent int overflow downstream.
         int worstCase = Math.multiplyExact(positions, prefixLen + MAX_LONG_DIGITS);
-        byte[] backing = new byte[worstCase];
-        int[] offsets = new int[positions + 1];
-        byte[] digits = new byte[MAX_LONG_DIGITS];
-        int cursor = 0;
-        boolean anyNull = false;
-        for (int i = 0; i < positions; i++) {
-            offsets[i] = cursor;
-            if (rowPositionBlock.isNull(i)) {
-                anyNull = true;
-                continue;
+        // The decoding scratch (`backing` + `offsets`) is plain heap, so reserve it against the
+        // breaker for its lifetime — at high parallelism the per-page worst case (positions ×
+        // prefix bytes) adds up to real memory that must not bypass accounting. The reservation
+        // is released after the builders below copy the bytes into their own (breaker-accounted)
+        // storage.
+        long scratchBytes = worstCase + (long) (positions + 1) * Integer.BYTES;
+        factory.adjustBreaker(scratchBytes);
+        try {
+            byte[] backing = new byte[worstCase];
+            int[] offsets = new int[positions + 1];
+            byte[] digits = new byte[MAX_LONG_DIGITS];
+            int cursor = 0;
+            boolean anyNull = false;
+            for (int i = 0; i < positions; i++) {
+                offsets[i] = cursor;
+                if (rowPositionBlock.isNull(i)) {
+                    anyNull = true;
+                    continue;
+                }
+                int valueIdx = rowPositionBlock.getFirstValueIndex(i);
+                long encoded = rowPositionBlock.getLong(valueIdx);
+                long physical = encoded & LOCAL_POSITION_MASK;
+                System.arraycopy(prefix.bytes, prefix.offset, backing, cursor, prefixLen);
+                cursor += prefixLen;
+                int digitCount = encodeDecimal(physical, digits);
+                // digits filled right-to-left in `digits` over the last digitCount positions
+                System.arraycopy(digits, MAX_LONG_DIGITS - digitCount, backing, cursor, digitCount);
+                cursor += digitCount;
             }
-            int valueIdx = rowPositionBlock.getFirstValueIndex(i);
-            long encoded = rowPositionBlock.getLong(valueIdx);
-            long physical = encoded & LOCAL_POSITION_MASK;
-            System.arraycopy(prefix.bytes, prefix.offset, backing, cursor, prefixLen);
-            cursor += prefixLen;
-            int digitCount = encodeDecimal(physical, digits);
-            // digits filled right-to-left in `digits` over the last digitCount positions
-            System.arraycopy(digits, MAX_LONG_DIGITS - digitCount, backing, cursor, digitCount);
-            cursor += digitCount;
-        }
-        offsets[positions] = cursor;
+            offsets[positions] = cursor;
 
-        if (anyNull) {
-            // Mixed null/non-null: fall back to BytesRefBlock.Builder so per-row null bitmap is
-            // recorded. Still single-page allocation; the temporary byte arrays we already built
-            // are reused as the input bytes per row.
-            try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(positions)) {
+            if (anyNull) {
+                // Mixed null/non-null: fall back to BytesRefBlock.Builder so per-row null bitmap is
+                // recorded. Still single-page allocation; the temporary byte arrays we already built
+                // are reused as the input bytes per row.
+                try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(positions)) {
+                    BytesRef scratch = new BytesRef();
+                    scratch.bytes = backing;
+                    for (int i = 0; i < positions; i++) {
+                        if (rowPositionBlock.isNull(i)) {
+                            builder.appendNull();
+                        } else {
+                            scratch.offset = offsets[i];
+                            scratch.length = offsets[i + 1] - offsets[i];
+                            builder.appendBytesRef(scratch);
+                        }
+                    }
+                    return builder.build();
+                }
+            }
+
+            // Dense path: feed every row to the vector builder via a scratch view over the producer
+            // backing array. The builder copies each appended BytesRef into its own internal buffer,
+            // so the rendered vector is not literally backed by `backing` — the producer-side
+            // allocations here are the decoding scratch (`backing` + `offsets`), not the vector's
+            // storage.
+            try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
                 BytesRef scratch = new BytesRef();
                 scratch.bytes = backing;
                 for (int i = 0; i < positions; i++) {
-                    if (rowPositionBlock.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        scratch.offset = offsets[i];
-                        scratch.length = offsets[i + 1] - offsets[i];
-                        builder.appendBytesRef(scratch);
-                    }
+                    scratch.offset = offsets[i];
+                    scratch.length = offsets[i + 1] - offsets[i];
+                    vectorBuilder.appendBytesRef(scratch);
                 }
-                return builder.build();
+                return vectorBuilder.build().asBlock();
             }
-        }
-
-        // Dense path: feed every row to the vector builder via a scratch view over the producer
-        // backing array. The builder copies each appended BytesRef into its own internal buffer,
-        // so the rendered vector is not literally backed by `backing` — the producer-side
-        // allocations here are the decoding scratch (`backing` + `offsets`), not the vector's
-        // storage.
-        try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
-            BytesRef scratch = new BytesRef();
-            scratch.bytes = backing;
-            for (int i = 0; i < positions; i++) {
-                scratch.offset = offsets[i];
-                scratch.length = offsets[i + 1] - offsets[i];
-                vectorBuilder.appendBytesRef(scratch);
-            }
-            return vectorBuilder.build().asBlock();
+        } finally {
+            factory.adjustBreaker(-scratchBytes);
         }
     }
 

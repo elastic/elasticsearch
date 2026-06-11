@@ -195,6 +195,50 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
+     * Public 14-arg ctor used by {@link #info()} (via constructor reference) and by tree tests:
+     * the 13-arg shape above plus {@code datasetName}, so node-reflection reconstruction
+     * preserves the dataset name (it feeds the per-row {@code _index} value — losing it on a
+     * generic plan rewrite would silently null {@code _index} mid-plan). Passes {@code null} for
+     * {@code pushedTopN} / {@code unifiedSchema}; those are transient hints carried via their
+     * {@code with*} methods.
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        List<ExternalSplit> splits,
+        @Nullable String datasetName
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            null,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            null,
+            splits,
+            datasetName
+        );
+    }
+
+    /**
      * Primary constructor that also accepts the transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning
      * and the coordinator-only {@link ExternalSchema} that carries the pre-prune Unified schema. Package-private on purpose
      * so the public, longest constructor (used by tooling and tree tests) remains the thirteen-arg one above.
@@ -701,8 +745,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
-        // datasetName: also excluded — like unifiedSchema, it is a scalar that with* methods carry
-        // forward independently of node-reflection rewriting.
+        // datasetName: INCLUDED — it is a plain String (attribute rewriting cannot prune it) and
+        // it feeds the per-row _index value; excluding it would silently null _index whenever a
+        // generic rule reconstructs this node via node reflection. Mirrors ExternalRelation#info.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -717,7 +762,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
-            splits
+            splits,
+            datasetName
         );
     }
 

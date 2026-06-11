@@ -175,7 +175,9 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), tablePath, config, metadataFields, datasetName, unresolvedMsg);
+        // No source(): equals() below ignores it, and the equals/hashCode contract requires equal
+        // nodes to hash equal (same node parsed at two positions must collapse in plan-node sets).
+        return Objects.hash(tablePath, config, metadataFields, datasetName, unresolvedMsg);
     }
 
     @Override

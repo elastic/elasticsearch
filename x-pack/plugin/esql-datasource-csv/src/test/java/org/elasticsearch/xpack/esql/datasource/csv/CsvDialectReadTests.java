@@ -131,8 +131,10 @@ public class CsvDialectReadTests extends ESTestCase {
         assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(tsvReader(Map.of("dialect", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
-        // Bare brackets selects the quoted dialect (bracket cells are defined in the quoted world),
-        // so a pre-dialect brackets-on-TSV config keeps its quote-aware scan unchanged.
+    }
+
+    /** Bare brackets selects QUOTED (bracket cells carry quoted elements), even on the plain .tsv baseline. */
+    public void testBareBracketsSelectsQuotedDialect() throws IOException {
         assertThat(tsvReader(Map.of("multi_value_syntax", "brackets")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
     }
 

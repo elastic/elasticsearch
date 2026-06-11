@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -930,12 +929,6 @@ public final class StreamingParallelParsingCoordinator {
             if (t != null) {
                 if (t instanceof RuntimeException re) {
                     throw re;
-                }
-                if (t instanceof IOException ioe) {
-                    // Keep the IOException visible at the top of the chain: ExternalFailures.classify
-                    // keys on the surfaced type, and burying a read/parse failure under a plain
-                    // RuntimeException turns a malformed-input 400 into a server-fault 500.
-                    throw new UncheckedIOException("Streaming parallel parsing failed", ioe);
                 }
                 throw new RuntimeException("Streaming parallel parsing failed", t);
             }

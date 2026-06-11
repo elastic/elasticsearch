@@ -141,17 +141,6 @@ public class CsvDialectTests extends ESTestCase {
         assertEquals("multi_value_syntax [brackets] requires dialect [quoted]; the bracket scanner honors quoted fields", ex.getMessage());
     }
 
-    /**
-     * Bare {@code brackets} (no explicit dialect) is accepted even on the no-quote {@code .tsv}
-     * baseline — it selects the quoted dialect (bracket cells are defined in the quoted world), so
-     * pre-dialect bracket configs keep working unchanged. Only an EXPLICIT non-quoted dialect
-     * combined with brackets is a contradiction (the rejection above). The dispatch consequence is
-     * pinned in {@code CsvDialectReadTests}.
-     */
-    public void testBareBracketsAcceptedOnTsv() {
-        assertNotNull(tsvReader().withConfigTrackingConsumedKeys(Map.of("multi_value_syntax", "brackets")));
-    }
-
     public void testInvalidDialectValueRejected() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,

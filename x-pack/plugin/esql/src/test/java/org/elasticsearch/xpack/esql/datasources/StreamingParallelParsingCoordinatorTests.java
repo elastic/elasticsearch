@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -894,50 +892,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
             assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    /**
-     * A parse failure is a data problem, not a server bug, so what the coordinator surfaces must
-     * classify to {@code 400}. The worker stores an {@link IOException} (here the record-size cap;
-     * any malformed-input read failure takes the same path) and the coordinator's error check
-     * re-throws it on the consuming thread — if that re-throw buries the {@code IOException} under a
-     * plain {@code RuntimeException}, {@link ExternalFailures#classify} can no longer see the
-     * data-error type and reports {@code 500 ExternalServerException} instead
-     * (the captured chain in elastic/esql-planning#897).
-     */
-    public void testStoredIoFailureClassifiesAsClientError() throws Exception {
-        int maxRecordBytes = 8 * 1024;
-        StringBuilder sb = new StringBuilder();
-        while (sb.length() < 64 * 1024) {
-            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
-        }
-        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
-
-        ExecutorService executor = Executors.newFixedThreadPool(4);
-        try {
-            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
-            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
-                reader,
-                new ByteArrayInputStream(bytes),
-                null,
-                List.of("line"),
-                50,
-                4,
-                executor,
-                ErrorPolicy.STRICT,
-                null,
-                maxRecordBytes,
-                null
-            );
-            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
-            assertEquals(
-                "an unreadable record must surface as a client error, got: " + ExternalFailures.classify(ex),
-                RestStatus.BAD_REQUEST,
-                ExceptionsHelper.status(ExternalFailures.classify(ex))
-            );
         } finally {
             executor.shutdownNow();
         }

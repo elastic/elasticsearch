@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,7 +19,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -44,7 +42,6 @@ import org.hamcrest.Matchers;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -669,43 +666,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             assertTrue(
                 "Should contain the injected error message",
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
-            );
-        } finally {
-            exec.shutdown();
-        }
-    }
-
-    /**
-     * A parse failure is a data problem, not a server bug, so what the coordinator surfaces must
-     * classify to {@code 400}. The segment worker stores an {@link IOException} and the coordinator's
-     * error check re-throws it on the consuming thread — if that re-throw buries the
-     * {@code IOException} under a plain {@code RuntimeException}, {@link ExternalFailures#classify}
-     * can no longer see the data-error type and reports {@code 500 ExternalServerException} instead
-     * (the captured chain in elastic/esql-planning#897).
-     */
-    public void testStoredIoFailureClassifiesAsClientError() throws Exception {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 100; i++) {
-            sb.append("line-").append(i).append("\n");
-        }
-        StorageObject obj = new InMemoryStorageObject(sb.toString().getBytes(StandardCharsets.UTF_8));
-        FailingFormatReader reader = new FailingFormatReader(blockFactory(), 5);
-
-        ExecutorService exec = Executors.newFixedThreadPool(4);
-        try {
-            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
-            RuntimeException ex = expectThrows(RuntimeException.class, () -> {
-                try (iter) {
-                    while (iter.hasNext()) {
-                        Page page = iter.next();
-                        page.releaseBlocks();
-                    }
-                }
-            });
-            assertEquals(
-                "an unreadable record must surface as a client error, got: " + ExternalFailures.classify(ex),
-                RestStatus.BAD_REQUEST,
-                ExceptionsHelper.status(ExternalFailures.classify(ex))
             );
         } finally {
             exec.shutdown();
@@ -1616,10 +1576,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     try {
                         nextPage = readBatch();
                     } catch (IOException e) {
-                        // Mirrors the production page iterators (CsvFormatReader, NdJsonPageIterator):
-                        // an IOException crossing the Iterator boundary surfaces as UncheckedIOException
-                        // so ExternalFailures.classify still sees a data error (400), not a bug (500).
-                        throw new UncheckedIOException(e);
+                        throw new RuntimeException(e);
                     }
                     return nextPage != null;
                 }

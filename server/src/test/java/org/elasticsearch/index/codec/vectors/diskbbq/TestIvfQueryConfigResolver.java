@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 
 /**
  * Test-only {@link IvfQueryConfigResolver} that returns a fixed {@link IvfSegmentConfig} on every leaf.

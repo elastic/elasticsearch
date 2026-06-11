@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 
 import java.io.IOException;
 import java.util.Optional;

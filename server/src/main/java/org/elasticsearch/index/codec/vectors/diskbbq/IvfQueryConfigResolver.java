@@ -16,9 +16,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 
 import java.io.IOException;
 import java.util.Objects;

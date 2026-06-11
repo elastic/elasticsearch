@@ -557,9 +557,6 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/150712
-- class: org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormatTests
-  method: testFewVectorManyTimes
-  issue: https://github.com/elastic/elasticsearch/issues/150717
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesLongUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150722
@@ -629,9 +626,6 @@ tests:
 - class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.BufferingMetricExporterTests
   method: testFailBufferRecoverAndDrain
   issue: https://github.com/elastic/elasticsearch/issues/150913
-- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
-  method: testFewVectorManyTimes
-  issue: https://github.com/elastic/elasticsearch/issues/150915
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925

@@ -594,7 +594,7 @@ public abstract class DocsV3Support {
             case "match" -> "search-functions";
 
             // Grouping
-            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+            case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
 
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";

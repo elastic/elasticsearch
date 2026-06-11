@@ -37,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -594,8 +593,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             // Test case 2: Cancel immediately after the first client bulk but before transportWriteAction submit to WRITE_THREAD_POOL
             // Subsequent handler.addItems() comes from writer coordination.
             // Subsequent handler.addItems() should short circuit.
-
-
 
         }
 

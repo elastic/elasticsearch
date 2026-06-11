@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
  * the per-format <em>reader</em>: every format reader emits a per-record token on the
  * {@code _rowPosition} channel (columnar formats — Parquet/ORC — a file-global row index; text
  * formats — CSV/NDJSON — a file-global byte offset), and
- * {@code VirtualColumnIterator} composes {@code _id} as {@code <location>@<mtime>:<token>} via
+ * {@code VirtualColumnIterator} composes {@code _id} as the opaque (location, mtime, token) hash via
  * {@code ExternalRowIdentity}. {@code _source} is composed from the reader's data blocks by
  * {@code SynthesizeExternalSource}, rendering each value per its declared type the way the
  * response layer would.

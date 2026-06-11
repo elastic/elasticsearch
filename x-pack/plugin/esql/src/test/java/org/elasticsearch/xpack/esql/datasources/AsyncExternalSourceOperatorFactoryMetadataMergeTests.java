@@ -63,19 +63,20 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
         .build();
 
     /**
-     * Regression for the inverted precedence in the multi-file producer path: a Hive partition
-     * column literally named {@code _index} must win over the synthesized {@code _index}
-     * constant. Hive partition values are user-declared in the dataset layout; the synthesized
-     * constant is a fallback for queries that do not author one.
+     * Standard metadata names are dedicated: when a reserved key like {@code _index} reaches the
+     * per-file merge (only possible from a non-Hive path — {@code HivePartitionDetector} renames
+     * colliding partition columns to {@code _partition.*} upstream), the spec-defined constant
+     * (dataset name) must win over the smuggled value. The spec promises {@code _index} = dataset
+     * name; a layout cannot redefine it.
      */
-    public void testHivePartitionIndexWinsOverSynthesizedIndexInMultiFilePath() throws Exception {
-        BytesRef hiveIndex = new BytesRef("hive-index-wins");
+    public void testSynthesizedIndexWinsOverSmuggledPartitionKeyInMultiFilePath() throws Exception {
+        BytesRef hiveIndex = new BytesRef("smuggled-index-loses");
         Page page = runMultiFilePathWithIndex(hiveIndex);
         try {
             int indexBlockChannel = 1; // attributes order: value(data), _index(partition)
             BytesRefBlock indexBlock = page.getBlock(indexBlockChannel);
             BytesRef out = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(0), new BytesRef());
-            assertEquals("Hive partition _index must take precedence over dataset-name synthesis", hiveIndex, out);
+            assertEquals("spec-defined _index (dataset name) must win on reserved-key collision", new BytesRef("dataset-wins"), out);
         } finally {
             page.releaseBlocks();
         }
@@ -174,7 +175,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
             .fileList(fileList)
             .partitionColumnNames(Set.of("_index"))
             .partitionValues(Map.of("_index", hivePartitionValue))
-            .datasetName("dataset-loses-to-hive")
+            .datasetName("dataset-wins")
             .producerBlockFactory(TEST_BLOCK_FACTORY)
             .build();
 

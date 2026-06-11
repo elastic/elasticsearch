@@ -78,6 +78,21 @@ public final class ExternalMetadataColumns {
         PER_FILE_CONSTANT_NAMES = Collections.unmodifiableSet(names);
     }
 
+    /**
+     * Every standard metadata name an external relation can bind — {@link #PER_FILE_CONSTANT_NAMES}
+     * plus the per-row composed pair ({@link #ID}, {@link #SOURCE}). This is the dedicated
+     * namespace: dataset layouts (Hive partition directories, data columns) cannot claim these
+     * names; see {@code HivePartitionDetector} for the rename that enforces it.
+     */
+    public static final Set<String> STANDARD_NAMES;
+
+    static {
+        var names = new LinkedHashSet<>(PER_FILE_CONSTANT_NAMES);
+        names.add(ID);
+        names.add(SOURCE);
+        STANDARD_NAMES = Collections.unmodifiableSet(names);
+    }
+
     private ExternalMetadataColumns() {}
 
     /**

@@ -801,8 +801,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * (single-file paths) the factory's {@link #lastModifiedMillis} is used as a fallback. When
      * neither is available {@code _version} renders as SQL {@code NULL}.
      * <p>
-     * Hive partition values and {@code _file.*} retain precedence on key collision because they
-     * overlay last in the per-file merge.
+     * Standard metadata names win on key collision: they are dedicated (the spec defines what
+     * {@code _index} means; a layout cannot redefine it), so the constants overlay last.
+     * {@code HivePartitionDetector} already renames colliding partition columns to
+     * {@code _partition.*} upstream, so a collision here means a non-Hive path smuggled a
+     * reserved key into the partition-value map — the overlay keeps the spec honest regardless.
+     * {@code _file.*} keys cannot collide with standard names (disjoint namespace) and are
+     * unaffected by the overlay order.
      */
     private Map<String, Object> mergeStandardMetadata(Map<String, Object> basePartitionValues) {
         // Any new standard-metadata name must also be added to
@@ -820,10 +825,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             version = lastModifiedMillis;
         }
         Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName, version);
-        Map<String, Object> merged = new HashMap<>(stdConstants);
-        if (basePartitionValues != null) {
-            merged.putAll(basePartitionValues);
-        }
+        Map<String, Object> merged = basePartitionValues != null ? new HashMap<>(basePartitionValues) : new HashMap<>();
+        merged.putAll(stdConstants);
         return merged;
     }
 
@@ -1778,15 +1781,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         // Per-file partition values so _file.path/name/directory/size/modified reflect *this*
         // file rather than the factory's pre-resolution values. Merge precedence (base -> top):
-        // standard ES metadata constants, then Hive partition values, then _file.* values — the
-        // same order mergeStandardMetadata applies on the slice-queue and single-file paths.
+        // Hive partition values, then standard ES metadata constants (dedicated names win on a
+        // smuggled-key collision — same order mergeStandardMetadata applies on the slice-queue
+        // and single-file paths), then _file.* values (disjoint namespace, must reflect this file).
         Map<String, Object> perFileValues = partitionValues;
         if (partitionColumnNames.isEmpty() == false) {
-            perFileValues = new HashMap<>();
+            perFileValues = new HashMap<>(partitionValues);
             if (standardMetadataPerFileNames.isEmpty() == false) {
                 perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName, files, fileIndex));
             }
-            perFileValues.putAll(partitionValues);
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }
 

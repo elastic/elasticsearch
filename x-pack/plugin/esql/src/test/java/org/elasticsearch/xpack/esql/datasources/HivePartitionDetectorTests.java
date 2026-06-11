@@ -62,6 +62,37 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, HivePartitionDetector.inferType(List.of("2024", "hello")));
     }
 
+    /**
+     * Standard metadata names are dedicated: a partition directory claiming one (here
+     * {@code /_index=…/}) surfaces under the {@code _partition.} prefix so {@code METADATA _index}
+     * keeps its spec meaning (dataset name) while the layout's value stays queryable. Values and
+     * types follow the rename; non-colliding keys are untouched.
+     */
+    public void testReservedMetadataNameSurfacesUnderPartitionPrefix() {
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/_index=alpha/year=2024/file1.parquet"),
+            entry("s3://bucket/data/_index=beta/year=2023/file2.parquet")
+        );
+
+        PartitionMetadata result = HivePartitionDetector.detect(files);
+
+        assertFalse(result.isEmpty());
+        assertEquals(2, result.partitionColumns().size());
+        assertFalse("reserved name must not surface as-is", result.partitionColumns().containsKey("_index"));
+        assertEquals(DataType.KEYWORD, result.partitionColumns().get("_partition._index"));
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+
+        Map<String, Object> file1 = result.filePartitionValues()
+            .get(StoragePath.of("s3://bucket/data/_index=alpha/year=2024/file1.parquet"));
+        assertEquals("alpha", file1.get("_partition._index"));
+        assertEquals(2024, file1.get("year"));
+
+        assertWarnings(
+            "Hive partition columns shadowing reserved metadata names were renamed; reference them by the _partition.* name.",
+            "partition column [_index] surfaced as [_partition._index]"
+        );
+    }
+
     public void testInconsistentKeysReturnsEmpty() {
         List<StorageEntry> files = List.of(
             entry("s3://bucket/data/year=2024/file1.parquet"),

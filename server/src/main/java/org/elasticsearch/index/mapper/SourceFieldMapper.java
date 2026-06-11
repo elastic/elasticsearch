@@ -110,15 +110,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         false
     );
 
-    private static final SourceFieldMapper COLUMNAR_STORED = new SourceFieldMapper(
-        Mode.COLUMNAR_STORED,
-        Explicit.IMPLICIT_TRUE,
-        Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false,
-        false
-    );
-
     private static final SourceFieldMapper DISABLED = new SourceFieldMapper(
         Mode.DISABLED,
         Explicit.IMPLICIT_TRUE,
@@ -322,7 +313,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
-            case COLUMNAR_STORED -> COLUMNAR_STORED;
+            // COLUMNAR_STORED gets its own instance per mapping version so it can cache a
+            // SourceLoader.Synthetic without conflating state across indices.
+            case COLUMNAR_STORED -> new SourceFieldMapper(
+                Mode.COLUMNAR_STORED,
+                Explicit.IMPLICIT_TRUE,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                false,
+                false
+            );
         };
     }
 
@@ -389,6 +389,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
+
+    /**
+     * Cached {@link SourceLoader.Synthetic} for the {@code columnar_stored} index-time source
+     * reconstruction path. Built lazily on the first {@code postParse} call and reused for all
+     * subsequent documents under this mapping version.
+     */
+    private volatile SourceLoader.Synthetic cachedColumnarSourceLoader;
 
     private SourceFieldMapper(
         Mode mode,
@@ -503,17 +510,28 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         var leafCtx = reader.getContext();
         int docId = 0;
         int[] docIds = new int[] { docId };
-        var sourceLoader = new SourceLoader.Synthetic(
-            sourceFilter,
-            () -> context.mappingLookup().getMapping().syntheticFieldLoader(sourceFilter),
-            SourceFieldMetrics.NOOP,
-            context.mappingLookup().getMapping().ignoredSourceFormat()
-        );
-        var sourceLeafLoader = sourceLoader.leaf(reader, docIds);
+        // Lazily initialize the cached SourceLoader.Synthetic for this mapping version.
+        // The mapping is stable for the lifetime of this SourceFieldMapper instance, so capturing
+        // it here is safe. The supplier uses a ThreadLocal so each write thread builds the
+        // SyntheticFieldLoader tree once and reuses it (with a reset() between documents), avoiding
+        // the per-document recursive tree construction that was the dominant indexing cost.
+        SourceLoader.Synthetic sourceLoader = cachedColumnarSourceLoader;
+        if (sourceLoader == null) {
+            final Mapping mapping = context.mappingLookup().getMapping();
+            final ThreadLocal<SourceLoader.SyntheticFieldLoader> perThreadLoader = ThreadLocal.withInitial(
+                () -> mapping.syntheticFieldLoader(sourceFilter)
+            );
+            sourceLoader = new SourceLoader.Synthetic(sourceFilter, () -> {
+                SourceLoader.SyntheticFieldLoader loader = perThreadLoader.get();
+                loader.reset();
+                return loader;
+            }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
+            cachedColumnarSourceLoader = sourceLoader;
+        }
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
         storedFieldLoader.advanceTo(docId);
         try (var b = XContentFactory.jsonBuilder()) {
-            sourceLeafLoader.write(storedFieldLoader, docId, b);
+            sourceLoader.leaf(reader, docIds).write(storedFieldLoader, docId, b);
             BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
             // Remove per-field fallback entries collected during parsing — their contents are
             // subsumed by the whole-document entry written below, and binary doc values only allow

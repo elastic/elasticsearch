@@ -227,22 +227,31 @@ public class SplitTargetService {
             cancelled.set(true);
         }
 
-        private void advance(State newState) {
-            // We always fork to generic here since we get callbacks
-            // from various places like cluster state update threads
-            // and transport threads.
-            // We only do this in a linear fashion (once the previous state transition logic completed).
-            clusterService.threadPool().generic().submit(() -> advanceInternal(newState));
-        }
-
-        private void advanceInternal(State newState) {
-            validateStateTransition(newState);
+        private synchronized void advance(State newState) {
+            if (!validateStateTransition(newState)) return;
             this.currentState = newState;
             metricsRecorder.advance(newState);
 
-            // TODO relax logging once implementation is stable
-            logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
+            logStateTransition(newState);
 
+            // We always fork to generic here since we get callbacks
+            // from various places like cluster state update threads
+            // and transport threads.
+            clusterService.threadPool().generic().submit(() -> advanceInternal(newState));
+        }
+
+        private void logStateTransition(State newState) {
+            if (newState instanceof State.Failed && cancelled.get()) {
+                logger.info(
+                    "Stopping split target shard state machine for shard {}, shard is closed. Will retry after recovery.",
+                    shard.shardId()
+                );
+            } else {
+                logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
+            }
+        }
+
+        private void advanceInternal(State newState) {
             switch (newState) {
                 case State.Clone clone -> {
                     // Start split RPC won't complete until the entire handoff sequence completes.
@@ -253,7 +262,7 @@ public class SplitTargetService {
                     // Advance beforehand to eliminate theoretical race conditions with sending
                     // a request to the source shard.
                     // This can be done since the advancement does nothing anyway.
-                    advanceInternal(new State.WaitingForHandoff());
+                    advance(new State.WaitingForHandoff());
                     initiateSplitWithSourceShard(clone);
                 }
                 case State.WaitingForHandoff ignored -> {
@@ -339,7 +348,27 @@ public class SplitTargetService {
             }
         }
 
-        private void validateStateTransition(State newState) {
+        private boolean handoffReceivedAfterFailure(State newState) {
+            if (currentState.getClass() == State.FailedInRecovery.class && newState.getClass() == State.HandoffReceived.class) {
+                return true;
+            }
+            return false;
+        }
+
+        // Return true if state transition is valid. If state transition is not valid, this method will either
+        // throw an error or return false for certain known but invalid state transition requests. If false is
+        // returned by this method, the caller should handle it appropriately.
+        // Right now, there is only one case where false is returned and that is treated as a
+        // NOOP by the caller i.e. state is never transitioned from FailedInRecovery -> HandoffReceived.
+        private boolean validateStateTransition(State newState) {
+            // After the target shard initiates split with the source shard, it can
+            // receive a Handoff request (from the source) at the same time as a failure
+            // occurs on the source shard (e.g. source node gets disconnected)
+            // As a result, we might try to transition from FailedInRecovery -> HandoffReceived
+            // which is not a valid state transition. We treat this state transition as a noop.
+            if (handoffReceivedAfterFailure(newState)) {
+                return false;
+            }
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
             if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {
                 // It's possible that this exception is not observed by anyone since we are inside a runnable on generic thread pool.
@@ -349,6 +378,7 @@ public class SplitTargetService {
                 assert false : message;
                 throw new IllegalStateException(message);
             }
+            return true;
         }
 
         private static final Map<Class<? extends State>, Set<Class<? extends State>>> newStateToValidCurrentStates = new HashMap<>() {

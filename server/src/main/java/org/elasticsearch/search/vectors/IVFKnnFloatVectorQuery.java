@@ -15,29 +15,39 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.LongSupplier;
 
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private boolean isQueryPreconditioned = false;
-    private float[] query;
+    protected final int originalK;
+    protected float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return
+     * @param k the number of nearest neighbors to return (possibly oversampled)
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     * @param overSampleFactor the oversample multiplier applied to the original k; must be {@code >= 1.0f}.
+     *                         When {@code 1.0f}, no oversampling is applied and originalK equals k.
      */
     public IVFKnnFloatVectorQuery(
         String field,
@@ -46,9 +56,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition
+        boolean doPrecondition,
+        float overSampleFactor
     ) {
         super(field, visitRatio, k, numCands, filter, doPrecondition);
+        assert overSampleFactor >= 1.0f : "overSampleFactor [" + overSampleFactor + "] must be >= 1.0";
+        this.originalK = overSampleFactor > 1.0f ? Math.max(1, Math.round(k / overSampleFactor)) : k;
         this.query = query;
     }
 
@@ -120,7 +133,39 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    protected TopDocs approximateSearch(
+    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException {
+        final LeafReader reader = ctx.reader();
+        final Bits liveDocs = reader.getLiveDocs();
+        final int maxDoc = reader.maxDoc();
+
+        if (filterWeight == null) {
+            return approximateSearch(
+                ctx,
+                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
+                Integer.MAX_VALUE,
+                knnCollectorManager,
+                visitRatio
+            );
+        }
+
+        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
+        if (supplier == null) {
+            return TopDocsCollector.EMPTY_TOPDOCS;
+        }
+        // no need to cache iterator as we are calling it once
+        IOSupplier<DocIdSetIterator> docIdIteratorSupplier = () -> supplier.get(Long.MAX_VALUE).iterator();
+        LongSupplier costSupplier = () -> supplier.cost();
+        return approximateSearch(
+            ctx,
+            new ESAcceptDocs.ScorerSupplierAcceptDocs(docIdIteratorSupplier, costSupplier, liveDocs, maxDoc),
+            Integer.MAX_VALUE,
+            knnCollectorManager,
+            visitRatio
+        );
+    }
+
+    private TopDocs approximateSearch(
         LeafReaderContext context,
         AcceptDocs acceptDocs,
         int visitedLimit,
@@ -128,7 +173,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, originalK, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

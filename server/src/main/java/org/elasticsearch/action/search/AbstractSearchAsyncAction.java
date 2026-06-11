@@ -397,7 +397,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
+    protected ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
@@ -416,8 +416,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
-        if (lastShard) {
+        final boolean retriable = TransportActions.isRetriableShardLevelException(e);
+        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s] retriable [%s]", shard, request, lastShard, retriable), e);
+        if (lastShard == false && retriable) {
+            logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);
+            performPhaseOnShard(shardIndex, shardIt, nextShard);
+        } else {
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
@@ -428,12 +432,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             onShardGroupFailure(shardIndex, shard, e);
-        }
-        if (lastShard == false) {
-            logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);
-            performPhaseOnShard(shardIndex, shardIt, nextShard);
-        } else {
-            // count down outstanding shards, we're done with this shard as there's no more copies to try
             finishOneShard();
         }
     }
@@ -447,11 +445,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * Executed once for every {@link ShardId} that failed on all available shard routing.
+     * Executed once for every {@link ShardId} that fails terminally — either all available shard copies have been exhausted, or the
+     * exception is classified as non-retriable by {@link TransportActions#isRetriableShardLevelException}.
      *
      * @param shardIndex the shard index that failed
-     * @param shardTarget the last shard target for this failure
-     * @param exc the last failure reason
+     * @param shardTarget the failing shard target
+     * @param exc the failure reason
      */
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 

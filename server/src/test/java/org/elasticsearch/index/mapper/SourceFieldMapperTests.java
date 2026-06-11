@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,6 +21,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -27,9 +32,11 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -501,6 +508,86 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testColumnarStoredModeRequiresColumnarIndex() {
+        // COLUMNAR_STORED is rejected on non-columnar index modes
+        for (var nonColumnarMode : new IndexMode[] { IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES }) {
+            Settings.Builder builder = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), nonColumnarMode.toString())
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString());
+            if (nonColumnarMode == IndexMode.TIME_SERIES) {
+                // time_series requires a routing_path; provide one so its own validation passes and our source mode validator fires
+                builder.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
+            }
+            Settings settings = builder.build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    "unsupported source mode [COLUMNAR_STORED] for index mode ["
+                        + nonColumnarMode
+                        + "]; supported values: [DISABLED, STORED, SYNTHETIC]"
+                )
+            );
+        }
+    }
+
+    public void testNonColumnarSourceModesRejectedInColumnarIndex() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // DISABLED and STORED are rejected on columnar index modes (SYNTHETIC is allowed)
+        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            for (var unsupportedMode : new SourceFieldMapper.Mode[] { SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED }) {
+                Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), columnarMode.toString())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), unsupportedMode.toString())
+                    .build();
+                IllegalArgumentException exc = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> createMapperService(settings, topMapping(b -> {}))
+                );
+                assertThat(
+                    exc.getMessage(),
+                    containsString(
+                        "unsupported source mode ["
+                            + unsupportedMode
+                            + "] for index mode ["
+                            + columnarMode
+                            + "]; supported values: [SYNTHETIC, COLUMNAR_STORED]"
+                    )
+                );
+            }
+        }
+    }
+
+    public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // Disabling synthetic recovery source is rejected for columnar index modes
+        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), columnarMode.toString())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), false)
+                .build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    "The setting ["
+                        + IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                        + "] must not be false when ["
+                        + IndexSettings.MODE.getKey()
+                        + "] is set to ["
+                        + columnarMode.name()
+                        + "]."
+                )
+            );
+        }
+    }
+
     public void testRecoverySourceWithSyntheticSource() throws IOException {
         {
             Settings settings = Settings.builder()
@@ -532,6 +619,129 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
         }
+    }
+
+    public void testRecoverySourceWithColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+        // columnar_stored requires synthetic recovery source, so only the size is stored (not the full source)
+        assertNull(doc.rootDoc().getField("_recovery_source"));
+        assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+    }
+
+    public void testColumnarStoredSourceWithSkipIgnoredSourceWrite() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+        // columnar_stored always writes its whole-document _ignored_source entry, even
+        // when skip_ignored_source_write=true suppresses per-field entries
+        assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+        // synthetic recovery source is required for columnar_stored, so only the size is stored
+        assertNull(doc.rootDoc().getField("_recovery_source"));
+        assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+    }
+
+    /**
+     * Verifies that in columnar_stored mode, the source loader reads from the pre-computed _ignored_source blob
+     * rather than reconstructing source from doc values.
+     */
+    public void testColumnarStoredSourceReadsFromIgnoredSourceBlob() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("kwd");
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("cardinality", "low").endObject();
+            b.endObject();
+        }));
+
+        // Parse a document so postParse() stores {"kwd":"blob_value"} in the _ignored_source blob.
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> b.field("kwd", "blob_value")));
+
+        // Build a modified Lucene document: keep the _ignored_source blob but change kwd doc values to "docvalues_value".
+        List<IndexableField> modified = new ArrayList<>();
+        for (IndexableField field : parsed.rootDoc()) {
+            if (field instanceof SortedSetDocValuesField && field.name().equals("kwd")) {
+                modified.add(new SortedSetDocValuesField("kwd", new BytesRef("docvalues_value")));
+            } else {
+                modified.add(field);
+            }
+        }
+
+        withLuceneIndex(mapperService, iw -> iw.addDocument(modified), reader -> {
+            SourceLoader loader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+            for (LeafReaderContext leaf : reader.leaves()) {
+                int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
+                SourceLoader.Leaf sourceLeaf = loader.leaf(leaf.reader(), docIds);
+                LeafStoredFieldLoader sfLoader = StoredFieldLoader.create(false, loader.requiredStoredFields()).getLoader(leaf, docIds);
+                sfLoader.advanceTo(0);
+                Source source = sourceLeaf.source(sfLoader, 0);
+                // Source comes from the _ignored_source blob, not from kwd doc values
+                assertThat(source.internalSourceRef().utf8ToString(), equalTo("{\"kwd\":\"blob_value\"}"));
+            }
+        });
+    }
+
+    /**
+     * Verifies that in columnar_stored mode, {@code postParse} removes the per-field fallback fields used only for
+     * synthetic-source reconstruction once the whole-document blob has been written to {@code _ignored_source}.
+     */
+    public void testColumnarStoredPrunesFallbackFields() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("num");
+            b.field("type", "integer");
+            b.field("ignore_malformed", true);
+            b.endObject();
+            b.startObject("kwd");
+            b.field("type", "keyword");
+            b.field("ignore_above", 3);
+            b.endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("num", "not_a_number");
+            b.field("kwd", "long_ignored_value");
+        }));
+        LuceneDocument rootDoc = doc.rootDoc();
+        // Fallback fields for synthetic-source reconstruction must have been pruned
+        assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
+        assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
+        assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
+        // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present
+        assertNotNull("_ignored_source blob must still be present", rootDoc.getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull("_ignored meta-field must still be present", rootDoc.getField(IgnoredFieldMapper.NAME));
     }
 
     public void testRecoverySourceWithLogs() throws IOException {
@@ -714,9 +924,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name())
                     .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                     .build();
-                final MapperService mapperService = createMapperService(settings, mappings);
-                final DocumentMapper docMapper = mapperService.documentMapper();
-                assertTrue(docMapper.sourceMapper().isStored());
+                expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mappings));
             }
             {
                 final XContentBuilder mappings = topMapping(b -> {});
@@ -724,8 +932,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name())
                     .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                     .build();
-                var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
-                assertEquals("Failed to parse mapping: _source can not be disabled in index using [columnar] index mode", ex.getMessage());
+                expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mappings));
             }
 
             // Test for IndexMode.LOGSDB_COLUMNAR
@@ -745,9 +952,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
                     .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                     .build();
-                final MapperService mapperService = createMapperService(settings, mappings);
-                final DocumentMapper docMapper = mapperService.documentMapper();
-                assertTrue(docMapper.sourceMapper().isStored());
+                expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mappings));
             }
             {
                 final XContentBuilder mappings = topMapping(b -> {});
@@ -755,11 +960,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                     .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.name())
                     .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                     .build();
-                var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
-                assertEquals(
-                    "Failed to parse mapping: _source can not be disabled in index using [logsdb_columnar] index mode",
-                    ex.getMessage()
-                );
+                expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mappings));
             }
         }
 

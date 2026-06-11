@@ -16,7 +16,7 @@ Use the following settings to limit the number of field mappings (created manual
 
 $$$total-fields-limit$$$
 `index.mapping.total_fields.limit` {applies_to}`serverless: all`
-:   The maximum number of fields in an index. Field and object mappings, as well as field aliases count towards this limit. Mapped runtime fields count towards this limit as well. The default value is `1000`.
+:   The maximum number of fields in an index. Field and object mappings, field aliases, and mapped runtime fields all count towards this limit. The default value is `1000`. Beyond this limit, Elasticsearch returns the error `Limit of total fields [X] has been exceeded`.
 
     ::::{important}
     The limit is in place to prevent mappings and searches from becoming too large. Higher values can lead to performance degradations and memory issues, especially in clusters with a high load or few resources.

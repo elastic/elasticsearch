@@ -12,11 +12,19 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -52,11 +60,74 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
 
+    /**
+     * Per-file captured source metadata contributions, populated by the background reader thread as
+     * iterators close. Each path's value is a list of flat {@code _stats.*} maps — one per chunk for
+     * parallel parsing, one per split for macro-splits, one for whole-file reads. The coordinator
+     * merges them via {@code SourceStatisticsSerializer.mergeStatistics} before enriching the
+     * {@code SchemaCacheEntry}.
+     */
+    private final ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
+    private volatile Map<String, List<Map<String, Object>>> cachedMetadataSnapshot = Map.of();
+    private volatile int cachedMetadataPathCount = 0;
+
+    private volatile FormatReaderStatus formatReaderStatus = null;
+    // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
+    // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
+    // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
+    // single consumer counter and stays AtomicLong.
+    private final LongAdder bytesRead = new LongAdder();
+    private volatile int splitsTotal = 0;
+    private final AtomicInteger splitsProcessed = new AtomicInteger();
+    private volatile int currentSplit = 0;
+
     public AsyncExternalSourceBuffer(long maxBufferBytes) {
         if (maxBufferBytes < 1) {
             throw new IllegalArgumentException("max_buffer_bytes must be at least one; got=" + maxBufferBytes);
         }
         this.maxBufferBytes = maxBufferBytes;
+    }
+
+    /** The mutable per-file capture sink shared with the iterator wrapping. */
+    public ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
+        return capturedSourceMetadata;
+    }
+
+    /**
+     * Returns an immutable point-in-time snapshot of the capture sink. Read by the driver thread
+     * via {@link AsyncExternalSourceOperator#status()}. Returning an unmodifiable view defends
+     * against downstream callers mutating the snapshot in place, which would silently lose stats
+     * before they reach the coordinator's reconciler.
+     * <p>
+     * The snapshot is cached and rebuilt only when the number of tracked file paths grows or when
+     * the buffer reaches completion. In-flight status calls during execution may therefore see a
+     * slightly stale view of the per-file contribution lists (e.g. missing a later parallel-parsing
+     * chunk for an already-tracked path). The final snapshot taken after {@link #finish} is always
+     * rebuilt in full so {@code DriverCompletionInfo} captures all contributions.
+     */
+    Map<String, List<Map<String, Object>>> capturedSourceMetadataSnapshot() {
+        int currentSize = capturedSourceMetadata.size();
+        if (currentSize == 0) {
+            return Map.of();
+        }
+        if (currentSize == cachedMetadataPathCount && isFinished() == false) {
+            return cachedMetadataSnapshot;
+        }
+        HashMap<String, List<Map<String, Object>>> snapshot = new HashMap<>(currentSize);
+        for (var entry : capturedSourceMetadata.entrySet()) {
+            List<Map<String, Object>> list = entry.getValue();
+            List<Map<String, Object>> copy;
+            synchronized (list) {
+                copy = List.copyOf(list);
+            }
+            snapshot.put(entry.getKey(), copy);
+        }
+        Map<String, List<Map<String, Object>>> result = Collections.unmodifiableMap(snapshot);
+        // Write snapshot before count so that a reader observing the new count via the volatile
+        // read is guaranteed (by JMM happens-before) to also see the new snapshot.
+        cachedMetadataSnapshot = result;
+        cachedMetadataPathCount = currentSize;
+        return result;
     }
 
     /**
@@ -266,6 +337,66 @@ public final class AsyncExternalSourceBuffer {
      */
     public long bytesInBuffer() {
         return bytesInBuffer.get();
+    }
+
+    /** Records the latest format-reader counter snapshot for the operator's status view. */
+    public void recordFormatReaderStatus(FormatReaderStatus snapshot) {
+        this.formatReaderStatus = snapshot;
+    }
+
+    /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
+    public void addBytesRead(long delta) {
+        if (delta > 0) {
+            bytesRead.add(delta);
+        }
+    }
+
+    /** Sets the total number of splits the producer expects to process; callable once when known. */
+    public void setSplitsTotal(int total) {
+        this.splitsTotal = total;
+    }
+
+    /** Increments the count of splits the producer has finished processing. */
+    public void incSplitsProcessed() {
+        splitsProcessed.incrementAndGet();
+    }
+
+    /** Records the 1-based index of the split currently being processed by the producer. */
+    public void setCurrentSplit(int idx) {
+        this.currentSplit = idx;
+    }
+
+    /** Returns the latest format-reader counter snapshot, or {@code null} if none recorded yet. */
+    public FormatReaderStatus formatReaderStatus() {
+        return formatReaderStatus;
+    }
+
+    /** Returns cumulative pre-decompression bytes read from the storage layer. */
+    public long bytesRead() {
+        return bytesRead.sum();
+    }
+
+    /** Returns the total number of splits the producer expects to process. */
+    public int splitsTotal() {
+        return splitsTotal;
+    }
+
+    /** Returns the number of splits the producer has finished processing. */
+    public int splitsProcessed() {
+        return splitsProcessed.get();
+    }
+
+    /**
+     * Returns the 1-based index of the split currently being processed by the producer.
+     * <p>
+     * Semantics differ slightly between producer paths and the value should not be compared
+     * across them: the slice-queue path counts top-level splits pulled from the queue (a
+     * coalesced split with N leaves still increments the index by 1, not N), while the
+     * file-list / multi-file path uses the absolute file index. Use this for "where am I in
+     * the work" UX in a single-query profile, not for cross-query comparison or rate math.
+     */
+    public int currentSplit() {
+        return currentSplit;
     }
 
     /**

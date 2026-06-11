@@ -5,6 +5,7 @@ FOR /F "tokens=* eol=#" %%i in ('type .ci\java-versions.properties') do set %%i
 
 SET JAVA_HOME=%USERPROFILE%\.java\%ES_BUILD_JAVA%
 SET JAVA16_HOME=%USERPROFILE%\.java\openjdk16
+SET PATH=%PATH%;%USERPROFILE%\.java\%ES_BUILD_JAVA%\bin
 
 SET GRADLEW=./gradlew --parallel --no-daemon --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
 SET GRADLEW_BAT=./gradlew.bat --parallel --no-daemon --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
@@ -27,6 +28,10 @@ set DEVELOCITY_ACCESS_KEY=gradle-enterprise.elastic.co=!DEVELOCITY_API_ACCESS_KE
 for /f "delims=" %%i in ('vault read -field^=token secret/ci/elastic-elasticsearch/buildkite-api-token') do set BUILDKITE_API_TOKEN=%%i
 
 bash.exe -c "nohup bash .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &"
+
+choco install nodejs --version="24.16.0"
+call refreshenv
+bash.exe -c "bash .buildkite/scripts/setup_node.sh"
 
 REM =============================================================================
 REM PART 1: Test seed retrieval for ANY retry
@@ -103,7 +108,7 @@ REM SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back in this scope.
 REM =============================================================================
 if defined BUILDKITE_RETRY_COUNT (
   if %BUILDKITE_RETRY_COUNT% GTR 0 (
-    call .buildkite\scripts\smart-retry.bat
+    bash.exe -c "bash .buildkite/scripts/smart-retry.sh"
   )
 )
 

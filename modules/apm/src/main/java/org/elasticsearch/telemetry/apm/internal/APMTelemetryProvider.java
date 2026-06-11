@@ -17,24 +17,33 @@ import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private final APMLoggingService loggingService;
     private final long flushTimeoutMillis;
 
-    public APMTelemetryProvider(Settings settings) {
-        apmTracer = new APMTracer(settings);
-        apmMeterService = new APMMeterService(settings);
+    public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
+        apmMeterService = new APMMeterService(settings, diskBufferPath);
+        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
+        loggingService = new APMLoggingService(settings);
         flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, long flushTimeoutMillis) {
+    public APMTelemetryProvider(
+        APMMeterService apmMeterService,
+        APMTracer apmTracer,
+        APMLoggingService loggingService,
+        long flushTimeoutMillis
+    ) {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
+        this.loggingService = loggingService;
         this.flushTimeoutMillis = flushTimeoutMillis;
     }
 
@@ -56,6 +65,11 @@ public class APMTelemetryProvider implements TelemetryProvider {
     public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
-        CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+        CompletableResultCode logs = loggingService.forceFlush();
+        CompletableResultCode.ofAll(List.of(metrics, traces, logs)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    public APMLoggingService getLoggingService() {
+        return loggingService;
     }
 }

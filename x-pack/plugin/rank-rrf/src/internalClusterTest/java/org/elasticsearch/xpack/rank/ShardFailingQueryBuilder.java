@@ -58,7 +58,7 @@ public class ShardFailingQueryBuilder extends LeafQueryBuilder<ShardFailingQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.getShardId() % 2 == 0) {
-            throw new CorruptIndexException("simulated failure", (DataInput) null);
+            throw new IllegalArgumentException("simulated failure");
         } else {
             return Queries.ALL_DOCS_INSTANCE;
         }

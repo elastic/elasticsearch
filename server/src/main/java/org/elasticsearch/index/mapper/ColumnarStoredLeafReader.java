@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  * A {@link LeafReader} over a single {@link LuceneDocument} that serves doc values and stored fields
@@ -142,25 +143,14 @@ class ColumnarStoredLeafReader extends LeafReader {
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
         List<IndexableField> fields = fieldsByName.getOrDefault(field, List.of());
-        List<BytesRef> raw = new ArrayList<>();
+        // TreeSet gives sorted, deduplicated values matching Lucene's SortedSetDocValues ordinal convention.
+        TreeSet<BytesRef> distinct = new TreeSet<>();
         for (IndexableField f : fields) {
             if (f.fieldType().docValuesType() == DocValuesType.SORTED_SET) {
-                raw.add(f.binaryValue());
+                distinct.add(f.binaryValue());
             }
         }
-        // Lucene SortedSetDocValues: values sorted AND deduplicated; ordinals are sorted-distinct positions.
-        // This must match FieldArrayContext.encodeOffsetArray, which assigns ordinals via a TreeMap
-        // (sorted-distinct iteration order). Reconstruction in ValuesWithOffsetsDocValuesLoader
-        // indexes into ords[] of length docValueCount() (= distinct count), so failing to dedup
-        // would corrupt multi-valued arrays that contain duplicate values.
-        Collections.sort(raw);
-        List<BytesRef> distinct = new ArrayList<>(raw.size());
-        for (BytesRef v : raw) {
-            if (distinct.isEmpty() || distinct.get(distinct.size() - 1).equals(v) == false) {
-                distinct.add(v);
-            }
-        }
-        return sortedSetDocValues(distinct);
+        return sortedSetDocValues(new ArrayList<>(distinct));
     }
 
     // -------------------------------------------------------------------------

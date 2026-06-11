@@ -2878,10 +2878,11 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 
 SET unmapped_fields="load"\;
 FROM dense_vector_arithmetic, no_mapping_sample_data
-| keep id
-| rename id AS language_name
-| eval x = greatest(language_name, 4, -72)
+| KEEP id
+| RENAME id AS language_name
+| EVAL x = GREATEST(language_name, 4, -72)
 ;
+ignoreOrder:true
 
 language_name:long | x:long
 0                  | 4

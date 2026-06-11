@@ -66,6 +66,13 @@ setup:
 
 ---
 rename-punks:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -145,6 +152,13 @@ where-punks:
 
 ---
 stats-punks:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

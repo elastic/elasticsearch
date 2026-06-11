@@ -67,6 +67,13 @@ setup:
           - { "foo": "1"}
 ---
 'to_degrees on punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       catch: bad_request
       esql.query:
@@ -80,6 +87,13 @@ setup:
   - contains: { error.reason: 'line 1:70: [foo] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(foo)] does not accept [KEYWORD]' }
 ---
 'to_radians on punk field':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       catch: bad_request
       esql.query:
@@ -116,10 +130,16 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  #- contains: { error.reason: 'line 1:52: Cannot use field [foo] due to ambiguities being mapped as [3] incompatible types: [keyword] due to loading from _source, [double] in [index1], [long] in [index2]' }
   - contains: { error.reason: 'line 1:52: Cannot use field [foo] due to ambiguities being mapped as [5] incompatible types: [keyword] due to loading from _source, [aggregate_metric_double] in [index5], [double] in [index1], [long] in [index2], [text] in [index4]' }
 ---
 'text punk cannot be auto-cast':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       catch: bad_request
       esql.query:
@@ -133,6 +153,13 @@ setup:
   - contains: { error.reason: 'Using partially unmapped non-KEYWORD field [foo] is not supported with unmapped_fields="load"' }
 ---
 'aggregate_metric_double punk cannot be auto-cast':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+      reason: "requires auto-casting of two-legged PUNKs"
   - do:
       catch: bad_request
       esql.query:

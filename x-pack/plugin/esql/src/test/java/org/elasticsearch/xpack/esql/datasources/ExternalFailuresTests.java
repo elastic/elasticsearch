@@ -140,6 +140,36 @@ public class ExternalFailuresTests extends ESTestCase {
         );
     }
 
+    public void testStatusCarrierOutranksOuterDataException() {
+        // The ranking is global across the chain, not first-classifiable-node-wins: a status-carrying
+        // ElasticsearchException buried UNDER an IOException/IAE still pins the status. A breaker trip
+        // wrapped in a read IOException is a retryable 429 — not "your data is bad" (400).
+        var breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        var classifiedBreaking = ExternalFailures.classify(new IOException("read failed", breaking));
+        assertSame(breaking, classifiedBreaking);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(classifiedBreaking));
+
+        var unavailable = new ExternalUnavailableException("store 503", new IOException("io"));
+        var classifiedUnavailable = ExternalFailures.classify(new IllegalArgumentException("Failed to resolve metadata", unavailable));
+        assertSame(unavailable, classifiedUnavailable);
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(classifiedUnavailable));
+
+        var cancelled = new TaskCancelledException("cancelled");
+        assertSame(cancelled, ExternalFailures.classify(new IOException("interrupted read", cancelled)));
+    }
+
+    public void testAsUncheckedRethrowsError() {
+        var err = new AssertionError("fatal");
+        var thrown = expectThrows(AssertionError.class, () -> ExternalFailures.asUnchecked(err, "parsing failed"));
+        assertSame(err, thrown);
+    }
+
+    public void testNullMessageDataExceptionFallsBackToClassName() {
+        var classified = ExternalFailures.classify(new EOFException());
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertThat(classified.getMessage(), org.hamcrest.Matchers.containsString("EOFException"));
+    }
+
     public void testNonIoCausesStayServerException() {
         // The backstop must not over-trigger: a bug-class throwable whose chain holds no data-class cause is
         // still our fault (500). Guards against the cause-chain unwrap silently downgrading real bugs.

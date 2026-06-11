@@ -197,6 +197,14 @@ public class ExternalSourceResolver {
                         // malformed or undecodable source — keeps its 400 instead of the generic 500 below.
                         Throwable cause = ExternalFailures.unwrapAsync(e);
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, cause.getMessage(), cause);
+                        // A status-carrying ElasticsearchException anywhere in the chain keeps its status
+                        // (e.g. a 429 breaker trip, a 503 store outage) — wrapping it in the vanilla
+                        // ElasticsearchException below would flatten it to a 500.
+                        ElasticsearchException carrier = ExternalFailures.statusCarryingCause(e);
+                        if (carrier != null) {
+                            listener.onFailure(carrier);
+                            return;
+                        }
                         if (cause instanceof IllegalArgumentException iae) {
                             listener.onFailure(iae);
                             return;

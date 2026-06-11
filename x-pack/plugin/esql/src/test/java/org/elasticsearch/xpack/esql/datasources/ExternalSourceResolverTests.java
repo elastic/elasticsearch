@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -1349,6 +1351,39 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    /**
+     * Twin of {@link #testSchemaResolutionFailureSurfacesAs400ThroughCache} for a status-carrying failure:
+     * a circuit-breaker trip during schema resolution, wrapped by the cache in an
+     * {@link java.util.concurrent.ExecutionException}, must keep its 429 — not get re-wrapped in a vanilla
+     * {@code ElasticsearchException} whose status is 500.
+     */
+    public void testSchemaResolutionPreservesBuriedStatusCarrierThroughCache() throws Exception {
+        var breaking = new CircuitBreakingException("over", 10, 5, CircuitBreaker.Durability.TRANSIENT);
+        StubFormatReader breakingReader = new StubFormatReader(new HashMap<>()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                throw breaking;
+            }
+        };
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of(), new HashMap<>());
+
+        Settings settings = Settings.builder()
+            .put("esql.source.cache.size", "10mb")
+            .put("esql.source.cache.enabled", true)
+            .put("esql.source.cache.schema.ttl", "5m")
+            .put("esql.source.cache.listing.ttl", "30s")
+            .build();
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(settings)) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, breakingReader, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
+            resolver.resolve(List.of("s3://bucket/data/missing.parquet"), Map.of(), f);
+            Exception e = expectThrows(Exception.class, f::actionGet);
+            assertEquals("a buried 429 must keep its status, not flatten to 500", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
+        }
+    }
+
     public void testSingleFileCacheDisabledBypassesCache() throws Exception {
         List<Attribute> schema = List.of(attr("val", DataType.LONG));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
@@ -1670,8 +1705,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath,
         ExternalSourceCacheService cacheService
     ) {
-        StubFormatReader formatReader = new StubFormatReader(schemasByPath);
+        return createResolverWithCache(storageProvider, new StubFormatReader(schemasByPath), cacheService);
+    }
 
+    private ExternalSourceResolver createResolverWithCache(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        ExternalSourceCacheService cacheService
+    ) {
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
             public Set<String> supportedSchemes() {

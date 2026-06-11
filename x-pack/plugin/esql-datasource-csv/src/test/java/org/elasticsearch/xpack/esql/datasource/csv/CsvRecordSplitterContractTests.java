@@ -79,7 +79,12 @@ public class CsvRecordSplitterContractTests extends ESTestCase {
     }
 
     private static Case[] cases(int maxRecordBytes) {
-        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes) };
+        return new Case[] { quotedFieldsOnly(maxRecordBytes), bracketMvc(maxRecordBytes), newlineNoQuote(maxRecordBytes) };
+    }
+
+    private static Case newlineNoQuote(int maxRecordBytes) {
+        // The no-quote dialects' splitter honors the same boundary contract as its quote-aware siblings.
+        return new Case("newline-no-quote", () -> new NewlineRecordSplitter(maxRecordBytes));
     }
 
     private static Case quotedFieldsOnly(int maxRecordBytes) {

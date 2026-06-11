@@ -37,9 +37,6 @@ final class NewlineRecordSplitter implements RecordSplitter {
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
-        // The caller only cares about the byte offset of the terminator; for a lone CR the byte
-        // that follows may be consumed from the stream, but the caller discards the stream after
-        // this call so that is acceptable.
         InputStream in = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
         long consumed = 0;
         int b;
@@ -52,12 +49,18 @@ final class NewlineRecordSplitter implements RecordSplitter {
                 return consumed;
             }
             if (b == '\r') {
+                // Same peek discipline as the sibling splitters (CsvRecordSplitter, NdJsonRecordSplitter):
+                // a lone CR is a clean terminator and the peeked first byte of the next record is
+                // restored, so a caller that keeps reading the stream loses nothing.
+                in.mark(1);
                 int next = in.read();
                 if (next == '\n') {
                     consumed++;
                     return consumed > maxRecordBytes ? RECORD_TOO_LARGE : consumed;
                 }
-                // EOF or the first byte of the next record after a lone CR — a clean terminator.
+                if (next != -1) {
+                    in.reset();
+                }
                 return consumed;
             }
         }

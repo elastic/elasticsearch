@@ -47,7 +47,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         boolean doPrecondition,
         float overSampleFactor,
         String sliceField,
-        BytesRef sliceId
+        BytesRef... sliceId
     ) {
         super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, overSampleFactor, sliceField, sliceId);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);

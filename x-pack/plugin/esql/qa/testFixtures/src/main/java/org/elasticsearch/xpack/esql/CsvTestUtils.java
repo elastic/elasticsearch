@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
@@ -298,6 +299,10 @@ public final class CsvTestUtils {
             ),
             enabledCapabilities.capabilities().containsAll(requiredCapabilities)
         );
+    }
+
+    public static void checkPragma(Map<String, String> pragmaSettings) {
+        assertThat("Pragma not found, spelling mistake?", pragmaSettings.keySet(), everyItem(in(QueryPragmas.VALID_PRAGMA_NAMES)));
     }
 
     public static void assumeTrueLogging(String message, boolean condition) {

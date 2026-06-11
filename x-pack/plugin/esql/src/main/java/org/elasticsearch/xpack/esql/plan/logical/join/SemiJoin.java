@@ -119,15 +119,15 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         return false;
     }
 
-    // -- Hooks for SEMI / ANTI / LEFT_SEMI variation in the inlineData transformation. --
+    // -- Hooks for SEMI / ANTI / MARK variation in the inlineData transformation. --
     // The shared dedup pipeline calls these to build the terminal plan. SemiJoin's defaults
-    // implement IN. AntiJoin flips a couple of hooks for NOT IN. LeftSemiJoin (in OR-context
+    // implement IN. AntiJoin flips a couple of hooks for NOT IN. MarkJoin (in OR-context
     // rewrites) returns Eval-based plans that preserve every left row and produce a boolean
     // mark attribute with three-valued logic.
 
     /**
      * Build the terminal plan when the right side has zero rows. {@code x IN ()} ≡ FALSE for
-     * SEMI / LEFT_SEMI; {@code x NOT IN ()} ≡ TRUE for ANTI. LeftSemiJoin produces an Eval
+     * SEMI / MARK; {@code x NOT IN ()} ≡ TRUE for ANTI. MarkJoin produces an Eval
      * that sets the mark attribute to FALSE.
      */
     protected LogicalPlan buildEmptyRightSidePlan(Source source) {
@@ -139,7 +139,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * predicate to a constant for every left row. For SEMI this only fires when every right
      * value is NULL ({@code allRightNull == true}) and produces {@code Filter(FALSE)}.
      * For ANTI any NULL on the right is fatal, so it overrides {@link #shortCircuitOnAnyRightNull()}
-     * and likewise produces {@code Filter(FALSE)}. LeftSemiJoin does not short-circuit on any
+     * and likewise produces {@code Filter(FALSE)}. MarkJoin does not short-circuit on any
      * NULL — it keeps the row counts unchanged and emits {@code Eval($m = NULL)} when every
      * right value is NULL.
      */
@@ -154,7 +154,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * circuits to {@code Filter(FALSE)}. For SEMI the NULL stays in the dedup output for the
      * filter path ({@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE semantics) and
      * is stripped before constructing the {@link LocalRelation} on the hash-join path. For
-     * LEFT_SEMI the {@code rightHadNulls} flag is forwarded to the hash-join path's CASE
+     * MARK the {@code rightHadNulls} flag is forwarded to the hash-join path's CASE
      * expression; the filter path uses the NULL position in the dedup output directly.
      */
     protected boolean shortCircuitOnAnyRightNull() {
@@ -169,7 +169,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * {@code dedupKeys.isNull(0)} and is passed through for documentation / hash-join-path symmetry.
      * SEMI returns {@code Filter(In(...))}, ANTI returns {@code Filter(NOT In(...))} (ANTI never
      * reaches this path with {@code rightHadNulls = true} — it short-circuits earlier), and
-     * LeftSemiJoin builds an {@link Eval} whose IN list is the dedup positions verbatim, relying
+     * MarkJoin builds an {@link Eval} whose IN list is the dedup positions verbatim, relying
      * on {@link In}'s three-valued semantics to compute the mark.
      */
     protected LogicalPlan buildFilterPathPlan(
@@ -191,7 +191,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * Build the terminal plan for the large-dedup "hash-join" path. The deduplicated key
      * column has already been wrapped in a {@link LocalRelation} alongside a constant TRUE
      * sentinel column. SEMI/ANTI add a sentinel filter and Project that drops the right-side
-     * column; LeftSemiJoin instead computes the mark via a CASE expression and projects the
+     * column; MarkJoin instead computes the mark via a CASE expression and projects the
      * mark column out alongside the original left output.
      */
     protected LogicalPlan buildHashJoinPathPlan(
@@ -228,7 +228,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * Whether the hash-join path needs to drop NULL-keyed left rows before the join. SEMI/ANTI
      * filter on the sentinel after the join; ANTI in particular would otherwise keep NULL-keyed
      * rows (sentinel NULL → "no match") even though {@code NULL NOT IN (...)} should yield NULL.
-     * LEFT_SEMI keeps every left row and handles the NULL-key case explicitly inside the CASE
+     * MARK keeps every left row and handles the NULL-key case explicitly inside the CASE
      * expression that produces the mark, so it suppresses the filter.
      */
     protected boolean filterNullLeftKeysBeforeHashJoin() {
@@ -237,7 +237,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // SemiJoin/AntiJoin/LeftSemiJoin are built by InSubqueryResolver which always produces a
+        // SemiJoin/AntiJoin/MarkJoin are built by InSubqueryResolver which always produces a
         // single-field config (one left field, one right field). The Analyzer additionally
         // verifies that the subquery returns exactly one column. inlineData reads leftFields().get(0)
         // unconditionally, so a multi-field config would silently use only the first pair —
@@ -342,7 +342,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      *             the hash-join path strips it from the {@link LocalRelation}.</li>
      *         <li>ANTI: any NULL on the right makes the predicate non-TRUE for every row, so we
      *             short-circuit to {@code Filter(FALSE)} immediately after the dedup.</li>
-     *         <li>LEFT_SEMI: keeps {@code rightHadNulls} only as a hint for the hash-join path's
+     *         <li>MARK: keeps {@code rightHadNulls} only as a hint for the hash-join path's
      *             CASE expression — the filter path uses the NULL position in the dedup output
      *             directly to drive {@link In}'s three-valued mark.</li>
      *       </ul>
@@ -350,7 +350,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      *   <li><b>Left side (hash-join path only):</b> insert {@code Eval(svKey =
      *       MvSingleValueOrNull(leftField))} and (for SEMI/ANTI) {@code Filter(IsNotNull(svKey))}
      *       above {@code semiJoin.left()} so NULL-keyed and MV-keyed left rows can never reach
-     *       the lookup. LEFT_SEMI keeps the SV guard but skips the IsNotNull filter so MV/NULL
+     *       the lookup. MARK keeps the SV guard but skips the IsNotNull filter so MV/NULL
      *       left rows survive into the output with the CASE-driven mark.</li>
      * </ul>
      * <p>
@@ -374,7 +374,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         BlockFactory blockFactory,
         AtomicReference<Page> pageHolder
     ) {
-        // InSubqueryResolver always produces single-field SemiJoin/AntiJoin/LeftSemiJoin configs,
+        // InSubqueryResolver always produces single-field SemiJoin/AntiJoin/MarkJoin configs,
         // and the Analyzer enforces a single-column subquery output. This method reads
         // leftFields().get(0) unconditionally — assert the contract here so a programmatic
         // misuse trips an assertion rather than silently using only the first field pair.
@@ -436,7 +436,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
             boolean allRightNull = rightHadNulls && dedupPositions == 1;
             if (allRightNull || (rightHadNulls && semiJoin.shortCircuitOnAnyRightNull())) {
                 // ANTI: any NULL on the right is fatal regardless of other values. SEMI: only
-                // fatal when every value is NULL/MV (no candidate match key remains). LEFT_SEMI:
+                // fatal when every value is NULL/MV (no candidate match key remains). MARK:
                 // never short-circuits on a NULL alone, but routes the all-NULL case through
                 // {@link #buildShortCircuitPlan} so the mark becomes a constant NULL.
                 releaseSourcePage(pageHolder);
@@ -459,7 +459,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
             // {@code areAllValuesNull} fast path, which would route a NULL left key to the same
             // group 0 the NULL right occupies — i.e. {@code null = null} would match, which is
             // wrong for SQL {@code =}. SEMI's left-side {@link IsNotNull} guard already prevents
-            // this in practice; LEFT_SEMI does not have that guard (NULL left keys must survive
+            // this in practice; MARK does not have that guard (NULL left keys must survive
             // into the output with mark=NULL via the CASE), so stripping here is what keeps the
             // {@code null = null} branch unreachable. ANTI short-circuits earlier on
             // {@code rightHadNulls} and never reaches this branch.
@@ -526,7 +526,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * Wraps the already-deduplicated key block from {@code dedupKeys[0]} into a {@link LocalRelation}
      * with a sentinel TRUE column, builds a LEFT {@link Join} on the original join keys, and delegates
      * to {@link #buildHashJoinPathPlan} for the join-type-specific terminal shape (sentinel filter +
-     * Project for SEMI / ANTI; CASE-Eval for LEFT_SEMI). On success {@code dedupKeys[0]} is set to
+     * Project for SEMI / ANTI; CASE-Eval for MARK). On success {@code dedupKeys[0]} is set to
      * {@code null} so the caller's cleanup doesn't double-release the key block now owned by the new
      * page. See {@link #inlineData} for SQL NULL semantics.
      */
@@ -591,9 +591,9 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
         // Drop NULL/MV-keyed left rows before the LEFT join so the runtime BlockHash lookup can
         // never spuriously match `null = null` against a NULL group on the right side, and to
         // mirror the filter path's behavior of dropping MV-LHS rows for SEMI/ANTI (where In and
-        // Not(In) return NULL → treated as FALSE under WHERE). LEFT_SEMI suppresses this filter
+        // Not(In) return NULL → treated as FALSE under WHERE). MARK suppresses this filter
         // so that NULL-keyed and MV-keyed rows survive into the output with their mark set to
-        // NULL by the CASE expression in {@link LeftSemiJoin#buildHashJoinPathPlan}.
+        // NULL by the CASE expression in {@link MarkJoin#buildHashJoinPathPlan}.
         if (semiJoin.filterNullLeftKeysBeforeHashJoin()) {
             for (Attribute svKey : svGuardedLeftFields) {
                 leftSide = new Filter(source, leftSide, new IsNotNull(source, svKey));

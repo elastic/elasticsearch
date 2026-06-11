@@ -90,9 +90,8 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetSearchContextCounters() throws Exception {
         try {
             // Tests that skip via assumeTrue before starting a node leave the cluster empty;
             // the persistent setting reset would then fail with "no node found".
@@ -106,7 +105,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
             SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
-            super.tearDown();
         }
     }
 

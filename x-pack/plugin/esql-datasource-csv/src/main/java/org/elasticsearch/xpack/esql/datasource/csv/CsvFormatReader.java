@@ -447,7 +447,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
         }
         if (escapeSet && dialect.usesEscape() == false) {
-            throw new IllegalArgumentException("the [plain] dialect does not use an escape character; use dialect [quoted] or [escaped]");
+            throw new IllegalArgumentException(
+                "the ["
+                    + dialect.name().toLowerCase(Locale.ROOT)
+                    + "] dialect does not use an escape character; use dialect [quoted] or [escaped]"
+            );
         }
         char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
         char quoteChar = parseChar(config.get(CONFIG_QUOTE), baseline.quoteChar());

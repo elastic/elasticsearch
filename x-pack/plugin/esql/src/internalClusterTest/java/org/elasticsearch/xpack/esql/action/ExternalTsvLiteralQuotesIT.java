@@ -165,9 +165,9 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         /** Every row has an even number of literal mid-field quotes. */
         DENSE,
         /**
-         * Every 100th row's field STARTS with a literal {@code "} — the elastic/esql-planning#896
-         * ClickBench shape. A quoting dialect opens an unclosed quoted field here and glues records
-         * to the size cap; the plain {@code .tsv} baseline reads the quote as data.
+         * Every 100th row's field STARTS with a literal {@code "} — the ClickBench TSV shape. A
+         * quoting dialect opens an unclosed quoted field here and glues records to the size cap;
+         * the plain {@code .tsv} baseline reads the quote as data.
          */
         FIELD_LEADING
     }

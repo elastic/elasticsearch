@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -102,6 +103,23 @@ public class CsvDialectReadTests extends ESTestCase {
         assertEquals("value", values.get(0).get(1));
     }
 
+    /**
+     * {@code escaped} + a custom {@code null_value}: the two null routes stay consistent — a field
+     * equal to {@code null_value} nulls via the tokenizer before the decode runs, and a whole-field
+     * {@code \N} nulls via the decode. Both must land on null in the same read.
+     */
+    public void testEscapedWithCustomNullValueKeepsBothNullRoutes() throws IOException {
+        String tsv = """
+            a:keyword\tb:keyword\tc:keyword
+            NULL\t\\N\tvalue
+            """;
+        List<List<String>> values = readAll(tsvReader(Map.of("dialect", "escaped", "null_value", "NULL")), tsv);
+        assertEquals(1, values.size());
+        assertNull(values.get(0).get(0)); // null_value match — tokenizer route
+        assertNull(values.get(0).get(1)); // \N — decode route
+        assertEquals("value", values.get(0).get(2));
+    }
+
     /** {@code escaped} is still a no-quote dialect: a field-leading {@code "} is data, rows never glue. */
     public void testEscapedFieldLeadingQuoteIsData() throws IOException {
         String tsv = """
@@ -139,8 +157,9 @@ public class CsvDialectReadTests extends ESTestCase {
     }
 
     /**
-     * The elastic/esql-planning#896 shape under the DEFAULT {@code .tsv} configuration — no dialect
-     * option supplied. A field-leading {@code "} is data; rows never glue and the count is exact.
+     * The original ClickBench failure shape under the DEFAULT {@code .tsv} configuration — no
+     * dialect option supplied. A field-leading {@code "} is data; rows never glue and the count is
+     * exact.
      */
     public void testDefaultTsvFieldLeadingQuoteReadsExactRows() throws IOException {
         StringBuilder tsv = new StringBuilder("id:keyword\tnote:keyword\n");
@@ -161,10 +180,7 @@ public class CsvDialectReadTests extends ESTestCase {
         assertEquals(data.length - 1, splitter.findLastRecordBoundary(data, 0, data.length));
 
         byte[] oversized = ("x".repeat(40) + "\n").getBytes(StandardCharsets.UTF_8);
-        assertEquals(
-            org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter.RECORD_TOO_LARGE,
-            splitter.findNextRecordBoundary(new ByteArrayInputStream(oversized))
-        );
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(oversized)));
     }
 
     // ---- harness ----

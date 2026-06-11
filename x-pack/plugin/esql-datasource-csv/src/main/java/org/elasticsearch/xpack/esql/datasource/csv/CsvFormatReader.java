@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -1492,7 +1493,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 eof = next == null;
                 return eof == false;
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                // UncheckedIOException, not RuntimeException: ExternalFailures.classify keys on the
+                // surfaced type, and burying the IOException turns a malformed-input 400 into a 500.
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -1663,7 +1666,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 return true;
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read CSV batch", e);
+                // UncheckedIOException, not RuntimeException: ExternalFailures.classify keys on the
+                // surfaced type, and burying the IOException turns a malformed-input 400 into a 500.
+                throw new UncheckedIOException("Failed to read CSV batch", e);
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;

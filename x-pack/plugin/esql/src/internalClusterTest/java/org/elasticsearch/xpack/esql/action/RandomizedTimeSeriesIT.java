@@ -632,7 +632,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS count(<DELTAGG>(metrics.<METRIC>)),
@@ -745,7 +745,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var metricName = ESTestCase.randomFrom(List.of("gaugel_hdd.bytes.used", "gauged_cpu.percent"));
         var selectedAggs = ESTestCase.randomSubsetOf(2, Agg.values());
         var aggExpression = String.format(
@@ -817,7 +817,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
-        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        var dimensionsStr = dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS

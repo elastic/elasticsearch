@@ -62,9 +62,12 @@ GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
 echo "--- Running gradle tasks"
 if ! command -v java > /dev/null; then
-  if [[ "${JAVA_HOME:-}" ]]; then
-    export PATH="$JAVA_HOME/bin:$PATH"
+  if [[ "${ES_BUILD_JAVA:-}" == "" ]]; then
+    export $(cat .ci/java-versions.properties | grep '=' | xargs)
   fi
+
+  PATH="$HOME/.java/$ES_BUILD_JAVA/bin:$PATH"
+  export PATH
 fi
 
 which java

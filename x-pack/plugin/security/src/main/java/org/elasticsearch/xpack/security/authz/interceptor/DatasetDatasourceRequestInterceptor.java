@@ -19,8 +19,11 @@ import static org.elasticsearch.xpack.core.security.support.Exceptions.authoriza
 import static org.elasticsearch.xpack.security.authz.RBACEngine.maybeGetRBACEngineRole;
 
 /**
- * Authorizes {@code global.data_source} for {@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME} when the request
- * advertises a separate datasource cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}.
+ * Authorizes {@code global.data_source} for {@link EsqlDatasetActionNames#ESQL_PUT_DATASET_ACTION_NAME} and
+ * {@link EsqlDatasetActionNames#ESQL_RESOLVE_DATASET_ACTION_NAME} when the request advertises a separate datasource
+ * cluster action via {@link DataSourceRequestInfo#dataSourceClusterActionName()}. PUT and the query-path read resolve
+ * thus enforce the same dual-axis model: the standard filter checks the index privilege on the dataset name, this
+ * interceptor checks {@code global.data_source} on the parent datasource.
  */
 public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
 
@@ -31,7 +34,7 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof DataSourceRequestInfo dsi
-            && EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(requestInfo.getAction())
+            && appliesToAction(requestInfo.getAction(), dsi)
             && dsi.dataSourceClusterActionName().equals(requestInfo.getAction()) == false) {
             Role role = maybeGetRBACEngineRole(authorizationInfo);
             // Custom AuthorizationEngine implementations do not use RBAC Role; datasource policy is enforced there instead.
@@ -47,5 +50,16 @@ public class DatasetDatasourceRequestInterceptor implements RequestInterceptor {
             }
         }
         return SubscribableListener.nullSuccess();
+    }
+
+    private static boolean appliesToAction(String action, DataSourceRequestInfo dsi) {
+        if (EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME.equals(action)) {
+            return true;
+        }
+        // The read-path resolve runs after the security filter replaced the request indices with the authorized
+        // resolution, so dataSourceNames() holds the parent datasources of exactly the surviving datasets. Empty
+        // means no dataset survived (or none was targeted) — nothing to authorize, unlike PUT where the single
+        // datasource is always present.
+        return EsqlDatasetActionNames.ESQL_RESOLVE_DATASET_ACTION_NAME.equals(action) && dsi.dataSourceNames().length > 0;
     }
 }

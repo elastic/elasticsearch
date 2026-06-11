@@ -18,4 +18,12 @@ public class EsqlDatasetActionNames {
     public static final String ESQL_PUT_DATASET_ACTION_NAME = "indices:admin/esql/dataset/put";
     public static final String ESQL_GET_DATASET_ACTION_NAME = "indices:admin/esql/dataset/get";
     public static final String ESQL_DELETE_DATASET_ACTION_NAME = "indices:admin/esql/dataset/delete";
+
+    /**
+     * Read-side resolve action for {@code FROM <dataset>}. Routes the dataset names of an ES|QL query through the
+     * security filter (a read on the name, mirroring {@code indices:data/read/esql/resolve_views} for views) before
+     * the query-path rewrite replaces them with external relations. Also the trigger for the {@code global.data_source}
+     * read check on the parent datasource of each resolved dataset (see {@link #ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME}).
+     */
+    public static final String ESQL_RESOLVE_DATASET_ACTION_NAME = "indices:data/read/esql/resolve_datasets";
 }

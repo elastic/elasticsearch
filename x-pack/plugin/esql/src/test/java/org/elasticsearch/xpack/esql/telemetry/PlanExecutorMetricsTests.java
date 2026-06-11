@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -234,6 +235,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
+                    new DatasetResolver(null, null),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
@@ -271,6 +273,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
+                    new DatasetResolver(null, null),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
@@ -613,6 +616,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 queryClusterSettings(),
                 mockEnrichResolver(),
                 viewService.getViewResolver(),
+                new DatasetResolver(null, null),
                 executionInfo,
                 groupIndicesByCluster,
                 runPhase,

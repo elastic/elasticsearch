@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,12 +54,67 @@ public final class DatasetRewriter {
 
     private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
-    /** Built from {@link IndexResolver#DEFAULT_OPTIONS}; only delta is {@code resolveDatasets(true)}. */
-    private static final IndicesOptions REWRITER_OPTIONS = IndicesOptions.builder(IndexResolver.DEFAULT_OPTIONS)
+    /**
+     * Built from {@link IndexResolver#DEFAULT_OPTIONS}; only delta is {@code resolveDatasets(true)}. Shared with
+     * {@link org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction.Request} so the security filter resolves the
+     * same patterns with the same semantics this rewriter then applies. {@code ALLOW_UNAVAILABLE_TARGETS} is what makes
+     * an unauthorized explicit dataset name indistinguishable from a missing one (filtered, not 403) — mirroring how
+     * unauthorized indices and views behave in FROM.
+     */
+    public static final IndicesOptions RESOLVER_OPTIONS = IndicesOptions.builder(IndexResolver.DEFAULT_OPTIONS)
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
         .build();
 
     private DatasetRewriter() {}
+
+    /**
+     * The FROM patterns of {@code parsed} that could resolve to a registered dataset — the patterns that must be
+     * read-authorized via {@code EsqlResolveDatasetAction} before {@link #rewrite} strips the dataset names from the
+     * plan. Empty means no dataset can be involved and the authorization round-trip can be skipped entirely (the
+     * common, no-datasets path). Applies the same short-circuits {@link #rewrite} does: no project metadata, no
+     * registered datasets (the feature-flag off-switch), remote patterns (datasets are local-only; CCS relations are
+     * never rewritten).
+     */
+    public static List<String> candidatePatterns(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+        if (projectMetadata == null) {
+            return List.of();
+        }
+        Set<String> datasetNames = DatasetMetadata.get(projectMetadata).datasets().keySet();
+        if (datasetNames.isEmpty()) {
+            return List.of();
+        }
+        // LinkedHashSet: dedup across relations while preserving pattern order within each relation, so
+        // exclusion semantics ("ds*,-ds_foo") survive the union. Relations are concatenated; an exclusion
+        // from one relation can in principle shadow an inclusion from another, but FROM lists mixing the
+        // same dataset positively and negatively across subplans have no defined precedence anyway.
+        Set<String> candidates = new LinkedHashSet<>();
+        parsed.forEachUp(UnresolvedRelation.class, r -> {
+            List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(r.indexPattern().indexPattern()));
+            for (String pattern : patterns) {
+                if (RemoteClusterAware.isRemoteIndexName(pattern)) {
+                    return;
+                }
+            }
+            if (anyPatternCouldMatchDataset(patterns, datasetNames)) {
+                candidates.addAll(patterns);
+            }
+        });
+        return List.copyOf(candidates);
+    }
+
+    /**
+     * Registered dataset name → parent datasource name, for {@code EsqlResolveDatasetAction.Request}. The full
+     * registered map, not just pattern matches: the request derives {@code dataSourceNames()} from the intersection
+     * with its post-resolution indices, so extra entries are never consulted, and a static pattern pre-match here
+     * could under-approximate (date math) and silently skip the datasource check.
+     */
+    public static Map<String, String> datasetToDataSourceMap(ProjectMetadata projectMetadata) {
+        Map<String, String> map = new HashMap<>();
+        for (var entry : DatasetMetadata.get(projectMetadata).datasets().entrySet()) {
+            map.put(entry.getKey(), entry.getValue().dataSource().getName());
+        }
+        return map;
+    }
 
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} whose pattern resolves to
@@ -73,8 +129,19 @@ public final class DatasetRewriter {
      * {@code UnionAll} branch-cap exceeded. Designed to run once on the parsed plan before
      * pre-analysis (so the analyzer sees a uniform {@code UnresolvedExternalRelation} tree
      * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).
+     *
+     * @param authorizedDatasets the dataset names the principal may read, from
+     *                           {@code EsqlResolveDatasetAction} (on an unsecured cluster: all that resolve). A dataset
+     *                           outside this set is treated as nonexistent — skipped under a wildcard, and rejected
+     *                           with the standard {@code Unknown index} error when named explicitly — mirroring how
+     *                           security hides unauthorized indices and views from FROM.
      */
-    public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
+    public static LogicalPlan rewrite(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        Set<String> authorizedDatasets
+    ) {
         if (projectMetadata == null) {
             return parsed;
         }
@@ -86,7 +153,7 @@ public final class DatasetRewriter {
         IndexAbstractionResolver resolver = new IndexAbstractionResolver(iner);
         return parsed.transformUp(
             UnresolvedRelation.class,
-            r -> rewriteOne(r, projectMetadata, datasetMetadata, dataSourceMetadata, resolver)
+            r -> rewriteOne(r, projectMetadata, datasetMetadata, dataSourceMetadata, resolver, authorizedDatasets)
         );
     }
 
@@ -95,7 +162,8 @@ public final class DatasetRewriter {
         ProjectMetadata projectMetadata,
         DatasetMetadata datasets,
         DataSourceMetadata dataSources,
-        IndexAbstractionResolver resolver
+        IndexAbstractionResolver resolver,
+        Set<String> authorizedDatasets
     ) {
         List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
 
@@ -112,14 +180,27 @@ public final class DatasetRewriter {
         }
 
         Map<String, IndexAbstraction> indicesLookup = projectMetadata.getIndicesLookup();
+        // Expansion is name-matching only — the read authorization happened in EsqlResolveDatasetAction
+        // (whose result is authorizedDatasets) and is enforced in the classification loop below, where
+        // explicit-vs-wildcard provenance is still known.
         var resolved = resolver.resolveIndexAbstractions(
             patterns,
-            REWRITER_OPTIONS,
+            RESOLVER_OPTIONS,
             projectMetadata,
             componentSelector -> indicesLookup.keySet(),
             (name, selector) -> true,
             true
         );
+
+        // Explicitly named targets (positive, non-wildcard, date math resolved): an unauthorized dataset
+        // named explicitly must error like a missing index, not silently drop from a multi-target FROM.
+        Set<String> explicitNames = new LinkedHashSet<>();
+        for (String pattern : patterns) {
+            if (pattern.isEmpty() || pattern.charAt(0) == '-' || Regex.isSimpleMatchPattern(pattern)) {
+                continue;
+            }
+            explicitNames.add(IndexNameExpressionResolver.resolveDateMathExpression(pattern));
+        }
 
         List<String> datasetNames = new ArrayList<>();
         List<String> nonDatasetNames = new ArrayList<>();
@@ -131,7 +212,14 @@ public final class DatasetRewriter {
                 continue;
             }
             if (abs.getType() == IndexAbstraction.Type.DATASET) {
-                datasetNames.add(name);
+                if (authorizedDatasets.contains(name)) {
+                    datasetNames.add(name);
+                } else if (explicitNames.contains(name)) {
+                    // Same error an unauthorized (or missing) index/view produces — no existence oracle.
+                    throw new VerificationException("Unknown index [" + name + "]");
+                }
+                // else: matched by a wildcard the principal can't read it under — invisible, like an
+                // unauthorized index in wildcard expansion.
             } else {
                 nonDatasetNames.add(name);
             }

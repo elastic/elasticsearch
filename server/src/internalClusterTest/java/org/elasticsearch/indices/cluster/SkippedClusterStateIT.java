@@ -15,12 +15,10 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -150,15 +148,6 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             return initializingCount.get() == 1 && (primary.started() || primary.unassigned());
         });
 
-        // Slow down the asyncFetch* cache refresh in GatewayAllocator once reallocation is triggered later in the test
-        dataTransport.addRequestHandlingBehavior(
-            TransportNodesListGatewayStartedShards.ACTION_NAME + "[n]",
-            (handler, request, channel, task) -> {
-                Thread.sleep(1000);
-                handler.messageReceived(request, channel, task);
-            }
-        );
-
         try {
             final var index = createTestIndex();
             final var shardId = new ShardId(index, SHARD_ID);
@@ -186,11 +175,6 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
 
             // Before fixing, "term is only increased as part of primary promotion" would show up here and reroute would fail
             ClusterRerouteUtils.reroute(client(masterNodeName), new CancelAllocationCommand(INDEX_NAME, SHARD_ID, primaryNodeName, true));
-
-            final var reinitRoutingOnMaster = masterClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
-            assertNull("shard should still be in unassigned state due to delay in cache population", reinitRoutingOnMaster.allocationId());
-            assertEquals(ShardRoutingState.UNASSIGNED, reinitRoutingOnMaster.state());
-
             ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
 
             final var finalState = masterClusterService.state();

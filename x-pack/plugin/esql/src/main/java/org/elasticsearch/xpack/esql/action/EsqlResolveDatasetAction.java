@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -131,11 +130,9 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
 
         @Override
         public String[] dataSourceNames() {
-            if (indices == null) {
-                // Unreachable in the current flow (the constructor always sets indices and the security
-                // filter replaces with a non-null array) — purely defensive against contract drift.
-                return Strings.EMPTY_ARRAY;
-            }
+            // The constructor always sets indices and the security filter replaces with a non-null array.
+            // Returning empty on null would silently skip the datasource check downstream — fail loudly instead.
+            assert indices != null;
             return Arrays.stream(indices).map(datasetToDataSource::get).filter(Objects::nonNull).distinct().toArray(String[]::new);
         }
 

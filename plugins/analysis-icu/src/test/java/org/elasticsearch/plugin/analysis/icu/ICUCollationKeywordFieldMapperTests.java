@@ -12,7 +12,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RawCollationKey;
 import com.ibm.icu.util.ULocale;
 
-import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -26,7 +25,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -395,23 +393,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
-        // icu_collation_keyword produces a skipper only in strict columnar mode (see testColumnarModeUsesDocValuesSkipper), not via the
-        // generic index:false standard-skipper pathway exercised by MapperTestCase#testDocValuesSkippers.
         return false;
-    }
-
-    public void testColumnarModeUsesDocValuesSkipper() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", FIELD_TYPE))).documentMapper();
-
-        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
-        assertThat(fieldMapper.fieldType().indexType(), equalTo(IndexType.skippers()));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "foo")));
-        IndexableField f = doc.rootDoc().getField("field");
-        assertThat(f.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET));
-        assertThat(f.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
-        assertThat(f.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
     }
 }

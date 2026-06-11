@@ -17,8 +17,6 @@ import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.DocValuesSkipIndexType;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -73,17 +71,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
-    }
-
-    /**
-     * Doc values field type used in strict columnar mode: SORTED_SET doc values carrying a range skipper, with no inverted index.
-     */
-    private static final FieldType DOC_VALUES_WITH_SKIP_TYPE = new FieldType();
-
-    static {
-        DOC_VALUES_WITH_SKIP_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
-        DOC_VALUES_WITH_SKIP_TYPE.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
-        DOC_VALUES_WITH_SKIP_TYPE.freeze();
     }
 
     public static final class CollationFieldType extends StringFieldType {
@@ -303,7 +290,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         );
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
-        private final IndexSettings indexSettings;
+        private final boolean indexDisabledByDefault;
         private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
 
@@ -313,8 +300,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         public Builder(String name, IndexMode indexMode, IndexSortConfig indexSortConfig, boolean indexDisabledByDefault) {
             super(name);
-            indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
-            this.indexSettings = indexSettings;
+            indexed = Parameter.indexParam(m -> toType(m).indexed, indexDisabledByDefault == false);
+            this.indexDisabledByDefault = indexDisabledByDefault;
             this.indexMode = indexMode;
             this.indexSortConfig = indexSortConfig;
             this.docValuesPameters = DocValuesParameter.ofWithCardinality(
@@ -399,20 +386,9 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             final DocValuesParameter.Values docValuesParams = docValuesPameters.getValue();
-            final IndexType indexType;
-            if (indexed.get() == false
-                && docValuesParams.enabled()
-                && usesBinaryDocValues(docValuesParams) == false
-                && Parameter.useColumnarDocValuesSkippers(indexSettings)) {
-                // In strict columnar mode the inverted index is dropped by default in favor of a doc values skipper over the
-                // SORTED_SET collation keys. The high-cardinality (binary doc values) path cannot carry a skipper.
-                indexType = IndexType.skippers();
-            } else {
-                indexType = IndexType.terms(indexed.get(), docValuesParams.enabled());
-            }
             CollationFieldType ft = new CollationFieldType(
                 context.buildFullName(leafName()),
-                indexType,
+                IndexType.terms(indexed.get(), docValuesParams.enabled()),
                 stored.getValue(),
                 collator,
                 nullValue.getValue(),
@@ -553,7 +529,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final String indexOptions;
     private final DocValuesParameter.Values docValuesParams;
-    private final IndexSettings indexSettings;
+    private final boolean indexDisabledByDefault;
     private final IndexMode indexMode;
     private final IndexSortConfig indexSortConfig;
 
@@ -576,7 +552,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         this.indexed = builder.indexed.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.docValuesParams = builder.docValuesPameters.getValue();
-        this.indexSettings = builder.indexSettings;
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
         this.indexMode = indexMode;
         this.indexSortConfig = builder.indexSortConfig;
     }
@@ -635,9 +611,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         if (docValuesParams.enabled()) {
             if (fieldType().usesBinaryDocValues()) {
                 MultiValuedBinaryDocValuesField.SeparateCount.addToBinaryFieldInDoc(context.doc(), fieldType().name(), binaryValue);
-            } else if (fieldType().indexType().hasDocValuesSkipper()) {
-                // Strict columnar mode: SORTED_SET doc values with a range skipper and no inverted index.
-                context.doc().add(new Field(fieldType().name(), binaryValue, DOC_VALUES_WITH_SKIP_TYPE));
             } else {
                 context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
             }

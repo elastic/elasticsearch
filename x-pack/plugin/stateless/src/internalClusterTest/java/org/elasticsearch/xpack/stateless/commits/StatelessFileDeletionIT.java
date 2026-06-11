@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import java.io.IOException;
@@ -1045,7 +1046,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
     public void testDeleteIndexAfterRecovery() throws Exception {
         startMasterOnlyNode();
-        final var indexNodeA = startIndexNode();
+        // This test exposes a race between index deletion and relocation described in #150474.
+        // In production commit files are eventually deleted by `StaleIndicesGCService` so we enable it in the test too.
+        final var indexNodeSettings = nodeSettings().put(ObjectStoreGCTask.GC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .build();
+
+        final var indexNodeA = startIndexNode(indexNodeSettings);
         final var searchNodeA = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -1053,7 +1059,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var totalIndexedDocs = indexDocsAndFlush(indexName);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
 
-        startIndexNode();
+        startIndexNode(indexNodeSettings);
         startSearchNode();
         ensureStableCluster(5);
         final var excludeIndexOrSearchNode = randomBoolean();

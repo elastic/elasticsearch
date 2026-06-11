@@ -12,8 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
-import java.util.List;
-
 public class VectorScorerInt8BulkBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;

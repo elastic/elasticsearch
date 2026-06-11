@@ -1597,7 +1597,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Value decode for the {@code escaped} dialect (ClickHouse {@code TabSeparated} / MySQL
      * {@code LOAD DATA} / PostgreSQL {@code COPY} text semantics): a whole-field {@code \N} is null
-     * and {@code \}-sequences un-escape C-style. Identity for the other dialects, and lazy — a field
+     * and {@code \}-sequences un-escape C-style — the named cases {@code \t \n \r \0 \b \f} are
+     * exactly ClickHouse's output escape set, and any other {@code \c} is {@code c} (its parse
+     * rule). Identity for the other dialects, and lazy — a field
      * without the escape character (the overwhelmingly common case) is returned as-is, so the decode
      * stays off the hot path. Boundary scanning is untouched by design: an in-field tab/newline is
      * the two bytes {@code \}+{@code t}/{@code n} on disk, so raw terminators remain unambiguous.

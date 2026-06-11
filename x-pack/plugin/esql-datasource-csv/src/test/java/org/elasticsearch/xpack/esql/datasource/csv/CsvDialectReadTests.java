@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -181,6 +182,20 @@ public class CsvDialectReadTests extends ESTestCase {
 
         byte[] oversized = ("x".repeat(40) + "\n").getBytes(StandardCharsets.UTF_8);
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(oversized)));
+    }
+
+    /**
+     * A lone-CR boundary restores the peeked byte: reading the NEXT record through the SAME stream
+     * starts at the first byte after the CR, so nothing is dropped. (The stream is passed as a
+     * {@link BufferedInputStream} because the splitter only reuses an already-buffered stream —
+     * a fresh wrapper per call would discard the wrapper's read-ahead between calls.)
+     */
+    public void testNewlineSplitterLoneCrRestoresPeekedByte() throws IOException {
+        NewlineRecordSplitter splitter = new NewlineRecordSplitter(32);
+        byte[] data = "a\rb\n".getBytes(StandardCharsets.UTF_8);
+        InputStream stream = new BufferedInputStream(new ByteArrayInputStream(data));
+        assertEquals(2L, splitter.findNextRecordBoundary(stream)); // "a\r"
+        assertEquals(2L, splitter.findNextRecordBoundary(stream)); // "b\n" — the peeked 'b' was pushed back
     }
 
     // ---- harness ----

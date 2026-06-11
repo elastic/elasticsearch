@@ -69,6 +69,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TStep.class)
         .quaternaryConfig(TStep::new)
+        .capabilities("implicit_timestamp")
         .name(NAME.toLowerCase(Locale.ROOT));
 
     private final Configuration configuration;
@@ -295,9 +296,16 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             return resolution;
         }
 
-        return resolution.and(
+        var boundsResolution = resolution.and(
             isStringOrDateBound(Objects.requireNonNull(from), SECOND).and(isStringOrDateBound(Objects.requireNonNull(to), THIRD))
         );
+        if (boundsResolution.unresolved()) {
+            return boundsResolution;
+        }
+        if (from.foldable() == false || to.foldable() == false) {
+            return new TypeResolution("[" + sourceText() + "] `from` and `to` must be constants");
+        }
+        return boundsResolution;
     }
 
     @Override

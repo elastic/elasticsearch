@@ -41,8 +41,22 @@ public final class ExternalStatsCapture {
      */
     private static final ThreadLocal<Coverage> ACTIVE_COVERAGE = new ThreadLocal<>();
 
-    /** The file byte-range a chunk/segment observed, in that path's read coordinate system. */
-    public record Coverage(long start, long end, boolean last) {}
+    /**
+     * The file byte-range a chunk/segment observed, in that path's read coordinate system.
+     * <p>
+     * {@code stripeSize} > 0 marks the range as canonical-stripe addressed: the producing
+     * segmentator cut chunks at stripe boundaries (first record boundary at-or-after each
+     * {@code k*stripeSize} line), so this range nests within exactly one stripe and the reconciler
+     * may derive its stripe ordinal as {@code floor(start / stripeSize)}. {@code stripeHead} marks a
+     * range that starts exactly at a stripe cut (or offset 0) — the proof anchor for per-stripe
+     * completeness. {@code stripeSize <= 0} (the 3-arg form) = not stripe-addressed; such
+     * contributions are never cached.
+     */
+    public record Coverage(long start, long end, boolean last, long stripeSize, boolean stripeHead) {
+        public Coverage(long start, long end, boolean last) {
+            this(start, end, last, -1L, false);
+        }
+    }
 
     private ExternalStatsCapture() {}
 
@@ -74,6 +88,10 @@ public final class ExternalStatsCapture {
                 stamped.put(ExternalStats.COVERAGE_START_KEY, coverage.start());
                 stamped.put(ExternalStats.COVERAGE_END_KEY, coverage.end());
                 stamped.put(ExternalStats.COVERAGE_IS_LAST_KEY, coverage.last());
+                if (coverage.stripeSize() > 0) {
+                    stamped.put(ExternalStats.STRIPE_SIZE_KEY, coverage.stripeSize());
+                    stamped.put(ExternalStats.STRIPE_HEAD_KEY, coverage.stripeHead());
+                }
             }
             Map<String, Object> contribution = stamped;
             sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(contribution);

@@ -511,34 +511,10 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconcilePartialChunksWithoutCompleteCoverNotCached() throws Exception {
-        // Partials that do not tile [0, end) with a flagged tail (here: a single [0,40) range that
-        // never observed end-of-input) are an incomplete cover — committing their sum would
-        // under-count COUNT(*). The reconciler leaves the entry un-enriched so the warm query
-        // re-scans rather than serving a wrong count.
-        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
-            String path = "file:///data/employees.csv";
-            long mtime = 1000L;
-            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
-            seedSchemaCache(service, key, path, "fp");
-
-            Map<String, Object> partialA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
-            Map<String, Object> partialB = coveredChunk(mtime, "fp", 60L, 40, 100, false); // no range flagged last
-
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
-
-            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
-            assertEquals(
-                "an incomplete cover must leave the seeded entry untouched",
-                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
-                untouched.safeMetadata()
-            );
-        }
-    }
-
-    public void testReconcileSumsDisjointCoverageRanges() throws Exception {
-        // Disjoint coverage ranges that tile [0, end) with a flagged tail sum to the file's true
-        // count — the parallel-parsing / macro-split partition path.
+    public void testReconcileUnstripedPartialsNotCached() throws Exception {
+        // Coverage-stamped but NOT stripe-addressed fragments (older nodes, the seekable-parallel and
+        // macro-split paths) are never cached — a deterministic safe miss, never a guess. This is the
+        // v1 contract that replaced the old per-query whole-file tiling.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -550,53 +526,238 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
 
-            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(
-                "disjoint ranges tiling the file must sum",
-                100L,
-                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+                "un-striped fragments must leave the seeded entry untouched",
+                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
+                untouched.safeMetadata()
             );
         }
     }
 
-    public void testReconcileDedupsIdenticalCoverageFromTwoScans() throws Exception {
-        // REGRESSION for [CI] NdJsonCompressedFormatSpecIT external-basic.aggregateCount [ndjson.zstd/LOCAL]
-        // (issue #150723: "expected <100L> but was <200L>") and its sibling fileMetadataWildcard family.
-        //
-        // A query that scans the SAME external file twice (a two-branch FORK — each branch an
-        // independent subplan re-scanning the source) ships, merged-by-path, TWO complete covers of one
-        // file. Both observe the SAME deterministic chunk byte-ranges. The reconciler unions by range,
-        // so the identical ranges are counted ONCE — 100, not the 40+60+40+60 = 200 the old
-        // sum-everything reconciler produced. Crucially this is range-driven, not scan-counting: the
-        // exact same union also SUMS genuinely disjoint ranges (see testReconcileSumsDisjointCoverageRanges),
-        // so macro-split partitions are unaffected.
+    public void testReconcileIncompleteStripeNotFolded() throws Exception {
+        // A stripe whose tail never closed (no next-cut crossing, no EOF) is incomplete — its
+        // fragments are not committed, so the whole-file fold never fires and the warm query
+        // re-scans rather than serving an under-count.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
             SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
             seedSchemaCache(service, key, path, "fp");
 
-            Map<String, Object> scanOneA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
-            Map<String, Object> scanOneB = coveredChunk(mtime, "fp", 60L, 40, 100, true);
-            // Sibling FORK branch re-scans the same file → identical deterministic chunk ranges.
-            Map<String, Object> scanTwoA = coveredChunk(mtime, "fp", 40L, 0, 40, false);
-            Map<String, Object> scanTwoB = coveredChunk(mtime, "fp", 60L, 40, 100, true);
+            long grid = 1024L;
+            Map<String, Object> head = stripedChunk(mtime, "fp", 40L, 0, 40, false, grid, true);
+            Map<String, Object> mid = stripedChunk(mtime, "fp", 60L, 40, 100, false, grid, false); // open tail
 
-            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(scanOneA, scanOneB, scanTwoA, scanTwoB)));
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(head, mid)));
+
+            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull(
+                "an open stripe must not produce a whole-file fold",
+                untouched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testReconcileSumsFragmentsWithinStripe() throws Exception {
+        // Fragments of one stripe that tile head-to-EOF fold to the stripe's true count, and a
+        // single complete stripe 0 + EOF marker is whole-file complete — the streaming parallel
+        // parsing path for a file smaller than the stripe grid.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            long grid = 1024L;
+            Map<String, Object> partialA = stripedChunk(mtime, "fp", 40L, 0, 40, false, grid, true);
+            Map<String, Object> partialB = stripedChunk(mtime, "fp", 60L, 40, 100, true, grid, false);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(partialA, partialB)));
 
             SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
             assertEquals(
-                "a byte range observed by two scans of one file must be counted once, not doubled",
+                "fragments tiling stripe 0 to EOF must sum and complete the file",
                 100L,
                 enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
             );
         }
     }
 
+    public void testReconcileDedupsIdenticalStripesFromTwoScans() throws Exception {
+        // REGRESSION for [CI] NdJsonCompressedFormatSpecIT external-basic.aggregateCount [ndjson.zstd/LOCAL]
+        // (issue #150723: "expected <100L> but was <200L>") and its sibling fileMetadataWildcard family.
+        //
+        // A query that scans the SAME external file twice (a two-branch FORK — each branch an
+        // independent subplan re-scanning the source) ships, merged-by-path, TWO complete covers of
+        // one file. Stripe cuts are content-canonical, so both scans produce byte-identical fragments
+        // for the same stripe; the per-stripe identity-union counts each once — 100, not the
+        // 40+60+40+60 = 200 the old sum-everything reconciler produced. Double-counting is
+        // unrepresentable: a stripe is one key.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            long grid = 1024L;
+            Map<String, Object> scanOneA = stripedChunk(mtime, "fp", 40L, 0, 40, false, grid, true);
+            Map<String, Object> scanOneB = stripedChunk(mtime, "fp", 60L, 40, 100, true, grid, false);
+            // Sibling FORK branch re-scans the same file → identical canonical fragments.
+            Map<String, Object> scanTwoA = stripedChunk(mtime, "fp", 40L, 0, 40, false, grid, true);
+            Map<String, Object> scanTwoB = stripedChunk(mtime, "fp", 60L, 40, 100, true, grid, false);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(scanOneA, scanOneB, scanTwoA, scanTwoB)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "a stripe observed by two scans of one file must be counted once, not doubled",
+                100L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testReconcileMultiStripeFileFoldsAcrossStripes() throws Exception {
+        // Two full stripes + EOF: per-stripe folds commit independently, the marker names the EOF
+        // stripe, and the whole-file fold sums the committed stripes 0..K.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            long grid = 100L;
+            // Stripe 0: [0,100) in two fragments; closes by crossing the line at 100.
+            Map<String, Object> s0a = stripedChunk(mtime, "fp", 30L, 0, 60, false, grid, true);
+            Map<String, Object> s0b = stripedChunk(mtime, "fp", 20L, 60, 100, false, grid, false);
+            // Stripe 1: [100,180) single fragment, EOF.
+            Map<String, Object> s1 = stripedChunk(mtime, "fp", 50L, 100, 180, true, grid, true);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(s0a, s0b, s1)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "whole-file fold must sum committed stripes 0..K",
+                100L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertEquals(1L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+        }
+    }
+
+    public void testReconcileAccumulatesStripesAcrossQueries() throws Exception {
+        // The structural win over the old per-query whole-file tiling: stripe knowledge composes
+        // ACROSS queries. Query A commits stripe 0 (no EOF observed — e.g. cancelled after the
+        // first stripe); query B commits stripe 1 + EOF. The union is complete and the whole-file
+        // fold fires on B's commit.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            long grid = 100L;
+            Map<String, Object> queryAStripe0 = stripedChunk(mtime, "fp", 30L, 0, 100, false, grid, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(queryAStripe0)));
+
+            SchemaCacheEntry afterA = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertNull(
+                "knowledge incomplete after query A — no whole-file fold",
+                afterA.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertNotNull("stripe 0 committed by query A", afterA.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "0"));
+
+            Map<String, Object> queryBStripe1 = stripedChunk(mtime, "fp", 70L, 100, 150, true, grid, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(queryBStripe1)));
+
+            SchemaCacheEntry afterB = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "stripes committed by two different queries must compose into the whole-file fold",
+                100L,
+                afterB.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
+    public void testReconcileOversizedRecordAbsorbsEmptyStripesWithExactTotal() throws Exception {
+        // A record larger than the stripe grid: its fragment crosses nominal lines, the intermediate
+        // ordinals commit as zero-row empty stripes, and ALL the fragment's rows count in its own
+        // stripe's fold — the whole-file sum stays exact (adversarial-review scenario: absorbed
+        // stripes must never lose rows).
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            long grid = 100L;
+            // Stripe 0: a normal head fragment, then a giant record [40,250) crossing lines 100 and 200.
+            Map<String, Object> head = stripedChunk(mtime, "fp", 4L, 0, 40, false, grid, true);
+            Map<String, Object> giant = stripedChunk(mtime, "fp", 1L, 40, 250, false, grid, false);
+            // Stripe 2 head starts at the giant's end (the realigned cut of line 200); stripe 1 is empty.
+            Map<String, Object> tail = stripedChunk(mtime, "fp", 5L, 250, 300, true, grid, true);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(head, giant, tail)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "whole-file fold must preserve every row: 5 (stripe 0 incl. the giant) + 0 (absorbed stripe 1) + 5 (stripe 2)",
+                10L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+            assertEquals(2L, enriched.safeMetadata().get(ExternalStats.STRIPE_LAST_INDEX_KEY));
+            assertNotNull("absorbed empty stripe must be committed", enriched.safeMetadata().get(ExternalStats.STRIPE_ENTRY_PREFIX + "1"));
+        }
+    }
+
+    public void testReconcileMixedStripedAndUnstripedNotCached() throws Exception {
+        // One un-addressed fragment poisons the fold: stripe identity can't be proven for the set,
+        // so nothing commits — deterministic safe miss, never a guess.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            Map<String, Object> striped = stripedChunk(mtime, "fp", 40L, 0, 40, false, 1024L, true);
+            Map<String, Object> unstriped = coveredChunk(mtime, "fp", 60L, 40, 100, true);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(striped, unstriped)));
+
+            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "mixed striped+unstriped fragments must leave the seeded entry untouched",
+                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
+                untouched.safeMetadata()
+            );
+        }
+    }
+
+    public void testReconcileStripeCommitRequiresMatchingMtime() throws Exception {
+        // A complete stripe delta whose mtime disagrees with the cached entry's key must not enrich
+        // it — stale stripes never attach to a fresher (or older) schema entry.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv";
+            SchemaCacheKey key = SchemaCacheKey.build(path, 1000L, ".csv", Map.of("format", "csv"));
+            seedSchemaCache(service, key, path, "fp");
+
+            Map<String, Object> staleStripe = stripedChunk(999L, "fp", 100L, 0, 100, true, 1024L, true);
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(staleStripe)));
+
+            SchemaCacheEntry untouched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "a stripe delta with a mismatched mtime must not enrich the entry",
+                Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"),
+                untouched.safeMetadata()
+            );
+        }
+    }
+
     public void testReconcileWholeFileWinsOverConcurrentPartials() throws Exception {
         // Mixed shape: WholeFile + PartialChunks for the same file. The whole-file read is
-        // authoritative — its row count already covers every row — and partials must not be
-        // summed on top. Locks mergeContributions's whole-file-first ordering.
+        // authoritative — its row count already covers every row — and fragments must not be
+        // summed on top. Locks the reconciler's whole-file-first routing.
         try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
             String path = "file:///data/employees.csv";
             long mtime = 1000L;
@@ -714,6 +875,26 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         m.put(ExternalStats.COVERAGE_START_KEY, start);
         m.put(ExternalStats.COVERAGE_END_KEY, end);
         m.put(ExternalStats.COVERAGE_IS_LAST_KEY, last);
+        return m;
+    }
+
+    /**
+     * A canonical-stripe fragment: {@code coveredChunk} plus the stripe grid and head stamp the
+     * streaming segmentator publishes (see {@code ExternalStats#STRIPE_SIZE_KEY}).
+     */
+    private static Map<String, Object> stripedChunk(
+        long mtime,
+        String fingerprint,
+        long rows,
+        long start,
+        long end,
+        boolean last,
+        long stripeSize,
+        boolean head
+    ) {
+        Map<String, Object> m = coveredChunk(mtime, fingerprint, rows, start, end, last);
+        m.put(ExternalStats.STRIPE_SIZE_KEY, stripeSize);
+        m.put(ExternalStats.STRIPE_HEAD_KEY, head);
         return m;
     }
 

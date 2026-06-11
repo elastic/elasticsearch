@@ -125,11 +125,13 @@ public class ExternalSourceCacheService implements Closeable {
             // Poison is gate-only.
             boolean poisoned = false;
             List<SourceStatsContribution.WholeFile> wholeFile = new ArrayList<>(contributions.size());
-            // Coverage-addressed partial chunks. Each carries the file byte-range it observed; the
-            // reconciler unions them by range, so disjoint ranges (parallel chunks, macro-splits,
-            // splits across nodes) sum while a range re-observed by another scan of the same file (a
-            // sibling FORK branch, a schema-probe pass, a retry) is counted once. No scan/finalize
-            // counting — "which bytes" is intrinsic, "how many reads" is an implementation detail.
+            // Canonical-stripe fragments. Each carries the byte range it observed plus its stripe
+            // addressing (grid + head flag); the reconciler folds fragments per stripe — identical
+            // ranges from sibling scans of the same file (FORK branches, schema probes, retries)
+            // dedup by identity, fragments of one stripe tile its span — and commits complete
+            // stripes idempotently. Whole-file completeness is a cache-side predicate (stripes
+            // {@code 0..K} present + EOF marker), assembled across queries if need be, never a
+            // per-query whole-file tiling.
             List<SourceStatsContribution.PartialChunk> partials = new ArrayList<>(contributions.size());
             for (Map<String, Object> raw : contributions) {
                 switch (SourceStatsContribution.classify(raw)) {
@@ -142,35 +144,23 @@ public class ExternalSourceCacheService implements Closeable {
             if (poisoned) {
                 continue;
             }
-            Map<String, Object> mergedForFile = mergeContributions(wholeFile, partials);
-            if (mergedForFile == null || mergedForFile.isEmpty()) {
-                logger.debug("dropping captured stats for [{}]: no complete cover after coverage union", e.getKey());
+            if (wholeFile.isEmpty() == false) {
+                // A whole-file read is authoritative for the whole file; fragments (if any arrived
+                // alongside) add nothing and must not be summed on top.
+                Map<String, Object> mergedForFile = mergeWholeFileContributions(wholeFile);
+                if (mergedForFile != null && mergedForFile.isEmpty() == false) {
+                    merged.put(e.getKey(), mergedForFile);
+                }
                 continue;
             }
-            merged.put(e.getKey(), mergedForFile);
+            StripeDelta delta = foldStripeFragments(partials);
+            if (delta == null) {
+                logger.debug("dropping captured stats for [{}]: no complete stripe among fragments", e.getKey());
+                continue;
+            }
+            commitStripeDelta(e.getKey(), delta);
         }
         reconcileSourceStats(merged);
-    }
-
-    /**
-     * Combines a file's stats-bearing contributions into a single merged map, or {@code null} when
-     * there is nothing committable. A whole-file read is authoritative and never summed: each already
-     * reports the file's full row count, so duplicates (e.g. a schema-probe pass that tracks fewer
-     * columns than the data scan) are unioned via {@link #mergeWholeFileContributions}. Partial chunks
-     * are reconciled by <em>coverage</em>: {@link #foldCoveredPartials} unions them by byte range, so
-     * a range re-observed by another scan of the same file is counted once while disjoint ranges sum —
-     * and only commits when the ranges tile {@code [0, end)} with a flagged tail.
-     */
-    private static Map<String, Object> mergeContributions(
-        List<SourceStatsContribution.WholeFile> wholeFile,
-        List<SourceStatsContribution.PartialChunk> partials
-    ) {
-        if (wholeFile.isEmpty() == false) {
-            // A whole-file read is authoritative for the whole file; partial chunks (if any arrived
-            // alongside) add nothing and must not be summed on top.
-            return mergeWholeFileContributions(wholeFile);
-        }
-        return foldCoveredPartials(partials);
     }
 
     /**
@@ -192,78 +182,240 @@ public class ExternalSourceCacheService implements Closeable {
     }
 
     /**
-     * Reconciles partial chunks by coverage. Deduplicates contributions that observed the same byte
-     * range (a range seen by more than one scan of the file is counted once), verifies the distinct
-     * ranges tile {@code [0, end)} contiguously with the final range flagged last (an incomplete or
-     * overlapping cover is not cacheable, so the warm query just re-scans — never a wrong answer),
-     * then folds the disjoint ranges: {@code mergeStatistics} sums row/null/byte counts and takes the
-     * extreme for min/max. Returns {@code null} when the cover is incomplete or un-addressable.
+     * One query's per-stripe fold for one file: the flat stats map of every stripe this query's
+     * fragments proved complete, plus the file-EOF stripe ordinal when this query observed
+     * end-of-input ({@code -1} otherwise). Committed idempotently into the schema cache; whole-file
+     * eligibility (stripes {@code 0..lastStripeOrdinal} all committed + marker known) is evaluated
+     * against the accumulated cache state, so partial knowledge composes across queries.
      */
-    private static Map<String, Object> foldCoveredPartials(List<SourceStatsContribution.PartialChunk> partials) {
+    private record StripeDelta(Map<Long, Map<String, Object>> stripes, long lastStripeOrdinal, long mtimeMillis, String fingerprint) {}
+
+    /**
+     * Folds canonical-stripe fragments into per-stripe stats. Within a stripe, fragments dedup by
+     * identity — two scans of the same file produce byte-identical fragments for the same stripe
+     * (the segmentator cuts at content-determined boundaries), so a re-observed range is counted
+     * once while a same-start-different-end pair is an ambiguous overlap and aborts the fold. A
+     * stripe is complete when its fragments start at the stripe's head cut (or offset 0), tile
+     * contiguously, and close at the next stripe cut or end-of-input. Incomplete stripes are simply
+     * skipped — never a wrong answer, just a miss for that stripe. Returns {@code null} when any
+     * fragment is not stripe-addressed (older node, non-striped read path) or no stripe completes.
+     */
+    private static StripeDelta foldStripeFragments(List<SourceStatsContribution.PartialChunk> partials) {
         if (partials.isEmpty()) {
             return null;
         }
-        // Union by start offset. Two partials sharing a start must share an end (same range, a
-        // re-scan duplicate) — a different end is an ambiguous overlap, so bail rather than guess.
-        TreeMap<Long, SourceStatsContribution.PartialChunk> byStart = new TreeMap<>();
+        long stripeSize = -1L;
+        long mtime = -1L;
+        String fingerprint = null;
+        Map<Long, TreeMap<Long, SourceStatsContribution.PartialChunk>> byStripe = new HashMap<>();
         for (SourceStatsContribution.PartialChunk pc : partials) {
-            if (pc.hasCoverage() == false) {
-                return null; // un-addressable partial (older node) — cannot prove a complete cover
+            if (pc.stripeAddressed() == false) {
+                return null; // un-addressable fragment — this path's contributions are not cacheable
             }
-            SourceStatsContribution.PartialChunk existing = byStart.putIfAbsent(pc.start(), pc);
+            if (stripeSize < 0) {
+                stripeSize = pc.stripeSize();
+                mtime = pc.mtimeMillis();
+                fingerprint = pc.configFingerprint();
+            } else if (stripeSize != pc.stripeSize()) {
+                return null; // mixed grids (mid-upgrade settings skew) — bail rather than guess
+            }
+            TreeMap<Long, SourceStatsContribution.PartialChunk> frags = byStripe.computeIfAbsent(pc.stripeOrdinal(), k -> new TreeMap<>());
+            SourceStatsContribution.PartialChunk existing = frags.putIfAbsent(pc.start(), pc);
             if (existing != null && existing.end() != pc.end()) {
                 return null;
             }
         }
-        // Completeness: ranges must tile [0, end) with no gap or overlap, and the final range must be
-        // flagged last (it observed end-of-input). Intermediate last-flags — e.g. the tail segment of a
-        // non-final macro-split — are harmless; only the highest-offset range's flag is read.
-        long expectedStart = 0;
-        List<SourceStatsContribution.PartialChunk> distinct = new ArrayList<>(byStart.size());
-        for (SourceStatsContribution.PartialChunk pc : byStart.values()) {
-            if (pc.start() != expectedStart) {
-                return null; // gap or overlap — not a clean tiling
+        Map<Long, Map<String, Object>> complete = new HashMap<>();
+        long lastOrdinal = -1L;
+        for (Map.Entry<Long, TreeMap<Long, SourceStatsContribution.PartialChunk>> e : byStripe.entrySet()) {
+            long ordinal = e.getKey();
+            TreeMap<Long, SourceStatsContribution.PartialChunk> frags = e.getValue();
+            SourceStatsContribution.PartialChunk head = frags.firstEntry().getValue();
+            if (head.stripeHead() == false && head.start() != 0) {
+                continue; // head fragment missing — incomplete stripe
             }
-            expectedStart = pc.end();
-            distinct.add(pc);
+            long expected = head.start();
+            SourceStatsContribution.PartialChunk tail = null;
+            boolean contiguous = true;
+            for (SourceStatsContribution.PartialChunk pc : frags.values()) {
+                if (pc.start() != expected) {
+                    contiguous = false;
+                    break;
+                }
+                expected = pc.end();
+                tail = pc;
+            }
+            if (contiguous == false || tail == null) {
+                continue;
+            }
+            // Closed = the tail reached the next stripe cut (its end crossed or landed on the next
+            // nominal line) or observed end-of-input. An open tail means the stripe's remaining
+            // fragments are missing from this query — skip it.
+            boolean closed = tail.last() || tail.end() / stripeSize > ordinal;
+            if (closed == false) {
+                continue;
+            }
+            Map<String, Object> folded = foldFragments(frags.values(), mtime, fingerprint);
+            if (folded == null || folded.isEmpty()) {
+                continue;
+            }
+            complete.put(ordinal, folded);
+            if (tail.last()) {
+                lastOrdinal = ordinal;
+            } else {
+                // A tail that crossed more than one nominal line (a record larger than the stripe)
+                // absorbs the intermediate ordinals: their nominal lines fall inside that record, so
+                // they are legitimately empty stripes, committed as zero-row entries. All of the
+                // fragment's rows are counted in ITS stripe's fold, so the whole-file sum stays
+                // exact. Pruning-phase precondition: a grow-path fragment can carry rows past a
+                // nominal line (per-stripe ATTRIBUTION, not the total, then depends on the producer
+                // path) — per-stripe min/max must not be used for stripe skipping until the grow
+                // path emits boundary-trimmed fragments.
+                long endOrdinal = tail.end() / stripeSize;
+                for (long empty = ordinal + 1; empty < endOrdinal; empty++) {
+                    complete.putIfAbsent(empty, emptyStripe(mtime, fingerprint));
+                }
+            }
         }
-        SourceStatsContribution.PartialChunk lastRange = distinct.get(distinct.size() - 1);
-        if (lastRange.last() == false) {
-            return null; // never observed end-of-input — partial cover, do not cache
+        if (complete.isEmpty()) {
+            return null;
         }
-        return foldDistinctRanges(distinct);
+        return new StripeDelta(complete, lastOrdinal, mtime, fingerprint);
     }
 
     /**
-     * Folds the disjoint, distinct coverage ranges of one complete cover into a single merged map.
-     * The sum/extreme arithmetic is delegated to the shared {@link SourceStatisticsSerializer#mergeStatistics}
-     * (the same algorithm Parquet's multi-row-group merge uses), so each range's typed statistics are
-     * re-serialized to the flat wire map here — the one place the reconciler touches that map.
+     * Folds one stripe's contiguous fragments into a single flat stats map. The sum/extreme
+     * arithmetic is delegated to the shared {@link SourceStatisticsSerializer#mergeStatistics} (the
+     * same algorithm Parquet's multi-row-group merge uses), so each fragment's typed statistics are
+     * re-serialized to the flat wire map here.
      */
-    private static Map<String, Object> foldDistinctRanges(List<SourceStatsContribution.PartialChunk> distinct) {
-        if (distinct.isEmpty()) {
-            return null;
-        }
-        SourceStatsContribution.PartialChunk first = distinct.get(0);
-        if (distinct.size() == 1) {
-            return toFlatMap(first.stats(), first.mtimeMillis(), first.configFingerprint());
-        }
-        List<Map<String, Object>> maps = new ArrayList<>(distinct.size());
-        for (SourceStatsContribution.PartialChunk pc : distinct) {
+    private static Map<String, Object> foldFragments(
+        Iterable<SourceStatsContribution.PartialChunk> fragments,
+        long mtimeMillis,
+        String fingerprint
+    ) {
+        List<Map<String, Object>> maps = new ArrayList<>();
+        for (SourceStatsContribution.PartialChunk pc : fragments) {
             maps.add(toFlatMap(pc.stats(), pc.mtimeMillis(), pc.configFingerprint()));
         }
-        Map<String, Object> mergedForFile = SourceStatisticsSerializer.mergeStatistics(maps);
-        if (mergedForFile != null) {
-            // mergeStatistics rebuilds from the _stats.* keys only; re-attach the keying fields that
-            // identify the matching schema-cache entry (all ranges of a file share one mtime+fingerprint).
-            if (first.mtimeMillis() >= 0) {
-                mergedForFile.put(ExternalStats.MTIME_MILLIS_KEY, first.mtimeMillis());
+        Map<String, Object> folded = maps.size() == 1 ? maps.get(0) : SourceStatisticsSerializer.mergeStatistics(maps);
+        if (folded != null && maps.size() > 1) {
+            // mergeStatistics rebuilds from the _stats.* keys only; re-attach the keying fields.
+            if (mtimeMillis >= 0) {
+                folded.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
             }
-            if (first.configFingerprint() != null) {
-                mergedForFile.put(ExternalStats.CONFIG_FINGERPRINT_KEY, first.configFingerprint());
+            if (fingerprint != null) {
+                folded.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
         }
-        return mergedForFile;
+        return folded;
+    }
+
+    /** A zero-row stripe whose nominal span fell entirely inside one oversized record. */
+    private static Map<String, Object> emptyStripe(long mtimeMillis, String fingerprint) {
+        Map<String, Object> empty = new HashMap<>();
+        empty.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 0L);
+        if (mtimeMillis >= 0) {
+            empty.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+        }
+        if (fingerprint != null) {
+            empty.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
+        }
+        return empty;
+    }
+
+    /**
+     * Commits one query's complete stripes into every matching schema-cache entry, idempotently:
+     * a stripe key re-committed by a sibling scan overwrites with identical content (the fold is a
+     * pure function of the stripe's bytes), so double-counting is unrepresentable. When the
+     * accumulated entry holds stripes {@code 0..K} and the EOF marker, their fold is written as the
+     * whole-file {@code _stats.*} keys — the optimizer's existing warm short-circuit input —
+     * making the short-circuit deterministic: complete knowledge implies enrichment, possibly
+     * assembled across queries.
+     */
+    private void commitStripeDelta(String path, StripeDelta delta) {
+        if (enabled == false || path == null) {
+            return;
+        }
+        if (delta.mtimeMillis() < 0) {
+            return; // no freshness key — cannot match an entry
+        }
+        // Same matching + concurrency discipline as reconcileSourceStats: collect under forEach
+        // (segment readLock), mutate after (see that method's javadoc for the Cache.forEach contract).
+        List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
+        schemaCache.forEach((key, existing) -> {
+            if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != delta.mtimeMillis()) {
+                return;
+            }
+            Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+            if (Objects.equals(existingFingerprint, delta.fingerprint()) == false) {
+                return;
+            }
+            matchingEntries.add(Map.entry(key, existing));
+        });
+        for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
+            SchemaCacheKey key = match.getKey();
+            SchemaCacheEntry existing = match.getValue();
+            Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
+            for (Map.Entry<Long, Map<String, Object>> stripe : delta.stripes().entrySet()) {
+                enriched.put(ExternalStats.STRIPE_ENTRY_PREFIX + stripe.getKey(), stripe.getValue());
+            }
+            if (delta.lastStripeOrdinal() >= 0) {
+                enriched.put(ExternalStats.STRIPE_LAST_INDEX_KEY, delta.lastStripeOrdinal());
+            }
+            Map<String, Object> wholeFile = foldCommittedStripes(enriched, delta);
+            if (wholeFile != null) {
+                enriched.putAll(wholeFile);
+            }
+            schemaCache.put(
+                key,
+                new SchemaCacheEntry(
+                    existing.columnNames(),
+                    existing.columnTypes(),
+                    existing.columnNullabilities(),
+                    existing.columnSynthetics(),
+                    existing.sourceType(),
+                    existing.location(),
+                    enriched,
+                    existing.connectorConfig(),
+                    existing.cachedAtMillis()
+                )
+            );
+        }
+    }
+
+    /**
+     * Folds the committed stripes {@code 0..K} of an enriched metadata map into whole-file
+     * {@code _stats.*} keys, or {@code null} when the marker is unknown or any ordinal is missing —
+     * the deterministic completeness predicate replacing the old per-query whole-file tiling.
+     */
+    private static Map<String, Object> foldCommittedStripes(Map<String, Object> enriched, StripeDelta delta) {
+        long lastIndex = enriched.get(ExternalStats.STRIPE_LAST_INDEX_KEY) instanceof Number n ? n.longValue() : -1L;
+        if (lastIndex < 0) {
+            return null;
+        }
+        List<Map<String, Object>> stripes = new ArrayList<>(Math.toIntExact(lastIndex) + 1);
+        for (long k = 0; k <= lastIndex; k++) {
+            if (enriched.get(ExternalStats.STRIPE_ENTRY_PREFIX + k) instanceof Map<?, ?> stripe) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stripeMap = (Map<String, Object>) stripe;
+                stripes.add(stripeMap);
+            } else {
+                return null; // ordinal missing — knowledge incomplete, keep accumulating
+            }
+        }
+        Map<String, Object> whole = stripes.size() == 1
+            ? new HashMap<>(stripes.get(0))
+            : SourceStatisticsSerializer.mergeStatistics(stripes);
+        if (whole != null) {
+            if (delta.mtimeMillis() >= 0) {
+                whole.put(ExternalStats.MTIME_MILLIS_KEY, delta.mtimeMillis());
+            }
+            if (delta.fingerprint() != null) {
+                whole.put(ExternalStats.CONFIG_FINGERPRINT_KEY, delta.fingerprint());
+            }
+        }
+        return whole;
     }
 
     /**

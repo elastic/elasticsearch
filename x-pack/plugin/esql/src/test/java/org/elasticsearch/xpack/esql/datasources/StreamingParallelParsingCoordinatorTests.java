@@ -169,7 +169,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 null,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                -1L
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -191,6 +192,228 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 + contributions,
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
+    /**
+     * The canonical-stripe contract: stripe cuts are a function of file content plus the grid, never
+     * of chunk-buffer geometry. Reading the same content with different reader segment sizes must
+     * yield identical realigned cut offsets (the head-flagged fragments' starts) and identical
+     * per-stripe row sums — the property that makes cross-scan stripe dedup exact and the warm
+     * short-circuit deterministic.
+     */
+    public void testStripeCutsAreChunkGeometryIndependent() throws Exception {
+        runGeometryIndependence(1000L); // grid larger than most chunk buffers
+    }
+
+    public void testStripeCutsAreChunkGeometryIndependentWithGridSmallerThanChunk() throws Exception {
+        // Grid (300) smaller than the largest chunk buffer (1024): one buffer holds several stripe
+        // lines, so the cut branch must fire repeatedly via the carry. Same contract, nastier geometry.
+        runGeometryIndependence(300L);
+    }
+
+    private void runGeometryIndependence(long grid) throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        Map<Integer, java.util.Set<Long>> cutsBySegSize = new HashMap<>();
+        Map<Integer, Map<Long, Long>> rowsByStripeBySegSize = new HashMap<>();
+        for (int segSize : new int[] { 256, 512, 1024 }) {
+            String path = "mem://stripe-determinism-" + segSize;
+            StatsPublishingLineReader reader = new StatsPublishingLineReader(segSize, path);
+            ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+            ExecutorService executor = Executors.newFixedThreadPool(6);
+            try {
+                CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT,
+                    null,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    sink,
+                    grid
+                );
+                try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                    while (iter.hasNext()) {
+                        iter.next().releaseBlocks();
+                    }
+                }
+            } finally {
+                executor.shutdownNow();
+            }
+            java.util.Set<Long> cuts = new java.util.TreeSet<>();
+            Map<Long, Long> rowsByStripe = new HashMap<>();
+            for (Map<String, Object> m : sink.getOrDefault(path, List.of())) {
+                if (Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
+                    continue;
+                }
+                long start = ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+                long rows = ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue();
+                assertEquals("every fragment must carry the grid", grid, ((Number) m.get(ExternalStats.STRIPE_SIZE_KEY)).longValue());
+                if (Boolean.TRUE.equals(m.get(ExternalStats.STRIPE_HEAD_KEY))) {
+                    cuts.add(start);
+                }
+                rowsByStripe.merge(start / grid, rows, Long::sum);
+            }
+            cutsBySegSize.put(segSize, cuts);
+            rowsByStripeBySegSize.put(segSize, rowsByStripe);
+        }
+        assertEquals("realigned stripe cuts must not depend on chunk geometry", cutsBySegSize.get(256), cutsBySegSize.get(512));
+        assertEquals("realigned stripe cuts must not depend on chunk geometry", cutsBySegSize.get(512), cutsBySegSize.get(1024));
+        assertEquals(
+            "per-stripe row sums must not depend on chunk geometry",
+            rowsByStripeBySegSize.get(256),
+            rowsByStripeBySegSize.get(512)
+        );
+        assertEquals(
+            "per-stripe row sums must not depend on chunk geometry",
+            rowsByStripeBySegSize.get(512),
+            rowsByStripeBySegSize.get(1024)
+        );
+        assertTrue("expected multiple stripes for this content", rowsByStripeBySegSize.get(512).size() > 1);
+        assertEquals(
+            "stripe rows must sum to the file's row count",
+            (long) lineCount,
+            rowsByStripeBySegSize.get(512).values().stream().mapToLong(Long::longValue).sum()
+        );
+    }
+
+    /**
+     * A record larger than the chunk buffer (the grow-loop path) that also spans several stripe
+     * lines: its fragment is binned to the stripe containing its start, the crossed ordinals are
+     * legitimately empty, and no row is ever lost — the adversarial-review scenario. The grow path
+     * does not stripe-cut (a record is atomic), so the invariant under test is total preservation
+     * plus contiguous tiling, not per-stripe nesting.
+     */
+    public void testOversizedRecordSpanningStripesPreservesTotals() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 5; i++) {
+            sb.append("line-").append(String.format(Locale.ROOT, "%04d", i)).append('\n'); // 10 bytes each
+        }
+        sb.append("X".repeat(289)).append('\n'); // one 290-byte record crossing grid lines 100, 200, 300
+        for (int i = 0; i < 10; i++) {
+            sb.append("tail-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
+        }
+        int expectedRows = 16;
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long grid = 100L;
+        String path = "mem://stripe-oversized-test";
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(64, path); // record >> chunk buffer
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(bytes),
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                grid
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        long totalRows = 0;
+        long expectedStart = 0;
+        boolean sawSpanningFragment = false;
+        boolean sawLast = false;
+        List<Map<String, Object>> partials = new ArrayList<>();
+        for (Map<String, Object> m : sink.getOrDefault(path, List.of())) {
+            if (Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))) {
+                partials.add(m);
+            }
+        }
+        partials.sort(
+            (a, b) -> Long.compare(
+                ((Number) a.get(ExternalStats.COVERAGE_START_KEY)).longValue(),
+                ((Number) b.get(ExternalStats.COVERAGE_START_KEY)).longValue()
+            )
+        );
+        for (Map<String, Object> m : partials) {
+            long start = ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+            long end = ((Number) m.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+            assertEquals("fragments must tile contiguously", expectedStart, start);
+            expectedStart = end;
+            totalRows += ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue();
+            if (end / grid > start / grid + 1) {
+                sawSpanningFragment = true;
+            }
+            sawLast |= Boolean.TRUE.equals(m.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        }
+        assertEquals("the oversized record must not lose or duplicate any row", expectedRows, totalRows);
+        assertEquals("fragments must cover the whole stream", bytes.length, expectedStart);
+        assertTrue("expected a fragment spanning multiple stripe lines (the grow path)", sawSpanningFragment);
+        assertTrue("the final fragment must observe EOF", sawLast);
+    }
+
+    /** EOF landing exactly on a stripe line: the last fragment closes the file, no phantom head beyond it. */
+    public void testEofExactlyOnStripeLine() throws Exception {
+        int lineCount = 50; // 10 bytes each => 500 bytes, exactly 5 grid lines of 100
+        String content = buildContent(lineCount);
+        long grid = 100L;
+        String path = "mem://stripe-eof-boundary-test";
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(64, path);
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                grid
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+        long totalRows = 0;
+        long maxEnd = 0;
+        java.util.Set<Long> cuts = new java.util.TreeSet<>();
+        for (Map<String, Object> m : sink.getOrDefault(path, List.of())) {
+            if (Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
+                continue;
+            }
+            long start = ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+            long end = ((Number) m.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+            totalRows += ((Number) m.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue();
+            if (Boolean.TRUE.equals(m.get(ExternalStats.STRIPE_HEAD_KEY))) {
+                cuts.add(start);
+            }
+            maxEnd = Math.max(maxEnd, end);
+        }
+        assertEquals((long) lineCount, totalRows);
+        assertEquals("the final fragment must end exactly at the stripe-aligned EOF", 500L, maxEnd);
+        assertEquals(
+            "cuts at every grid line inside the file, none at-or-past EOF",
+            new java.util.TreeSet<>(List.of(0L, 100L, 200L, 300L, 400L)),
+            cuts
         );
     }
 
@@ -222,7 +445,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 null,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                -1L
             );
             try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
                 while (iter.hasNext()) {
@@ -283,7 +507,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 null,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                sink
+                sink,
+                -1L
             );
             CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
             // Consume one page, then close without draining — an early termination.
@@ -887,7 +1112,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 ErrorPolicy.STRICT,
                 null,
                 maxRecordBytes,
-                null
+                null,
+                -1L
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");

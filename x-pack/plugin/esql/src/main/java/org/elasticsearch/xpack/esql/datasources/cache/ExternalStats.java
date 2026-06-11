@@ -75,6 +75,39 @@ public final class ExternalStats {
      */
     public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
 
+    /**
+     * Canonical-stripe addressing. A file's stripe grid divides its decompressed byte stream into
+     * stripes of {@link ExternalSourceCacheSettings#STRIPE_SIZE} bytes, each realigned forward to the
+     * first record boundary at-or-after its nominal {@code k*B} start — a pure function of file
+     * content plus the pinned grid, never of how the read happened to be chunked, split, or
+     * distributed. Stripe identity is what makes cross-scan deduplication exact: two scans of the
+     * same file (FORK branches, retries, schema probes) produce byte-identical fragments for the
+     * same stripe, so the reconciler's identity-union counts each stripe once by construction.
+     * <p>
+     * {@link #STRIPE_SIZE_KEY} carries the grid (bytes) the producing segmentator used; the
+     * reconciler derives a fragment's stripe ordinal as {@code floor(coverage_start / stripe_size)}
+     * — sound because segmentators cut chunks at stripe boundaries, and no record boundary can lie
+     * strictly inside a realign window (the realigned cut is by definition the FIRST boundary
+     * at-or-after the nominal line). {@link #STRIPE_HEAD_KEY} marks the fragment that starts exactly
+     * at a stripe cut (or at offset 0), letting the reconciler prove a stripe's completeness from
+     * its own fragments alone: head-flagged start, contiguous tiling, tail ending at the next cut or
+     * carrying {@link #COVERAGE_IS_LAST_KEY}. Contributions without {@link #STRIPE_SIZE_KEY} (older
+     * nodes, non-striped read paths) are not stripe-addressable and are never cached — a safe miss.
+     */
+    public static final String STRIPE_SIZE_KEY = "_stats.stripe_size";
+    public static final String STRIPE_HEAD_KEY = "_stats.stripe_head";
+
+    /**
+     * Coordinator-cache keys for per-stripe committed stats, stored inside a {@code SchemaCacheEntry}'s
+     * {@code safeMetadata} alongside the whole-file {@code _stats.*} fold. {@code _stats.stripe.<k>.}
+     * prefixes one committed stripe's flat stats map (row_count, columns.*, plus its span); the
+     * whole-file fold is written only when stripes {@code 0..K} are all committed and the marker
+     * (the file-EOF stripe ordinal, {@link #STRIPE_LAST_INDEX_KEY}) is known. Commits are idempotent:
+     * re-committing a stripe overwrites with identical content.
+     */
+    public static final String STRIPE_ENTRY_PREFIX = "_stats.stripe.";
+    public static final String STRIPE_LAST_INDEX_KEY = "_stats.stripe_last_index";
+
     private ExternalStats() {}
 
     /**

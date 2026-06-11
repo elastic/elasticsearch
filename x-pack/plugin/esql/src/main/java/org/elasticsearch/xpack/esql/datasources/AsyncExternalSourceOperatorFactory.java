@@ -150,6 +150,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int parsingParallelism;
     private final int maxConcurrentOpenSegments;
     private final int maxRecordBytes;
+    /** Canonical-stripe grid for per-stripe stats accounting; {@code <= 0} disables. Accounting overlay only. */
+    private final long statsStripeSize;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -225,6 +227,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int parsingParallelism,
         int maxConcurrentOpenSegments,
         int maxRecordBytes,
+        long statsStripeSize,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -271,6 +274,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.statsStripeSize = statsStripeSize;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
@@ -340,6 +344,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // is the test/internal fallback, sourced from the single source of truth.
         private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private long statsStripeSize = -1L;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -427,6 +432,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * Canonical-stripe grid for per-stripe stats accounting, in decompressed-stream bytes
+         * ({@code <= 0} disables — the default). See {@code ExternalSourceCacheSettings#STRIPE_SIZE}
+         * and {@code StreamingParallelParsingCoordinator}; stats-accounting overlay only, never a
+         * partitioning or scheduling input.
+         */
+        public Builder statsStripeSize(long statsStripeSize) {
+            this.statsStripeSize = statsStripeSize;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -491,6 +507,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 parsingParallelism,
                 maxConcurrentOpenSegments,
                 maxRecordBytes,
+                statsStripeSize,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -1945,7 +1962,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         policy,
                         perFileReadSchema,
                         maxRecordBytes,
-                        captureSink
+                        captureSink,
+                        statsStripeSize
                     );
                 } catch (Exception e) {
                     try {

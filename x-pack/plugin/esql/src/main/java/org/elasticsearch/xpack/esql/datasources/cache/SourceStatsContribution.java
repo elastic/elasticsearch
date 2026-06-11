@@ -33,18 +33,39 @@ sealed interface SourceStatsContribution {
     /**
      * One range of a parallel-parsed file (a streaming chunk, a record-aligned macro-split segment, a
      * block split). {@code start}/{@code end} are the half-open byte range it covered, in the path's
-     * read coordinate system; {@code last} marks the contribution that observed end-of-input. The
-     * reconciler unions partials by {@code [start,end)} — disjoint ranges sum, an identical range
-     * re-observed by another scan of the same file (a sibling FORK branch, a schema-probe pass, a
-     * retry) is counted once — and confirms the union tiles {@code [0, end)} with a flagged tail
-     * before caching. {@code start < 0} marks a partial that arrived without coverage (an older node);
-     * it cannot be addressed, so it renders its file's cover incomplete and uncacheable.
+     * read coordinate system; {@code last} marks the contribution that observed end-of-input.
+     * <p>
+     * {@code stripeSize} > 0 marks the fragment as canonical-stripe addressed (see
+     * {@link ExternalStats#STRIPE_SIZE_KEY}): the producing segmentator cut chunks at stripe
+     * boundaries, so this fragment nests within stripe {@code floor(start / stripeSize)} and
+     * {@code stripeHead} marks the fragment that starts exactly at a stripe cut (or offset 0). The
+     * reconciler folds fragments per stripe — identical ranges from sibling scans (FORK branches,
+     * retries) dedup by identity, fragments of one stripe tile its span — and commits complete
+     * stripes idempotently into the schema cache. Fragments without stripe addressing
+     * ({@code stripeSize <= 0}: older nodes, non-striped read paths such as record-aligned
+     * macro-splits and seekable parallel segments) are not cacheable — a deterministic safe miss,
+     * never a wrong answer.
      */
-    record PartialChunk(SourceStatistics stats, long mtimeMillis, String configFingerprint, long start, long end, boolean last)
-        implements
-            SourceStatsContribution {
+    record PartialChunk(
+        SourceStatistics stats,
+        long mtimeMillis,
+        String configFingerprint,
+        long start,
+        long end,
+        boolean last,
+        long stripeSize,
+        boolean stripeHead
+    ) implements SourceStatsContribution {
         boolean hasCoverage() {
             return start >= 0 && end >= start;
+        }
+
+        boolean stripeAddressed() {
+            return hasCoverage() && stripeSize > 0;
+        }
+
+        long stripeOrdinal() {
+            return start / stripeSize;
         }
     }
 
@@ -71,6 +92,8 @@ sealed interface SourceStatsContribution {
         long start = raw.get(ExternalStats.COVERAGE_START_KEY) instanceof Number n ? n.longValue() : -1L;
         long end = raw.get(ExternalStats.COVERAGE_END_KEY) instanceof Number n ? n.longValue() : -1L;
         boolean last = Boolean.TRUE.equals(raw.get(ExternalStats.COVERAGE_IS_LAST_KEY));
-        return new PartialChunk(stats, mtime, fingerprint, start, end, last);
+        long stripeSize = raw.get(ExternalStats.STRIPE_SIZE_KEY) instanceof Number n ? n.longValue() : -1L;
+        boolean stripeHead = Boolean.TRUE.equals(raw.get(ExternalStats.STRIPE_HEAD_KEY));
+        return new PartialChunk(stats, mtime, fingerprint, start, end, last, stripeSize, stripeHead);
     }
 }

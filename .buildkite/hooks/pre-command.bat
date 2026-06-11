@@ -5,6 +5,7 @@ FOR /F "tokens=* eol=#" %%i in ('type .ci\java-versions.properties') do set %%i
 
 SET JAVA_HOME=%USERPROFILE%\.java\%ES_BUILD_JAVA%
 SET JAVA16_HOME=%USERPROFILE%\.java\openjdk16
+SET PATH=%PATH%;%USERPROFILE%\.java\%ES_BUILD_JAVA%\bin
 
 SET GRADLEW=./gradlew --parallel --no-daemon --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
 SET GRADLEW_BAT=./gradlew.bat --parallel --no-daemon --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
@@ -128,10 +129,11 @@ set "_JAVA16_HOME=%JAVA16_HOME%"
 set "_TESTS_SEED=%TESTS_SEED%"
 set "_BUILDKITE_RETRY_SOURCE_JOB_ID=%BUILDKITE_RETRY_SOURCE_JOB_ID%"
 set "_BUILDKITE_RETRY_TYPE=%BUILDKITE_RETRY_TYPE%"
+set "_PATH=%PATH%"
 
 REM End local scope and restore critical variables to parent environment
 REM This ensures bash scripts can access WORKSPACE, GRADLEW, and other variables
-ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%" && set "TESTS_SEED=%_TESTS_SEED%" && set "BUILDKITE_RETRY_SOURCE_JOB_ID=%_BUILDKITE_RETRY_SOURCE_JOB_ID%" && set "BUILDKITE_RETRY_TYPE=%_BUILDKITE_RETRY_TYPE%"
+ENDLOCAL && set "WORKSPACE=%_WORKSPACE%" && set "GRADLEW=%_GRADLEW%" && set "GRADLEW_BAT=%_GRADLEW_BAT%" && set "BUILD_NUMBER=%_BUILD_NUMBER%" && set "JOB_BRANCH=%_JOB_BRANCH%" && set "GH_TOKEN=%_GH_TOKEN%" && set "GRADLE_BUILD_CACHE_USERNAME=%_GRADLE_BUILD_CACHE_USERNAME%" && set "GRADLE_BUILD_CACHE_PASSWORD=%_GRADLE_BUILD_CACHE_PASSWORD%" && set "DEVELOCITY_ACCESS_KEY=%_DEVELOCITY_ACCESS_KEY%" && set "DEVELOCITY_API_ACCESS_KEY=%_DEVELOCITY_API_ACCESS_KEY%" && set "BUILDKITE_API_TOKEN=%_BUILDKITE_API_TOKEN%" && set "JAVA_HOME=%_JAVA_HOME%" && set "JAVA16_HOME=%_JAVA16_HOME%" && set "TESTS_SEED=%_TESTS_SEED%" && set "BUILDKITE_RETRY_SOURCE_JOB_ID=%_BUILDKITE_RETRY_SOURCE_JOB_ID%" && set "BUILDKITE_RETRY_TYPE=%_BUILDKITE_RETRY_TYPE%" && set "PATH=%_PATH%"
 
 bash.exe -c "bash .buildkite/scripts/get-latest-test-mutes.sh"
 

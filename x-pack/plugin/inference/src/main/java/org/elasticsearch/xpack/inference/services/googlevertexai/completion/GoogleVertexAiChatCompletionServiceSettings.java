@@ -205,7 +205,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
                 validationException.addValidationError(
                     String.format(
                         Locale.ROOT,
-                        "Google Model Garden provider=%s selected. Either 'uri' or 'streaming_uri' must be provided",
+                        "Google Model Garden [provider] is [%s]. Either [uri] or [streaming_uri] must be provided",
                         provider
                     )
                 );
@@ -213,13 +213,13 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         } else if (hasAnyUrl) {
             // If using Google Vertex AI, URLs must not be provided
             validationException.addValidationError(String.format(Locale.ROOT, """
-                'provider' is either GOOGLE or null. For Google Vertex AI models 'uri' and 'streaming_uri' must not be provided. \
-                Remove 'url' and 'streaming_url' fields. Provided values: uri=%s, streaming_uri=%s""", uri, streamingUri));
+                [provider] is either [GOOGLE] or null. For Google Vertex AI models [uri] and [streaming_uri] must not be provided. \
+                Remove [url] and [streaming_url] fields. Provided values: [uri] is [%s], [streaming_uri] is [%s]""", uri, streamingUri));
         } else if (hasRequiredVertexFields == false) {
             // If using Google Vertex AI, project_id and model_id must be provided
             validationException.addValidationError(String.format(Locale.ROOT, """
-                For Google Vertex AI models, you must provide 'project_id' and 'model_id'. \
-                Provided values: project_id=%s, model_id=%s""", projectId, modelId));
+                For Google Vertex AI models, you must provide [project_id] and [model_id]. \
+                Provided values: [project_id] is [%s], [model_id] is [%s]""", projectId, modelId));
         }
     }
 

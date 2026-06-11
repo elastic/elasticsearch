@@ -63,11 +63,11 @@ public class RestModifyDataStreamsAction extends BaseRestHandler {
         if (modifyDsRequest.getActions() == null || modifyDsRequest.getActions().isEmpty()) {
             throw new IllegalArgumentException("no data stream actions specified, at least one must be specified");
         }
-        if (clusterSupportsFeature.test(DataStreamFeatures.DATA_STREAMS_MODIFY_DELETE_INDEX) == false) {
-            boolean hasDeleteIndexAction = modifyDsRequest.getActions()
-                .stream()
-                .anyMatch(action -> action.getType() == DataStreamAction.Type.DELETE_BACKING_INDEX);
-            if (hasDeleteIndexAction) {
+        boolean hasDeleteIndexAction = modifyDsRequest.getActions()
+            .stream()
+            .anyMatch(action -> action.getType() == DataStreamAction.Type.DELETE_BACKING_INDEX);
+        if (hasDeleteIndexAction) {
+            if (clusterSupportsFeature.test(DataStreamFeatures.DATA_STREAMS_MODIFY_DELETE_INDEX) == false) {
                 throw new IllegalArgumentException("delete_backing_index is an unsupported action type");
             }
         }

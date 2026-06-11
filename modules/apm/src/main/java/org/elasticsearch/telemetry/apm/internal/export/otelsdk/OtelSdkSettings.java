@@ -175,7 +175,7 @@ public final class OtelSdkSettings {
     /** Per-batch deadline the {@code BatchSpanProcessor} gives the exporter before timing out. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT = Setting.timeSetting(
         "telemetry.otel.traces.batch.export_timeout",
-        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueSeconds(5),
         TimeValue.timeValueMillis(1),
         NodeScope
     );

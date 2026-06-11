@@ -43,13 +43,16 @@ public record SchemaCacheKey(
     // which per-file stats are aggregated for aggregate pushdown.
     // - dialect: quoted/escaped/plain changes record boundaries (row counts), null-ness (\N) and
     // values on the same bytes, so neither schemas nor captured stats may cross dialects.
-    // Runtime-only options that don't affect schema or captured stats (e.g. multi_value_syntax —
-    // bracket parsing happens after schema inference) are intentionally NOT included.
+    // - multi_value_syntax: brackets selects the bracket-aware record scanner (newlines inside
+    // [..] are not record ends) and, on a no-quote baseline, bare brackets resolves the dialect
+    // to quoted — so two configs differing only in this key can interpret the same bytes with
+    // different record boundaries and must not share schemas or stats.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
         "escape",
         "dialect",
+        "multi_value_syntax",
         "encoding",
         "datetime_format",
         "hive_partitioning",

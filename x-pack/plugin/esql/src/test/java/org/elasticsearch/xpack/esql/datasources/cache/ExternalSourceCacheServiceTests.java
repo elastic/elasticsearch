@@ -385,6 +385,24 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertTrue(escaped.formatConfig().contains("dialect=escaped"));
     }
 
+    /**
+     * Bare {@code multi_value_syntax: brackets} resolves the dialect to quoted on a no-quote
+     * baseline (and selects the bracket-aware record scanner everywhere), so two configs differing
+     * only in this key can interpret the same bytes with different record boundaries — they must
+     * not share a schema-cache entry or a stats fingerprint.
+     */
+    public void testSchemaCacheKeySeparatesMultiValueSyntax() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.tsv", 1000L, ".tsv", Map.of("format", "tsv", "header_row", true));
+        SchemaCacheKey brackets = SchemaCacheKey.build(
+            "s3://b/f.tsv",
+            1000L,
+            ".tsv",
+            Map.of("format", "tsv", "header_row", true, "multi_value_syntax", "brackets")
+        );
+        assertNotEquals(base.formatConfig(), brackets.formatConfig());
+        assertTrue(brackets.formatConfig().contains("multi_value_syntax=brackets"));
+    }
+
     public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
         // Two queries over the SAME file under different WITH options produce two distinct
         // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each

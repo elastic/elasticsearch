@@ -21,11 +21,14 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -38,6 +41,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
@@ -56,8 +60,12 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
     }
 
     @Override
-    public SageMakerStoredServiceSchema apiServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-        return ApiServiceSettings.fromMap(serviceSettings, validationException);
+    public SageMakerStoredServiceSchema apiServiceSettings(
+        Map<String, Object> serviceSettings,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return ApiServiceSettings.fromMap(serviceSettings, context, validationException);
     }
 
     @Override
@@ -158,18 +166,56 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             if (dimensions != null) {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
+            builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
             return builder;
         }
 
-        static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            // dimensions_set_by_user is internal: it is persisted by toXContent but must not be returned in the GET response.
+            return new ToXContentObject() {
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if (dimensions != null) {
+                        builder.field(DIMENSIONS_FIELD, dimensions);
+                    }
+                    return builder;
+                }
+
+                @Override
+                public boolean isFragment() {
+                    return true;
+                }
+            };
+        }
+
+        static ApiServiceSettings fromMap(
+            Map<String, Object> serviceSettings,
+            ConfigurationParseContext context,
+            ValidationException validationException
+        ) {
             var dimensions = extractOptionalPositiveInteger(
                 serviceSettings,
                 DIMENSIONS_FIELD,
                 ModelConfigurations.SERVICE_SETTINGS,
                 validationException
             );
+            // dimensions_set_by_user is internal and not user-settable. In a request we intentionally do not read it, so that a
+            // user-supplied value is rejected as an unknown setting; the flag is derived from whether dimensions were provided.
+            // In a persisted config we read the stored value, defaulting to false for configs persisted before the field existed.
+            boolean dimensionsSetByUser;
+            if (ConfigurationParseContext.isRequestContext(context)) {
+                dimensionsSetByUser = dimensions != null;
+            } else {
+                var storedDimensionsSetByUser = extractOptionalBoolean(
+                    serviceSettings,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
+                    validationException
+                );
+                dimensionsSetByUser = storedDimensionsSetByUser != null && storedDimensionsSetByUser;
+            }
 
-            return new ApiServiceSettings(dimensions, dimensions != null);
+            return new ApiServiceSettings(dimensions, dimensionsSetByUser);
         }
 
         @Override

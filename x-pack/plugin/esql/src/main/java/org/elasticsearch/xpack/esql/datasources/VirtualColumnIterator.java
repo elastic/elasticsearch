@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
@@ -80,6 +81,13 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
      * {@link #fullOutput} on every row.
      */
     private final String[] dataColumnNames;
+    /**
+     * Declared {@link DataType}s of the data columns, paired positionally with
+     * {@link #dataColumnNames}. {@code _source} synthesis needs the type to render each value the
+     * way the response layer would (IP/VERSION/DATETIME as strings, UNSIGNED_LONG decoded) rather
+     * than as raw block contents.
+     */
+    private final DataType[] dataColumnTypes;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -94,7 +102,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     /**
      * Variant that wires {@code _id} composition. {@code idPrefix} must be non-null whenever the
      * {@code _id} name is in {@code partitionColumnNames}; the source factory builds it once per
-     * file via {@link ExternalRowIdentity#prefix(org.elasticsearch.xpack.esql.datasources.spi.StoragePath)}
+     * file via {@link ExternalRowIdentity#prefix(org.elasticsearch.xpack.esql.datasources.spi.StoragePath, long)}
      * and reuses it across every page of that file. When {@code _id} is not requested,
      * {@code idPrefix} should be {@code null} and the iterator behaves identically to the
      * legacy two-arg constructor.
@@ -120,6 +128,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
         List<String> dataNames = new ArrayList<>();
+        List<DataType> dataTypes = new ArrayList<>();
         int idIdx = -1;
         int sourceIdx = -1;
         int recordRefIdx = -1;
@@ -139,6 +148,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             } else {
                 dataIdxList.add(i);
                 dataNames.add(name);
+                dataTypes.add(fullOutput.get(i).dataType());
                 if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
                     rowPosChannelInData = nextDataChannel;
                 }
@@ -152,6 +162,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.sourceOutputIndex = sourceIdx;
         this.rowPositionDataChannel = rowPosChannelInData;
         this.dataColumnNames = dataNames.toArray(new String[0]);
+        this.dataColumnTypes = dataTypes.toArray(new DataType[0]);
         Check.isTrue(idPrefix == null || idIdx >= 0, "idPrefix supplied but _id slot missing from fullOutput");
         // _id and _file.record_ref are both composed from the reader-emitted _rowPosition channel,
         // which the optimizer injects whenever either is requested. If the slot is present but the
@@ -239,7 +250,13 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                     for (int d = 0; d < dataColumnIndices.length; d++) {
                         dataBlocksByOrder[d] = blocks[dataColumnIndices[d]];
                     }
-                    blocks[idx] = SynthesizeExternalSource.composePage(dataColumnNames, dataBlocksByOrder, positions, blockFactory);
+                    blocks[idx] = SynthesizeExternalSource.composePage(
+                        dataColumnNames,
+                        dataColumnTypes,
+                        dataBlocksByOrder,
+                        positions,
+                        blockFactory
+                    );
                 } else {
                     Object value = partitionValues.get(attr.name());
                     blocks[idx] = createConstantBlock(attr, value, positions);

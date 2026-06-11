@@ -14,9 +14,15 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,13 +55,22 @@ public final class SynthesizeExternalSource {
     /**
      * Build a {@code _source} block of length {@code positions} by composing one JSON object per
      * row from the supplied data columns. Each entry in {@code dataColumnNames} is paired
-     * positionally with the matching block in {@code dataColumnBlocks}; columns named in
-     * {@link #SYNTHETIC_COLUMN_NAMES} (framework-injected channels like
-     * {@link ColumnExtractor#ROW_POSITION_COLUMN}) are excluded. A leading underscore on its own
-     * is NOT a filter — user data columns named e.g. {@code _corrupt_record} or {@code _status}
-     * are legitimate data and pass through to the rendered object.
+     * positionally with the matching type in {@code dataColumnTypes} and block in
+     * {@code dataColumnBlocks}; columns named in {@link #SYNTHETIC_COLUMN_NAMES}
+     * (framework-injected channels like {@link ColumnExtractor#ROW_POSITION_COLUMN}) are excluded.
+     * A leading underscore on its own is NOT a filter — user data columns named e.g.
+     * {@code _corrupt_record} or {@code _status} are legitimate data and pass through to the
+     * rendered object. Values render per their declared {@link DataType}, mirroring what the
+     * response layer ({@code PositionToXContent}) emits for the same columns — see
+     * {@link #renderScalar}.
      */
-    public static BytesRefBlock composePage(String[] dataColumnNames, Block[] dataColumnBlocks, int positions, BlockFactory factory) {
+    public static BytesRefBlock composePage(
+        String[] dataColumnNames,
+        DataType[] dataColumnTypes,
+        Block[] dataColumnBlocks,
+        int positions,
+        BlockFactory factory
+    ) {
         if (positions == 0) {
             return (BytesRefBlock) factory.newConstantNullBlock(0);
         }
@@ -77,14 +92,12 @@ public final class SynthesizeExternalSource {
                     // BlockUtils.toJavaObject returns null for null rows, a scalar for single-value
                     // rows, and ArrayList<Object> for multi-value rows. Omitting null fields from
                     // _source matches the precedent set by SourceLoader for natively-indexed
-                    // _source. XContentBuilder's default BytesRef rendering is base64; for the
-                    // keyword/string family we want the UTF-8 text, so unwrap BytesRef values
-                    // (single and multi-value) into Java Strings before adding to the map.
-                    Object value = unwrapBytesRefs(BlockUtils.toJavaObject(block, row));
+                    // _source.
+                    Object value = BlockUtils.toJavaObject(block, row);
                     if (value == null) {
                         continue;
                     }
-                    map.put(name, value);
+                    map.put(name, renderValue(value, dataColumnTypes[c]));
                 }
                 BytesRef bytes = Source.fromMap(map, XContentType.JSON).internalSourceRef().toBytesRef();
                 builder.appendBytesRef(bytes);
@@ -93,17 +106,36 @@ public final class SynthesizeExternalSource {
         }
     }
 
-    private static Object unwrapBytesRefs(Object value) {
-        if (value instanceof BytesRef ref) {
-            return ref.utf8ToString();
-        }
-        if (value instanceof java.util.List<?> list) {
-            java.util.List<Object> out = new java.util.ArrayList<>(list.size());
+    private static Object renderValue(Object value, DataType type) {
+        if (value instanceof List<?> list) {
+            List<Object> out = new ArrayList<>(list.size());
             for (Object element : list) {
-                out.add(element instanceof BytesRef ref ? ref.utf8ToString() : element);
+                out.add(renderScalar(element, type));
             }
             return out;
         }
-        return value;
+        return renderScalar(value, type);
+    }
+
+    /**
+     * Render one scalar the way the response layer ({@code PositionToXContent}) renders the same
+     * column type, so a value reads identically in {@code _source} and in the query output:
+     * IP/VERSION decode their wire bytes ({@code utf8ToString} on those would emit garbage),
+     * DATETIME/DATE_NANOS format as UTC ISO-8601 strings rather than raw epoch longs, and
+     * UNSIGNED_LONG decodes the sign-flipped long into its numeric value. Types no reader can
+     * emit today fail loud so a future type gets handled intentionally rather than discovered as
+     * corrupt {@code _source}.
+     */
+    private static Object renderScalar(Object value, DataType type) {
+        return switch (type) {
+            case KEYWORD, TEXT -> ((BytesRef) value).utf8ToString();
+            case IP -> EsqlDataTypeConverter.ipToString((BytesRef) value);
+            case VERSION -> EsqlDataTypeConverter.versionToString((BytesRef) value);
+            case DATETIME -> EsqlDataTypeConverter.dateTimeToString((Long) value);
+            case DATE_NANOS -> EsqlDataTypeConverter.nanoTimeToString((Long) value);
+            case UNSIGNED_LONG -> NumericUtils.unsignedLongAsNumber((Long) value);
+            case BOOLEAN, INTEGER, LONG, DOUBLE -> value;
+            default -> throw new EsqlIllegalArgumentException("cannot render _source value of type [" + type.typeName() + "]");
+        };
     }
 }

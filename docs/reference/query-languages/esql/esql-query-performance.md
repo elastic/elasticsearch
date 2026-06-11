@@ -2,6 +2,8 @@
 applies_to:
   stack: ga
   serverless: ga
+products:
+  - id: elasticsearch
 navigation_title: "Optimize query performance"
 description: "Techniques for writing fast ES|QL queries and operating ES|QL workloads at scale."
 ---
@@ -34,7 +36,7 @@ If you're not on [{{serverless-full}}](docs-content://deploy-manage/deploy/elast
 
 Some tips on this page require a recent version of the {{stack}}, and individual subsections carry an applicability badge when this is the case. Sections without a version badge apply to all versions where {{esql}} is generally available.
 
-For clusters on a version before 8.17, upgrading provides the largest single performance improvement, because full-text search functions and Lucene pushdowns become available. For clusters on 8.17 but before 8.18, the [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) and [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike) pushdown and the mapping discovery optimization in 8.18 are the next significant wins.
+For clusters on a version before 8.17, upgrading provides the largest single performance improvement, because full-text search functions and Lucene pushdowns become available. For clusters on 8.17 but before 8.18, upgrading to 8.18 provides the next largest improvement. That release adds [`LIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-like) and [`RLIKE`](/reference/query-languages/esql/functions-operators/operators.md#esql-rlike) pushdown to Lucene and a mapping discovery optimization that reduces overhead on clusters with many indices.
 
 :::{dropdown} Version-specific performance improvements
 
@@ -116,7 +118,7 @@ FROM logs-*
 | STATS count = COUNT(*) BY log.level
 ```
 
-In {{kib}}, the time picker automatically applies a time range filter. When writing queries directly in the Dev Tools console or through the API, always include an explicit `@timestamp` filter.
+In {{kib}}, the time picker automatically applies a time range filter. When writing queries directly in the [{{kib}} Console](docs-content://explore-analyze/query-filter/tools/console.md) or through the API, always include an explicit `@timestamp` filter.
 
 ### Filter early with WHERE
 
@@ -420,7 +422,7 @@ stack: preview 9.4
 serverless: preview
 ```
 
-The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} provides a real-time view of all in-flight search work in your cluster, including {{esql}}, DSL, EQL, and SQL queries. Use it to find long-running queries, trace them back to their source in {{kib}}, and cancel them when needed.
+The [**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} provides a real-time view of all in-flight search work in your cluster, including {{esql}}, Query DSL, EQL, and SQL queries. Use it to find long-running queries, trace them back to their source in {{kib}}, and cancel them when needed.
 
 ### Query logging
 
@@ -429,7 +431,7 @@ stack: preview 9.4
 serverless: unavailable
 ```
 
-Query logging captures DSL, EQL, KQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
+Query logging captures Query DSL, EQL, KQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
 
 For clusters on earlier versions, a legacy {{esql}}-specific query log {applies_to}`stack: ga 9.1+` writes slow queries to a `_esql_querylog.json` file in the {{es}} log directory. To configure it, refer to [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md).
 

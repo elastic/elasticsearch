@@ -15,6 +15,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.junit.AssumptionViolatedException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -504,6 +505,63 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, expectedDistances, length);
         panamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, v0, v1, v2, v3, 0, panamaDistances, length);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
+    }
+
+    public void testDotProductBulk() {
+        int vectorSize = randomIntBetween(1, 2048);
+        float[] query = generateRandomVector(vectorSize);
+        float[] v0 = generateRandomVector(vectorSize);
+        float[] v1 = generateRandomVector(vectorSize);
+        float[] v2 = generateRandomVector(vectorSize);
+        float[] v3 = generateRandomVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * vectorSize);
+    }
+
+    public void testDotProductBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] v0 = randomByteArrayOfLength(vectorSize);
+        byte[] v1 = randomByteArrayOfLength(vectorSize);
+        byte[] v2 = randomByteArrayOfLength(vectorSize);
+        byte[] v3 = randomByteArrayOfLength(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().dotProductBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
+    public void testCosineBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        // ensure no zero-norm vectors to avoid NaN
+        byte[] query = randomNonZeroByteVector(vectorSize);
+        byte[] v0 = randomNonZeroByteVector(vectorSize);
+        byte[] v1 = randomNonZeroByteVector(vectorSize);
+        byte[] v2 = randomNonZeroByteVector(vectorSize);
+        byte[] v3 = randomNonZeroByteVector(vectorSize);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().cosineBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        panamaProvider.getVectorUtilSupport().cosineBulk(query, v0, v1, v2, v3, 0, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-3f);
+        }
+    }
+
+    private static byte[] randomNonZeroByteVector(int length) {
+        byte[] v;
+        for (;;) {
+            v = randomByteArrayOfLength(length);
+            for (byte b : v) {
+                if (b != 0) return v;
+            }
+        }
     }
 
     public void testSoarDistanceBulk() {

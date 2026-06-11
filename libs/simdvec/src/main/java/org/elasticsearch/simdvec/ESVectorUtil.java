@@ -225,14 +225,11 @@ public class ESVectorUtil {
         if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
             throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
         }
-        distances[distancesOffset] = IMPL.dotProduct(q, v0);
-        distances[distancesOffset + 1] = IMPL.dotProduct(q, v1);
-        distances[distancesOffset + 2] = IMPL.dotProduct(q, v2);
-        distances[distancesOffset + 3] = IMPL.dotProduct(q, v3);
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     /**
-     * Bulk computation of dot product from a byte query vector to four byte candidate vectors.
+     * Bulk computation of cosine similarity from a byte query vector to four byte candidate vectors.
      */
     public static void cosineBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
         if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
@@ -244,10 +241,7 @@ public class ESVectorUtil {
         if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
             throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
         }
-        distances[distancesOffset] = IMPL.cosine(q, v0);
-        distances[distancesOffset + 1] = IMPL.cosine(q, v1);
-        distances[distancesOffset + 2] = IMPL.cosine(q, v2);
-        distances[distancesOffset + 3] = IMPL.cosine(q, v3);
+        IMPL.cosineBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -631,10 +625,7 @@ public class ESVectorUtil {
         if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
             throw new IllegalArgumentException("distancesOffset must be between have length 0 and distances.length - 4");
         }
-        distances[distancesOffset] = IMPL.dotProduct(q, v0);
-        distances[distancesOffset + 1] = IMPL.dotProduct(q, v1);
-        distances[distancesOffset + 2] = IMPL.dotProduct(q, v2);
-        distances[distancesOffset + 3] = IMPL.dotProduct(q, v3);
+        IMPL.dotProductBulk(q, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     public static void squareDistanceBulk(

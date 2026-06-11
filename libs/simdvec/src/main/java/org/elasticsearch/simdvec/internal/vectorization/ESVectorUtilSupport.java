@@ -96,6 +96,8 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
+    void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
+
     void squareDistanceBulk(
         float[] query,
         int queryOffset,
@@ -107,6 +109,10 @@ public interface ESVectorUtilSupport {
         float[] distances,
         int length
     );
+
+    void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
+
+    void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances);
 
     void squareDistanceBulk(
         byte[] query,

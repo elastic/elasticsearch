@@ -479,6 +479,14 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
     public void squareDistanceBulk(
         float[] query,
         int queryOffset,
@@ -501,6 +509,22 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
             distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
         }
+    }
+
+    @Override
+    public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.dotProduct(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.dotProduct(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.dotProduct(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.dotProduct(query, v3);
+    }
+
+    @Override
+    public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.cosine(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.cosine(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.cosine(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.cosine(query, v3);
     }
 
     @Override

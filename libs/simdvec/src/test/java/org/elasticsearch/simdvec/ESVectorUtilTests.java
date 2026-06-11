@@ -15,7 +15,6 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
-import org.junit.AssumptionViolatedException;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;

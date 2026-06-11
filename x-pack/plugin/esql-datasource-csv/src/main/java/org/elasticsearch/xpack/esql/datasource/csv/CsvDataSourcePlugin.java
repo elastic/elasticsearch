@@ -54,6 +54,7 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
      */
     static final Set<String> FORMAT_CONFIG_KEYS = Set.of(
         "delimiter",
+        "dialect",
         "quote",
         "escape",
         "comment",

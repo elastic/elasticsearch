@@ -288,6 +288,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     static final String CONFIG_DELIMITER = "delimiter";
+    static final String CONFIG_DIALECT = "dialect";
     static final String CONFIG_QUOTE = "quote";
     static final String CONFIG_ESCAPE = "escape";
     static final String CONFIG_COMMENT = "comment";
@@ -303,6 +304,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_DELIMITER,
+        CONFIG_DIALECT,
         CONFIG_QUOTE,
         CONFIG_ESCAPE,
         CONFIG_COMMENT,
@@ -415,6 +417,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is overridden.
      */
     private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+        // The dialect is authoritative for the MECHANISM (is quoting/escaping on at all); quote/escape
+        // only carry the CHARACTER. Expand the dialect first, then overlay explicit character keys —
+        // and reject a character the resolved dialect never consults, instead of silently ignoring it.
+        CsvFormatOptions.Dialect parsedDialect = CsvFormatOptions.Dialect.parse(
+            config.get(CONFIG_DIALECT) == null ? null : config.get(CONFIG_DIALECT).toString()
+        );
+        CsvFormatOptions.Dialect dialect = parsedDialect != null ? parsedDialect : baseline.dialect();
+        boolean quoteSet = isExplicitlySet(config.get(CONFIG_QUOTE));
+        boolean escapeSet = isExplicitlySet(config.get(CONFIG_ESCAPE));
+        if (quoteSet && dialect.usesQuote() == false) {
+            throw new IllegalArgumentException(
+                "the [" + dialect.name().toLowerCase(Locale.ROOT) + "] dialect does not use a quote character; use dialect [quoted]"
+            );
+        }
+        if (escapeSet && dialect.usesEscape() == false) {
+            throw new IllegalArgumentException("the [plain] dialect does not use an escape character; use dialect [quoted] or [escaped]");
+        }
         char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
         char quoteChar = parseChar(config.get(CONFIG_QUOTE), baseline.quoteChar());
         char escapeChar = parseChar(config.get(CONFIG_ESCAPE), baseline.escapeChar());
@@ -427,6 +446,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             config.get(CONFIG_MULTI_VALUE_SYNTAX),
             baseline.multiValueSyntax()
         );
+        if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && dialect != CsvFormatOptions.Dialect.QUOTED) {
+            throw new IllegalArgumentException(
+                "multi_value_syntax [brackets] requires dialect [quoted]; the bracket scanner honors quoted fields"
+            );
+        }
         boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
         String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
 
@@ -441,9 +465,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             maxFieldSize,
             multiValueSyntax,
             headerRow,
-            columnPrefix
+            columnPrefix,
+            dialect
         );
         return merged.equals(baseline) ? null : merged;
+    }
+
+    /** An option counts as user-supplied only when present AND non-empty (empty string = "use the default"). */
+    private static boolean isExplicitlySet(Object value) {
+        return value != null && value.toString().isEmpty() == false;
     }
 
     private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value, CsvFormatOptions.MultiValueSyntax baseline) {
@@ -663,7 +693,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.quoteChar(),
                 options.delimiter(),
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                options.encoding()
+                options.encoding(),
+                options.dialect().usesQuote()
             );
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(recordReader);
@@ -783,17 +814,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 options.quoteChar(),
                 options.delimiter(),
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-                options.encoding()
+                options.encoding(),
+                options.dialect().usesQuote()
             )
         );
     }
 
     private Iterator<List<?>> newCsvIterator(CsvLogicalRecordReader recordReader) throws IOException {
-        CsvSchema csvSchema = CsvSchema.emptySchema()
-            .withColumnSeparator(options.delimiter())
-            .withQuoteChar(options.quoteChar())
-            .withEscapeChar(options.escapeChar())
-            .withNullValue(options.nullValue());
+        CsvSchema csvSchema = CsvSchema.emptySchema().withColumnSeparator(options.delimiter()).withNullValue(options.nullValue());
+        if (options.dialect().usesQuote()) {
+            csvSchema = csvSchema.withQuoteChar(options.quoteChar()).withEscapeChar(options.escapeChar());
+        } else {
+            // No-quote dialects: a quote byte is data. The escape character is deliberately NOT given
+            // to Jackson either — its escape semantics are "next char is literal" (so \t would decode
+            // to 't'), not the C-style sequences the escaped dialect needs; the backslash must reach
+            // decodeFieldValue untouched, which un-escapes \t \n \\ and maps \N to null.
+            csvSchema = csvSchema.withoutQuoteChar();
+        }
         return new CsvRecordIterator(recordReader, csvSchema);
     }
 
@@ -996,7 +1033,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             options.quoteChar(),
             options.delimiter(),
             context.maxRecordBytes(),
-            options.encoding()
+            options.encoding(),
+            options.dialect().usesQuote()
         );
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
         // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
@@ -1112,6 +1150,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public RecordSplitter recordSplitter(int maxRecordBytes) {
+        // Splitter chosen once, by dialect — never a per-byte dialect branch. The no-quote dialects
+        // (PLAIN/ESCAPED) take the plain terminator scan; only QUOTED needs the quote-state machine.
+        if (options.dialect().usesQuote() == false) {
+            return new NewlineRecordSplitter(maxRecordBytes);
+        }
         return new CsvRecordSplitter(options, maxRecordBytes);
     }
 
@@ -1526,7 +1569,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (token == JsonToken.VALUE_NULL) {
                         row.add(null);
                     } else if (token.isScalarValue()) {
-                        row.add(parser.getValueAsString());
+                        row.add(decodeFieldValue(parser.getValueAsString()));
                     } else if (token != JsonToken.START_ARRAY && token != JsonToken.END_ARRAY) {
                         throw new IOException("Unexpected CSV token [" + token + "] while parsing record");
                     }
@@ -1534,6 +1577,49 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return row.isEmpty() ? null : row;
             }
         }
+    }
+
+    /**
+     * Value decode for the {@code escaped} dialect (ClickHouse {@code TabSeparated} / MySQL
+     * {@code LOAD DATA} / PostgreSQL {@code COPY} text semantics): a whole-field {@code \N} is null
+     * and {@code \}-sequences un-escape C-style. Identity for the other dialects, and lazy — a field
+     * without the escape character (the overwhelmingly common case) is returned as-is, so the decode
+     * stays off the hot path. Boundary scanning is untouched by design: an in-field tab/newline is
+     * the two bytes {@code \}+{@code t}/{@code n} on disk, so raw terminators remain unambiguous.
+     */
+    private String decodeFieldValue(String value) {
+        if (options.dialect() != CsvFormatOptions.Dialect.ESCAPED || value == null) {
+            return value;
+        }
+        char esc = options.escapeChar();
+        int firstEscape = value.indexOf(esc);
+        if (firstEscape < 0) {
+            return value;
+        }
+        if (value.length() == 2 && firstEscape == 0 && value.charAt(1) == 'N') {
+            return null; // \N — the DB-export null representation
+        }
+        StringBuilder sb = new StringBuilder(value.length());
+        sb.append(value, 0, firstEscape);
+        for (int i = firstEscape; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c != esc || i + 1 == value.length()) {
+                sb.append(c);
+                continue;
+            }
+            char next = value.charAt(++i);
+            sb.append(switch (next) {
+                case 't' -> '\t';
+                case 'n' -> '\n';
+                case 'r' -> '\r';
+                case '0' -> '\0';
+                case 'b' -> '\b';
+                case 'f' -> '\f';
+                // Any other \c is c — including \\ and \' — matching ClickHouse's parse rule.
+                default -> next;
+            });
+        }
+        return sb.toString();
     }
 
     private class CsvBatchIterator extends BufferingPageIterator {

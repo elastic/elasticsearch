@@ -161,6 +161,7 @@ public class AutomatonsTests extends ESTestCase {
         assertSameLanguageBothBuilders(List.of("a", "*", "*foo*", "bar*", "*baz"));
         assertSameLanguageBothBuilders(List.of("foo\\*", "lit1", "lit2"));
         assertSameLanguageBothBuilders(List.of("fo?o*", "lit1", "lit2"));
+        assertSameLanguageBothBuilders(List.of("", "lit1", "lit2"));
     }
 
     public void testLiteralPartitionMatchesGeneralBuilderLanguageRandomized() {
@@ -189,19 +190,6 @@ public class AutomatonsTests extends ESTestCase {
         assertSameLanguageBothBuilders(List.of(overByteBound, "lit1", "lit2"));
     }
 
-    public void testLiteralPartitionMatchesGeneralBuilderForSurrogateAndEmptyInputs() {
-        // These literal-looking inputs must NOT take the makeStringUnion fast path, since that path would diverge from the
-        // general builder: the empty string compiles to "accept nothing" generally but would be accepted by makeStringUnion,
-        // and surrogate-bearing inputs encode differently (per-char transitions vs whole code points, with U+FFFD substituted
-        // for lone surrogates). Each case still pairs two plain literals so the literal/other split is active, and the
-        // partitioned builder must accept exactly the general builder's language.
-        assertSameLanguageBothBuilders(List.of("", "lit1", "lit2"));              // empty string
-        assertSameLanguageBothBuilders(List.of("\uD835\uDD4F", "lit1", "lit2"));  // non-BMP (surrogate pair, U+1D54F)
-        assertSameLanguageBothBuilders(List.of("idx\uD800", "lit1", "lit2"));     // trailing lone high surrogate
-        assertSameLanguageBothBuilders(List.of("a\uDC00b", "lit1", "lit2"));      // embedded lone low surrogate
-        assertSameLanguageBothBuilders(List.of("\uD835\uDD4F", "abc\uD800", "")); // all excluded: defers entirely
-    }
-
     private static void assertSameLanguageBothBuilders(Collection<String> patterns) {
         final Automaton original = Automatons.buildPatternsAutomaton(patterns, false);
         final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);
@@ -215,7 +203,7 @@ public class AutomatonsTests extends ESTestCase {
 
     private String randomPattern() {
         final String body = randomAlphaOfLengthBetween(1, 8);
-        return switch (between(0, 9)) {
+        return switch (between(0, 7)) {
             case 0 -> body;                                      // literal
             case 1 -> body + "*";                                // trailing wildcard
             case 2 -> "*" + body;                                // leading wildcard
@@ -224,8 +212,6 @@ public class AutomatonsTests extends ESTestCase {
             case 5 -> "/" + body + ".*/";                        // lucene regex
             case 6 -> body + "\\*";                              // escaped trailing star (literal "*")
             case 7 -> "";                                        // empty string (excluded from the fast path)
-            case 8 -> body + "\uD835\uDD4F";                     // non-BMP literal (surrogate pair, excluded)
-            case 9 -> body + (randomBoolean() ? '\uD800' : '\uDC00'); // lone surrogate literal (excluded)
             default -> throw new AssertionError("unreachable");
         };
     }

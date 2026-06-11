@@ -130,32 +130,6 @@ public final class Automatons {
         return Automata.makeStringUnion(refs);
     }
 
-    /**
-     * Whether {@code pattern} can be compiled via {@link Automata#makeStringUnion} while remaining language-equivalent to the
-     * general {@link #wildcard(String)} builder. It must be a non-empty {@link #isLiteralPattern literal} with no UTF-16
-     * surrogate code units. Two equivalence hazards motivate the extra exclusions beyond {@link #isLiteralPattern}:
-     * <ul>
-     *   <li>The empty string compiles to an automaton that accepts nothing in the general builder, but {@code makeStringUnion}
-     *       would accept the empty string.</li>
-     *   <li>The general builder emits one transition per Java {@code char}, whereas {@code makeStringUnion} encodes whole
-     *       code points via {@link BytesRef} (and substitutes U+FFFD for unpaired surrogates). The two therefore disagree for
-     *       any non-BMP or lone-surrogate input, so all surrogate-bearing patterns are deferred to the general path.</li>
-     * </ul>
-     * The {@link Automata#MAX_STRING_UNION_TERM_LENGTH} bound (measured in UTF-8 bytes) is checked by the caller, which already
-     * holds the encoded {@link BytesRef}.
-     */
-    private static boolean isStringUnionEligible(String pattern) {
-        if (pattern.isEmpty() || isLiteralPattern(pattern) == false) {
-            return false;
-        }
-        for (int i = 0; i < pattern.length(); i++) {
-            if (Character.isSurrogate(pattern.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static Automaton buildAutomatonWithLiteralPartition(Collection<String> patterns) {
         if (patterns.size() <= 1) {
             return buildAutomaton(patterns);
@@ -163,10 +137,10 @@ public final class Automatons {
         List<BytesRef> literals = null;
         List<String> others = null;
         for (String pattern : patterns) {
-            // Only string-union-eligible literals take the fast path; everything else (non-literals, the empty string,
-            // surrogate-bearing inputs, and over-long terms) falls to the general path so the two builders stay
-            // language-equivalent. The byte-length bound needs the encoded BytesRef, so it is checked here.
-            final BytesRef ref = isStringUnionEligible(pattern) ? new BytesRef(pattern) : null;
+            // makeStringUnion only accepts literals, and rejects terms whose UTF-8 length exceeds
+            // Automata.MAX_STRING_UNION_TERM_LENGTH (measured in bytes, not Java chars). Longer literals, and any
+            // non-literal, fall to the general path.
+            final BytesRef ref = (pattern.isEmpty() == false && isLiteralPattern(pattern)) ? new BytesRef(pattern) : null;
             if (ref != null && ref.length <= Automata.MAX_STRING_UNION_TERM_LENGTH) {
                 if (literals == null) {
                     literals = new ArrayList<>();

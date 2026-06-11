@@ -75,7 +75,7 @@ public final class DatasetRewriter {
      * registered datasets (the feature-flag off-switch), remote patterns (datasets are local-only; CCS relations are
      * never rewritten).
      */
-    public static List<String> candidatePatterns(LogicalPlan parsed, ProjectMetadata projectMetadata) {
+    static List<String> candidatePatterns(LogicalPlan parsed, ProjectMetadata projectMetadata) {
         if (projectMetadata == null) {
             return List.of();
         }
@@ -108,7 +108,7 @@ public final class DatasetRewriter {
      * with its post-resolution indices, so extra entries are never consulted, and a static pattern pre-match here
      * could under-approximate (date math) and silently skip the datasource check.
      */
-    public static Map<String, String> datasetToDataSourceMap(ProjectMetadata projectMetadata) {
+    static Map<String, String> datasetToDataSourceMap(ProjectMetadata projectMetadata) {
         Map<String, String> map = new HashMap<>();
         for (var entry : DatasetMetadata.get(projectMetadata).datasets().entrySet()) {
             map.put(entry.getKey(), entry.getValue().dataSource().getName());
@@ -136,7 +136,7 @@ public final class DatasetRewriter {
      *                           with the standard {@code Unknown index} error when named explicitly — mirroring how
      *                           security hides unauthorized indices and views from FROM.
      */
-    public static LogicalPlan rewrite(
+    static LogicalPlan rewrite(
         LogicalPlan parsed,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver iner,

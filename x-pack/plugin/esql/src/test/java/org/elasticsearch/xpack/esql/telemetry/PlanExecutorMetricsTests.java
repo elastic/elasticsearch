@@ -235,7 +235,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
-                    new DatasetResolver(null, null),
+                    noDatasetsResolver(),
                     createEsqlExecutionInfo(randomBoolean()),
                     groupIndicesByCluster,
                     runPhase,
@@ -273,7 +273,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     queryClusterSettings(),
                     enrichResolver,
                     viewService.getViewResolver(),
-                    new DatasetResolver(null, null),
+                    noDatasetsResolver(),
                     successExecutionInfo,
                     groupIndicesByCluster,
                     runPhase,
@@ -616,7 +616,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 queryClusterSettings(),
                 mockEnrichResolver(),
                 viewService.getViewResolver(),
-                new DatasetResolver(null, null),
+                noDatasetsResolver(),
                 executionInfo,
                 groupIndicesByCluster,
                 runPhase,
@@ -624,6 +624,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 listener
             );
         }
+    }
+
+    /**
+     * These tests register no datasets, so the resolver short-circuits before ever touching a client
+     * or executor — nulls are never dereferenced.
+     */
+    private static DatasetResolver noDatasetsResolver() {
+        return new DatasetResolver(null, null);
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

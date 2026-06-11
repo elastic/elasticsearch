@@ -132,6 +132,8 @@ public class EsqlResolveDatasetAction extends TransportLocalProjectMetadataActio
         @Override
         public String[] dataSourceNames() {
             if (indices == null) {
+                // Unreachable in the current flow (the constructor always sets indices and the security
+                // filter replaces with a non-null array) — purely defensive against contract drift.
                 return Strings.EMPTY_ARRAY;
             }
             return Arrays.stream(indices).map(datasetToDataSource::get).filter(Objects::nonNull).distinct().toArray(String[]::new);

@@ -44,10 +44,11 @@ public abstract class RowPositionStrategy {
     public abstract CloseableIterator<Page> apply(CloseableIterator<Page> inner, int rowPositionSlot);
 
     /**
-     * Human-readable reason why this strategy emits the shape it does. Surfaced in operator-status
-     * snapshots and trace logs so {@code _id} composition against a null-splice reader is
-     * attributable rather than silently null. The default returns the simple class name; the
-     * null-splice strategy overrides to expose its constructor reason.
+     * Human-readable reason why this strategy emits the shape it does, available to wrapping
+     * iterators for their {@code describe()} output (the null-splice iterator embeds it) so
+     * {@code _id} composition against a null-splice reader is attributable rather than silently
+     * null. The default returns the simple class name; the null-splice strategy overrides to
+     * expose its constructor reason.
      */
     public String reason() {
         return getClass().getSimpleName();

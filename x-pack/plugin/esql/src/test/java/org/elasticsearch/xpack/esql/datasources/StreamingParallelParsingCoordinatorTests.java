@@ -286,6 +286,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
+                0L,
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 sink
             );

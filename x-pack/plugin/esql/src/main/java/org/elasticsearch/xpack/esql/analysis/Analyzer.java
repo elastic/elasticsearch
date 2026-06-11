@@ -2955,6 +2955,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // lists a virtual column either. This is why we key off the Keep node identity rather
             // than the namespace of the column name.
             Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
+            // The name fallback below only makes sense when the plan reads an external dataset; on a
+            // plan made of regular indices, an attribute named _file.path is a real mapped field and
+            // stripping it would be silent data loss.
+            boolean hasExternalRelation = plan.anyMatch(ExternalRelation.class::isInstance);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -2965,8 +2969,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Strip by type OR by well-known virtual name. The name fallback is a defense layer:
                 // downstream rules — notably FORK's output re-derivation through
                 // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker. The fallback
-                // is namespaced to the _file.* family: it is the only virtual-attribute namespace whose
-                // names are guaranteed not to collide with real metadata attributes on regular indices
+                // is namespaced to the _file.* family and gated on the plan actually containing an
+                // ExternalRelation: it is the only virtual-attribute namespace whose names are
+                // guaranteed not to collide with real metadata attributes on external relations
                 // (_index, _version etc. on a non-external relation are real MetadataAttributes, not
                 // virtual). KEEP-provenance still overrides — naming a virtual column in KEEP _file.path
                 // resurfaces it.
@@ -2974,6 +2979,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // remove the name fallback.
                 boolean isVirtualByType = attr instanceof VirtualAttribute;
                 boolean isVirtualByName = isVirtualByType == false
+                    && hasExternalRelation
                     && org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(attr.name());
                 if ((isVirtualByType || isVirtualByName) && explicitlyKept.contains(attr.name()) == false) {
                     continue;

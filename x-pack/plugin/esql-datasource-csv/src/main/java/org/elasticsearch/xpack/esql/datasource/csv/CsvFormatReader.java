@@ -117,8 +117,14 @@ import java.util.regex.Pattern;
  *   <caption>CSV options</caption>
  *   <tr><th>ES/ESQL key</th><th>Default</th><th>Description</th></tr>
  *   <tr><td>{@code delimiter}</td><td>{@code ,}</td><td>Field separator character</td></tr>
- *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character</td></tr>
- *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character inside quoted fields</td></tr>
+ *   <tr><td>{@code dialect}</td><td>{@code quoted} ({@code .csv}) / {@code plain} ({@code .tsv})</td>
+ *       <td>How a separator-that-is-data is written: {@code quoted} (fields wrap in the quote
+ *           character, RFC 4180), {@code escaped} (backslash sequences, {@code \N} null —
+ *           ClickHouse/MySQL/Postgres exports), or {@code plain} (every byte literal). The dialect
+ *           picks the mechanism; {@code quote}/{@code escape} only carry the character and are
+ *           rejected under a dialect that does not use them.</td></tr>
+ *   <tr><td>{@code quote}</td><td>{@code "}</td><td>Quoting character ({@code quoted} dialect only)</td></tr>
+ *   <tr><td>{@code escape}</td><td>{@code \}</td><td>Escape character ({@code quoted}/{@code escaped} dialects)</td></tr>
  *   <tr><td>{@code comment}</td><td>{@code //}</td><td>Line comment prefix</td></tr>
  *   <tr><td>{@code null_value}</td><td>(empty)</td><td>String representation of null</td></tr>
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
@@ -420,10 +426,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // The dialect is authoritative for the MECHANISM (is quoting/escaping on at all); quote/escape
         // only carry the CHARACTER. Expand the dialect first, then overlay explicit character keys —
         // and reject a character the resolved dialect never consults, instead of silently ignoring it.
+        CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
+            config.get(CONFIG_MULTI_VALUE_SYNTAX),
+            baseline.multiValueSyntax()
+        );
         CsvFormatOptions.Dialect parsedDialect = CsvFormatOptions.Dialect.parse(
             config.get(CONFIG_DIALECT) == null ? null : config.get(CONFIG_DIALECT).toString()
         );
         CsvFormatOptions.Dialect dialect = parsedDialect != null ? parsedDialect : baseline.dialect();
+        if (parsedDialect == null && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
+            // Bracket cells carry quoted elements, so bare brackets selects QUOTED even on the
+            // no-quote .tsv baseline. An explicit non-quoted dialect + brackets is rejected below.
+            dialect = CsvFormatOptions.Dialect.QUOTED;
+        }
         boolean quoteSet = isExplicitlySet(config.get(CONFIG_QUOTE));
         boolean escapeSet = isExplicitlySet(config.get(CONFIG_ESCAPE));
         if (quoteSet && dialect.usesQuote() == false) {
@@ -442,10 +457,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
         DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
         int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
-        CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
-            config.get(CONFIG_MULTI_VALUE_SYNTAX),
-            baseline.multiValueSyntax()
-        );
         if (multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS && dialect != CsvFormatOptions.Dialect.QUOTED) {
             throw new IllegalArgumentException(
                 "multi_value_syntax [brackets] requires dialect [quoted]; the bracket scanner honors quoted fields"

@@ -118,6 +118,36 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Field-leading quotes through the streaming (gzip) path. The low {@code max_record_size} cap
+     * makes a regression to a quoting {@code .tsv} default fail fast (glued records trip the cap)
+     * instead of scanning the full default window.
+     */
+    public void testGzipStreamOnlyFieldLeadingQuoteIsData() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        int rows = 150_000;
+        Path file = writeTsv(rows, Codec.GZIP, QuoteShape.FIELD_LEADING);
+        try {
+            assertCount(file, pragmas(4, "1mb"), rows);
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /** Field-leading quotes through the segmentable uncompressed parallel path. */
+    public void testUncompressedParallelFieldLeadingQuoteIsData() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+        assumeTrue("max_record_size / parsing_parallelism pragmas are snapshot-only", Build.current().isSnapshot());
+        int rows = 250_000; // large enough (> 2 chunks) that the parallel splitter engages
+        Path file = writeTsv(rows, Codec.NONE, QuoteShape.FIELD_LEADING);
+        try {
+            assertCount(file, pragmas(4, "1mb"), rows);
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
     private enum Codec {
         NONE(".tsv"),
         GZIP(".tsv.gz");
@@ -133,7 +163,13 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
         /** Row 0 has one literal mid-field quote, the rest are quote-free (forces a no-boundary chunk). */
         SINGLE_LEADING,
         /** Every row has an even number of literal mid-field quotes. */
-        DENSE
+        DENSE,
+        /**
+         * Every 100th row's field STARTS with a literal {@code "} — the elastic/esql-planning#896
+         * ClickBench shape. A quoting dialect opens an unclosed quoted field here and glues records
+         * to the size cap; the plain {@code .tsv} baseline reads the quote as data.
+         */
+        FIELD_LEADING
     }
 
     private QueryPragmas pragmas(int parsingParallelism, String maxRecordSize) {
@@ -168,6 +204,7 @@ public class ExternalTsvLiteralQuotesIT extends AbstractEsqlIntegTestCase {
                 String mid = switch (shape) {
                     case SINGLE_LEADING -> i == 0 ? "a\"b" : "a" + i; // one literal quote, only on row 0
                     case DENSE -> "x\"y\"z"; // two literal quotes every row
+                    case FIELD_LEADING -> i % 100 == 0 ? "\"starts" + i : "a" + i; // field-leading quote, never closed
                 };
                 w.write("f0_" + i + "\t" + mid + "\tf2_" + i + "\n");
             }

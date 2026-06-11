@@ -127,8 +127,30 @@ public class CsvDialectReadTests extends ESTestCase {
     public void testSplitterDispatchByDialect() throws IOException {
         assertThat(tsvReader(Map.of("dialect", "plain")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
         assertThat(tsvReader(Map.of("dialect", "escaped")).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
-        assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+        // The .tsv baseline is plain, so an unconfigured TSV reader takes the terminator scan; quoting is opt-in.
+        assertThat(tsvReader(Map.of()).recordSplitter(1024), instanceOf(NewlineRecordSplitter.class));
+        assertThat(tsvReader(Map.of("dialect", "quoted")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
         assertThat(csvReader(Map.of()).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /** Bare brackets selects QUOTED (bracket cells carry quoted elements), even on the plain .tsv baseline. */
+    public void testBareBracketsSelectsQuotedDialect() throws IOException {
+        assertThat(tsvReader(Map.of("multi_value_syntax", "brackets")).recordSplitter(1024), instanceOf(CsvRecordSplitter.class));
+    }
+
+    /**
+     * The elastic/esql-planning#896 shape under the DEFAULT {@code .tsv} configuration — no dialect
+     * option supplied. A field-leading {@code "} is data; rows never glue and the count is exact.
+     */
+    public void testDefaultTsvFieldLeadingQuoteReadsExactRows() throws IOException {
+        StringBuilder tsv = new StringBuilder("id:keyword\tnote:keyword\n");
+        for (int i = 0; i < 50; i++) {
+            String note = i % 10 == 0 ? "\"starts with a quote" : "plain note " + i;
+            tsv.append("id").append(i).append('\t').append(note).append('\n');
+        }
+        List<List<String>> values = readAll(tsvReader(Map.of()), tsv.toString());
+        assertEquals(50, values.size());
+        assertEquals("\"starts with a quote", values.get(0).get(1));
     }
 
     /** The no-quote splitter never reports a too-large record for well-formed newline-terminated data. */

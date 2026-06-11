@@ -41,7 +41,8 @@ public class CsvDialectTests extends ESTestCase {
 
     public void testPreDialectConstructorDefaultsToQuoted() {
         assertEquals(Dialect.QUOTED, CsvFormatOptions.DEFAULT.dialect());
-        assertEquals(Dialect.QUOTED, CsvFormatOptions.TSV.dialect());
+        // The .tsv baseline is PLAIN — bulk TSV at rest does not quote (see the TSV preset javadoc).
+        assertEquals(Dialect.PLAIN, CsvFormatOptions.TSV.dialect());
         CsvFormatOptions legacy = new CsvFormatOptions(
             ',',
             '"',

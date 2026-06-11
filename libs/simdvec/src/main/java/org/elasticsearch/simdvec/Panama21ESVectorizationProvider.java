@@ -20,6 +20,6 @@ final class Panama21ESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public VectorScorerFactory getVectorScorerFactory() {
-        return new Panama21VectorScorerFactory();
+        return new PanamaVectorScorerFactory();
     }
 }

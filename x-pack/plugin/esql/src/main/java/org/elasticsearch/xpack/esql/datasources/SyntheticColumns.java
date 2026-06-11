@@ -57,9 +57,11 @@ public final class SyntheticColumns {
          * Per-record token. The substrate for {@code _id = <location>@<mtime>:<token>} composition and
          * surfaced directly as the virtual {@code _file.record_ref} column. Format-defined
          * opaque value (file-global row index on columnar formats, file-global byte offset on
-         * text formats).
+         * text formats). Nullability is UNKNOWN, not FALSE: readers without a row-position
+         * channel (parquet-rs) null-splice this slot, so a never-null declaration would license
+         * null-aware optimizer rules to mis-fold against those sources.
          */
-        ROW_POSITION(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG, Nullability.FALSE);
+        ROW_POSITION(ColumnExtractor.ROW_POSITION_COLUMN, DataType.LONG, Nullability.UNKNOWN);
 
         private final String columnName;
         private final DataType dataType;

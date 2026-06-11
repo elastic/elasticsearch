@@ -334,17 +334,12 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         CircuitBreaker rootBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory rootFactory = BlockFactory.builder(bigArrays).breaker(rootBreaker).build();
 
-        // Two partition columns. The second's value triggers the default arm of createConstantBlock,
-        // whose toString() throws — a stand-in for any allocation-time failure after partial success.
+        // Two partition columns. The second's value type is unenumerated, so createConstantBlock's
+        // fail-loud default throws — a stand-in for any allocation-time failure after partial success.
         List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), partAttr("tag", DataType.KEYWORD));
         Set<String> partitionCols = new LinkedHashSet<>(List.of("year", "tag"));
-        Object explodingValue = new Object() {
-            @Override
-            public String toString() {
-                throw new RuntimeException("synthetic partition-allocation failure");
-            }
-        };
-        Map<String, Object> partitionValues = Map.of("year", 2024, "tag", explodingValue);
+        Object unenumeratedValue = new Object();
+        Map<String, Object> partitionValues = Map.of("year", 2024, "tag", unenumeratedValue);
         VirtualColumnIterator it = new VirtualColumnIterator(
             new SinglePageIterator(new Page(0)),
             fullOutput,
@@ -360,7 +355,7 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         assertTrue("producer must reserve breaker bytes", rootBreaker.getUsed() > 0L);
 
         RuntimeException thrown = expectThrows(RuntimeException.class, () -> it.inject(overProjected));
-        assertThat(thrown.getMessage(), containsString("synthetic partition-allocation failure"));
+        assertThat(thrown.getMessage(), containsString("cannot render constant column [tag]"));
         assertEquals("breaker must return to zero — partial partition allocs + surplus all released", 0L, rootBreaker.getUsed());
     }
 

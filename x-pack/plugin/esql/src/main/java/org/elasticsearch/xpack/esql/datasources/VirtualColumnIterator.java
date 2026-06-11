@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -302,17 +303,29 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private Page projectAndReleaseSurplus(Page dataPage) {
         int positions = dataPage.getPositionCount();
         int expected = dataColumnIndices.length;
-        Block[] kept = new Block[expected];
-        for (int i = 0; i < expected; i++) {
-            kept[i] = dataPage.getBlock(i);
+        // Under-projection means the reader broke its contract — fail loud before touching block
+        // refcounts, releasing the whole page so nothing leaks (mirrors the inject() cleanup).
+        if (dataPage.getBlockCount() < expected) {
+            int produced = dataPage.getBlockCount();
+            dataPage.releaseBlocks();
+            throw new IllegalStateException("format reader produced " + produced + " blocks, projection expects " + expected);
         }
-        for (int i = expected; i < dataPage.getBlockCount(); i++) {
-            Block extra = dataPage.getBlock(i);
-            if (extra != null) {
-                extra.close();
+        try {
+            Block[] kept = new Block[expected];
+            for (int i = 0; i < expected; i++) {
+                kept[i] = dataPage.getBlock(i);
             }
+            for (int i = expected; i < dataPage.getBlockCount(); i++) {
+                Block extra = dataPage.getBlock(i);
+                if (extra != null) {
+                    extra.close();
+                }
+            }
+            return new Page(positions, kept);
+        } catch (Throwable t) {
+            dataPage.releaseBlocks();
+            throw t;
         }
-        return new Page(positions, kept);
     }
 
     boolean hasPartitionColumns() {
@@ -363,7 +376,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             case Double doubleVal -> blockFactory.newConstantDoubleBlockWith(doubleVal, positions);
             case Boolean boolVal -> blockFactory.newConstantBooleanBlockWith(boolVal, positions);
             case BytesRef bytesRef -> blockFactory.newConstantBytesRefBlockWith(bytesRef, positions);
-            default -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(value.toString()), positions);
+            case String stringVal -> blockFactory.newConstantBytesRefBlockWith(new BytesRef(stringVal), positions);
+            // No stringify fallback: an unenumerated value type (a future extractor returning
+            // Instant, Float, ...) must be rendered intentionally, not as toString() bytes.
+            default -> throw new EsqlIllegalArgumentException(
+                "cannot render constant column [" + attr.name() + "] from value type [" + value.getClass().getName() + "]"
+            );
         };
     }
 }

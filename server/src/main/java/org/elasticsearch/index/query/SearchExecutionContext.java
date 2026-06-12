@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -338,7 +340,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> defaultFields() {
-        return indexSettings.getDefaultFields();
+        List<String> fields = indexSettings.getDefaultFields();
+        if (indexSettings.getMode().isStrictColumnar() && fields.size() == 1 && "*".equals(fields.getFirst())) {
+            List<String> indexedFields = new ArrayList<>();
+            for (var mapper : mappingLookup.fieldMappers()) {
+                if (mapper instanceof FieldMapper fieldMapper) {
+                    if (mapper instanceof MetadataFieldMapper) {
+                        continue;
+                    }
+                    var fieldType = fieldMapper.fieldType();
+                    if (fieldType.isSearchable()) {
+                        indexedFields.add(fieldType.name());
+                    }
+                }
+            }
+            return indexedFields;
+        }
+        return fields;
     }
 
     public boolean queryStringLenient() {

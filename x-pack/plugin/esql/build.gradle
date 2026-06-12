@@ -50,7 +50,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
-  implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   testImplementation(project('qa:testFixtures')) {
@@ -412,6 +411,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
+    "LongRange"  : Name == "LongRange" ? "true" : "",
   ]
 }
 
@@ -463,6 +463,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongRangeEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")

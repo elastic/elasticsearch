@@ -60,6 +60,7 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the per-second average rate of increase of a counter.",
         description = "Calculates the per-second average rate of increase of a"
             + " [counter](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). "
             + "Rate calculations account for breaks in monotonicity, such as counter resets when a service restarts, and extrapolate "

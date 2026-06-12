@@ -91,6 +91,7 @@ public class Values extends AggregateFunction implements ToAggregator {
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "8.14.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0"), },
+        briefSummary = "Returns unique deduplicated values as a multivalued field.",
         description = """
             Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use

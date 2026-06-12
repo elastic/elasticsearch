@@ -59,6 +59,7 @@ public class ToRadians extends AbstractConvertFunction implements EvaluatorMappe
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Converts a number in degrees to radians.",
         description = "Converts a number in {wikipedia}/Degree_(angle)[degrees] to {wikipedia}/Radian[radians].",
         examples = @Example(file = "floats", tag = "to_radians")
     )

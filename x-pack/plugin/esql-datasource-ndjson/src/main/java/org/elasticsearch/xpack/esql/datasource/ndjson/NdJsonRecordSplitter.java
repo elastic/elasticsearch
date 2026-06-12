@@ -47,13 +47,16 @@ final class NdJsonRecordSplitter implements RecordSplitter {
     @Override
     public int findLastRecordBoundary(byte[] buf, int offset, int length) {
         Objects.checkFromIndexSize(offset, length, buf.length);
+        if (length > maxRecordBytes) {
+            return findLastRecordBoundaryByForwardScan(buf, offset, length);
+        }
         for (int i = offset + length - 1; i >= offset; i--) {
             byte b = buf[i];
             if (b == '\n' || b == '\r') {
                 return i;
             }
         }
-        return length > maxRecordBytes ? (int) RECORD_TOO_LARGE : -1;
+        return -1;
     }
 
     @Override
@@ -63,6 +66,37 @@ final class NdJsonRecordSplitter implements RecordSplitter {
 
     IOException recordTooLargeException() {
         return new IOException("NDJSON line exceeded max_record_size [" + maxRecordBytes + "]");
+    }
+
+    private int findLastRecordBoundaryByForwardScan(byte[] buf, int offset, int length) {
+        int end = offset + length;
+        int recordStart = offset;
+        int lastBoundary = -1;
+        for (int i = offset; i < end; i++) {
+            byte b = buf[i];
+            if (b == '\n') {
+                if (recordExceedsLimit(recordStart, i)) {
+                    return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                }
+                lastBoundary = i;
+                recordStart = i + 1;
+            } else if (b == '\r') {
+                int boundary = i;
+                if (i + 1 < end && buf[i + 1] == '\n') {
+                    boundary = ++i;
+                }
+                if (recordExceedsLimit(recordStart, boundary)) {
+                    return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                }
+                lastBoundary = boundary;
+                recordStart = boundary + 1;
+            }
+        }
+        return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
+    }
+
+    private boolean recordExceedsLimit(int recordStart, int boundary) {
+        return boundary - recordStart + 1 > maxRecordBytes;
     }
 
     /**

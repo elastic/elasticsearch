@@ -135,4 +135,29 @@ public interface PainlessScript {
 
     /** Binds a cancellation runnable; default no-op. See {@link #_getCancellationCheck()}. */
     default void _setCancellationCheck(Runnable cancellationCheck) {}
+
+    /**
+     * Performs one decrement-and-check of this script instance's persistent cancellation poll
+     * counter, running the cancellation runnable and resetting the counter when it reaches zero.
+     * Opted-in contexts back the counter with a generated field ({@code $cancelPoll}) that the
+     * compiler also decrements inline at every loop back-edge and function entry;
+     * {@code @script_aware} augmentations call this once per iteration so their polling shares
+     * that single counter rather than a private copy, keeping the cadence amortised across all
+     * script work. The default no-op is for non-opted-in contexts.
+     */
+    default void _pollCancellation() {}
+
+    /**
+     * Adds {@code bytes} to this instance's running allocation total and returns the new total; tracking-enabled generated
+     * classes override it to update {@code $allocBytes}. On the interface so Java code handed the script (e.g. an injected
+     * augmented method) can charge the same counter. Default throws because non-opted-in scripts have no counter.
+     */
+    default long $incAllocBytes(long bytes) {
+        throw new UnsupportedOperationException("allocation tracking is not enabled for this script");
+    }
+
+    /** Returns the running allocation total in bytes, or {@code 0} when tracking is disabled. */
+    default long getAllocBytes() {
+        return 0L;
+    }
 }

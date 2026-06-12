@@ -71,14 +71,21 @@ public class StorageProviderRegistry implements Closeable {
     private final DataSourceCredentials credentials;
     private volatile int maxConcurrentRequests;
     private volatile int throttleMaxRetryDurationSeconds;
+    /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
+    private final RetryScheduler retryScheduler;
 
     public StorageProviderRegistry(Settings settings) {
-        this(settings, null);
+        this(settings, null, RetryScheduler.DIRECT);
     }
 
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
+        this(settings, credentials, RetryScheduler.DIRECT);
+    }
+
+    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials, RetryScheduler retryScheduler) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.credentials = credentials;
+        this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
@@ -212,7 +219,7 @@ public class StorageProviderRegistry implements Closeable {
         AdaptiveBackoff backoff = backoffForScheme(scheme);
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
-        return new RetryableStorageProvider(limited, retryPolicy);
+        return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
     }
 
     /**

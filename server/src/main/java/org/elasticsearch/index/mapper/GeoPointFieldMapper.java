@@ -16,7 +16,6 @@ import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -233,16 +232,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 metric.get() != TimeSeriesParams.MetricType.POSITION,
                 context.isSourceSynthetic() && ignoreMalformedEnabled
             );
-            final IndexType indexType;
-            if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-                indexType = IndexType.archivedPoints();
-            } else if (indexed.get() == false && hasDocValues.get() && Parameter.useColumnarDocValuesSkippers(indexSettings)) {
-                // In strict columnar mode the dense BKD index is dropped by default; advertise a doc values skipper over the
-                // SORTED_NUMERIC geo-point doc values for uniformity with other columnar fields.
-                indexType = IndexType.skippers();
-            } else {
-                indexType = IndexType.points(indexed.get(), hasDocValues.get());
-            }
+            IndexType indexType = indexSettings.getIndexVersionCreated().isLegacyIndexVersion()
+                ? IndexType.archivedPoints()
+                : IndexType.points(indexed.get(), hasDocValues.get());
             GeoPointFieldType ft = new GeoPointFieldType(
                 context.buildFullName(leafName()),
                 indexType,
@@ -305,12 +297,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         final boolean indexed = fieldType().indexType.hasPoints();
         final boolean hasDocValues = fieldType().hasDocValues();
-        final boolean hasDocValuesSkipper = fieldType().indexType.hasDocValuesSkipper();
         final boolean store = fieldType().isStored();
         if (indexed && hasDocValues) {
             context.doc().add(new LatLonPointWithDocValues(fieldType().name(), geometry.lat(), geometry.lon()));
-        } else if (hasDocValuesSkipper) {
-            context.doc().add(new LatLonDocValuesWithSkipper(fieldType().name(), geometry.lat(), geometry.lon()));
         } else if (hasDocValues) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
         } else if (indexed) {
@@ -746,48 +735,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
             result.append('>');
             return result.toString();
-        }
-    }
-
-    /**
-     * Doc-values-only geo-point field that additionally carries a range doc values skipper. Used in strict columnar mode,
-     * where the dense BKD index is dropped by default and the SORTED_NUMERIC (morton-encoded) doc values advertise a sparse
-     * skipper for uniformity with other columnar fields. Note that geo queries do not consult the skipper, so it provides no
-     * pruning benefit; it exists so that every doc-values field in a columnar index is structured consistently.
-     */
-    public static class LatLonDocValuesWithSkipper extends Field {
-
-        public static final FieldType TYPE = new FieldType();
-
-        static {
-            TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
-            TYPE.setDocValuesSkipIndexType(DocValuesSkipIndexType.RANGE);
-            TYPE.freeze();
-        }
-
-        public LatLonDocValuesWithSkipper(String name, double latitude, double longitude) {
-            super(name, TYPE);
-            final int latitudeEncoded = GeoEncodingUtils.encodeLatitude(latitude);
-            final int longitudeEncoded = GeoEncodingUtils.encodeLongitude(longitude);
-            fieldsData = (((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL);
-        }
-
-        @Override
-        public Number numericValue() {
-            return (Long) fieldsData;
-        }
-
-        @Override
-        public String toString() {
-            final long encoded = (Long) fieldsData;
-            return getClass().getSimpleName()
-                + " <"
-                + name
-                + ':'
-                + GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32))
-                + ','
-                + GeoEncodingUtils.decodeLongitude((int) (encoded & 0xFFFFFFFFL))
-                + '>';
         }
     }
 }

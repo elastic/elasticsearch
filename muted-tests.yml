@@ -512,9 +512,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150663
-- class: org.elasticsearch.indices.cluster.SkippedClusterStateIT
-  method: testInitializingPrimaryTermBump
-  issue: https://github.com/elastic/elasticsearch/issues/150666
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testShouldPeriodicallyFlushOnSize
   issue: https://github.com/elastic/elasticsearch/issues/150669

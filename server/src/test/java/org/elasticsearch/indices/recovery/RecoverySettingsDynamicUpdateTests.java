@@ -11,10 +11,15 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 
 public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -72,5 +77,14 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
                 .build()
         );
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
+    }
+
+    public void testSettingsLoadedFromYml() {
+        final Settings settings = Settings.builder().loadFromSource("""
+            indices.recovery.max_concurrent_outgoing_recoveries: 4
+            indices.recovery.max_bytes_per_sec: 50mb
+            """, XContentType.YAML).build();
+        assertEquals(4, INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings).intValue());
+        assertEquals(ByteSizeValue.ofMb(50), INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings));
     }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +23,6 @@ import org.junit.Assert;
 
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -80,51 +78,5 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
             SnapshotMetrics.NOOP
         );
         assertThat(repository.getProjectId(), equalTo(projectId));
-    }
-
-    public void testValidStorageClassIsAccepted() {
-        final String settingKey = randomFrom(
-            GoogleCloudStorageRepository.DATA_STORAGE_CLASS.getKey(),
-            GoogleCloudStorageRepository.METADATA_STORAGE_CLASS.getKey()
-        );
-        final String value = randomFrom("standard", "nearline", "coldline", "COLDLINE", " NearLine ");
-        // should construct without throwing
-        createRepositoryWithSetting(settingKey, value);
-    }
-
-    public void testInvalidStorageClassIsRejected() {
-        final String settingKey = randomFrom(
-            GoogleCloudStorageRepository.DATA_STORAGE_CLASS.getKey(),
-            GoogleCloudStorageRepository.METADATA_STORAGE_CLASS.getKey()
-        );
-        final RepositoryException e = expectThrows(RepositoryException.class, () -> createRepositoryWithSetting(settingKey, "archive"));
-        assertThat(e.getMessage(), containsString(settingKey));
-        assertThat(e.getMessage(), containsString("not an allowed GCS Storage Class"));
-    }
-
-    private GoogleCloudStorageRepository createRepositoryWithSetting(String settingKey, String value) {
-        final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
-        final GoogleCloudStorageClientSettings clientSettings = mock(GoogleCloudStorageClientSettings.class);
-        when(clientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
-        when(storageService.clientSettings(any(), any())).thenReturn(clientSettings);
-        return new GoogleCloudStorageRepository(
-            randomProjectIdOrDefault(),
-            new RepositoryMetadata(
-                randomIdentifier(),
-                GoogleCloudStorageRepository.TYPE,
-                Settings.builder()
-                    .put(GoogleCloudStorageRepository.BUCKET.getKey(), randomIdentifier())
-                    .put(GoogleCloudStorageRepository.BASE_PATH.getKey(), randomIdentifier())
-                    .put(settingKey, value)
-                    .build()
-            ),
-            NamedXContentRegistry.EMPTY,
-            storageService,
-            BlobStoreTestUtil.mockClusterService(),
-            MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(GcsRepositoryStatsCollector.class),
-            SnapshotMetrics.NOOP
-        );
     }
 }

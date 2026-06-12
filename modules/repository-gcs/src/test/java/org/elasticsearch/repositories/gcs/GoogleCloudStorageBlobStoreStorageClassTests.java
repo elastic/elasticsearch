@@ -133,16 +133,6 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         return blobStore.blobContainer(BlobPath.EMPTY);
     }
 
-    private void assertStorageClass(@Nullable String expected, String blobName) {
-        assertEquals(expected, handler.getBlobStorageClass(blobName));
-    }
-
-    private static String randomAllowedStorageClass() {
-        return randomFrom(
-            GoogleCloudStorageBlobStore.ALLOWED_STORAGE_CLASSES_BY_LOWER_NAME.values().stream().map(StorageClass::toString).toList()
-        );
-    }
-
     public void testDataStorageClassSentOnSingleBlobUpload() throws IOException {
         final String dataStorageClass = randomAllowedStorageClass();
         final BlobContainer container = buildContainer(dataStorageClass, null, ByteSizeValue.ofMb(5).getBytes());
@@ -165,13 +155,24 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
 
     public void testDataStorageClassSentOnResumableUpload() throws IOException {
         final String dataStorageClass = randomAllowedStorageClass();
-        // small threshold forces the resumable upload path
+        // use a smaller large blob threshold than the blob size to force the resumable upload path
         final BlobContainer container = buildContainer(dataStorageClass, null, 128);
         final String blobName = randomIdentifier();
 
         container.writeBlob(OperationPurpose.SNAPSHOT_DATA, blobName, new BytesArray(randomByteArrayOfLength(512)), false);
 
         assertStorageClass(dataStorageClass, blobName);
+    }
+
+    public void testMetaDataStorageClassSentOnResumableUpload() throws IOException {
+        final String metadataStorageClass = randomAllowedStorageClass();
+        // use a smaller large blob threshold than the blob size to force the resumable upload path
+        final BlobContainer container = buildContainer(null, metadataStorageClass, 128);
+        final String blobName = randomIdentifier();
+
+        container.writeBlob(OperationPurpose.SNAPSHOT_METADATA, blobName, new BytesArray(randomByteArrayOfLength(512)), false);
+
+        assertStorageClass(metadataStorageClass, blobName);
     }
 
     public void testNoStorageClassSentForNonSnapshotPurpose() throws IOException {
@@ -213,11 +214,38 @@ public class GoogleCloudStorageBlobStoreStorageClassTests extends ESTestCase {
         assertStorageClass(dataStorageClass, destBlobName);
     }
 
+    public void testMetaDataStorageClassSentOnCopyBlob() throws IOException {
+        final String metadataStorageClass = randomAllowedStorageClass();
+        final BlobContainer container = buildContainer(null, metadataStorageClass, ByteSizeValue.ofMb(5).getBytes());
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        final byte[] data = randomByteArrayOfLength(64);
+
+        // write the source with a non-snapshot purpose so it carries no storage class
+        container.writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, new BytesArray(data), false);
+        assertStorageClass(null, sourceBlobName);
+
+        // copy with SNAPSHOT_METADATA purpose so the destination is assigned the configured metadata storage class
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+
+        assertStorageClass(metadataStorageClass, destBlobName);
+    }
+
     public void testInvalidStorageClassIsRejected() {
         final BlobStoreException e = expectThrows(
             BlobStoreException.class,
             () -> GoogleCloudStorageBlobStore.initStorageClass("not-a-real-class")
         );
         assertTrue(e.getMessage().contains("not an allowed GCS Storage Class"));
+    }
+
+    private void assertStorageClass(@Nullable String expected, String blobName) {
+        assertEquals(expected, handler.getBlobStorageClass(blobName));
+    }
+
+    private static String randomAllowedStorageClass() {
+        return randomFrom(
+            GoogleCloudStorageBlobStore.ALLOWED_STORAGE_CLASSES_BY_LOWER_NAME.values().stream().map(StorageClass::toString).toList()
+        );
     }
 }

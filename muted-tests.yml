@@ -635,3 +635,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150387
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplierTests
+  method: testSpanProcessorSelfMonitoringMetricsFlowIntoHealthProvider
+  issue: https://github.com/elastic/elasticsearch/issues/151113

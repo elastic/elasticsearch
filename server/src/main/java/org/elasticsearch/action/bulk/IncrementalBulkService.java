@@ -205,6 +205,7 @@ public class IncrementalBulkService {
 
         public void cancel(String reason, Runnable listener) {
             taskManager.cancel(bulkSessionTask, reason, listener);
+            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.noop());
         }
 
         public boolean isCancelled() {

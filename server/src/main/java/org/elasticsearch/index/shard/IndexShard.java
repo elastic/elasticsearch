@@ -3818,8 +3818,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         CheckedConsumer<ActionListener<Boolean>, Exception> action
     ) {
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
-        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
-            if (r) {
+        threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(recoveryDone -> {
+            if (recoveryDone) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             } else {
                 recoveryListener.onRecoveryCancelled();

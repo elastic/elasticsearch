@@ -21,29 +21,19 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-/**
- * Task queue for recoveries running on target node.
- * <p>
- * Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task
- * to the executor and released when {@link RecoveryListener} terminates
- * ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}),
- * through a callback to {@link #closeAndFillSlots(RecoveryTask)}.
- * <p>
- * Max number of concurrent recovery slots are controlled by setting {@link #INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING}
- * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
- * If limit decreases, no tasks will be cancelled, and we will let running tasks finish.
- */
+/// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
+ /// released when the recovery's [RecoveryListener] completes.
+ /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
+ /// dynamic setting.
 public final class ThrottlingRecoveryService {
-    /**
-     * Controls the number of concurrent recoveries allowed on target node.
-     * Target node is the node that owns the shard after recovery is finished.
-     * This setting applies to all types of recoveries, not only peer recovery.
-     */
-    private static final int UNLIMITED = Integer.MAX_VALUE;
-    private static final int DEFAULT_INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES = UNLIMITED;
+
+    /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries where this
+    /// node is acting as the source, which is controlled by [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
+    ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_recoveries",
-        DEFAULT_INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES,
+        // Throttling handled by master allocation for now.
+        Integer.MAX_VALUE,
         1,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -64,35 +54,30 @@ public final class ThrottlingRecoveryService {
             .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
-    /**
-     * Enqueue recovery task and dispatch to async Executor if there are available slots.
-     * Exceptions from task are propagated to {@link RecoveryListener#onRecoveryFailure(RecoveryFailedException, boolean)}
-     * on provided listener.
-     */
+    /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
         logger.trace(
             "enqueue recovery: recoverySource: [{}], shardId: [{}]",
             recoveryState.getRecoverySource(),
             recoveryState.getShardId()
         );
-        pendingRecoveries.add(asRecoveryTask(recoveryListener, recoveryState, task));
+        pendingRecoveries.add(new RecoveryTask(recoveryState, task, RecoveryListener.runAfter(recoveryListener, () -> {
+            logger.trace(
+                "close recovery: recoverySource: [{}], shardId: [{}]",
+                recoveryState.getRecoverySource(),
+                recoveryState.getShardId()
+            );
+            int current = runningRecoveries.decrementAndGet();
+            assert current >= 0 : "negative number of running recoveries " + current;
+            fillSlots();
+        })));
         fillSlots();
     }
 
-    /**
-     * Create RecoveryTask with termination hook that dispatches next pending recovery task
-     * when RecoveryListener is completed.
-     */
-    private RecoveryTask asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
-        return new RecoveryTask(recoveryListener, recoveryState, task, this::closeAndFillSlots);
-    }
-
-    /**
-     * Drain the pending queue up to max slot capacity (maxConcurrentRecoveries)
-     */
+    /// Drains the pending queue up to the max slot capacity
     private void fillSlots() {
         int current;
-        while (((current = runningRecoveries.get()) < maxConcurrentRecoveries || maxConcurrentRecoveries == UNLIMITED)
+        while (((current = runningRecoveries.get()) < maxConcurrentRecoveries || maxConcurrentRecoveries == Integer.MAX_VALUE)
             && !pendingRecoveries.isEmpty()) {
             if (runningRecoveries.compareAndSet(current, current + 1)) {
                 RecoveryTask nextTask = pendingRecoveries.poll();
@@ -110,17 +95,6 @@ public final class ThrottlingRecoveryService {
         }
     }
 
-    private void closeAndFillSlots(RecoveryTask recoveryTask) {
-        logger.trace(
-            "close recovery: recoverySource: [{}], shardId: [{}]",
-            recoveryTask.recoveryState.getRecoverySource(),
-            recoveryTask.recoveryState.getShardId()
-        );
-        int current = runningRecoveries.decrementAndGet();
-        assert current >= 0 : "negative number of running recoveries " + current;
-        fillSlots();
-    }
-
     private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
         int oldMax = this.maxConcurrentRecoveries;
         this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
@@ -130,19 +104,14 @@ public final class ThrottlingRecoveryService {
     }
 
     private static class RecoveryTask extends AbstractRunnable {
-        private final RecoveryListener listener;
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
+        private final RecoveryListener listener;
 
-        private RecoveryTask(
-            RecoveryListener recoveryListener,
-            RecoveryState recoveryState,
-            Consumer<RecoveryListener> task,
-            Consumer<RecoveryTask> closeTask
-        ) {
+        private RecoveryTask(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener recoveryListener) {
             this.recoveryState = recoveryState;
             this.task = task;
-            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(recoveryListener, () -> closeTask.accept(this)));
+            this.listener = RecoveryListener.assertOnce(recoveryListener);
         }
 
         @Override

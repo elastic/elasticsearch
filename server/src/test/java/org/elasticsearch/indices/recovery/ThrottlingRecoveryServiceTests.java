@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,12 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -59,8 +58,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */
-    public void testSynchronousTaskRunsOutsideEnqueueingThread() throws Exception {
+    public void testSynchronousTaskRunsDoesNotRunOnEnqueueingThread() throws Exception {
         ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(between(2, 4)));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
@@ -129,10 +127,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         safeAwait(done);
     }
 
-    /**
-     * Asynchronous task: consumer returns before the scheduling listener receives a terminal callback; the nested
-     * runnable must only invoke {@link RecoveryListener#onRecoveryDone} after the consumer body has finished.
-     */
+    /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback. The nested
+     /// runnable must only invoke [RecoveryListener#onRecoveryDone] after the consumer body has finished.
     public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
         ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
@@ -171,11 +167,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         safeAwait(done);
     }
 
-    /**
-     * Never more than {@code maxConcurrentRecoveries} consumer bodies may overlap without a terminal scheduling-listener
-     * callback; asynchronous completion exercises {@link ThrottlingRecoveryService}'s slot accounting.
-     */
-    public void testMaxConcurrencyBoundWithAsynchronousTerminalCallback() throws Exception {
+    public void testMaxConcurrencyBoundWithAsynchronousTasks() throws Exception {
         final int maxConcurrentRecoveries = between(2, 5);
         ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(maxConcurrentRecoveries));
         AtomicInteger running = new AtomicInteger();
@@ -240,7 +232,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(peakConcurrent.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
     }
 
-    /** Raising the limit should start queued work without waiting for running recoveries to finish. */
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
         final ClusterService clusterService = newClusterService(2);
         final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
@@ -265,10 +256,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         unblockAll.countDown();
     }
 
-    /**
-     * Lowering the limit must not cancel running recoveries, but recoveries should not be started from the pending queue
-     * until enough running work finishes that a slot is free under the new limit.
-     */
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
         final ClusterService clusterService = newClusterService(3);
         final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
@@ -305,7 +292,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
 
-        unblockEachFirstBatch.get(0).countDown();
+        unblockEachFirstBatch.getFirst().countDown();
         Thread.yield();
         for (AtomicBoolean started : pendingStarted) {
             assertFalse(started.get());
@@ -327,7 +314,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
-    /** With one slot, synchronous completions preserve enqueue order. */
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
         ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
         int total = between(10, 20);
@@ -371,24 +357,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
-    public void testTaskFailurePropagateToListener() throws Exception {
+    public void testFailureTriggersNextQueuedRecovery() throws Exception {
         ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        AtomicReference<Exception> exceptionReceived = new AtomicReference<>();
-        CountDownLatch done = new CountDownLatch(1);
-        RecoveryListener userListener = new RecoveryListener() {
+        CountDownLatch firstTaskFailed = new CountDownLatch(1);
+        CountDownLatch secondTaskStarted = new CountDownLatch(1);
+
+        RecoveryListener firstListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                fail("unexpected success");
+                fail("first task should fail");
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                exceptionReceived.set(e);
-                done.countDown();
+                firstTaskFailed.countDown();
             }
 
             @Override
@@ -396,20 +382,100 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail("recovery cancelled");
             }
         };
-        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> { throw new RuntimeException("Leeeeroooooy"); });
-        safeAwait(done);
-        assertThat("recovery executed on enqueueing thread instead of generic pool", exceptionReceived.get(), notNullValue());
+
+        RecoveryListener secondListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                secondTaskStarted.countDown();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
+            }
+        };
+
+        service.enqueue(
+            firstListener,
+            fakeRecoveryState(),
+            ignored -> { throw new RuntimeException("test recovery task injected failure"); }
+        );
+        service.enqueue(secondListener, fakeRecoveryState(), schedulingListener -> {
+            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        });
+
+        safeAwait(firstTaskFailed);
+        safeAwait(secondTaskStarted);
     }
 
-    /**
-     * Stress one {@link ThrottlingRecoveryService} from many producer threads for one second: alternating bursty
-     * submits (high contention on the throttle) and idle periods (little to no contention). Verify that all tasks finish
-     * and that consumer-body overlap never exceeds the highest {@code indices.recovery.max_concurrent_recoveries} applied
-     * during the run (running work is not cancelled when the limit drops).
-     * <p>
-     * By randomizing burst sizes we exercise different backlog shapes where in some executions there are always pending
-     * recoveries, and in others the pending queue sometimes drains during idle periods.
-     */
+    public void testCancellationTriggersNextQueuedRecovery() throws Exception {
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
+        CountDownLatch firstTaskCancelled = new CountDownLatch(1);
+        CountDownLatch secondTaskStarted = new CountDownLatch(1);
+
+        RecoveryListener firstListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                fail("first task should be cancelled");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+
+            @Override
+            public void onRecoveryCancelled() {
+                firstTaskCancelled.countDown();
+            }
+        };
+
+        RecoveryListener secondListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                secondTaskStarted.countDown();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                fail(e);
+            }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("second task should not be cancelled");
+            }
+        };
+
+        service.enqueue(firstListener, fakeRecoveryState(), RecoveryListener::onRecoveryCancelled);
+        service.enqueue(secondListener, fakeRecoveryState(), schedulingListener -> {
+            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        });
+
+        safeAwait(firstTaskCancelled);
+        safeAwait(secondTaskStarted);
+    }
+
+    /// Stresses the [ThrottlingRecoveryService] from many producer threads, alternating bursty submits (high contention on
+     /// the throttle) and idle periods (little to no contention). Verify that all tasks finish and that the number of running
+     /// tasks never exceeds the highest `indices.recovery.max_concurrent_recoveries` applied during the run.
     public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() throws Exception {
         final int initialMaxConcurrentRecoveries = between(1, 20);
         final ClusterService clusterService = newClusterService(initialMaxConcurrentRecoveries);
@@ -451,7 +517,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                 peakRunning,
                                 totalTasksFinished,
                                 taskLatch,
-                                random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
+                                executor
                             )
                         );
                     }
@@ -469,7 +535,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                                 peakRunning,
                                 totalTasksFinished,
                                 taskLatch,
-                                random().nextBoolean() ? executor : DIRECT_EXECUTOR_SERVICE
+                                executor
                             )
                         );
                     }
@@ -480,7 +546,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         // taskLatch starts with 1 ref, decremented here
         taskLatch.decRef();
-        safeAwait(allFinished);
+        safeAwait(allFinished, TimeValue.timeValueSeconds(30));
         assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimitCeiling.get()));
         assertThat(running.get(), equalTo(0));
@@ -507,14 +573,25 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         int current = running.incrementAndGet();
         peakRunning.accumulateAndGet(current, Integer::max);
         try {
-            Thread.sleep(1);
+            Thread.sleep(randomIntBetween(0, 20));
+            running.decrementAndGet();
+            if (randomBoolean()) {
+                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            } else {
+                if (randomBoolean()) {
+                    schedulingListener.onRecoveryCancelled();
+                } else {
+                    schedulingListener.onRecoveryFailure(
+                        new RecoveryFailedException(fakeRecoveryState(), null, new RuntimeException("test recovery task injected failure")),
+                        randomBoolean()
+                    );
+                }
+            }
+            totalTasksFinished.incrementAndGet();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new AssertionError(e);
         } finally {
-            running.decrementAndGet();
-            totalTasksFinished.incrementAndGet();
-            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             refCounted.decRef();
         }
     }
@@ -529,7 +606,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         return clusterService;
     }
 
-    private RecoveryState fakeRecoveryState() {
+    private static RecoveryState fakeRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 1, "node", true, ShardRoutingState.INITIALIZING);
         return new RecoveryState(shardRouting, DiscoveryNodeUtils.create("source"), DiscoveryNodeUtils.create("target"));
     }

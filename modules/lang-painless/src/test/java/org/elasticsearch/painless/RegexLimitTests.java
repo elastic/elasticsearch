@@ -44,9 +44,7 @@ public class RegexLimitTests extends ScriptTestCase {
         }
     }
 
-    // When regexes are enabled with no limit factor the receiver is passed to the matcher unwrapped (the
-    // UNLIMITED_PATTERN_FACTOR branch); these pin that the replaceAll/replaceFirst augmentations still produce the
-    // correct output on that unwrapped path rather than only the LimitedCharSequence-wrapped one.
+    // With no limit factor the receiver is matched unwrapped (UNLIMITED_PATTERN_FACTOR branch); pin correct output there.
     public void testRegexInjectUnlimited_ReplaceAll() {
         setRegexEnabled();
         assertEquals("thE qUIck brOwn fOx", exec("'the quick brown fox'.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"));

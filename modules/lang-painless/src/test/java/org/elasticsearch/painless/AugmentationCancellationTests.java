@@ -608,18 +608,12 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertTrue("each() poll should fire", callCount.get() >= 1);
     }
 
-    /**
-     * Runs {@code body} (an expression over {@code params}) with a non-throwing cancellation check installed so the
-     * augmentation takes its polling branch, captures the result into {@code state['r']}, and returns it.
-     */
+    /** Runs {@code body} with a non-throwing check installed (forcing the polling branch) and returns its value. */
     private Object execWithCheckInstalled(String body, Map<String, Object> params) {
         return execSourceWithCheckInstalled("state['r'] = " + body + ";", params);
     }
 
-    /**
-     * Same as {@link #execWithCheckInstalled(String, Map)} but takes the full script source so callers can declare
-     * user functions (for method references) before assigning the captured result into {@code state['r']}.
-     */
+    /** Source-level variant of {@link #execWithCheckInstalled} for scripts that declare a function (e.g. method refs). */
     private Object execSourceWithCheckInstalled(String source, Map<String, Object> params) {
         Map<String, Object> state = new HashMap<>();
         ScriptedMetricAggContexts.InitScript script = compileInit(source, params, state);
@@ -1266,11 +1260,10 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Parity check for the hand-written scan that runs when a cancellation check is installed: it must return exactly
-     * what the JDK returns. The fast path already delegates to the JDK, so this guards the polling branch across the
-     * edge cases that diverge most easily — empty needle, negative and out-of-bounds {@code fromIndex}, no match, and
-     * UTF-16 surrogate pairs (emoji). {@code charAt}-based matching is code-unit based just like {@link String#indexOf},
-     * so a surrogate pair (two chars) only matches when both halves line up; these cases pin that equivalence.
+     * The polling scan (taken with a check installed) must return exactly what the JDK returns across the edge cases
+     * that diverge most easily: empty needle, negative/out-of-bounds {@code fromIndex}, no match, and surrogate pairs.
+     * {@code charAt} matching is code-unit based like {@link String#indexOf}, so a surrogate pair matches only when both
+     * halves line up.
      */
     public void testStringSearchAugmentationsMatchJdkWithCheckInstalled() {
         String emoji = "a😀b😀c"; // "a😀b😀c" — two surrogate pairs
@@ -1288,13 +1281,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertIndexOfParity("abc", "", 1);
         assertIndexOfParity("abc", "", 100);      // empty needle, fromIndex past the end
         assertIndexOfParity("abc", "a", 100);     // non-empty needle, fromIndex past the end
-        assertIndexOfParity("ab", "abcd");        // needle longer than haystack -> -1 (lastStart goes negative)
-        assertIndexOfParity("", "a");             // empty haystack, non-empty needle -> -1
+        assertIndexOfParity("ab", "abcd");        // needle longer than haystack -> -1
+        assertIndexOfParity("", "a");             // empty haystack -> -1
 
         // lastIndexOf(String)
         assertLastIndexOfParity(emoji, e);
         assertLastIndexOfParity("abcabc", "bc");
-        assertLastIndexOfParity("ab", "abcd");    // needle longer than haystack -> -1 (searchStart goes negative)
+        assertLastIndexOfParity("ab", "abcd");    // needle longer than haystack -> -1
 
         // lastIndexOf(String, int)
         assertLastIndexOfParity(emoji, e, 3);
@@ -1310,23 +1303,15 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertContainsParity("ab", "abcd");       // needle longer than haystack -> false
     }
 
-    /**
-     * contains accepts any CharSequence, not just String.  Passing a StringBuilder exercises the {@code search.toString()}
-     * conversion inside the augmentation's polling path, which the String-argument cases never reach.
-     */
+    /** A StringBuilder arg (CharSequence, not String) exercises the {@code search.toString()} conversion in the scan. */
     public void testContainsNonStringCharSequenceMatchesJdkWithCheckInstalled() {
         Map<String, Object> params = new HashMap<>();
         params.put("h", "abcabc");
-        // StringBuilder is a CharSequence but not a String; the augmentation must toString() it before scanning.
         assertEquals("abcabc".contains("bc"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('bc'))", params));
         assertEquals("abcabc".contains("xy"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('xy'))", params));
     }
 
-    /**
-     * indexOf on a {@code def} receiver resolves through the runtime dispatch path ({@code Def#lookupMethod}) rather than
-     * the compile-time path the typed-receiver tests above exercise. The synthesised script slot must still be threaded
-     * correctly so the scan polls and the cancel runnable fires.
-     */
+    /** indexOf on a {@code def} receiver takes the runtime dispatch path; the script slot must still be threaded so it polls. */
     public void testIndexOfDefReceiverFiresCancelRunnable() {
         Map<String, Object> params = new HashMap<>();
         params.put("big", "A".repeat(1500));
@@ -1334,11 +1319,7 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertFires(script, "cancelled-indexof-def");
     }
 
-    /**
-     * Parity on the {@code def} runtime path: with a check installed, indexOf / lastIndexOf / contains called on a
-     * {@code def} receiver must return exactly what the JDK returns — guarding the script-slot swap that adapts the
-     * @script_aware handle for the def call site.
-     */
+    /** Parity on the {@code def} runtime path, guarding the script-slot swap that adapts the handle for a def call site. */
     public void testStringSearchDefReceiverMatchesJdkWithCheckInstalled() {
         Map<String, Object> params = new HashMap<>();
         params.put("h", "abcabc");
@@ -1420,11 +1401,7 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         script.execute();  // must not throw
     }
 
-    /**
-     * The polling branch of replaceAll (taken when a cancellation check is installed) is a separate loop from the fast
-     * path that {@code RegexTests} covers; this pins that it produces the same replacement output, including
-     * capturing-group extraction, so a future divergence between the two loops cannot slip through unnoticed.
-     */
+    /** replaceAll's polling branch is a separate loop from the fast path; pin that its output (with groups) matches. */
     public void testReplaceAllWithCheckInstalledMatchesExpectedOutput() {
         Map<String, Object> params = new HashMap<>();
         params.put("input", "the quick brown fox");
@@ -1436,15 +1413,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * A replacement lambda that captures an enclosing variable, called on a {@code def} receiver, stresses argument
-     * positioning for the @script_aware + @inject_constant runtime path: the captured value must land in the user-args
-     * region after the synthesised script and limit-factor slots.
+     * A capturing lambda on a {@code def} receiver stresses argument positioning: the captured value must land in the
+     * user-args region after the synthesised script and limit-factor slots.
      */
     public void testReplaceAllDefReceiverCapturingLambdaMatchesExpectedOutput() {
         Map<String, Object> params = new HashMap<>();
         params.put("input", "a1a2a3");
         params.put("prefix", "X");
-        // params['input'] is def, so dispatch is at runtime; the lambda captures the local `prefix`.
         Object out = execSourceWithCheckInstalled(
             "String prefix = params['prefix']; state['r'] = params['input'].replaceAll(/a/, m -> prefix + m.group());",
             params
@@ -1452,10 +1427,7 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertEquals("Xa1Xa2Xa3", out);
     }
 
-    /**
-     * A method reference (rather than a lambda) as the replacement builder, on a {@code def} receiver, exercises the
-     * method-reference recipe arity computation together with the @script_aware / @inject_constant argument offsets.
-     */
+    /** A method reference on a {@code def} receiver exercises the method-ref arity math with the script/inject offsets. */
     public void testReplaceAllDefReceiverMethodRefMatchesExpectedOutput() {
         Map<String, Object> params = new HashMap<>();
         params.put("input", "the quick brown fox");

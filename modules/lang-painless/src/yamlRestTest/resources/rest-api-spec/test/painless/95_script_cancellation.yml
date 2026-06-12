@@ -2575,10 +2575,8 @@
   - do:
       indices.refresh: {}
 
-  # The @script_aware replaceAll polls PainlessScript._pollCancellation() once per match.  Build a long
-  # all-'a' haystack once, then run a loop of replaceAll calls each performing 100k matches.  The per-match
-  # poll keeps advancing the cancellation budget across calls so the 100ms timeout cancels the search long
-  # before the outer loop count (999999 < maxLoopCounter) is reached.
+  # replaceAll polls once per match. A loop of replaceAll calls over a long all-'a' haystack accrues enough
+  # per-match polls to trip the 100ms timeout well before the outer loop count (999999 < maxLoopCounter).
   - do:
       search:
         rest_total_hits_as_int: true

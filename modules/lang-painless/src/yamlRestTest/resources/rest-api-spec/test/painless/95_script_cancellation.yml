@@ -2559,3 +2559,40 @@
                   return s.length() > 0;
   - is_true: timed_out
 
+---
+"Search timeout aborts a long-running replaceAll augmentation loop":
+  - do:
+      indices.create:
+        index: test_replaceall_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_replaceall_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware replaceAll polls PainlessScript._pollCancellation() once per match.  Build a long
+  # all-'a' haystack once, then run a loop of replaceAll calls each performing 100k matches.  The per-match
+  # poll keeps advancing the cancellation budget across calls so the 100ms timeout cancels the search long
+  # before the outer loop count (999999 < maxLoopCounter) is reached.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_replaceall_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < 100000; i++) { sb.append('a'); }
+                  String s = sb.toString();
+                  for (int j = 0; j < 999999; j++) { s.replaceAll(/a/, m -> 'b'); }
+                  return true;
+  - is_true: timed_out
+

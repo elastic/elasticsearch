@@ -613,8 +613,16 @@ public class AugmentationCancellationTests extends ScriptTestCase {
      * augmentation takes its polling branch, captures the result into {@code state['r']}, and returns it.
      */
     private Object execWithCheckInstalled(String body, Map<String, Object> params) {
+        return execSourceWithCheckInstalled("state['r'] = " + body + ";", params);
+    }
+
+    /**
+     * Same as {@link #execWithCheckInstalled(String, Map)} but takes the full script source so callers can declare
+     * user functions (for method references) before assigning the captured result into {@code state['r']}.
+     */
+    private Object execSourceWithCheckInstalled(String source, Map<String, Object> params) {
         Map<String, Object> state = new HashMap<>();
-        ScriptedMetricAggContexts.InitScript script = compileInit("state['r'] = " + body + ";", params, state);
+        ScriptedMetricAggContexts.InitScript script = compileInit(source, params, state);
         script._setCancellationCheck(() -> {});
         script.execute();
         return state.get("r");
@@ -1280,10 +1288,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertIndexOfParity("abc", "", 1);
         assertIndexOfParity("abc", "", 100);      // empty needle, fromIndex past the end
         assertIndexOfParity("abc", "a", 100);     // non-empty needle, fromIndex past the end
+        assertIndexOfParity("ab", "abcd");        // needle longer than haystack -> -1 (lastStart goes negative)
+        assertIndexOfParity("", "a");             // empty haystack, non-empty needle -> -1
 
         // lastIndexOf(String)
         assertLastIndexOfParity(emoji, e);
         assertLastIndexOfParity("abcabc", "bc");
+        assertLastIndexOfParity("ab", "abcd");    // needle longer than haystack -> -1 (searchStart goes negative)
 
         // lastIndexOf(String, int)
         assertLastIndexOfParity(emoji, e, 3);
@@ -1296,6 +1307,61 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         // contains(CharSequence)
         assertContainsParity(emoji, e);
         assertContainsParity("abc", "x");
+        assertContainsParity("ab", "abcd");       // needle longer than haystack -> false
+    }
+
+    /**
+     * contains accepts any CharSequence, not just String.  Passing a StringBuilder exercises the {@code search.toString()}
+     * conversion inside the augmentation's polling path, which the String-argument cases never reach.
+     */
+    public void testContainsNonStringCharSequenceMatchesJdkWithCheckInstalled() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", "abcabc");
+        // StringBuilder is a CharSequence but not a String; the augmentation must toString() it before scanning.
+        assertEquals("abcabc".contains("bc"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('bc'))", params));
+        assertEquals("abcabc".contains("xy"), execWithCheckInstalled("((String)params['h']).contains(new StringBuilder('xy'))", params));
+    }
+
+    /**
+     * indexOf on a {@code def} receiver resolves through the runtime dispatch path ({@code Def#lookupMethod}) rather than
+     * the compile-time path the typed-receiver tests above exercise. The synthesised script slot must still be threaded
+     * correctly so the scan polls and the cancel runnable fires.
+     */
+    public void testIndexOfDefReceiverFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("def s = params['big']; s.indexOf('Z');", params, new HashMap<>());
+        assertFires(script, "cancelled-indexof-def");
+    }
+
+    /**
+     * Parity on the {@code def} runtime path: with a check installed, indexOf / lastIndexOf / contains called on a
+     * {@code def} receiver must return exactly what the JDK returns — guarding the script-slot swap that adapts the
+     * @script_aware handle for the def call site.
+     */
+    public void testStringSearchDefReceiverMatchesJdkWithCheckInstalled() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", "abcabc");
+        params.put("n", "bc");
+        assertEquals("abcabc".indexOf("bc"), ((Number) execWithCheckInstalled("params['h'].indexOf(params['n'])", params)).intValue());
+        assertEquals(
+            "abcabc".lastIndexOf("bc"),
+            ((Number) execWithCheckInstalled("params['h'].lastIndexOf(params['n'])", params)).intValue()
+        );
+        assertEquals("abcabc".contains("bc"), execWithCheckInstalled("params['h'].contains(params['n'])", params));
+    }
+
+    /** The {@code def} string-search dispatch must also take the no-poll fast path when no cancellation check is installed. */
+    public void testStringSearchDefReceiverNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(50));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "def s = params['big']; s.indexOf('Z'); s.indexOf('Z', 0); s.lastIndexOf('Z'); s.lastIndexOf('Z', 49); s.contains('Z');",
+            params,
+            new HashMap<>()
+        );
+        // No runnable set — fast paths must not throw.
+        script.execute();
     }
 
     // --- CharSequence regex augmentations: regex limit factor (Fix A) + per-match polling (Fix B) ---
@@ -1352,5 +1418,52 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             new HashMap<>()
         );
         script.execute();  // must not throw
+    }
+
+    /**
+     * The polling branch of replaceAll (taken when a cancellation check is installed) is a separate loop from the fast
+     * path that {@code RegexTests} covers; this pins that it produces the same replacement output, including
+     * capturing-group extraction, so a future divergence between the two loops cannot slip through unnoticed.
+     */
+    public void testReplaceAllWithCheckInstalledMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "the quick brown fox");
+        Object out = execWithCheckInstalled(
+            "((String)params['input']).replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))",
+            params
+        );
+        assertEquals("thE qUIck brOwn fOx", out);
+    }
+
+    /**
+     * A replacement lambda that captures an enclosing variable, called on a {@code def} receiver, stresses argument
+     * positioning for the @script_aware + @inject_constant runtime path: the captured value must land in the user-args
+     * region after the synthesised script and limit-factor slots.
+     */
+    public void testReplaceAllDefReceiverCapturingLambdaMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "a1a2a3");
+        params.put("prefix", "X");
+        // params['input'] is def, so dispatch is at runtime; the lambda captures the local `prefix`.
+        Object out = execSourceWithCheckInstalled(
+            "String prefix = params['prefix']; state['r'] = params['input'].replaceAll(/a/, m -> prefix + m.group());",
+            params
+        );
+        assertEquals("Xa1Xa2Xa3", out);
+    }
+
+    /**
+     * A method reference (rather than a lambda) as the replacement builder, on a {@code def} receiver, exercises the
+     * method-reference recipe arity computation together with the @script_aware / @inject_constant argument offsets.
+     */
+    public void testReplaceAllDefReceiverMethodRefMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("input", "the quick brown fox");
+        Object out = execSourceWithCheckInstalled(
+            "String up(Matcher m) { return m.group().toUpperCase(Locale.ROOT); } "
+                + "state['r'] = params['input'].replaceAll(/[aeiou]/, this::up);",
+            params
+        );
+        assertEquals("thE qUIck brOwn fOx", out);
     }
 }

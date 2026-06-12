@@ -61,6 +61,39 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length && length == b.length) {
+            return dotProduct(a, b);
+        }
+        float sum = 0f;
+        int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            sum = fma(a[i], b[i], sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(float[] v, int length) {
+        if (length == v.length) {
+            VectorUtil.l2normalize(v);
+            return;
+        }
+        double normSq = 0;
+        for (int j = 0; j < length; j++) {
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = 0; j < length; j++) {
+            v[j] = (float) (v[j] * invNorm);
+        }
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }

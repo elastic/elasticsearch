@@ -504,6 +504,43 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, actual, 1e-3f * length);
     }
 
+    public void testDotProductRangeDefaultEqualsPanama() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        float[] a = generateRandomVector(vectorSize);
+        float[] b = generateRandomVector(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().dotProduct(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        assertEquals(expected, ESVectorUtil.dotProduct(a, b, offset, length), 1e-3f * length);
+    }
+
+    public void testDotProductLengthMatchesFullWhenEqual() {
+        int vectorSize = randomIntBetween(1, 128);
+        float[] a = generateRandomVector(vectorSize);
+        float[] b = generateRandomVector(vectorSize);
+        assertEquals(ESVectorUtil.dotProduct(a, b), ESVectorUtil.dotProduct(a, b, vectorSize), 0f);
+    }
+
+    public void testL2NormalizePrefixDefaultEqualsPanama() {
+        float[] expected = { 3f, 4f, 99f, 99f };
+        float[] panama = expected.clone();
+        defaultedProvider.getVectorUtilSupport().l2Normalize(expected, 2);
+        panamaProvider.getVectorUtilSupport().l2Normalize(panama, 2);
+        assertArrayEquals(expected, panama, 1e-5f);
+        assertArrayEquals(new float[] { 0.6f, 0.8f, 99f, 99f }, expected, 1e-5f);
+        float[] util = { 3f, 4f, 99f, 99f };
+        ESVectorUtil.l2Normalize(util, 2);
+        assertArrayEquals(expected, util, 1e-5f);
+    }
+
+    public void testL2NormalizePrefixZeroIsNoOp() {
+        float[] v = { 0f, 0f, 5f };
+        ESVectorUtil.l2Normalize(v, 2);
+        assertArrayEquals(new float[] { 0f, 0f, 5f }, v, 0f);
+    }
+
     public void testSquareDistanceBulkRange() {
         int vectorSize = randomIntBetween(64, 2048);
         int offset = randomIntBetween(0, vectorSize - 1);

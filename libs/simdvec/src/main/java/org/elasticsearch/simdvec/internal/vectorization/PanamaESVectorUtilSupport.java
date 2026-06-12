@@ -161,6 +161,62 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (offset == 0 && length == a.length && length == b.length) {
+            return dotProduct(a, b);
+        }
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        int i = offset;
+        final int end = offset + length;
+        final int vectorEnd = offset + FLOAT_SPECIES.loopBound(length);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector av = FloatVector.fromArray(FLOAT_SPECIES, a, i);
+            FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, i);
+            acc = fma(av, bv, acc);
+        }
+        float sum = acc.reduceLanes(ADD);
+        for (; i < end; i++) {
+            sum = fma(a[i], b[i], sum);
+        }
+        return sum;
+    }
+
+    @Override
+    public void l2Normalize(float[] v, int length) {
+        if (length == v.length) {
+            VectorUtil.l2normalize(v);
+            return;
+        }
+        double normSq = 0;
+        int i = 0;
+        final int vectorEnd = FLOAT_SPECIES.loopBound(length);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
+            acc = fma(vv, vv, acc);
+        }
+        normSq = acc.reduceLanes(ADD);
+        for (; i < length; i++) {
+            double t = v[i];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        float scale = (float) invNorm;
+        FloatVector scaleVec = FloatVector.broadcast(FLOAT_SPECIES, scale);
+        i = 0;
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector vv = FloatVector.fromArray(FLOAT_SPECIES, v, i);
+            vv.mul(scaleVec).intoArray(v, i);
+        }
+        for (; i < length; i++) {
+            v[i] = (float) (v[i] * invNorm);
+        }
+    }
+
+    @Override
     public float squareDistance(float[] a, float[] b) {
         return VectorUtil.squareDistance(a, b);
     }

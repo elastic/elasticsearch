@@ -14,6 +14,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
@@ -90,6 +91,46 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Dot product of the first {@code length} components of {@code a} and {@code b}.
+     */
+    public static float dotProduct(float[] a, float[] b, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(0, length, a.length);
+        return IMPL.dotProduct(a, b, 0, length);
+    }
+
+    /**
+     * Dot product over {@code [offset, offset + length)}.
+     */
+    public static float dotProduct(float[] a, float[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.dotProduct(a, b, offset, length);
+    }
+
+    /**
+     * L2-normalizes {@code v} in place. When {@code length == v.length}, delegates to
+     * {@link VectorUtil#l2normalize(float[])} and rejects a zero vector. When {@code length &lt; v.length},
+     * only the prefix is scaled and a zero prefix is a no-op.
+     */
+    public static void l2Normalize(float[] v, int length) {
+        if (length <= 0) {
+            return;
+        }
+        Objects.checkFromIndexSize(0, length, v.length);
+        IMPL.l2Normalize(v, length);
+    }
+
+    /** L2-normalizes all components of {@code v} in place. */
+    public static void l2Normalize(float[] v) {
+        l2Normalize(v, v.length);
     }
 
     public static float squareDistance(float[] a, float[] b) {

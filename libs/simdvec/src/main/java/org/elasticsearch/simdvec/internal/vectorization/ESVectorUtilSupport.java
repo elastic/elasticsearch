@@ -32,6 +32,12 @@ public interface ESVectorUtilSupport {
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
 
+    /** Calculates the dot product over {@code [offset, offset + length)}. */
+    float dotProduct(float[] a, float[] b, int offset, int length);
+
+    /** L2-normalizes {@code v[0:length)} in place. When {@code length == v.length}, zero vectors are rejected. */
+    void l2Normalize(float[] v, int length);
+
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(float[] a, float[] b);
 

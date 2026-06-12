@@ -61,22 +61,6 @@ fi
 GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
 echo "--- Running gradle tasks"
-if ! command -v java > /dev/null; then
-  if [[ "${ES_BUILD_JAVA:-}" == "" ]]; then
-    export $(cat .ci/java-versions.properties | grep '=' | xargs)
-  fi
-
-  PATH="$HOME/.java/$ES_BUILD_JAVA/bin:$PATH"
-  export PATH
-fi
-
-which java
-echo "$JAVA_HOME"
-echo "$PATH"
-
-echo java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
-
-set -x
 
 if command -v java > /dev/null; then
   java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"

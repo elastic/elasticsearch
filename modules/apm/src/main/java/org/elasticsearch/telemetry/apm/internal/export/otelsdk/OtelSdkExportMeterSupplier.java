@@ -121,7 +121,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
             .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
-            .setRetryPolicy(buildRetryPolicy());
+            .setRetryPolicy(buildRetryPolicy(settings));
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
@@ -129,7 +129,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return builder.build();
     }
 
-    private RetryPolicy buildRetryPolicy() {
+    static RetryPolicy buildRetryPolicy(Settings settings) {
         int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.get(settings);
         if (maxAttempts <= 1) {
             return null;

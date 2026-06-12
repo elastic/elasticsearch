@@ -62,6 +62,14 @@ GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
 echo "--- Running gradle tasks"
 
+set -x
+
+echo "PATH=$PATH"
+echo "JAVA_HOME=$JAVA_HOME"
+which java
+
+java -jar "$RUNNER_JAR" -- help || true
+
 if command -v java > /dev/null; then
   java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
 else

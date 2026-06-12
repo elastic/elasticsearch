@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -26,13 +27,14 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<LlamaEmbeddingsServiceSettings> {
+public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaEmbeddingsServiceSettings> {
 
     private static final URI TEST_URI = URI.create("https://www.test.com");
     private static final URI INITIAL_TEST_URI = URI.create("https://www.initial.com");
@@ -93,9 +95,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_NoModelId_ThrowsValidationError() {
+    public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     null,
@@ -108,16 +110,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
         );
     }
 
-    public void testFromMap_NoUrl_ThrowsValidationError() {
+    public void testFromMap_NoUrl_ThrowsException() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -130,16 +131,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
         );
     }
 
-    public void testFromMap_EmptyUrl_ThrowsValidationError() {
+    public void testFromMap_EmptyUrl_ThrowsException() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -152,17 +152,16 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ServiceFields.URL))
+            thrownException.getMessage(),
+            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
         );
     }
 
-    public void testFromMap_InvalidUrl_ThrowsValidationError() {
+    public void testFromMap_InvalidUrl_ThrowsException() {
         var invalidUrl = "^^^";
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -175,10 +174,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(thrownException.validationErrors().getFirst(), is(Strings.format("""
-            [service_settings] Invalid url [%s] received for field [%s]. \
-            Error: unable to parse url [%s]. Reason: Illegal character in path""", invalidUrl, ServiceFields.URL, invalidUrl)));
+        assertThat(
+            thrownException.getMessage(),
+            is(Strings.format("unable to parse url [%s]. Reason: Illegal character in path", invalidUrl))
+        );
     }
 
     public void testFromMap_NoSimilarity_Success() {
@@ -202,10 +201,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_InvalidSimilarity_ThrowsValidationError() {
+    public void testFromMap_InvalidSimilarity_ThrowsException() {
         var invalidSimilarity = "by_size";
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -218,17 +217,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
-        assertThat(
-            thrownException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    "[service_settings] Invalid value [%s] received. [%s] must be one of [cosine, dot_product, l2_norm]",
-                    invalidSimilarity,
-                    ServiceFields.SIMILARITY
-                )
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("BY_SIZE"));
     }
 
     public void testFromMap_NoDimensions_Success() {
@@ -259,10 +248,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_ZeroDimensions_ThrowsValidationError() {
+    public void testFromMap_ZeroDimensions_ThrowsException() {
         int zeroDimensions = 0;
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -275,12 +264,12 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(
                 Strings.format(
-                    "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ServiceFields.DIMENSIONS,
                     zeroDimensions,
                     ServiceFields.DIMENSIONS
                 )
@@ -288,10 +277,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_NegativeDimensions_ThrowsValidationError() {
+    public void testFromMap_NegativeDimensions_ThrowsException() {
         int negativeDimensions = -10;
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -304,12 +293,12 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(
                 Strings.format(
-                    "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ServiceFields.DIMENSIONS,
                     negativeDimensions,
                     ServiceFields.DIMENSIONS
                 )
@@ -345,10 +334,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_ZeroInputTokens_ThrowsValidationError() {
+    public void testFromMap_ZeroInputTokens_ThrowsException() {
         int zeroMaxInputTokens = 0;
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -361,12 +350,12 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(
                 Strings.format(
-                    "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ServiceFields.MAX_INPUT_TOKENS,
                     zeroMaxInputTokens,
                     ServiceFields.MAX_INPUT_TOKENS
                 )
@@ -374,10 +363,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testFromMap_NegativeInputTokens_ThrowsValidationError() {
+    public void testFromMap_NegativeInputTokens_ThrowsException() {
         int negativeMaxInputTokens = -10;
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
@@ -390,12 +379,12 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(
                 Strings.format(
-                    "[service_settings] Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ServiceFields.MAX_INPUT_TOKENS,
                     negativeMaxInputTokens,
                     ServiceFields.MAX_INPUT_TOKENS
                 )
@@ -403,15 +392,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(
-            TEST_MODEL_ID,
-            TEST_URI.toString(),
-            TEST_DIMENSIONS,
-            TEST_SIMILARITY_MEASURE.toString(),
-            TEST_MAX_INPUT_TOKENS,
-            TEST_RATE_LIMIT
-        );
+    public void testUpdateServiceSettings_MutableFields_AreUpdated() {
+        var settingsMap = new HashMap<String, Object>();
+        settingsMap.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         var originalServiceSettings = new LlamaEmbeddingsServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -449,6 +433,30 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
+    public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {
+        var serviceSettings = new LlamaEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        for (String immutableField : List.of(
+            ServiceFields.MODEL_ID,
+            ServiceFields.URL,
+            ServiceFields.DIMENSIONS,
+            ServiceFields.SIMILARITY
+        )) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
+            );
+            assertThat(e.getMessage(), containsString("unknown field [" + immutableField + "]"));
+        }
+    }
+
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new LlamaEmbeddingsServiceSettings(
             TEST_MODEL_ID,
@@ -469,20 +477,20 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
                     {
                         "model_id": "%s",
                         "url": "%s",
-                        "dimensions": %d,
-                        "similarity": "%s",
-                        "max_input_tokens": %d,
                         "rate_limit": {
                             "requests_per_minute": %d
-                        }
+                        },
+                        "dimensions": %d,
+                        "similarity": "%s",
+                        "max_input_tokens": %d
                     }
                     """,
                 TEST_MODEL_ID,
                 TEST_URI.toString(),
+                TEST_RATE_LIMIT,
                 TEST_DIMENSIONS,
                 TEST_SIMILARITY_MEASURE.toString(),
-                TEST_MAX_INPUT_TOKENS,
-                TEST_RATE_LIMIT
+                TEST_MAX_INPUT_TOKENS
             )
         );
 
@@ -510,14 +518,24 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
         switch (randomInt(5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
-            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(128, 256));
             case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
+    }
+
+    @Override
+    protected LlamaEmbeddingsServiceSettings mutateInstanceForVersion(LlamaEmbeddingsServiceSettings instance, TransportVersion version) {
+        return instance;
+    }
+
+    @Override
+    protected LlamaEmbeddingsServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return LlamaEmbeddingsServiceSettings.createParser(true).apply(parser, ConfigurationParseContext.PERSISTENT).build();
     }
 
     private static LlamaEmbeddingsServiceSettings createRandom() {
@@ -564,10 +582,5 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializ
             map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
         }
         return map;
-    }
-
-    @Override
-    protected LlamaEmbeddingsServiceSettings mutateInstanceForVersion(LlamaEmbeddingsServiceSettings instance, TransportVersion version) {
-        return instance;
     }
 }

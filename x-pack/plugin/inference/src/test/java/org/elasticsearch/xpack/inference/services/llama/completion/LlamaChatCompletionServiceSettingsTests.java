@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.inference.services.llama.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -25,12 +26,14 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<LlamaChatCompletionServiceSettings> {
+public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaChatCompletionServiceSettings> {
 
     private static final URI TEST_URI = URI.create("https://www.test.com");
     private static final URI INITIAL_TEST_URI = URI.create("https://www.initial.com");
@@ -66,46 +69,45 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_NoModelId_ThrowsValidationError() {
+    public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaChatCompletionServiceSettings.fromMap(
                 buildServiceSettingsMap(null, TEST_URI.toString(), TEST_RATE_LIMIT),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
 
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
         );
     }
 
-    public void testFromMap_NoUrl_ThrowsValidationError() {
+    public void testFromMap_NoUrl_ThrowsException() {
         var thrownException = expectThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> LlamaChatCompletionServiceSettings.fromMap(
                 buildServiceSettingsMap(TEST_MODEL_ID, null, TEST_RATE_LIMIT),
                 randomFrom(ConfigurationParseContext.values())
             )
         );
 
-        assertThat(thrownException.validationErrors().size(), is(1));
         assertThat(
-            thrownException.validationErrors().getFirst(),
+            thrownException.getMessage(),
             is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_RATE_LIMIT);
+    public void testUpdateServiceSettings_RateLimit_IsUpdated() {
         var originalServiceSettings = new LlamaChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)))
+        );
 
         assertThat(
             updatedServiceSettings,
@@ -120,6 +122,22 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {
+        var serviceSettings = new LlamaChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        for (String immutableField : List.of(ServiceFields.MODEL_ID, ServiceFields.URL)) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
+            );
+            assertThat(e.getMessage(), containsString("unknown field [" + immutableField + "]"));
+        }
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -175,6 +193,11 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
         TransportVersion version
     ) {
         return instance;
+    }
+
+    @Override
+    protected LlamaChatCompletionServiceSettings doParseInstance(XContentParser parser) throws IOException {
+        return LlamaChatCompletionServiceSettings.createParser(true).apply(parser, ConfigurationParseContext.PERSISTENT).build();
     }
 
     private static LlamaChatCompletionServiceSettings createRandom() {

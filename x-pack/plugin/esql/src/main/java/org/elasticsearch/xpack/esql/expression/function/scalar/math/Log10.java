@@ -42,6 +42,7 @@ public class Log10 extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the base-10 logarithm of a number.",
         description = "Returns the logarithm of a value to base 10. The input can "
             + "be any numeric value, the return value is always a double.\n"
             + "\n"

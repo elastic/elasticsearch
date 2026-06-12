@@ -574,10 +574,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         SearchExecutionContext context = createSearchExecutionContext(
             "uuid",
             null,
-            createMappingLookup(
-                List.of(new MockFieldMapper.FakeFieldType("field")),
-                List.of()
-            ),
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
             Map.of()
         );
         assertThat(context.defaultFields(), equalTo(List.of("*")));
@@ -607,8 +604,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         List<FieldMapper> mappers = List.of(new MockFieldMapper(indexedField), new MockFieldMapper(nonIndexedField));
         MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, Collections.emptyList(), IndexMode.COLUMNAR);
 
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1)
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
@@ -644,8 +640,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testDefaultFieldsColumnarModeWithExplicitDefaultField() {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
 
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1)
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field")
             .build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();

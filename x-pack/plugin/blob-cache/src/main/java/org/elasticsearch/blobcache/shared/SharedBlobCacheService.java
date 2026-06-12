@@ -79,8 +79,8 @@ import static org.elasticsearch.blobcache.BlobCacheMetrics.ES_EXECUTOR_ATTRIBUTE
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.AllFrequencies;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanMode.LowestFrequency;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Evicted;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Free;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.None;
-import static org.elasticsearch.blobcache.BlobCacheMetrics.EvictionScanOutcome.Stolen;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_ES_EXECUTOR_TO_RECORD;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
@@ -2430,10 +2430,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(SharedBlobCacheService.this);
             final long startNanos = relativeTimeInNanosSupplier.getAsLong();
             final int[] entriesScanned = new int[1];
-            SharedBytes.IO result;
             BlobCacheMetrics.EvictionScanOutcome outcome = None;
             final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
+            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, entriesScanned);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
@@ -2445,7 +2444,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     SharedBytes.IO freeRegion = freeRegions.poll();
                     if (freeRegion != null) {
                         result = freeRegion;
-                        outcome = Stolen;
+                        outcome = Free;
                         break;
                     }
                     result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, entriesScanned);
@@ -2466,13 +2465,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final int entriesScanned
         ) {
             blobCacheMetrics.recordEvictionScan(elapsedNanos, entriesScanned, evictionScanMode, outcome);
-            logger.trace(
-                "Eviction scan ({}) took {} across {} entries ({})",
-                evictionScanMode,
-                TimeValue.timeValueNanos(elapsedNanos),
-                entriesScanned,
-                outcome
-            );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "Eviction scan ({}) took {} across {} entries ({})",
+                    evictionScanMode,
+                    TimeValue.timeValueNanos(elapsedNanos),
+                    entriesScanned,
+                    outcome
+                );
+            }
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(

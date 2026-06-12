@@ -102,8 +102,8 @@ public class BlobCacheMetrics {
         /// Scan evicted a chunk and returned its IO slot.
         Evicted,
         /// Scan was interrupted by a free region appearing in the free-region queue mid-scan.
-        /// Currently, can't happen under {@link EvictionScanMode#LowestFrequency}.
-        Stolen,
+        /// Currently, can't happen under [EvictionScanMode#LowestFrequency].
+        Free,
         /// Scan exhausted its frequency buckets without freeing a region.
         None
     }

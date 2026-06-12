@@ -67,7 +67,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+    protected IVFKnnFloatVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
         return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, filter, providedVisitRatio, doPrecondition, overSampleFactor);
     }
 

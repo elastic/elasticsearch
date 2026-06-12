@@ -64,7 +64,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
     }
 
     @Override
-    protected AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+    protected IVFKnnFloatSlicedVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
         return new IVFKnnFloatSlicedVectorQuery(
             field,
             originalQuery,

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +28,11 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Operations on data streams. Currently supports adding and removing backing indices.
+ * Operations on data streams. Currently, supports adding, removing, and deleting backing indices.
  */
 public class DataStreamAction implements Writeable, ToXContentObject {
+
+    public static TransportVersion DELETE_BACKING_INDEX_ACTION_ADDED = TransportVersion.fromName("data_stream.modify.delete_backing_index");
 
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField INDEX = new ParseField("index");
@@ -163,6 +166,10 @@ public class DataStreamAction implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        boolean isDeleteBackingIndexAction = type.value() == Type.DELETE_BACKING_INDEX.value();
+        if (isDeleteBackingIndexAction && out.getTransportVersion().supports(DELETE_BACKING_INDEX_ACTION_ADDED) == false) {
+            throw new IllegalArgumentException("data stream action type [delete_backing_index] is unsupported");
+        }
         out.writeByte(type.value());
         out.writeString(dataStream);
         out.writeString(index);

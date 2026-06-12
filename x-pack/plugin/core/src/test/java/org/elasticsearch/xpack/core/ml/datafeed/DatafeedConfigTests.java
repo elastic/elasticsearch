@@ -1063,22 +1063,30 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
                 if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
                     builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
                 } else {
-                    builder.setProjectRouting(null);
+                    if (instance.getProjectRouting() == null) {
+                        mutateCloudInternalCredential(builder, instance);
+                    } else {
+                        builder.setProjectRouting(null);
+                    }
                 }
                 break;
             case 14:
-                if (instance.getCloudInternalCredential() == null) {
-                    builder.setCloudInternalCredential(
-                        new PersistedCloudCredential(randomAlphaOfLength(10), new SecureString(randomAlphaOfLength(20).toCharArray()))
-                    );
-                } else {
-                    builder.setCloudInternalCredential(null);
-                }
+                mutateCloudInternalCredential(builder, instance);
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    private static void mutateCloudInternalCredential(DatafeedConfig.Builder builder, DatafeedConfig instance) {
+        if (instance.getCloudInternalCredential() == null) {
+            builder.setCloudInternalCredential(
+                new PersistedCloudCredential(randomAlphaOfLength(10), new SecureString(randomAlphaOfLength(20).toCharArray()))
+            );
+        } else {
+            builder.setCloudInternalCredential(null);
+        }
     }
 
     @Override

@@ -52,10 +52,17 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     }
 
     @Override
-    protected DiversifyingChildrenIVFKnnFloatVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+    protected AbstractIVFKnnVectorQuery withParams(
+        Query filter,
+        int k,
+        int numCands,
+        float overSampleFactor,
+        float[] queryVector,
+        boolean doPrecondition
+    ) {
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
             field,
-            originalQuery,
+            queryVector,
             k,
             numCands,
             filter,

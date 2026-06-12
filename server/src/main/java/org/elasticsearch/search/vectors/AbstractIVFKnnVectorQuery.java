@@ -254,23 +254,42 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     /**
      * Rebuilds this query as a new instance of the same concrete type, carrying over every
-     * parameter except {@code filter}, {@code k}, {@code numCands} and {@code overSampleFactor}.
+     * parameter except {@code filter}, {@code k}, {@code numCands}, {@code overSampleFactor},
+     * {@code queryVector}, and {@code doPrecondition}.
      * Used by {@link #createRetryQuery} and {@link #createPostFilterDelegate} so each subclass
      * (sliced, diversifying-children, ...) reconstructs itself with its extra state (slice range,
-     * parents filter) intact. Concrete subclasses must respawn from the <em>un-preconditioned</em>
-     * query vector, since the live vector may already have been transformed in place by a prior
-     * {@link #preconditionQuery}.
+     * parents filter) intact.
      */
-    protected abstract AbstractIVFKnnVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor);
+    protected abstract AbstractIVFKnnVectorQuery withParams(
+        Query filter,
+        int k,
+        int numCands,
+        float overSampleFactor,
+        float[] queryVector,
+        boolean doPrecondition
+    );
+
+    /**
+     * Returns the current (possibly preconditioned) query vector. Used by {@link #createRetryQuery}
+     * to pass the already-transformed vector so the retry skips redundant preconditioning.
+     */
+    protected abstract float[] currentQueryVector();
+
+    /**
+     * Returns the original (un-preconditioned) query vector. Used by {@link #createPostFilterDelegate}
+     * which is called before preconditioning has run.
+     */
+    protected abstract float[] originalQueryVector();
 
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         // seedDocs are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
         // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
-        // cross-round dedup.
+        // cross-round dedup. The delegate has already preconditioned the query vector, so pass
+        // it directly and skip re-preconditioning.
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands * remainingK / k));
-        return withParams(retryFilter, remainingK, scaledNumCands, 1.0f);
+        return withParams(retryFilter, remainingK, scaledNumCands, 1.0f, currentQueryVector(), false);
     }
 
     @Override
@@ -282,9 +301,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCands / k));
-        // Oversampling is expressed through scaledK, so the delegate uses overSampleFactor=1.0 and
-        // searches filter-less; the orchestrator applies the filter to the returned candidates.
-        return withParams(null, scaledK, scaledNumCands, 1.0f);
+        return withParams(null, scaledK, scaledNumCands, 1.0f, originalQueryVector(), doPrecondition);
     }
 
     @Override

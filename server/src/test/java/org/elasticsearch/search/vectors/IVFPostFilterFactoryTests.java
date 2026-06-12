@@ -133,7 +133,7 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateRetryQueryExcludesDocsAndKeepsDepth() throws IOException {
+    public void testCreateRetryQueryExcludesDocsAndScalesNumCands() throws IOException {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
                 for (int i = 0; i < 8; i++) {
@@ -157,6 +157,21 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                     assertEquals("retry asks only for the remaining k", remainingK, retry.k());
                     assertEquals("retry scales numCands proportionally", expectedNumCands, retry.numCands());
                     assertTrue("excluded docs must become an ExcludeDocsQuery", retry.filter instanceof ExcludeDocsQuery);
+                    assertFalse("retry must skip preconditioning", retry.doPrecondition);
+                }
+            }
+        }
+    }
+
+    public void testCreateRetryQueryCarriesCurrentVector() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig())) {
+                w.addDocument(new Document());
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                for (AbstractIVFKnnVectorQuery original : Arrays.asList(plain(), sliced(), diversifying(), diversifyingSliced())) {
+                    IVFKnnFloatVectorQuery retry = (IVFKnnFloatVectorQuery) original.createRetryQuery(reader, new int[0], new int[0], 4);
+                    assertArrayEquals("retry must carry the current (possibly preconditioned) vector", QUERY, retry.getQuery(), 0f);
                 }
             }
         }

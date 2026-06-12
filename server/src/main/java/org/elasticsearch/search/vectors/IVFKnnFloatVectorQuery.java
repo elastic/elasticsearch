@@ -30,9 +30,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     private boolean isQueryPreconditioned = false;
     private final int originalK;
     private float[] query;
-    // The query vector as originally supplied, before any in-place preconditioning transform.
-    // Used by withParams() so respawned retry/delegate queries are not double-preconditioned.
-    protected final float[] originalQuery;
+    private final float[] originalQuery;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
@@ -67,8 +65,25 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    protected IVFKnnFloatVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
-        return new IVFKnnFloatVectorQuery(field, originalQuery, k, numCands, filter, providedVisitRatio, doPrecondition, overSampleFactor);
+    protected AbstractIVFKnnVectorQuery withParams(
+        Query filter,
+        int k,
+        int numCands,
+        float overSampleFactor,
+        float[] queryVector,
+        boolean doPrecondition
+    ) {
+        return new IVFKnnFloatVectorQuery(field, queryVector, k, numCands, filter, providedVisitRatio, doPrecondition, overSampleFactor);
+    }
+
+    @Override
+    protected float[] currentQueryVector() {
+        return query;
+    }
+
+    @Override
+    protected float[] originalQueryVector() {
+        return originalQuery;
     }
 
     @Override

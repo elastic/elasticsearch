@@ -59,10 +59,17 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
-    protected DiversifyingChildrenIVFKnnFloatSlicedVectorQuery withParams(Query filter, int k, int numCands, float overSampleFactor) {
+    protected AbstractIVFKnnVectorQuery withParams(
+        Query filter,
+        int k,
+        int numCands,
+        float overSampleFactor,
+        float[] queryVector,
+        boolean doPrecondition
+    ) {
         return new DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
             field,
-            originalQuery,
+            queryVector,
             k,
             numCands,
             filter,

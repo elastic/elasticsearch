@@ -33,6 +33,7 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
 
     public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "true")
         .setting("telemetry.otel.traces.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/traces")
+        .setting("telemetry.otel.traces.sample_rate", "1.0")
         // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
         // bridged here to the OTel resource via the telemetry.otel.resource.* affix.
         .setting("telemetry.otel.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)

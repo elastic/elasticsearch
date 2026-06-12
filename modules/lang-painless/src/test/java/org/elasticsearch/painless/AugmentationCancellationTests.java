@@ -608,6 +608,60 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertTrue("each() poll should fire", callCount.get() >= 1);
     }
 
+    /**
+     * Runs {@code body} (an expression over {@code params}) with a non-throwing cancellation check installed so the
+     * augmentation takes its polling branch, captures the result into {@code state['r']}, and returns it.
+     */
+    private Object execWithCheckInstalled(String body, Map<String, Object> params) {
+        Map<String, Object> state = new HashMap<>();
+        ScriptedMetricAggContexts.InitScript script = compileInit("state['r'] = " + body + ";", params, state);
+        script._setCancellationCheck(() -> {});
+        script.execute();
+        return state.get("r");
+    }
+
+    private void assertIndexOfParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).indexOf((String)params['n'])", params);
+        assertEquals(haystack.indexOf(needle), ((Number) actual).intValue());
+    }
+
+    private void assertIndexOfParity(String haystack, String needle, int fromIndex) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        params.put("f", fromIndex);
+        Object actual = execWithCheckInstalled("((String)params['h']).indexOf((String)params['n'], (int)params['f'])", params);
+        assertEquals(haystack.indexOf(needle, fromIndex), ((Number) actual).intValue());
+    }
+
+    private void assertLastIndexOfParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).lastIndexOf((String)params['n'])", params);
+        assertEquals(haystack.lastIndexOf(needle), ((Number) actual).intValue());
+    }
+
+    private void assertLastIndexOfParity(String haystack, String needle, int fromIndex) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        params.put("f", fromIndex);
+        Object actual = execWithCheckInstalled("((String)params['h']).lastIndexOf((String)params['n'], (int)params['f'])", params);
+        assertEquals(haystack.lastIndexOf(needle, fromIndex), ((Number) actual).intValue());
+    }
+
+    private void assertContainsParity(String haystack, String needle) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("h", haystack);
+        params.put("n", needle);
+        Object actual = execWithCheckInstalled("((String)params['h']).contains((String)params['n'])", params);
+        assertEquals(haystack.contains(needle), actual);
+    }
+
     /** A statically-typed {@code each} called inside a user function (an instance method) polls. */
     public void testStaticEachInsideUserFunctionFiresCancelRunnable() {
         assertFires(compileFillThen("void helper(List m) { m.each(q -> q.toString()); }", "helper(big);"), "cancelled-static-userfn");
@@ -1201,6 +1255,47 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();
+    }
+
+    /**
+     * Parity check for the hand-written scan that runs when a cancellation check is installed: it must return exactly
+     * what the JDK returns. The fast path already delegates to the JDK, so this guards the polling branch across the
+     * edge cases that diverge most easily — empty needle, negative and out-of-bounds {@code fromIndex}, no match, and
+     * UTF-16 surrogate pairs (emoji). {@code charAt}-based matching is code-unit based just like {@link String#indexOf},
+     * so a surrogate pair (two chars) only matches when both halves line up; these cases pin that equivalence.
+     */
+    public void testStringSearchAugmentationsMatchJdkWithCheckInstalled() {
+        String emoji = "a😀b😀c"; // "a😀b😀c" — two surrogate pairs
+        String e = "😀";                    // "😀"
+
+        // indexOf(String)
+        assertIndexOfParity(emoji, e);
+        assertIndexOfParity("abcabc", "bc");
+        assertIndexOfParity("abc", "x");
+        assertIndexOfParity("abc", "");
+
+        // indexOf(String, int)
+        assertIndexOfParity(emoji, e, 2);
+        assertIndexOfParity("abcabc", "bc", -5);  // negative fromIndex clamps to 0
+        assertIndexOfParity("abc", "", 1);
+        assertIndexOfParity("abc", "", 100);      // empty needle, fromIndex past the end
+        assertIndexOfParity("abc", "a", 100);     // non-empty needle, fromIndex past the end
+
+        // lastIndexOf(String)
+        assertLastIndexOfParity(emoji, e);
+        assertLastIndexOfParity("abcabc", "bc");
+
+        // lastIndexOf(String, int)
+        assertLastIndexOfParity(emoji, e, 3);
+        assertLastIndexOfParity("abc", "a", -1);  // negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", -1);   // empty needle + negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", -5);   // empty needle + negative fromIndex -> -1
+        assertLastIndexOfParity("abc", "", 1);    // empty needle + in-bounds fromIndex
+        assertLastIndexOfParity("abc", "", 100);  // empty needle + fromIndex past the end
+
+        // contains(CharSequence)
+        assertContainsParity(emoji, e);
+        assertContainsParity("abc", "x");
     }
 
     // --- CharSequence regex augmentations: regex limit factor (Fix A) + per-match polling (Fix B) ---

@@ -1679,20 +1679,20 @@ public class Augmentation {
      * needle cannot fit anywhere starting at or after {@code fromIndex}, returns {@code -1}.
      */
     private static int indexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
-        int n = receiver.length();
-        int m = search.length();
-        int start = Math.max(0, fromIndex);
-        if (m == 0) {
-            return Math.min(start, n);
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        int searchStart = Math.max(0, fromIndex);
+        if (searchLength == 0) {
+            return Math.min(searchStart, receiverLength);
         }
-        int limit = n - m;
-        for (int i = start; i <= limit; i++) {
-            int j = 0;
-            while (j < m && receiver.charAt(i + j) == search.charAt(j)) {
-                j++;
+        int lastStart = receiverLength - searchLength;
+        for (int start = searchStart; start <= lastStart; start++) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
             }
-            if (j == m) {
-                return i;
+            if (offset == searchLength) {
+                return start;
             }
             script._pollCancellation();
         }
@@ -1701,26 +1701,29 @@ public class Augmentation {
 
     /**
      * Naive backward scan with cancellation polling between candidate starting positions.  Matches the JDK's documented behaviour
-     * for edge cases: empty {@code search} returns {@code min(fromIndex, length)}; if {@code fromIndex} is negative the search
-     * returns {@code -1}; if there is no room for the needle anywhere on or before {@code fromIndex}, returns {@code -1}.
+     * for edge cases: a negative {@code fromIndex} returns {@code -1}; empty {@code search} returns {@code min(fromIndex, length)};
+     * if there is no room for the needle anywhere on or before {@code fromIndex}, returns {@code -1}.
      */
     private static int lastIndexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
-        int n = receiver.length();
-        int m = search.length();
-        if (m == 0) {
-            return Math.min(fromIndex, n);
-        }
-        int start = Math.min(fromIndex, n - m);
-        if (start < 0) {
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        if (fromIndex < 0) {
             return -1;
         }
-        for (int i = start; i >= 0; i--) {
-            int j = 0;
-            while (j < m && receiver.charAt(i + j) == search.charAt(j)) {
-                j++;
+        if (searchLength == 0) {
+            return Math.min(fromIndex, receiverLength);
+        }
+        int searchStart = Math.min(fromIndex, receiverLength - searchLength);
+        if (searchStart < 0) {
+            return -1;
+        }
+        for (int start = searchStart; start >= 0; start--) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
             }
-            if (j == m) {
-                return i;
+            if (offset == searchLength) {
+                return start;
             }
             script._pollCancellation();
         }

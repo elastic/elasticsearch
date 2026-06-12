@@ -20,7 +20,7 @@ PI_AGENT_DIR="${HOME}/.local/pi-agent"
 if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
 PI_TARBALL_URL=$(curl -fsSL \
     -H "Authorization: Bearer ${GH_TOKEN}" \
-    "https://api.github.com/repos/breskeby/rene-bk-experiments/releases" \
+    "https://api.github.com/repos/elastic/rene-bk-experiments/releases" \
     | node -e "
         const rs = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
         const r  = rs.find(r => r.tag_name.startsWith('pi-agent-'));

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -62,14 +63,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     /// Maximum number of outgoing peer recoveries a node may run concurrently as a source.
     /// Requests that arrive when all slots are occupied are queued in FIFO order and started as slots free up.
-    ///
-    /// TODO: register this setting in `BUILT_IN_CLUSTER_SETTINGS` before we start elasticsearch-team#2805
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_outgoing_recoveries",
         // Throttling handled by master allocation for now.
         Integer.MAX_VALUE,
         1,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     public static class Actions {
@@ -83,12 +83,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
     private final RecoveryMetricsCollector metrics;
-
-    // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING`
-    private final int maxConcurrentOutgoingRecoveries;
+    private volatile int maxConcurrentOutgoingRecoveries;
 
     // visible for testing
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    // visible for testing
+    final ClusterSettings clusterSettings;
 
     public PeerRecoverySourceService(
         TransportService transportService,
@@ -103,8 +103,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
-        this.maxConcurrentOutgoingRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(
-            clusterService.getSettings()
+        this.clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.initializeAndWatch(
+            INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+            this::setMaxConcurrentOutgoingRecoveries
         );
         this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
@@ -162,6 +164,10 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 ongoingRecoveries.cancelOnNodeLeft(removedNode);
             }
         }
+    }
+
+    private void setMaxConcurrentOutgoingRecoveries(Integer maxConcurrentOutgoingRecoveries) {
+        this.maxConcurrentOutgoingRecoveries = maxConcurrentOutgoingRecoveries;
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
@@ -379,8 +385,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             synchronized (this) {
                 remove(shard, handler);
                 if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries && pendingRecoveries.isEmpty() == false) {
-                    // TODO: switch to < once we have made maxConcurrentOutgoingRecoveries dynamic
-                    assert activeRecoveryHandlerCount == maxConcurrentOutgoingRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
                     metrics.outgoingPeerRecoveryDequeued();

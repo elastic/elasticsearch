@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.Actions.START_RECOVERY;
+import static org.elasticsearch.indices.recovery.PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -565,14 +566,89 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         closeShards(primary1, primary2);
     }
 
+    public void testDynamicLimitDecreaseQueuesNewRequests() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final var service = newPeerRecoverySourceService(2);
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        service.clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        // New request must queue because active count (2) meets the new lower limit (1)
+        final var queued = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary3),
+            task,
+            primary3,
+            ActionListener.noop()
+        );
+        assertNull(queued);
+        assertEquals(1, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3);
+    }
+
+    public void testDynamicLimitIncreaseAllowsDirectStart() throws IOException {
+        final IndexShard primary1 = newStartedShard(true);
+        final IndexShard primary2 = newStartedShard(true);
+        final IndexShard primary3 = newStartedShard(true);
+        final IndexShard primary4 = newStartedShard(true);
+        final var service = newPeerRecoverySourceService(2);
+        service.start();
+        final var task = newRecoveryTask();
+
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary1), task, primary1, ActionListener.noop());
+        service.ongoingRecoveries.addOrEnqueueNewRecovery(newStartRecoveryRequest(primary2), task, primary2, ActionListener.noop());
+        assertEquals(2, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        service.clusterSettings.applySettings(
+            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4).build()
+        );
+
+        // Both new requests must start immediately because active count (2) is below the new higher limit (4)
+        final var handler3 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary3),
+            task,
+            primary3,
+            ActionListener.noop()
+        );
+        final var handler4 = service.ongoingRecoveries.addOrEnqueueNewRecovery(
+            newStartRecoveryRequest(primary4),
+            task,
+            primary4,
+            ActionListener.noop()
+        );
+        assertNotNull(handler3);
+        assertNotNull(handler4);
+        assertEquals(4, service.ongoingRecoveries.activeRecoveryCount());
+        assertEquals(0, service.ongoingRecoveries.queuedRecoveryCount());
+
+        closeShards(primary1, primary2, primary3, primary4);
+    }
+
     private PeerRecoverySourceService newPeerRecoverySourceService() {
+        return newPeerRecoverySourceService(2);
+    }
+
+    private PeerRecoverySourceService newPeerRecoverySourceService(int limit) {
         final var indicesService = mock(IndicesService.class);
         final var clusterService = mock(ClusterService.class);
         final var settings = Settings.builder()
             .put(NodeRoles.dataNode())
-            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 2)
+            .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), limit)
             .build();
+        final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(indicesService.clusterService()).thenReturn(clusterService);
         final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         return new PeerRecoverySourceService(

@@ -494,9 +494,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testSearchWhenCoordinatorSeesSplitFirst
   issue: https://github.com/elastic/elasticsearch/issues/150621
-- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
-  method: testCrossClusterReplicationForTSDBWithSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/150622
 - class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=ml/data_frame_analytics_crud/Test put classification given max_trees is greater than 2k}
   issue: https://github.com/elastic/elasticsearch/issues/150629
@@ -584,18 +581,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalNdJsonMultiScanPushdownIT
   method: testMultiScanColdDoesNotDoubleCountWarmCountStar
   issue: https://github.com/elastic/elasticsearch/issues/150837
-- class: org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormatTests
-  method: testMergedBloomFilterUsesMaxSize
-  issue: https://github.com/elastic/elasticsearch/issues/150843
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.forkTwoBranches [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150844
 - class: org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContextTests
   method: testNullClusterUuidDoesNotNpe
   issue: https://github.com/elastic/elasticsearch/issues/150887
-- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testRateGroupBySubset
-  issue: https://github.com/elastic/elasticsearch/issues/150867
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:topN.topNLongRangeWildcardSort}
   issue: https://github.com/elastic/elasticsearch/issues/150874
@@ -605,9 +596,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
-  method: testDeleteMountedFrozenIndexBeforeSwap
-  issue: https://github.com/elastic/elasticsearch/issues/150892
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
   issue: https://github.com/elastic/elasticsearch/issues/150897
@@ -632,9 +620,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testInferenceFailure
   issue: https://github.com/elastic/elasticsearch/issues/150976
-- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
-  method: testBinaryWithDifferentSelectors
-  issue: https://github.com/elastic/elasticsearch/issues/150977
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:union_types.singleIndexIpStats}
   issue: https://github.com/elastic/elasticsearch/issues/150982
@@ -647,3 +632,21 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testUnhollowOnUpdates
   issue: https://github.com/elastic/elasticsearch/issues/151100
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testOutageBuffersToDiskAndDrainsOnRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150387
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplierTests
+  method: testSpanProcessorSelfMonitoringMetricsFlowIntoHealthProvider
+  issue: https://github.com/elastic/elasticsearch/issues/151113
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testEvaluate {TestCase=<integer>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/151114
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testEvaluate {TestCase=<double>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/151115
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testEvaluate {TestCase=<long>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/151116
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=index/100_field_name_length_limit/Test field name length limit synthetic source}
+  issue: https://github.com/elastic/elasticsearch/issues/151117

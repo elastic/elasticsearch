@@ -359,9 +359,6 @@ hn:keyword            | aid:keyword
 infra-filebeat-6vjxr  | c92cc400-fe39-4252-bc0f-4b024e742f25
 ;
 
-// A foldable but non-literal path expression (CONCAT of two literals) should
-// still go through the constant-evaluator path, validating the path once at
-// plan time rather than per row.
 computedConstantPath
 required_capability: fn_field_extract
 required_capability: flattened_datatype
@@ -374,6 +371,61 @@ FROM flattened_otel_logs
 
 hn:keyword
 infra-filebeat-6vjxr
+;
+
+dynamicPathViaCaseExpr
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp IN ("2020-01-01T00:02:48.461Z", "2020-01-01T11:38:54.751Z")
+| EVAL path = CASE(@timestamp == "2020-01-01T00:02:48.461Z", "agent.id", "host.name")
+| EVAL extracted = FIELD_EXTRACT(resource.attributes, path)
+| DROP path
+| KEEP @timestamp, extracted
+| SORT @timestamp
+;
+
+@timestamp:date          | extracted:keyword
+2020-01-01T00:02:48.461Z | c92cc400-fe39-4252-bc0f-4b024e742f25
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+;
+
+pathFromRowField
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+
+FROM flattened_keyed
+| EVAL extracted = FIELD_EXTRACT(data, key)
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
+;
+
+pathFromLookupJoin
+required_capability: fn_field_extract
+required_capability: flattened_datatype
+required_capability: join_lookup_v12
+
+FROM flattened_keyed
+| LOOKUP JOIN path_lookup ON id
+| EVAL extracted = FIELD_EXTRACT(data, path)
+| DROP path
+| KEEP id, extracted
+| SORT id
+;
+
+id:keyword | extracted:keyword
+a          | red
+b          | M
+c          | green
+d          | XL
 ;
 
 // Path matching is case-sensitive: `Host.Name` does NOT match the flat key

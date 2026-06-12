@@ -214,7 +214,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     public void testSliceEnabledWritesRoutingOnNestedDocuments() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
-        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(getIndexSettings())
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("n");
             b.field("type", "nested");
@@ -240,7 +244,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     public void testSliceEnabledIncludeInParentDoesNotDuplicateRootRouting() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
 
-        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder()
+            .put(getIndexSettings())
+            .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+            .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+            .build();
         MapperService mapperService = createMapperService(settings, mapping(b -> {
             b.startObject("n");
             b.field("type", "nested");

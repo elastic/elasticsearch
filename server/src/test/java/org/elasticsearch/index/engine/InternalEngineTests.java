@@ -1743,7 +1743,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(reader, new BytesRef("1"), false));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new BytesRef("1"), false));
                 }
             }
         }
@@ -8300,8 +8300,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testIndexBatchTimeSeriesPhase2() throws IOException {
-        // planPrimarySubBatch Phase 2 uses a per-UID timeSeriesLoadDocIdAndVersion call
-        // instead of the batch scan when the index mode is TIME_SERIES.
+        // planPrimarySubBatch Phase 2 uses timeSeriesBatchLoadDocIdAndVersion for TIME_SERIES
+        // indices, which does a single sorted segment scan with timestamp-based segment skipping.
         IndexSettings tsSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()
@@ -8348,6 +8348,16 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
         }
+    }
+
+    public void testMixedPrimaryTermThrows() throws IOException {
+        ParsedDocument doc1 = createParsedDoc("1", null);
+        ParsedDocument doc2 = createParsedDoc("2", null);
+
+        Engine.Index op1 = new Engine.Index(newUid(doc1), primaryTerm.get(), doc1);
+        Engine.Index op2 = new Engine.Index(newUid(doc2), primaryTerm.get() + 1, doc2);
+        var updates = List.of(op1, op2);
+        expectThrows(AssertionError.class, () -> engine.indexBatch(updates, encodeAsEirfBatch(updates)));
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

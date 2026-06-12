@@ -27,8 +27,8 @@ import java.util.function.Consumer;
  /// dynamic setting.
 public final class ThrottlingRecoveryService {
 
-    /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries where this
-    /// node is acting as the source, which is controlled by [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
+    /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries for which this
+    /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
     ///
     public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING = Setting.intSetting(
         "indices.recovery.max_concurrent_recoveries",

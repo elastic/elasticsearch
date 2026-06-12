@@ -2241,8 +2241,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
-                    fileChunkReceivedLatch.countDown();
                     shardsThatStartedRecovery.add(fileChunkRequest.shardId());
+                    fileChunkReceivedLatch.countDown();
                 }
                 safeAwait(proceedRecoveryLatch);
             }
@@ -2294,22 +2294,18 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         flush(indexToDelete, indexToRecover);
         ensureGreen(indexToDelete, indexToRecover);
 
-        final var fileChunkLatch = new CountDownLatch(1);
-        final var startRecoveryRequestBarrier = new CyclicBarrier(2);
+        final var fileChunkRequestReceived = new CountDownLatch(1);
+        final var proceedWithRecovery = new CountDownLatch(1);
         final Set<ShardId> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
         final var transportService = MockTransportService.getInstance(sourceNode);
-
-        transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
-            handler.messageReceived(request, channel, task);
-            safeAwait(startRecoveryRequestBarrier);
-        });
 
         // Stall the recovery and keeps its target recovery slot occupied.
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
-                    safeAwait(fileChunkLatch);
                     shardsThatStartedRecovery.add(fileChunkRequest.shardId());
+                    fileChunkRequestReceived.countDown();
+                    safeAwait(proceedWithRecovery);
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -2324,7 +2320,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indicesAdmin().prepareUpdateSettings(indexToDelete)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-        safeAwait(startRecoveryRequestBarrier);
+        safeAwait(fileChunkRequestReceived);
         var recoveryStats = getRecoveryStats(targetNode);
         assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
 
@@ -2338,12 +2334,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // Delete the first recovering index, to trigger a cancellation
         assertAcked(indicesAdmin().prepareDelete(indexToDelete));
-        fileChunkLatch.countDown();
-
-        safeAwait(startRecoveryRequestBarrier);
-        recoveryStats = getRecoveryStats(targetNode);
-        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
-        startRecoveryRequestBarrier.reset();
+        proceedWithRecovery.countDown();
 
         ensureGreen(indexToRecover);
         assertThat(shardsThatStartedRecovery, hasSize(2));

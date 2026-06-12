@@ -242,10 +242,11 @@ public class Aggregate extends UnaryPlan
         // check aggregates - accept only aggregate functions or expressions over grouping
         // don't allow the group by itself to avoid duplicates in the output
         // and since the groups are copied, only look at the declared aggregates
-        // List<? extends NamedExpression> aggs = agg.aggregates();
+        Holder<Boolean> containsTimeSeries = new Holder<>(false);
+        forEachDown(TimeSeriesAggregate.class, ts -> containsTimeSeries.set(true));
         aggregates.subList(0, aggregates.size() - groupings.size()).forEach(e -> {
             var exp = Alias.unwrap(e);
-            if (exp.foldable()) {
+            if (exp.foldable() && containsTimeSeries.get() == false) {
                 failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
             }
             // traverse the tree to find invalid matches
@@ -277,13 +278,13 @@ public class Aggregate extends UnaryPlan
     }
 
     protected void checkTimeSeriesAggregates(Failures failures) {
-        Holder<Boolean> isTimeSeries = new Holder<>(false);
+        Holder<Boolean> isTimeSeriesIndexMode = new Holder<>(false);
         child().forEachDown(p -> {
             if (p instanceof EsRelation er && er.indexMode() == IndexMode.TIME_SERIES) {
-                isTimeSeries.set(true);
+                isTimeSeriesIndexMode.set(true);
             }
         });
-        if (isTimeSeries.get()) {
+        if (isTimeSeriesIndexMode.get()) {
             return;
         }
         forEachExpression(
@@ -447,7 +448,10 @@ public class Aggregate extends UnaryPlan
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
             if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
+                // TODO: remove this if statement once TS translation is moved to analyzer
+                if ((this instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) == false) {
+                    addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
+                }
             }
         }
         // if a reference is found, mark it as an error
@@ -469,7 +473,11 @@ public class Aggregate extends UnaryPlan
             }
             // TimeSeriesAggregates allow bare named expressions as they are implicitly wrapped in a time series aggregate function
             if (foundInGrouping == false && (this instanceof TimeSeriesAggregate) == false) {
-                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+                Holder<Boolean> foundTsAgg = new Holder<>(Boolean.FALSE);
+                forEachDown(TimeSeriesAggregate.class, ts -> { foundTsAgg.set(Boolean.TRUE); });
+                if (foundTsAgg.get() == false) {
+                    failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+                }
             }
         } else if (e instanceof Sparkline) {
             // don't do anything

@@ -769,7 +769,7 @@ public class SharedBlobCacheWarmingService {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                final TimeValue computed = computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId);
+                final TimeValue computed = computeRelocationSourceShutdownWarmingTimeout(state, sourceNodeId, shardRouting.currentNodeId());
                 return new SearchRecoveryTimeout(
                     computed,
                     "relocation source shutting down (equal share of remaining time to capped grace deadline)"
@@ -846,9 +846,10 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Per-shard timeout: {@code factor * (deadline - now) / shardsOnSource} with {@code deadline = start + min(metadata grace, cap)}.
+     * Per-target timeout: {@code factor * (deadline - now) / shardsOnSource * relocationsFromSourceToTarget} with
+     * {@code deadline = start + min(metadata grace, cap)}.
      */
-    private TimeValue computeRelocationSourceShutdownWarmingTimeout(ClusterState state, String sourceNodeId) {
+    private TimeValue computeRelocationSourceShutdownWarmingTimeout(ClusterState state, String sourceNodeId, String targetNodeId) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
         TimeValue grace = shutdown.getGracePeriod();
@@ -866,8 +867,32 @@ public class SharedBlobCacheWarmingService {
         if (shardsOnSource <= 0) {
             shardsOnSource = 1;
         }
-        final double timeoutMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
+        int ongoingRelocations = countOngoingRelocationsBetween(state, sourceNodeId, targetNodeId);
+        // The current shard is itself one such relocation; floor at 1 in case it is not yet visible on the source's RoutingNode.
+        if (ongoingRelocations <= 0) {
+            ongoingRelocations = 1;
+        }
+        final double timeoutMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor
+            * ongoingRelocations;
         return TimeValue.timeValueMillis(Math.round(timeoutMs));
+    }
+
+    /**
+     * Counts ongoing relocations whose source is {@code sourceNodeId} and whose target is {@code targetNodeId} (i.e. shards relocating
+     * from {@code sourceNodeId} to {@code targetNodeId}, as seen from the source's {@code RoutingNode}).
+     */
+    private static int countOngoingRelocationsBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
+        final var sourceNode = state.getRoutingNodes().node(sourceNodeId);
+        if (sourceNode == null) {
+            return 0;
+        }
+        int count = 0;
+        for (ShardRouting r : sourceNode.relocating()) {
+            if (targetNodeId.equals(r.relocatingNodeId())) {
+                count++;
+            }
+        }
+        return count;
     }
 
     public ByteRange byteRangeToWarmForCC(ObjectStoreService.StatelessCompoundCommitReferenceWithInternalFiles referencedCC) {

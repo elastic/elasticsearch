@@ -162,11 +162,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             false, // forceExecution
             false, // canTripCircuitBreaker
             StatelessPrimaryRelocationAction.Request::new,
-            (request, channel, task) -> handleStartRelocation(
-                task,
-                request,
-                new ChannelActionListener<>(channel).map(ignored -> ActionResponse.Empty.INSTANCE)
-            )
+            (request, channel, task) -> handleStartRelocation(task, request, new ChannelActionListener<>(channel))
         );
 
         transportService.registerRequestHandler(
@@ -210,12 +206,24 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 request,
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
+                new ActionListenerResponseHandler<>(listener.map(response -> {
+                    // We record the source metrics on the target node because once the source receives a SIGTERM
+                    // the metrics agent stops emitting metrics and we lose all that information
+                    RelocationSourceMetrics relocationSourceMetrics = response.getRelocationSourceMetrics();
+                    if (relocationSourceMetrics != null) {
+                        recoveryMetricsCollector.recordRelocationSourceMetrics(relocationSourceMetrics);
+                    }
+                    return ActionResponse.Empty.INSTANCE;
+                }), StartRelocationResponse::new, recoveryExecutor)
             );
         }
     }
 
-    private void handleStartRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<Void> listener) {
+    private void handleStartRelocation(
+        Task task,
+        StatelessPrimaryRelocationAction.Request request,
+        ActionListener<StartRelocationResponse> listener
+    ) {
         // Executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
         initiatePrewarm(task, request);
 
@@ -230,7 +238,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             }),
             new Consumer<>() {
                 @Override
-                public void accept(ActionListener<Void> l) {
+                public void accept(ActionListener<StartRelocationResponse> l) {
                     handleStartRelocationWithFreshClusterState(task, request, l);
                 }
 
@@ -251,12 +259,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 return;
             }
 
-            boolean hasRecentIdLookup = false;
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final var engine = indexService.getShard(shardId.id()).getEngineOrNull();
-            if (engine instanceof IndexEngine indexEngine) {
-                hasRecentIdLookup = indexEngine.hasRecentIdLookup(idLookupRecencyThreshold);
-            }
+            boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
             final IndexShard indexShard = indexService.getShard(shardId.id());
 
             // If the shard is not about to be hollowed, then send an action to the target node to begin warming the cache immediately.
@@ -312,7 +317,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private void handleStartRelocationWithFreshClusterState(
         Task task,
         StatelessPrimaryRelocationAction.Request request,
-        ActionListener<Void> listener
+        ActionListener<StartRelocationResponse> listener
     ) {
         // executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
         logger.debug(
@@ -352,6 +357,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         }
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
+        final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
             indexShard.recoveryStats().decCurrentAsSource();
             l.onFailure(e);
@@ -369,9 +375,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final long beforeFinalFlush = threadPool.relativeTimeInMillis();
 
                 final var shardId = indexShard.shardId();
-                boolean hasRecentIdLookup = false;
+                final boolean hasRecentIdLookup = engine.hasRecentIdLookup(idLookupRecencyThreshold);
                 if (engine instanceof IndexEngine indexEngine) {
-                    hasRecentIdLookup = indexEngine.hasRecentIdLookup(idLookupRecencyThreshold);
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
                         // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine and blocks ingestion
                         // The block will be removed when the source shard is successfully relocated and closed,
@@ -454,21 +459,22 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
                         final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
-                        recoveryMetricsCollector.recordRelocationInitialFlushDuration(initialFlushDuration.millis());
-                        recoveryMetricsCollector.recordRelocationAcquirePermitsDuration(acquirePermitsDuration.millis());
-                        recoveryMetricsCollector.recordRelocationSecondFlushDuration(secondFlushDuration.millis());
-                        recoveryMetricsCollector.recordRelocationHandoffDuration(handOffDuration.millis());
+                        relocationSourceMetricsBuilder.recordInitialFlushDuration(initialFlushDuration.millis());
+                        relocationSourceMetricsBuilder.recordAcquirePermitsDuration(acquirePermitsDuration.millis());
+                        relocationSourceMetricsBuilder.recordSecondFlushDuration(secondFlushDuration.millis());
+                        relocationSourceMetricsBuilder.recordHandoffDuration(handOffDuration.millis());
 
                         boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
                             final var indexingStats = indexShard.indexingStats().getTotal();
                             final var message = new ESLogMessage(
-                                "[{}] primary shard relocation took [{}] (shutting down={})"
+                                "[{}] primary shard relocation took [{}] (shutting down={}, has recent id lookup={}) "
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
                                     + "which is {} the warn threshold of [{}]",
                                 request.shardId(),
                                 relocationDuration,
                                 isShuttingDown(),
+                                hasRecentIdLookup,
                                 initialFlushDuration,
                                 acquirePermitsDuration,
                                 secondFlushDuration,
@@ -489,6 +495,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                                     secondFlushDuration.millis(),
                                     "elasticsearch.primary.relocation.handoff_duration",
                                     handOffDuration.millis(),
+                                    "elasticsearch.primary.relocation.has_recent_id_lookup",
+                                    hasRecentIdLookup,
                                     "elasticsearch.primary.write_load",
                                     indexingStats.getWriteLoad(),
                                     "elasticsearch.primary.recent_write_load",
@@ -518,7 +526,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     }
                 };
 
-                final boolean finalHasRecentIdLookup = hasRecentIdLookup;
                 markedShardAsRelocating.addListener(compoundHandoffListener.delegateFailureAndWrap((finalHandoffListener, v) -> {
                     logger.debug("[{}] flush complete, handing off primary context", request.shardId());
                     beforeSendingContext.set(threadPool.relativeTimeInMillis());
@@ -554,14 +561,14 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             statelessCommitService.getSearchNodesPerCommit(indexShard.shardId()),
                             new BlobFileWithLength(latestBccBlob, blobLength),
                             otherBlobFiles,
-                            finalHasRecentIdLookup
+                            hasRecentIdLookup
                         ),
                         task,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(finalHandoffListener, in -> ActionResponse.Empty.INSTANCE, recoveryExecutor)
                     );
                 }), recoveryExecutor, threadContext);
-            }, listener0);
+            }, listener0.map(unused -> new StartRelocationResponse(relocationSourceMetricsBuilder.build())));
         }), recoveryExecutor, threadContext);
     }
 
@@ -581,7 +588,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private Engine ensureIndexTierAllowedEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
-        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
+        if (engine instanceof IndexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
             return engine;
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);

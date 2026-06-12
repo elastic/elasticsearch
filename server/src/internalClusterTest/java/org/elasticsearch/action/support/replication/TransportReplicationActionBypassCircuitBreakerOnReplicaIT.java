@@ -27,6 +27,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -108,6 +109,7 @@ public class TransportReplicationActionBypassCircuitBreakerOnReplicaIT extends E
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             Request shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<Request, Response>> listener

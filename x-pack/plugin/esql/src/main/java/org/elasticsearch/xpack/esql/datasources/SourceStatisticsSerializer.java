@@ -44,7 +44,7 @@ public final class SourceStatisticsSerializer {
     public static final String STATS_PARTIAL = "_stats.partial";
     /** Number of files matched by the glob pattern; useful for observability and debugging. */
     public static final String STATS_FILE_COUNT = "_stats.file_count";
-    private static final String STATS_COL_PREFIX = "_stats.columns.";
+    public static final String STATS_COL_PREFIX = "_stats.columns.";
     private static final String NULL_COUNT_SUFFIX = ".null_count";
     private static final String MIN_SUFFIX = ".min";
     private static final String MAX_SUFFIX = ".max";

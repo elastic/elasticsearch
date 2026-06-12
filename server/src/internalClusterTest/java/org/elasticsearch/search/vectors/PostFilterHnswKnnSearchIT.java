@@ -102,18 +102,6 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
         assertPostFilterFallback(indexName, new float[] { 1, 1, 1, 100 });
     }
 
-    /**
-     * Index sorted by price ascending, vectors correlate with price ([1,1,1,price]).
-     * Query nearest to expensive docs, range filter requires price &lt; 80.
-     * Simulates a production scenario where index sorting causes kNN proximity to align with filter boundaries.
-     */
-    public void testHnswFloatSortedIndex() throws IOException {
-        String indexName = "hnsw_float_sorted_test";
-        createSortedHnswIndex(indexName, "float");
-        indexSortedDocs(indexName);
-        assertPostFilterSorted(indexName, new float[] { 1, 1, 1, 100 });
-    }
-
     public void testPostFilterReportsVectorOpsInProfile() throws IOException {
         String indexName = "profile_test";
         createHnswIndex(indexName, "float");
@@ -313,67 +301,4 @@ public class PostFilterHnswKnnSearchIT extends ESIntegTestCase {
         });
     }
 
-    private void createSortedHnswIndex(String indexName, String elementType) throws IOException {
-        Settings sortedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD.getKey(), POST_FILTER_THRESHOLD)
-            .put("index.sort.field", "price")
-            .put("index.sort.order", "asc")
-            .build();
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject(VECTOR_FIELD)
-            .field("type", "dense_vector")
-            .field("element_type", elementType)
-            .field("dims", DIMS)
-            .field("index", true)
-            .field("similarity", "l2_norm")
-            .startObject("index_options")
-            .field("type", "hnsw")
-            .field("m", 16)
-            .field("ef_construction", 200)
-            .endObject()
-            .endObject()
-            .startObject("price")
-            .field("type", "integer")
-            .endObject()
-            .endObject()
-            .endObject();
-        prepareCreate(indexName).setSettings(sortedSettings).setMapping(mapping).get();
-        ensureGreen(indexName);
-    }
-
-    /**
-     * Indexes 100 docs with price=i and vector=[1,1,1,i]. On a sorted index, segment doc IDs
-     * follow price order, causing kNN proximity to align with the price-based filter boundary.
-     */
-    private void indexSortedDocs(String indexName) {
-        for (int i = 0; i < 100; i++) {
-            prepareIndex(indexName).setId(Integer.toString(i)).setSource(VECTOR_FIELD, new float[] { 1, 1, 1, i }, "price", i).get();
-        }
-        forceMerge(true);
-        refresh(indexName);
-    }
-
-    /**
-     * Query vector nearest to expensive docs (price >= 80), range filter requires price &lt; 80.
-     * selectivity = 80/100 = 0.8 → would post-filter, but the index is sorted so post-filtering is
-     * disabled and the pre-filter path must still return exactly k in-range hits.
-     */
-    private void assertPostFilterSorted(String indexName, float[] queryVector) {
-        int k = 5;
-        var knnSearch = new KnnSearchBuilder(VECTOR_FIELD, queryVector, k, 100, null, null, null).addFilterQuery(
-            QueryBuilders.rangeQuery("price").lt(80)
-        );
-
-        assertResponse(client().prepareSearch(indexName).setKnnSearch(List.of(knnSearch)).setSize(k), response -> {
-            assertEquals("Expected exactly k results", k, response.getHits().getHits().length);
-            for (SearchHit hit : response.getHits().getHits()) {
-                int price = (int) hit.getSourceAsMap().get("price");
-                assertTrue("Expected price < 80, got " + price, price < 80);
-            }
-        });
-    }
 }

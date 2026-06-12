@@ -229,7 +229,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     /**
      * Partitions per-leaf candidates into filter-matching and filtered-out sets in one pass
      * per leaf. Within each leaf, candidates are sorted by doc ID and the filter's
-     * {@link DocIdSetIterator} is advanced over them. Candidates are sorted in-place.
+     * {@link DocIdSetIterator} is advanced over them. Candidates are sorted in-place — callers
+     * must ensure the input arrays are owned copies (e.g. via the clone in
+     * {@link PostFilterableKnnQuery#buildPerLeafCandidates}) to avoid mutating the delegate's TopDocs.
      */
     static FilteredCandidates applyFilter(ScoreDoc[][] perLeafCandidates, Weight filterWeight, List<LeafReaderContext> leaves)
         throws IOException {

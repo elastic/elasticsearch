@@ -28,6 +28,13 @@ import java.util.Arrays;
  */
 class SeededRetryCollectorManager implements KnnCollectorManager {
 
+    /**
+     * Upper bound on seed entry points fed to the HNSW search per graph (leaf). The seeds are
+     * round-0 filter-passing docs; past a small set they add per-entry-point traversal overhead
+     * with diminishing recall benefit, so we keep at most this many (the lowest doc IDs) per leaf.
+     */
+    private static final int MAX_SEEDS_PER_GRAPH = 16;
+
     private final KnnCollectorManager delegate;
     private final int[] seedDocs;
     private final String field;
@@ -69,7 +76,8 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
     private record SeedResult(DocIdSetIterator ordinals, int count) {}
 
     /**
-     * Maps global seed doc IDs to vector ordinals for the given leaf.
+     * Maps global seed doc IDs to vector ordinals for the given leaf, keeping at most
+     * {@link #MAX_SEEDS_PER_GRAPH} of them (the lowest doc IDs in the leaf).
      * Returns null if no seeds fall in this leaf or if vector values are unavailable.
      */
     private SeedResult buildSeedOrdinals(LeafReaderContext ctx) throws IOException {
@@ -97,10 +105,11 @@ class SeededRetryCollectorManager implements KnnCollectorManager {
         if (docIndexIter == null) {
             return null;
         }
-        int[] ordinals = new int[count];
+        int maxSeeds = Math.min(count, MAX_SEEDS_PER_GRAPH);
+        int[] ordinals = new int[maxSeeds];
         int ordCount = 0;
         int iterDoc = -1;
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < count && ordCount < maxSeeds; i++) {
             int docId = seedDocs[fromIdx + i] - docBase;
             if (docId <= iterDoc) {
                 continue;

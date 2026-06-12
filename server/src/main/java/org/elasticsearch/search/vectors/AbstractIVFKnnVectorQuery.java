@@ -267,9 +267,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         // seedDocs are ignored for IVF (see PostFilterableKnnQuery#createRetryQuery). Excluded docs
         // become an ExcludeDocsQuery -> AcceptDocs so previously returned docs are skipped, giving
-        // cross-round dedup. Same visit budget as round 1 (numCands carried over unchanged).
+        // cross-round dedup.
         Query retryFilter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        return withParams(retryFilter, remainingK, numCands, 1.0f);
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) numCands * remainingK / k));
+        return withParams(retryFilter, remainingK, scaledNumCands, 1.0f);
     }
 
     @Override
@@ -295,6 +296,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
+        // IVF is float-only today; if byte IVF is added this must also check getByteVectorValues.
         int totalVectors = 0;
         for (LeafReaderContext leaf : leaves) {
             FloatVectorValues fvv = leaf.reader().getFloatVectorValues(field);

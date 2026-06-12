@@ -151,9 +151,11 @@ public class IVFPostFilterFactoryTests extends ESTestCase {
                         remainingK
                     );
 
+                    // scaledNumCands = ceil(NUM_CANDS * remainingK / K) = ceil(20 * 3 / 10) = 6
+                    int expectedNumCands = (int) Math.ceil((double) NUM_CANDS * remainingK / K);
                     assertSame("retry must be the same concrete type", original.getClass(), retry.getClass());
                     assertEquals("retry asks only for the remaining k", remainingK, retry.k());
-                    assertEquals("retry reruns at the same depth (numCands unchanged)", NUM_CANDS, retry.numCands());
+                    assertEquals("retry scales numCands proportionally", expectedNumCands, retry.numCands());
                     assertTrue("excluded docs must become an ExcludeDocsQuery", retry.filter instanceof ExcludeDocsQuery);
                 }
             }

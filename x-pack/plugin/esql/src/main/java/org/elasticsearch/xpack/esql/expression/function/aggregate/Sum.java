@@ -93,6 +93,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @FunctionInfo(
         returnType = { "long", "double", "dense_vector" },
+        briefSummary = "Returns the sum of a numeric expression.",
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {

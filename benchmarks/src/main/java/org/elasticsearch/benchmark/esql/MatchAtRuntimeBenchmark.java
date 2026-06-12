@@ -85,7 +85,7 @@ public class MatchAtRuntimeBenchmark {
 
     @Setup(Level.Trial)
     public void setup() {
-        BytesRef bytesRef = new BytesRef(generateMultiTermAsciiString());
+        BytesRef value = new BytesRef(generateMultiTermAsciiString());
 
         Attribute field = new ReferenceAttribute(Source.EMPTY, "field", DataType.TEXT);
 
@@ -121,7 +121,7 @@ public class MatchAtRuntimeBenchmark {
         // Build page with BLOCK_LENGTH identical rows
         var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
         for (int i = 0; i < BLOCK_LENGTH; i++) {
-            builder.appendBytesRef(bytesRef);
+            builder.appendBytesRef(value);
         }
         page = new Page(builder.build().asBlock());
     }

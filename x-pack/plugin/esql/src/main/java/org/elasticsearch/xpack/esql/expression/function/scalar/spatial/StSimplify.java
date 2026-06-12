@@ -72,6 +72,7 @@ public class StSimplify extends SpatialDocValuesFunction {
 
     @FunctionInfo(
         returnType = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
+        briefSummary = "Simplifies the input geometry using the Douglas-Peucker algorithm with a specified tolerance.",
         description = "Simplifies the input geometry by applying the Douglas-Peucker algorithm with a specified tolerance. "
             + "Vertices that fall within the tolerance distance from the simplified shape are removed. "
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",

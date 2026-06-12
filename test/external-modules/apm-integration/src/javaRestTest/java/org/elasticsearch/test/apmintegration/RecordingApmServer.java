@@ -9,6 +9,16 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
+import io.opentelemetry.proto.collector.logs.v1.LogsServiceGrpc;
+import io.opentelemetry.proto.logs.v1.LogRecord;
+import io.opentelemetry.proto.logs.v1.ResourceLogs;
+import io.opentelemetry.proto.logs.v1.ScopeLogs;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -25,7 +35,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -34,7 +45,7 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
+    private final BlockingQueue<ReceivedTelemetry> received = new LinkedBlockingQueue<>();
 
     /**
      * The "Resource" (telemetry source identity) observed by this server. The test JVM emits
@@ -43,6 +54,7 @@ public class RecordingApmServer extends ExternalResource {
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
     private HttpServer server;
+    private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
@@ -54,6 +66,8 @@ public class RecordingApmServer extends ExternalResource {
         server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", this::handle);
         server.start();
+
+        grpcServer = ServerBuilder.forPort(0).addService(new LogsServiceImpl()).build().start();
 
         messageConsumerThread.start();
     }
@@ -83,7 +97,15 @@ public class RecordingApmServer extends ExternalResource {
         running = false;
         messageConsumerThread.interrupt();
         if (server != null) {
-            server.stop(1);
+            server.stop(30);
+        }
+        if (grpcServer != null) {
+            grpcServer.shutdown();
+            try {
+                grpcServer.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         consumer = null;
         try {
@@ -123,6 +145,7 @@ public class RecordingApmServer extends ExternalResource {
                         switch (path) {
                             case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
                             case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
+                            case "/v1/logs" -> OtlpLogsParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
                                 for (String line : lines) {
@@ -135,6 +158,9 @@ public class RecordingApmServer extends ExternalResource {
                 }
             }
             exchange.sendResponseHeaders(responseCode, 0);
+        } catch (Throwable t) {
+            logger.error("Unexpected error caught when serving HTTP request", t);
+            throw t;
         }
     }
 
@@ -171,6 +197,44 @@ public class RecordingApmServer extends ExternalResource {
             host = "[" + host + "]";
         }
         return host + ":" + getPort();
+    }
+
+    /**
+     * Returns the gRPC endpoint URL the OTLP/gRPC exporter expects: {@code http://host:port}
+     * (no path component, unlike the HTTP endpoint which includes {@code /v1/logs}).
+     */
+    public String getGrpcEndpoint() {
+        String host = InetAddress.getLoopbackAddress().getHostAddress();
+        if (host.contains(":")) {
+            host = "[" + host + "]";
+        }
+        return "http://" + host + ":" + grpcServer.getPort();
+    }
+
+    /**
+     * Receives OTLP/gRPC log export requests, converts each {@link LogRecord} to a
+     * {@link ReceivedTelemetry.ReceivedLog}, and feeds them into the shared {@link #received} queue.
+     */
+    private final class LogsServiceImpl extends LogsServiceGrpc.LogsServiceImplBase {
+        @Override
+        public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
+            if (running) {
+                try {
+                    for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
+                        for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                            for (LogRecord record : scopeLogs.getLogRecordsList()) {
+                                received.add(OtlpLogsParser.toReceivedLog(record));
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportLogsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+
     }
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {

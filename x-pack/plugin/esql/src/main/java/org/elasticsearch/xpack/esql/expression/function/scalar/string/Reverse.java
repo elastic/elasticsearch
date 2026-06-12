@@ -46,6 +46,7 @@ public class Reverse extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Returns the input string in reverse order.",
         description = "Returns a new string representing the input string in reverse order.",
         examples = {
             @Example(file = "string", tag = "reverse"),

@@ -708,6 +708,42 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
     }
 
+    /**
+     * Verifies that in columnar_stored mode, {@code postParse} removes the per-field fallback fields used only for
+     * synthetic-source reconstruction once the whole-document blob has been written to {@code _ignored_source}.
+     */
+    public void testColumnarStoredPrunesFallbackFields() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("num");
+            b.field("type", "integer");
+            b.field("ignore_malformed", true);
+            b.endObject();
+            b.startObject("kwd");
+            b.field("type", "keyword");
+            b.field("ignore_above", 3);
+            b.endObject();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("num", "not_a_number");
+            b.field("kwd", "long_ignored_value");
+        }));
+        LuceneDocument rootDoc = doc.rootDoc();
+        // Fallback fields for synthetic-source reconstruction must have been pruned
+        assertNull("._ignore_malformed field should have been pruned", rootDoc.getField("num._ignore_malformed"));
+        assertNull("._ignore_malformed.counts field should have been pruned", rootDoc.getField("num._ignore_malformed.counts"));
+        assertNull("._original field should have been pruned", rootDoc.getField("kwd._original"));
+        assertNull("._original.counts field should have been pruned", rootDoc.getField("kwd._original.counts"));
+        // The whole-document _ignored_source blob and the queryable _ignored meta-field must still be present
+        assertNotNull("_ignored_source blob must still be present", rootDoc.getField(IgnoredSourceFieldMapper.NAME));
+        assertNotNull("_ignored meta-field must still be present", rootDoc.getField(IgnoredFieldMapper.NAME));
+    }
+
     public void testRecoverySourceWithLogs() throws IOException {
         {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();

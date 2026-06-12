@@ -19,7 +19,7 @@ export DEVELOCITY_API_KEY
 PI_AGENT_DIR="${HOME}/.local/pi-agent"
 if [[ ! -x "${PI_AGENT_DIR}/bin/pi-agent.js" ]]; then
 # Use the org-level admin token (broader repo access) to fetch the private release
-GH_ADMIN_TOKEN=$(vault read -field=develocity_api_token secret/ci/elastic-elasticsearch/agentic-workflows)
+GH_ADMIN_TOKEN=$(cat "${GH_ADMIN_TOKEN_PATH}")
 PI_TARBALL_URL=$(curl -fsSL \
     -H "Authorization: Bearer ${GH_ADMIN_TOKEN}" \
     "https://api.github.com/repos/elastic/rene-bk-experiments/releases" \

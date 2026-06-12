@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -115,5 +116,10 @@ public class GoogleVertexAiRerankTaskSettings implements TaskSettings, TopNProvi
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         GoogleVertexAiRerankRequestTaskSettings requestSettings = GoogleVertexAiRerankRequestTaskSettings.fromMap(newSettings);
         return of(this, requestSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

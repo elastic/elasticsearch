@@ -434,7 +434,7 @@ public abstract class AbstractParseRequestConfigTests extends AbstractInferenceS
             current = current.getCause();
         }
         assertThat(
-            "expected [" + expectedUnknownField + "] in the cause chain, but was: " + exception.getMessage(),
+            Strings.format("expected [%s] in the cause chain, but was: [%s]", expectedUnknownField, exception.getMessage()),
             foundUnknownField,
             is(true)
         );

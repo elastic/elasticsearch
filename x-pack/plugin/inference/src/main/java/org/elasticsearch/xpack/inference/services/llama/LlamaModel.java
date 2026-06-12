@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,8 +28,6 @@ import java.util.Objects;
  * This class extends RateLimitGroupingModel and provides common functionality for Llama models.
  */
 public abstract class LlamaModel extends RateLimitGroupingModel {
-    protected URI uri;
-    protected RateLimitSettings rateLimitSettings;
 
     /**
      * Constructor for creating a LlamaModel with specified configurations and secrets.
@@ -51,27 +48,23 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
         super(model, serviceSettings);
     }
 
+    @Override
+    public LlamaServiceSettings getServiceSettings() {
+        return (LlamaServiceSettings) super.getServiceSettings();
+    }
+
     public URI uri() {
-        return this.uri;
+        return getServiceSettings().uri();
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return this.rateLimitSettings;
+        return getServiceSettings().rateLimitSettings();
     }
 
     @Override
     public int rateLimitGroupingHash() {
-        return Objects.hash(getServiceSettings().modelId(), uri, getSecretSettings());
-    }
-
-    // Needed for testing only
-    public void setURI(String newUri) {
-        try {
-            this.uri = new URI(newUri);
-        } catch (URISyntaxException e) {
-            // swallow any error
-        }
+        return Objects.hash(getServiceSettings().modelId(), getServiceSettings().uri(), getSecretSettings());
     }
 
     /**

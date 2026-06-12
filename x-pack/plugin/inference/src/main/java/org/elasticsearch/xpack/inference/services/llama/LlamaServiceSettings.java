@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.llama;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -89,17 +88,6 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return ML_INFERENCE_LLAMA_ADDED;
-    }
-
-    /**
-     * Writes the common fields (model_id, url, rate_limit) in that order. Subclasses whose wire layout keeps these fields
-     * contiguous can delegate to this helper; subclasses that interleave their own fields must write the common fields
-     * themselves to preserve the existing byte layout.
-     */
-    protected final void writeCommonTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeString(uri.toString());
-        rateLimitSettings.writeTo(out);
     }
 
     @Override

@@ -95,17 +95,6 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
         super(modelId, uri, rateLimitSettings);
     }
 
-    /**
-     * Constructs a new LlamaChatCompletionServiceSettings with the specified model ID and URL.
-     * The rate limit settings will be set to the default value.
-     *
-     * @param modelId the ID of the model
-     * @param url the URL of the service
-     */
-    public LlamaChatCompletionServiceSettings(String modelId, String url, @Nullable RateLimitSettings rateLimitSettings) {
-        super(modelId, createUri(url), rateLimitSettings);
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -113,7 +102,9 @@ public class LlamaChatCompletionServiceSettings extends LlamaServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeCommonTo(out);
+        out.writeString(modelId());
+        out.writeString(uri().toString());
+        rateLimitSettings().writeTo(out);
     }
 
     /**

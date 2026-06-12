@@ -313,22 +313,19 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         testChunkedInfer(model);
     }
 
     public void testChunkedInfer_noInputs() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", "url", "api_key");
-        model.setURI(getUrl(webServer));
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModelWithChunkingSettings("id", getUrl(webServer), "api_key");
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 

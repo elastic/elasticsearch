@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaEmbeddingsServiceSettings> {
@@ -217,7 +216,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.getMessage(), containsString("BY_SIZE"));
+        assertThat(thrownException.getMessage(), is("No enum constant org.elasticsearch.inference.SimilarityMeasure.BY_SIZE"));
     }
 
     public void testFromMap_NoDimensions_Success() {
@@ -453,7 +452,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
             );
-            assertThat(e.getMessage(), containsString("unknown field [" + immutableField + "]"));
+            assertThat(e.getMessage(), is(Strings.format("[1:2] [service_settings] unknown field [%s]", immutableField)));
         }
     }
 

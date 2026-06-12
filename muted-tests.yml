@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testEvaluate {TestCase=<double>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/151115
+- class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
+  method: testEvaluate {TestCase=<long>, <dense_vector>}
+  issue: https://github.com/elastic/elasticsearch/issues/151116

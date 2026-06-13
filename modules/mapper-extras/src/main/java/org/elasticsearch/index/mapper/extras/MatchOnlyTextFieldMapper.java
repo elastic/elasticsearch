@@ -127,6 +127,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         false,
         FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+        true,
         true
     );
 

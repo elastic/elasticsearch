@@ -50,7 +50,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
                 return FieldMapper.DocValuesParameter.Values.DISABLED;
             } else {
-                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true);
+                return new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true);
             }
         }
 
@@ -58,11 +58,13 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                ESTestCase.randomBoolean(),
                 ESTestCase.randomBoolean()
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                ESTestCase.randomBoolean(),
                 ESTestCase.randomBoolean()
             );
             case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
@@ -178,6 +180,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
                 b.field("cardinality", docValues.cardinality().toString());
                 if (docValues.multiValue() == false) {
                     b.field("multi_value", false);
+                }
+                if (docValues.nullability() == false) {
+                    b.field("nullability", false);
                 }
                 b.endObject();
             }

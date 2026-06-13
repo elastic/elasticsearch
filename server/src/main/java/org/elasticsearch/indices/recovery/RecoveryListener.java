@@ -31,23 +31,17 @@ public interface RecoveryListener {
         public void onRecoveryCancelled() {}
     };
 
-    /**
-     * Called when recovery finishes successfully.
-     */
+    /// Called when recovery finishes successfully.
     void onRecoveryDone(
         RecoveryState state,
         ShardLongFieldRange timestampMillisFieldRange,
         ShardLongFieldRange eventIngestedMillisFieldRange
     );
 
-    /**
-     * Called when recovery fails with an exception.
-     */
+    /// Called when recovery fails with an exception.
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
 
-    /**
-     * Called when recovery is cancelled, which either means that shard is closing.
-     */
+    /// Called when recovery is cancelled, which either means that shard is closing.
     void onRecoveryCancelled();
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
@@ -85,9 +79,7 @@ public interface RecoveryListener {
         };
     }
 
-    /**
-     * @return A listener which (if assertions are enabled) wraps around the given delegate and asserts that it is only called once.
-     */
+    /// Returns a listener which (if assertions are enabled) wraps around the given delegate and asserts that it is only called once.
     static RecoveryListener assertOnce(RecoveryListener delegate) {
         if (Assertions.ENABLED) {
             return new RecoveryListener() {

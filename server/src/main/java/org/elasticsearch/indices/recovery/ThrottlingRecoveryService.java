@@ -22,9 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
- /// released when the recovery's [RecoveryListener] completes.
- /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
- /// dynamic setting.
+/// released when the recovery's [RecoveryListener] completes.
+/// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
+/// dynamic setting.
 public final class ThrottlingRecoveryService {
 
     /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries for which this

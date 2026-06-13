@@ -997,14 +997,14 @@ public class IndicesService extends AbstractLifecycleComponent
         throttlingRecoveryService.enqueue(
             recoveryListener,
             recoveryState,
-            (recoveryListener1) -> projectResolver.executeOnProject(
+            (listener) -> projectResolver.executeOnProject(
                 projectId,
                 () -> indexShard.startRecovery(
                     recoveryState,
                     recoveryTargetService,
-                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener1),
+                    postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, listener),
                     repositoriesService,
-                    (mapping, listener) -> {
+                    (mapping, l) -> {
                         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
                             : "mapping update consumer only required by local shards recovery";
                         AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
@@ -1014,7 +1014,7 @@ public class IndicesService extends AbstractLifecycleComponent
                         client.execute(
                             TransportAutoPutMappingAction.TYPE,
                             putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                            new RefCountAwareThreadedActionListener<>(threadPool.generic(), l.map(ignored -> null))
                         );
                     },
                     this,

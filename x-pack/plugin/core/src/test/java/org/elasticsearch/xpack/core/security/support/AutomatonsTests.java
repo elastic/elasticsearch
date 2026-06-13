@@ -74,6 +74,26 @@ public class AutomatonsTests extends ESTestCase {
         assertMatch(wildcard("וואָרט"), "וואָרט");
     }
 
+    public void testSupplementaryCodePoints() {
+        // Supplementary (non-BMP) code points occupy two Java chars (a UTF-16 surrogate pair). The builder must emit a single
+        // code-point transition per code point so that CharacterRunAutomaton, which advances by code point, can match it.
+        // Code-point handling here was inadvertently dropped in e7f141bd ("use brics automaton instead of lucene"); brics is a
+        // char-based library, and the char-by-char iteration survived the later migration back to Lucene until it was restored.
+        final String x = "\uD835\uDD4F"; // U+1D54F MATHEMATICAL DOUBLE-STRUCK CAPITAL X
+        final String y = "\uD835\uDD50"; // U+1D550 MATHEMATICAL DOUBLE-STRUCK CAPITAL Y (a different supplementary code point)
+
+        assertMatch(wildcard("foo" + x), "foo" + x);
+        assertMismatch(wildcard("foo" + x), "foo" + y);
+        assertMatch(wildcard("*" + x), "bar" + x);
+        assertMatch(wildcard(x + "*"), x + "bar");
+        // '?' matches a single code point, including a supplementary one
+        assertMatch(wildcard("foo?"), "foo" + x);
+        // an escaped supplementary literal is matched in full
+        assertMatch(wildcard("\\" + x), x);
+        // the multi-pattern union path matches a supplementary literal too
+        assertMatch(patterns("a" + x, "b" + x), "a" + x);
+    }
+
     public void testPredicateToString() throws Exception {
         assertThat(predicate("a.*z").toString(), equalTo("a.*z"));
         assertThat(predicate("a.*z", "A.*Z").toString(), equalTo("a.*z|A.*Z"));

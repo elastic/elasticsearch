@@ -68,6 +68,9 @@ The following tokenizers are usually used with structured text like identifiers,
 [Keyword Tokenizer](/reference/text-analysis/analysis-keyword-tokenizer.md)
 :   The `keyword` tokenizer is a noop tokenizer that accepts whatever text it is given and outputs the exact same text as a single term. It can be combined with token filters like [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenfilter.md) to normalise the analysed terms.
 
+[ML Standard Tokenizer](/reference/text-analysis/analysis-mlstandard-tokenizer.md)
+:   The `ml_standard` tokenizer tokenizes log messages and other machine-generated text for use with machine learning categorization. It keeps URLs, email addresses, and paths as single tokens where possible, and filters out tokens that are hexadecimal numbers or begin with a digit.
+
 [Pattern Tokenizer](/reference/text-analysis/analysis-pattern-tokenizer.md)
 :   The `pattern` tokenizer uses a regular expression to either split text into terms whenever it matches a word separator, or to capture matching text as terms.
 

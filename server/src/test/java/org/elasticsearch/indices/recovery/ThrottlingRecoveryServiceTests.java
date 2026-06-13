@@ -16,25 +16,19 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,12 +39,10 @@ import static org.mockito.Mockito.when;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
-    private static Executor executor;
 
     @BeforeClass
     public static void init() throws Exception {
         threadPool = new TestThreadPool(ThrottlingRecoveryServiceTests.class.getSimpleName());
-        executor = threadPool.generic();
     }
 
     @AfterClass
@@ -58,19 +50,21 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testSynchronousTaskRunsDoesNotRunOnEnqueueingThread() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(between(2, 4)));
-        Thread caller = Thread.currentThread();
-        AtomicReference<Thread> executionThread = new AtomicReference<>();
-        CountDownLatch done = new CountDownLatch(1);
-        RecoveryListener userListener = new RecoveryListener() {
+    public void testSynchronousTaskRunsOnProvidedThreadPoolAndNotifiesUserListener() {
+        // Use real threads instead of DeterministicTaskQueue to verify actual threading behavior below
+        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
+        final var callerThread = Thread.currentThread();
+        final var executionThread = new AtomicReference<Thread>();
+        final var consumerReturned = new CountDownLatch(1);
+        final var recoveryDone = new AtomicBoolean(false);
+        final var userListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                done.countDown();
+                recoveryDone.set(true);
             }
 
             @Override
@@ -86,28 +80,29 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             executionThread.set(Thread.currentThread());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+            assertTrue("user listener should have been notified of completion", recoveryDone.get());
+            consumerReturned.countDown();
         });
-        safeAwait(done);
-        assertThat("recovery executed on enqueueing thread instead of generic pool", executionThread.get(), not(equalTo(caller)));
+        safeAwait(consumerReturned);
+        assertThat("recovery executed on enqueueing thread instead of generic pool", executionThread.get(), not(equalTo(callerThread)));
+
     }
 
-    /**
-     * Synchronous task: {@link RecoveryListener#onRecoveryDone} on the scheduling listener runs inline in the consumer,
-     * so the user listener observes completion before the consumer runnable returns.
-     */
-    public void testSynchronousTaskNotifiesUserListenerBeforeConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        AtomicBoolean consumerReturned = new AtomicBoolean(false);
-        CountDownLatch done = new CountDownLatch(1);
-        RecoveryListener userListener = new RecoveryListener() {
+    /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
+    public void testAsynchronousTaskListenerNotificationAfterConsumerReturns() {
+        // Use real threads instead of DeterministicTaskQueue to be able to use safeAwait below
+        final var service = new ThrottlingRecoveryService(threadPool.generic(), newClusterService(1));
+        final var consumerReturned = new CountDownLatch(1);
+        final var recoveryDone = new CountDownLatch(1);
+        final var userListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                assertFalse("user listener should run before the consumer body finishes", consumerReturned.get());
-                done.countDown();
+                assertThat("terminal callback should follow consumer return", consumerReturned.getCount(), equalTo(0L));
+                recoveryDone.countDown();
             }
 
             @Override
@@ -121,63 +116,26 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
-            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            consumerReturned.set(true);
-        });
-        safeAwait(done);
-    }
-
-    /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback. The nested
-     /// runnable must only invoke [RecoveryListener#onRecoveryDone] after the consumer body has finished.
-    public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        AtomicBoolean consumerReturned = new AtomicBoolean(false);
-        CountDownLatch proceedNested = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(1);
-        RecoveryListener userListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                assertTrue("terminal callback should follow consumer return", consumerReturned.get());
-                done.countDown();
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-
-            @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
-            }
-        };
-        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
-            executor.execute(() -> {
-                safeAwait(proceedNested);
-                assertTrue(consumerReturned.get());
+            threadPool.generic().execute(() -> {
+                safeAwait(consumerReturned);
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             });
-            consumerReturned.set(true);
-            proceedNested.countDown();
+            consumerReturned.countDown();
         });
-        safeAwait(done);
+        safeAwait(recoveryDone);
     }
 
-    public void testMaxConcurrencyBoundWithAsynchronousTasks() throws Exception {
+    public void testMaxConcurrencyBoundWithAsynchronousTasks() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var executor = taskQueue.getThreadPool().generic();
         final int maxConcurrentRecoveries = between(2, 5);
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(maxConcurrentRecoveries));
-        AtomicInteger running = new AtomicInteger();
-        AtomicInteger peakConcurrent = new AtomicInteger();
-        CountDownLatch maxConcurrentReached = new CountDownLatch(maxConcurrentRecoveries);
-        CountDownLatch unblock = new CountDownLatch(1);
-        int totalEnqueuedTasks = maxConcurrentRecoveries * 3;
-        CountDownLatch allFinished = new CountDownLatch(totalEnqueuedTasks);
+        final var service = new ThrottlingRecoveryService(executor, newClusterService(maxConcurrentRecoveries));
+        final var running = new AtomicInteger();
+        final var completed = new AtomicInteger();
+        final var peakConcurrent = new AtomicInteger();
+        final int totalEnqueuedTasks = maxConcurrentRecoveries * 3;
 
-        RecoveryListener decrementingListener = new RecoveryListener() {
+        RecoveryListener trackingListener = new RecoveryListener() {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -185,6 +143,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
                 running.decrementAndGet();
+                completed.incrementAndGet();
             }
 
             @Override
@@ -198,127 +157,147 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
         };
 
-        Consumer<RecoveryListener> recoveryBody = schedulingListener -> {
-            int current = running.incrementAndGet();
-            peakConcurrent.accumulateAndGet(current, Integer::max);
-            maxConcurrentReached.countDown();
-            safeAwait(unblock);
-            executor.execute(() -> {
-                try {
-                    schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                } finally {
-                    allFinished.countDown();
-                }
+        long initialTime = taskQueue.getCurrentTimeMillis();
+        for (int i = 0; i < totalEnqueuedTasks; i++) {
+            final var ordinal = i;
+            service.enqueue(trackingListener, fakeRecoveryState(), schedulingListener -> {
+                int current = running.incrementAndGet();
+                peakConcurrent.accumulateAndGet(current, Integer::max);
+                // Schedule completion for the future
+                final var minDelay = ((ordinal / maxConcurrentRecoveries) + 1) * 100 + 1;
+                final var maxDelay = minDelay + 99;
+                taskQueue.scheduleAt(
+                    initialTime + randomIntBetween(minDelay, maxDelay),
+                    () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                );
             });
-        };
-
-        int enqueued = 0;
-        for (; enqueued < maxConcurrentRecoveries; enqueued++) {
-            service.enqueue(decrementingListener, fakeRecoveryState(), recoveryBody);
         }
-
-        safeAwait(maxConcurrentReached);
-        assertThat(enqueued, equalTo(maxConcurrentRecoveries));
+        taskQueue.runAllRunnableTasks();
         assertThat(running.get(), equalTo(maxConcurrentRecoveries));
+        assertThat(completed.get(), equalTo(0));
 
-        for (; enqueued < totalEnqueuedTasks; enqueued++) {
-            service.enqueue(decrementingListener, fakeRecoveryState(), recoveryBody);
-        }
+        // Complete first batch
+        taskQueue.runTasksUpToTimeInOrder(initialTime + 200);
+        assertThat(running.get(), equalTo(maxConcurrentRecoveries));
+        assertThat(completed.get(), equalTo(maxConcurrentRecoveries));
 
-        unblock.countDown();
+        // Complete second batch
+        taskQueue.runTasksUpToTimeInOrder(initialTime + 300);
+        assertThat(running.get(), equalTo(maxConcurrentRecoveries));
+        assertThat(completed.get(), equalTo(maxConcurrentRecoveries * 2));
 
-        safeAwait(allFinished);
+        // Complete all
+        taskQueue.runAllTasks();
         assertThat(running.get(), equalTo(0));
-        assertThat(peakConcurrent.get(), lessThanOrEqualTo(maxConcurrentRecoveries));
+        assertThat(completed.get(), equalTo(totalEnqueuedTasks));
+        assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
 
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
-        final ClusterService clusterService = newClusterService(2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
-        final CountDownLatch firstBatchStarted = new CountDownLatch(2);
-        final CountDownLatch secondBatchStarted = new CountDownLatch(4);
-        final CountDownLatch unblockAll = new CountDownLatch(1);
-        final RecoveryListener noopUserListener = RecoveryListener.NOOP;
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(2);
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
+        final var started = new AtomicInteger();
 
-        for (int i = 0; i < 4; i++) {
-            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> {
-                firstBatchStarted.countDown();
-                secondBatchStarted.countDown();
-                safeAwait(unblockAll);
-                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        // Delay completion until we explicitly trigger time jump
+        final long completionTime = taskQueue.getCurrentTimeMillis() + 100;
+        for (int i = 0; i < 10; i++) {
+            service.enqueue(RecoveryListener.NOOP, fakeRecoveryState(), schedulingListener -> {
+                started.incrementAndGet();
+                taskQueue.scheduleAt(
+                    completionTime,
+                    () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                );
             });
         }
 
-        safeAwait(firstBatchStarted);
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(2));
+
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
-        safeAwait(secondBatchStarted);
-        unblockAll.countDown();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(4));
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(10));
     }
 
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
-        final ClusterService clusterService = newClusterService(3);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
-        final CountDownLatch runningEntered = new CountDownLatch(3);
-        final List<CountDownLatch> unblockEachFirstBatch = List.of(new CountDownLatch(1), new CountDownLatch(1), new CountDownLatch(1));
-        final AtomicBoolean[] pendingStarted = new AtomicBoolean[] { new AtomicBoolean(), new AtomicBoolean(), new AtomicBoolean() };
-        final RecoveryListener noopUserListener = RecoveryListener.NOOP;
-        final CyclicBarrier pendingBarrier = new CyclicBarrier(2);
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(3);
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
+        final var started = new AtomicInteger();
+        final var done = new AtomicInteger();
 
-        for (int i = 0; i < 3; i++) {
-            final int index = i;
-            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> executor.execute(() -> {
-                runningEntered.countDown();
-                safeAwait(unblockEachFirstBatch.get(index));
-                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            }));
-        }
+        // Delay completion until we explicitly trigger time jump
+        final long initialTime = taskQueue.getCurrentTimeMillis();
+        for (int i = 0; i < 6; i++) {
+            final var ordinal = i;
+            service.enqueue(new RecoveryListener() {
+                @Override
+                public void onRecoveryDone(
+                    RecoveryState state,
+                    ShardLongFieldRange timestampMillisFieldRange,
+                    ShardLongFieldRange eventIngestedMillisFieldRange
+                ) {
+                    done.incrementAndGet();
+                }
 
-        safeAwait(runningEntered);
+                @Override
+                public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                    fail("unexpected recovery failure");
+                }
 
-        for (int p = 0; p < 3; p++) {
-            final int pendingIndex = p;
-            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> {
-                pendingStarted[pendingIndex].set(true);
-                safeAwait(pendingBarrier);
-                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                @Override
+                public void onRecoveryCancelled() {
+                    fail("unexpected recovery cancellation");
+                }
+            }, fakeRecoveryState(), schedulingListener -> {
+                started.incrementAndGet();
+                taskQueue.scheduleAt(
+                    initialTime + 100 + ordinal,
+                    () -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+                );
             });
         }
 
-        for (AtomicBoolean started : pendingStarted) {
-            assertFalse(started.get());
-        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(0));
 
+        // Lower limit to 1
         clusterService.getClusterSettings()
             .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
 
-        unblockEachFirstBatch.getFirst().countDown();
-        Thread.yield();
-        for (AtomicBoolean started : pendingStarted) {
-            assertFalse(started.get());
-        }
+        // Complete one task, should not start more (still have 2 running)
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(1));
 
-        unblockEachFirstBatch.get(1).countDown();
-        Thread.yield();
-        for (AtomicBoolean started : pendingStarted) {
-            assertFalse(started.get());
-        }
+        // Complete second, should not start more (still have 1 running)
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(3));
+        assertThat(done.get(), equalTo(2));
 
-        // Unlocking the last running task should leave space for all pending tasks to run, one by one
-        unblockEachFirstBatch.get(2).countDown();
-        safeAwait(pendingBarrier);
-        safeAwait(pendingBarrier);
-        safeAwait(pendingBarrier);
-        for (AtomicBoolean started : pendingStarted) {
-            assertTrue(started.get());
-        }
+        // Complete third, now we're at 0 running, so should start the 4th
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        assertThat(started.get(), equalTo(4));
+        assertThat(done.get(), equalTo(3));
+
+        // Complete remaining
+        taskQueue.runAllTasks();
+        assertThat(started.get(), equalTo(6));
+        assertThat(done.get(), equalTo(6));
     }
 
-    public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        int total = between(10, 20);
-        List<Integer> completionOrder = new CopyOnWriteArrayList<>();
-        CountDownLatch allDone = new CountDownLatch(total);
+    public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final int total = between(10, 20);
+        final var completionOrder = new CopyOnWriteArrayList<>();
 
         for (int i = 0; i < total; i++) {
             final int sequence = i;
@@ -330,7 +309,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     ShardLongFieldRange eventIngestedMillisFieldRange
                 ) {
                     completionOrder.add(sequence);
-                    allDone.countDown();
                 }
 
                 @Override
@@ -350,17 +328,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             );
         }
 
-        safeAwait(allDone);
+        taskQueue.runAllRunnableTasks();
         assertThat(completionOrder.size(), equalTo(total));
         for (int i = 0; i < total; i++) {
             assertThat(completionOrder.get(i), equalTo(i));
         }
     }
 
-    public void testFailureTriggersNextQueuedRecovery() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        CountDownLatch firstTaskFailed = new CountDownLatch(1);
-        CountDownLatch secondTaskStarted = new CountDownLatch(1);
+    public void testFailureTriggersNextQueuedRecovery() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var firstTaskFailed = new AtomicBoolean(false);
+        final var secondTaskCompleted = new AtomicBoolean(false);
 
         RecoveryListener firstListener = new RecoveryListener() {
             @Override
@@ -374,7 +353,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                firstTaskFailed.countDown();
+                firstTaskFailed.set(true);
             }
 
             @Override
@@ -390,7 +369,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                secondTaskStarted.countDown();
+                secondTaskCompleted.set(true);
             }
 
             @Override
@@ -410,17 +389,19 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             ignored -> { throw new RuntimeException("test recovery task injected failure"); }
         );
         service.enqueue(secondListener, fakeRecoveryState(), schedulingListener -> {
+            assertTrue("first task should have completed before second one started", firstTaskFailed.get());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
 
-        safeAwait(firstTaskFailed);
-        safeAwait(secondTaskStarted);
+        taskQueue.runAllRunnableTasks();
+        assertTrue(secondTaskCompleted.get());
     }
 
-    public void testCancellationTriggersNextQueuedRecovery() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
-        CountDownLatch firstTaskCancelled = new CountDownLatch(1);
-        CountDownLatch secondTaskStarted = new CountDownLatch(1);
+    public void testCancellationTriggersNextQueuedRecovery() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
+        final var firstTaskCancelled = new AtomicBoolean(false);
+        final var secondTaskCompleted = new AtomicBoolean(false);
 
         RecoveryListener firstListener = new RecoveryListener() {
             @Override
@@ -439,7 +420,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
             @Override
             public void onRecoveryCancelled() {
-                firstTaskCancelled.countDown();
+                firstTaskCancelled.set(true);
             }
         };
 
@@ -450,7 +431,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                secondTaskStarted.countDown();
+                secondTaskCompleted.set(true);
             }
 
             @Override
@@ -466,133 +447,96 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         service.enqueue(firstListener, fakeRecoveryState(), RecoveryListener::onRecoveryCancelled);
         service.enqueue(secondListener, fakeRecoveryState(), schedulingListener -> {
+            assertTrue("first task should have completed before second one started", firstTaskCancelled.get());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
 
-        safeAwait(firstTaskCancelled);
-        safeAwait(secondTaskStarted);
+        taskQueue.runAllRunnableTasks();
+        assertTrue(secondTaskCompleted.get());
     }
 
-    /// Stresses the [ThrottlingRecoveryService] from many producer threads, alternating bursty submits (high contention on
-     /// the throttle) and idle periods (little to no contention). Verify that all tasks finish and that the number of running
-     /// tasks never exceeds the highest `indices.recovery.max_concurrent_recoveries` applied during the run.
-    public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() throws Exception {
-        final int initialMaxConcurrentRecoveries = between(1, 20);
-        final ClusterService clusterService = newClusterService(initialMaxConcurrentRecoveries);
-        final AtomicInteger peakLimitCeiling = new AtomicInteger(initialMaxConcurrentRecoveries);
-        final int highContentionBurstSizeMin = between(1, initialMaxConcurrentRecoveries);
-        final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, initialMaxConcurrentRecoveries * 2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
-        final AtomicInteger running = new AtomicInteger();
-        final AtomicInteger peakRunning = new AtomicInteger();
-        final AtomicInteger totalTasksEnqueued = new AtomicInteger();
-        final AtomicInteger totalTasksFinished = new AtomicInteger();
-        final CountDownLatch allFinished = new CountDownLatch(1);
-        final RefCounted taskLatch = AbstractRefCounted.of(allFinished::countDown);
-        final int maxNumberOfTasks = 1000;
+    /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
+    /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.
+    /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
+    public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var maxConcurrency = new AtomicInteger(between(1, 20));
+        final var clusterService = newClusterService(maxConcurrency.get());
+        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
 
-        final int producerThreads = between(1, 6);
-        runInParallel(producerThreads, index -> {
-            while (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
-                if (index == 0 && rarely()) {
-                    int nextLimit = between(1, 20);
-                    clusterService.getClusterSettings()
-                        .applySettings(
-                            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
-                        );
-                    peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
-                }
-                if (highContention) {
-                    int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
-                    for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
-                        taskLatch.incRef();
-                        totalTasksEnqueued.incrementAndGet();
-                        service.enqueue(
-                            RecoveryListener.NOOP,
-                            fakeRecoveryState(),
-                            schedulingListener -> runStressInboundRecoveryTask(
-                                schedulingListener,
-                                running,
-                                peakRunning,
-                                totalTasksFinished,
-                                taskLatch,
-                                executor
-                            )
-                        );
-                    }
-                } else {
-                    Thread.yield();
-                    if (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                        taskLatch.incRef();
-                        totalTasksEnqueued.incrementAndGet();
-                        service.enqueue(
-                            RecoveryListener.NOOP,
-                            fakeRecoveryState(),
-                            schedulingListener -> runStressInboundRecoveryTask(
-                                schedulingListener,
-                                running,
-                                peakRunning,
-                                totalTasksFinished,
-                                taskLatch,
-                                executor
-                            )
-                        );
-                    }
-                }
-                Thread.yield();
+        final var running = new AtomicInteger();
+        final var completed = new AtomicInteger();
+        final var totalTaskCount = new AtomicInteger();
+
+        RecoveryListener trackingListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                running.decrementAndGet();
+                completed.incrementAndGet();
             }
-        });
 
-        // taskLatch starts with 1 ref, decremented here
-        taskLatch.decRef();
-        safeAwait(allFinished, TimeValue.timeValueSeconds(30));
-        assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
-        assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimitCeiling.get()));
-        assertThat(running.get(), equalTo(0));
-    }
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                running.decrementAndGet();
+                completed.incrementAndGet();
+            }
 
-    private static void runStressInboundRecoveryTask(
-        RecoveryListener schedulingListener,
-        AtomicInteger running,
-        AtomicInteger peakRunning,
-        AtomicInteger totalTasksFinished,
-        RefCounted refCounted,
-        Executor executor
-    ) {
-        executor.execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted));
-    }
+            @Override
+            public void onRecoveryCancelled() {
+                running.decrementAndGet();
+                completed.incrementAndGet();
+            }
+        };
 
-    private static void doRunStressInboundRecoveryTask(
-        RecoveryListener schedulingListener,
-        AtomicInteger running,
-        AtomicInteger peakRunning,
-        AtomicInteger totalTasksFinished,
-        RefCounted refCounted
-    ) {
-        int current = running.incrementAndGet();
-        peakRunning.accumulateAndGet(current, Integer::max);
-        try {
-            Thread.sleep(randomIntBetween(0, 20));
-            running.decrementAndGet();
-            if (randomBoolean()) {
-                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-            } else {
-                if (randomBoolean()) {
-                    schedulingListener.onRecoveryCancelled();
-                } else {
-                    schedulingListener.onRecoveryFailure(
-                        new RecoveryFailedException(fakeRecoveryState(), null, new RuntimeException("test recovery task injected failure")),
-                        randomBoolean()
+        for (int iteration = 0; iteration < 20; iteration++) {
+            // Randomly change the limit
+            if (rarely()) {
+                maxConcurrency.set(between(1, 20));
+                clusterService.getClusterSettings()
+                    .applySettings(
+                        Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrency.get()).build()
                     );
+            }
+            final var incomingTasks = randomIntBetween(1, 50);
+            totalTaskCount.addAndGet(incomingTasks);
+            for (int i = 0; i < incomingTasks; i++) {
+                service.enqueue(trackingListener, fakeRecoveryState(), schedulingListener -> {
+                    assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
+                    final var currentTime = taskQueue.getCurrentTimeMillis();
+                    taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
+                        // Randomly choose completion type
+                        if (randomBoolean()) {
+                            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                        } else {
+                            if (randomBoolean()) {
+                                schedulingListener.onRecoveryCancelled();
+                            } else {
+                                schedulingListener.onRecoveryFailure(
+                                    new RecoveryFailedException(
+                                        fakeRecoveryState(),
+                                        null,
+                                        new RuntimeException("test recovery task injected failure")
+                                    ),
+                                    false
+                                );
+                            }
+                        }
+                    });
+                });
+                while (randomBoolean() && taskQueue.hasDeferredTasks()) {
+                    taskQueue.advanceTime();
+                    taskQueue.runAllRunnableTasks();
                 }
             }
-            totalTasksFinished.incrementAndGet();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        } finally {
-            refCounted.decRef();
+
+            // Execute all enqueued and scheduled tasks
+            taskQueue.runAllTasks();
+            assertThat(completed.get(), equalTo(totalTaskCount.get()));
+            assertThat(running.get(), equalTo(0));
         }
     }
 

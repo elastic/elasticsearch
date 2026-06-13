@@ -18,6 +18,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -110,4 +111,55 @@ public class SlowCustomBinaryDocValuesTermQueryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Multi-valued docs use ANY-value (OR) semantics: a doc matches if any one of its values
+     * exactly equals the term. When any leaf is multi-valued, {@link SlowCustomBinaryDocValuesTermQuery}
+     * stays as the slow predicate query (does not rewrite to {@link BinaryDocValuesTermEqualQuery}).
+     */
+    public void testMultiValued() throws Exception {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = BinaryDocValuesTermEqualQueryTests.newRandomIndexWriter(dir)) {
+                // doc 0: ["hello", "world"] -> "hello" equals term
+                BinaryDocValuesTermEqualQueryTests.addMultiValueDoc(writer, fieldName, "hello", "world");
+                // doc 1: ["foo", "bar"] -> neither equals term
+                BinaryDocValuesTermEqualQueryTests.addMultiValueDoc(writer, fieldName, "foo", "bar");
+                // doc 2: ["world", "hello"] -> "hello" equals term
+                BinaryDocValuesTermEqualQueryTests.addMultiValueDoc(writer, fieldName, "world", "hello");
+                // doc 3: single-valued "hello" -> equals term
+                BinaryDocValuesTermEqualQueryTests.addSingleValueDoc(writer, fieldName, "hello");
+
+                BytesRef term = new BytesRef("hello");
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertEquals(3, searcher.count(new SlowCustomBinaryDocValuesTermQuery(fieldName, term)));
+                }
+            }
+        }
+    }
+
+    /**
+     * When any leaf has multi-valued docs, {@link SlowCustomBinaryDocValuesTermQuery#rewrite} must
+     * NOT rewrite to the optimized query — it must stay as the slow path to preserve ANY-value
+     * semantics.
+     */
+    public void testDoesNotRewriteWhenMultiValued() throws IOException {
+        String fieldName = "field";
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = BinaryDocValuesTermEqualQueryTests.newRandomIndexWriter(dir)) {
+                BinaryDocValuesTermEqualQueryTests.addSingleValueDoc(writer, fieldName, "hello");
+                BinaryDocValuesTermEqualQueryTests.addMultiValueDoc(writer, fieldName, "hello", "world");
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    Query rewritten = new SlowCustomBinaryDocValuesTermQuery(fieldName, new BytesRef("hello")).rewrite(searcher);
+                    assertThat(
+                        "must stay slow when any leaf is multi-valued",
+                        rewritten,
+                        Matchers.instanceOf(SlowCustomBinaryDocValuesTermQuery.class)
+                    );
+                }
+            }
+        }
+    }
 }

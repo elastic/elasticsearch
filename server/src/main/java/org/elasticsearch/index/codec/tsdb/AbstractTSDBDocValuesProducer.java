@@ -559,6 +559,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
                     return decoder.containsTermTwoPhase(entry.numCompressedBlocks, containsTerm, maxDoc);
                 }
+
+                @Override
+                public DocIdSetIterator tryTermEqualIterator(BytesRef term) throws IOException {
+                    return decoder.termEqualTwoPhase(entry.numCompressedBlocks, term, maxDoc);
+                }
             };
         } else {
             // sparse
@@ -816,6 +821,43 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 public float matchCost() {
                     // SIMD substring check amortized over the decompressed block.
                     return 10f;
+                }
+            });
+        }
+
+        /**
+         * Term-equality predicate: the full block bytes are decompressed and {@code matches} checks
+         * that the doc's slice has exactly the same length and bytes as {@code term}, using
+         * {@link Arrays#equals} which HotSpot intrinsifies to AVX2/AVX-512 on x86 and NEON on ARM.
+         * Cheaper than the SIMD substring check in {@link #containsTermTwoPhase} because the
+         * length pre-check eliminates most docs without touching the bytes at all; more expensive
+         * than {@link #lengthsTwoPhase} because the full bytes are decompressed and compared.
+         *
+         * <p>Only valid for single-valued docs (no length-prefix framing from the multi-valued
+         * encoding). The caller must gate on
+         * {@code countsSkipper == null || countsSkipper.maxValue() == 1} before calling this.
+         */
+        DocIdSetIterator termEqualTwoPhase(int numBlocks, BytesRef term, int leafMaxDoc) {
+            return TwoPhaseIterator.asDocIdSetIterator(new BlockAwareTwoPhase(DocIdSetIterator.all(leafMaxDoc), numBlocks) {
+                @Override
+                void loadBlock(long blockId, int numDocsInBlock) throws IOException {
+                    decompressBlock(blockId, numDocsInBlock);
+                }
+
+                @Override
+                boolean matchesInBlock(int idx) {
+                    int offset = uncompressedDocStarts[idx];
+                    int length = uncompressedDocStarts[idx + 1] - offset;
+                    return length == term.length
+                        && Arrays.equals(uncompressedBlock, offset, offset + length, term.bytes, term.offset, term.offset + term.length);
+                }
+
+                @Override
+                public float matchCost() {
+                    // Length pre-check eliminates most docs cheaply; the equality scan over the
+                    // matching-length docs is one intrinsified call — cheaper than contains' SIMD
+                    // substring search (10f) and more expensive than the offsets-only length check (2f).
+                    return 5f;
                 }
             });
         }

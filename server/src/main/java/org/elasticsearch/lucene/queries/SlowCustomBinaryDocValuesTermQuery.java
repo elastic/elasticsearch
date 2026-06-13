@@ -9,11 +9,18 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * A query for matching an exact BytesRef value for a specific field.
@@ -32,12 +39,25 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
     }
 
     @Override
-    public Query rewrite(IndexSearcher searcher) {
+    public Query rewrite(IndexSearcher searcher) throws IOException {
         if (term.length == 0) {
             return new BinaryDocValuesLengthQuery(fieldName, 0);
-        } else {
-            return this;
         }
+        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+        for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+            BinaryDocValues values = ctx.reader().getBinaryDocValues(fieldName);
+            if (values == null) {
+                continue; // field absent from this leaf — no docs to match, no constraint
+            }
+            DocValuesSkipper countsSkipper = ctx.reader().getDocValuesSkipper(countsFieldName);
+            if (countsSkipper != null && countsSkipper.maxValue() > 1) {
+                return this; // truly multi-valued leaf — optimized path not safe
+            }
+            if (!(values instanceof BlockLoader.OptionalColumnAtATimeReader direct) || direct.tryTermEqualIterator(term) == null) {
+                return this; // format does not support the optimized two-phase iterator
+            }
+        }
+        return new BinaryDocValuesTermEqualQuery(fieldName, term);
     }
 
     @Override

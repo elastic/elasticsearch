@@ -12,7 +12,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
@@ -391,34 +390,72 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Inject the reader parameter into the {@code WITH} clause of every EXTERNAL command in the query.
-     * If an EXTERNAL already has a {@code WITH} clause the reader param is merged into it; otherwise a
-     * fresh {@code WITH} clause is added. Because injection is scoped to each EXTERNAL's own fragment,
-     * a downstream {@code RERANK}/{@code COMPLETION} {@code WITH} clause is never touched.
+     * Inject the reader parameter into the query's WITH clause.
+     * If a WITH clause already exists, the reader param is appended; otherwise a new WITH clause is added.
      */
     private String injectReaderParam(String query) {
         String reader = readerName();
         if (reader == null) {
             return query;
         }
-        return FixtureUtils.injectWithEntriesForEachExternal(query, "\"reader\": \"" + reader + "\"");
+        String readerEntry = "\"reader\": \"" + reader + "\"";
+        int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(query);
+        // Only look for WITH { in the EXTERNAL part (before the first pipe),
+        // so we don't accidentally match a RERANK/COMPLETION WITH clause.
+        String externalPart = pipeIndex == -1 ? query : query.substring(0, pipeIndex);
+        int withIndex = externalPart.indexOf("WITH {");
+        if (withIndex >= 0) {
+            int closingBrace = findClosingBrace(query, query.indexOf('{', withIndex));
+            assert closingBrace >= 0 : "Malformed WITH clause in query: " + query;
+            return query.substring(0, closingBrace) + ", " + readerEntry + query.substring(closingBrace);
+        }
+        if (pipeIndex == -1) {
+            return query + " WITH { " + readerEntry + " }";
+        }
+        return query.substring(0, pipeIndex).trim() + " WITH { " + readerEntry + " } " + query.substring(pipeIndex);
     }
 
     /**
-     * Whether storage-backend credentials should be injected into the query. Credentials are needed
-     * for any query that reads an EXTERNAL source — either as the leading source command
-     * ({@code EXTERNAL "uri" | ...}) or nested inside a FROM subquery ({@code FROM idx, (EXTERNAL "uri")}).
+     * Finds the closing brace matching the opening brace at {@code openIndex},
+     * skipping over quoted strings so braces inside string values are ignored.
      * <p>
-     * Top-level EXTERNAL queries are matched directly by the {@code startsWith} check. EXTERNAL nested
-     * in a FROM subquery only parses when {@code subquery_in_from_command_with_external_data_source} is
-     * enabled, so that capability is a sufficient signal to enable injection for those specs. Returning
-     * {@code true} for a query that happens to have no EXTERNAL command is harmless: the injection
-     * ({@link FixtureUtils#injectWithEntriesForEachExternal}) is a no-op when there is no EXTERNAL to
-     * attach a {@code WITH} clause to.
+     * Assumes ES|QL string-literal syntax: only {@code "..."} (with backslash escapes) is recognised.
+     * Single-quoted strings are not part of the ES|QL grammar so they are not handled here. Triple-quoted
+     * strings ({@code """..."""}) are not specifically parsed either; they happen to work in the current
+     * state machine because consecutive quotes toggle the {@code inQuotes} flag, but adding
+     * {@code """}-aware handling would be required if a spec ever embeds {@code }} inside a triple-quoted
+     * value. No EXTERNAL csv-spec uses that form today.
+     */
+    private static int findClosingBrace(String query, int openIndex) {
+        int depth = 0;
+        boolean inQuotes = false;
+        for (int i = openIndex; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (inQuotes) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inQuotes = false;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Check if query starts with EXTERNAL command.
      */
     private static boolean isExternalQuery(String query) {
-        return EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATA_SOURCE.isEnabled()
-            || query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL");
+        return query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL");
     }
 
     /**
@@ -574,10 +611,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected List<String> indicesToLoad() {
-        // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices).
-        // employees / sample_data: real ES indices that EXTERNAL-subquery specs union with an inline external source
-        // (e.g. FROM employees, (EXTERNAL "...")), so they must exist on the cluster.
-        return List.of("languages", "languages_lookup", "employees", "sample_data");
+        // languages: enrich policy source; languages_lookup: LOOKUP JOIN (see CsvTestsDataLoader.loadEnrichPoliciesForLoadedSourceIndices)
+        return List.of("languages", "languages_lookup");
     }
 
     @Override

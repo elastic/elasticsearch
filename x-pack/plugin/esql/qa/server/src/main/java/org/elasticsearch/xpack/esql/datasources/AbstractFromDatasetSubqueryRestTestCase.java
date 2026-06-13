@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -17,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -93,13 +95,27 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    /** {@code POST /_query} and return the response as a map. Asserts a 200 status. */
+    /** The benign warning ES|QL emits when a query omits an explicit {@code LIMIT}. */
+    private static final String DEFAULT_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";
+
+    /**
+     * {@code POST /_query} and return the response as a map. Asserts a 200 status.
+     *
+     * <p>The {@code FROM (FROM <dataset> | ...)} queries here intentionally omit an explicit
+     * {@code LIMIT}, so ES|QL appends a default limit and emits {@link #DEFAULT_LIMIT_WARNING}. That
+     * single warning is expected and tolerated; any other warning still fails the request.
+     */
     protected static Map<String, Object> runQuery(String esql) throws IOException {
         Request req = new Request("POST", "/_query");
         try (XContentBuilder b = jsonBuilder()) {
             b.startObject().field("query", esql).endObject();
             req.setJsonEntity(Strings.toString(b));
         }
+        req.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            List<String> unexpected = new ArrayList<>(warnings);
+            unexpected.remove(DEFAULT_LIMIT_WARNING);
+            return unexpected.isEmpty() == false;
+        }));
         Response r = client().performRequest(req);
         assertThat(r.getStatusLine().getStatusCode(), equalTo(200));
         return entityAsMap(r);
@@ -127,5 +143,128 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
     protected static void assertEmployeeRow(List<Object> row, int expectedEmpNo, String expectedFirstName) {
         assertThat(((Number) row.get(0)).intValue(), equalTo(expectedEmpNo));
         assertThat(row.get(1).toString(), equalTo(expectedFirstName));
+    }
+
+    /**
+     * Creates a {@code time_series}-mode index ({@code index.mode=time_series}) with a {@code name} keyword
+     * dimension (the IN join key), the required {@code @timestamp} field and a {@code value} gauge metric, then
+     * bulk-indexes one row per supplied {@code name} and refreshes. Read via {@code FROM} the index surfaces as a
+     * regular relation, so {@code name} can be an IN join key against an external dataset's keyword column. Shared
+     * across the concrete suites so the time-series shape stays consistent across formats/backends.
+     */
+    protected static void createTimeSeriesIndex(String index, String... names) throws IOException {
+        Request create = new Request("PUT", "/" + index);
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject();
+            b.startObject("settings")
+                .field("index.mode", "time_series")
+                .array("index.routing_path", "name")
+                .field("index.number_of_shards", 1)
+                .field("index.number_of_replicas", 0)
+                .endObject();
+            b.startObject("mappings").startObject("properties");
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("name").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("value").field("type", "double").field("time_series_metric", "gauge").endObject();
+            b.endObject().endObject();
+            b.endObject();
+            create.setJsonEntity(Strings.toString(b));
+        }
+        assertThat(client().performRequest(create).getStatusLine().getStatusCode(), equalTo(200));
+
+        StringBuilder bulk = new StringBuilder();
+        double value = 0.1;
+        for (String name : names) {
+            bulk.append("{\"create\":{}}\n");
+            bulk.append("{\"@timestamp\":\"2025-01-01T00:00:00Z\",\"name\":\"")
+                .append(name)
+                .append("\",\"value\":")
+                .append(value)
+                .append("}\n");
+            value += 0.1;
+        }
+        Request bulkReq = new Request("POST", "/" + index + "/_bulk");
+        bulkReq.addParameter("refresh", "true");
+        bulkReq.setJsonEntity(bulk.toString());
+        assertThat(client().performRequest(bulkReq).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    /**
+     * Creates a plain (non-time-series) index with the {@code emp_no:integer, first_name:keyword} shape the
+     * multi-backend union assertions use, then bulk-indexes the supplied {@code emp_no -> first_name} rows and
+     * refreshes. Lets the union test add a regular-index subquery branch alongside the blob-backed dataset
+     * branches; the matching {@code emp_no}/{@code first_name} columns union cleanly with those branches.
+     */
+    protected static void createEmployeeIndex(String index, Map<Integer, String> employees) throws IOException {
+        Request create = new Request("PUT", "/" + index);
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject();
+            b.startObject("settings").field("index.number_of_shards", 1).field("index.number_of_replicas", 0).endObject();
+            b.startObject("mappings").startObject("properties");
+            b.startObject("emp_no").field("type", "integer").endObject();
+            b.startObject("first_name").field("type", "keyword").endObject();
+            b.endObject().endObject();
+            b.endObject();
+            create.setJsonEntity(Strings.toString(b));
+        }
+        assertThat(client().performRequest(create).getStatusLine().getStatusCode(), equalTo(200));
+
+        StringBuilder bulk = new StringBuilder();
+        for (Map.Entry<Integer, String> e : employees.entrySet()) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"emp_no\":").append(e.getKey()).append(",\"first_name\":\"").append(e.getValue()).append("\"}\n");
+        }
+        Request bulkReq = new Request("POST", "/" + index + "/_bulk");
+        bulkReq.addParameter("refresh", "true");
+        bulkReq.setJsonEntity(bulk.toString());
+        assertThat(client().performRequest(bulkReq).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    /**
+     * Creates a {@code time_series}-mode index that carries the same {@code emp_no:integer, first_name:keyword}
+     * pair the union assertions use: {@code first_name} is the time-series dimension (the union's keyword column)
+     * and {@code emp_no} is a regular integer field, alongside the required {@code @timestamp} and a {@code value}
+     * gauge metric. Read via {@code TS <index>} the relation surfaces in time-series mode, so the union test can
+     * add a genuine {@code TS} subquery branch whose {@code emp_no}/{@code first_name} columns still union cleanly
+     * (matching integer/keyword types) with the dataset and regular-index branches.
+     */
+    protected static void createTimeSeriesEmployeeIndex(String index, Map<Integer, String> employees) throws IOException {
+        Request create = new Request("PUT", "/" + index);
+        try (XContentBuilder b = jsonBuilder()) {
+            b.startObject();
+            b.startObject("settings")
+                .field("index.mode", "time_series")
+                .array("index.routing_path", "first_name")
+                .field("index.number_of_shards", 1)
+                .field("index.number_of_replicas", 0)
+                .endObject();
+            b.startObject("mappings").startObject("properties");
+            b.startObject("@timestamp").field("type", "date").endObject();
+            b.startObject("first_name").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("emp_no").field("type", "integer").endObject();
+            b.startObject("value").field("type", "double").field("time_series_metric", "gauge").endObject();
+            b.endObject().endObject();
+            b.endObject();
+            create.setJsonEntity(Strings.toString(b));
+        }
+        assertThat(client().performRequest(create).getStatusLine().getStatusCode(), equalTo(200));
+
+        StringBuilder bulk = new StringBuilder();
+        double value = 0.1;
+        for (Map.Entry<Integer, String> e : employees.entrySet()) {
+            bulk.append("{\"create\":{}}\n");
+            bulk.append("{\"@timestamp\":\"2025-01-01T00:00:00Z\",\"first_name\":\"")
+                .append(e.getValue())
+                .append("\",\"emp_no\":")
+                .append(e.getKey())
+                .append(",\"value\":")
+                .append(value)
+                .append("}\n");
+            value += 0.1;
+        }
+        Request bulkReq = new Request("POST", "/" + index + "/_bulk");
+        bulkReq.addParameter("refresh", "true");
+        bulkReq.setJsonEntity(bulk.toString());
+        assertThat(client().performRequest(bulkReq).getStatusLine().getStatusCode(), equalTo(200));
     }
 }

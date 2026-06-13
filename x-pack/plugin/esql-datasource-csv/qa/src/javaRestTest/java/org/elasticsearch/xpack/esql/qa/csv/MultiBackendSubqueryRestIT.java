@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.parquet;
+package org.elasticsearch.xpack.esql.qa.csv;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -20,13 +20,13 @@ import org.elasticsearch.xpack.esql.datasources.GcsBackendFixture;
 import org.elasticsearch.xpack.esql.datasources.GcsFixtureUtils.DataSourcesGcsHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
-import org.elasticsearch.xpack.esql.qa.parquet.EmployeesParquetGenerator.EmployeeRow;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -34,74 +34,55 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Multi-backend FROM-subquery REST IT. Builds a single ES|QL query whose three subqueries straddle
- * <em>different</em> storage providers so the planner, file-source factory and per-backend storage
- * providers are all exercised within one statement:
+ * CSV counterpart of the Parquet {@code MultiBackendSubqueryRestIT}. Builds a single ES|QL query whose
+ * three subqueries straddle <em>different</em> storage providers (S3, GCS, Azure) so the planner,
+ * file-source factory and per-backend storage providers are all exercised within one statement, this
+ * time reading the dataset through {@code org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}.
  *
- * <ul>
- *   <li>Subquery A reads a Parquet blob from S3 (via the in-process {@link DataSourcesS3HttpFixture})
- *       and is wired through the {@code esql-datasource-s3} + {@code esql-datasource-parquet}
- *       plugins.</li>
- *   <li>Subquery B reads a Parquet blob from GCS (via the in-process {@link DataSourcesGcsHttpFixture})
- *       and is wired through the {@code esql-datasource-gcs} + {@code esql-datasource-parquet}
- *       plugins.</li>
- *   <li>Subquery C reads a Parquet blob from Azure Blob Storage (via the in-process
- *       {@link DataSourcesAzureHttpFixture}) and is wired through the {@code esql-datasource-azure}
- *       + {@code esql-datasource-parquet} plugins.</li>
- * </ul>
- *
- * <p>All three subqueries use the Parquet format only, since that is the single file-format reader
- * installed on this qa cluster (see {@code build.gradle}). They share the
- * {@code employees(emp_no, first_name, last_name, salary)} schema but use disjoint {@code emp_no}
- * ranges (1..3 vs 101..103 vs 201..203) so the multi-subquery UNION assertion can unambiguously
- * attribute every output row to one specific backend origin in the {@code FROM (A), (B), (C)}
- * construct.
- *
- * <p>Iceberg is intentionally <em>not</em> included here: see {@code BackendFixture}'s class-level
- * javadoc — iceberg has no production {@code DataSourceValidator} and so cannot today be reached
- * via {@code FROM <dataset>}. Adding iceberg coverage requires either a core-side validator
- * implementation or a separate test that targets the {@code EXTERNAL "s3://..." WITH
- * { "format": "iceberg" }} command shape.
+ * <p>The three CSV blobs share the {@code employees(emp_no, first_name, last_name, salary)} schema but
+ * use disjoint {@code emp_no} ranges (1..3 vs 101..103 vs 201..203) and disjoint first-name sets so the
+ * combined {@code FROM (A), (B), (C)} UNION assertion can unambiguously attribute every output row to a
+ * single backend origin.
  *
  * <p>Backend-specific wiring (auth shape, URI scheme, blob upload) is delegated to
  * {@link S3BackendFixture}, {@link GcsBackendFixture} and {@link AzureBackendFixture}; this class
- * is left to express only the cross-backend intent.
+ * expresses only the cross-backend intent.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestTestCase {
 
     // S3 side: emp_no 1..3 (Alice, Bob, Carol)
-    private static final String S3_DATA_SOURCE = "mixed_parquet_s3_ds";
-    private static final String S3_DATASET = "mixed_parquet_s3_employees";
-    private static final String S3_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_s3.parquet";
+    private static final String S3_DATA_SOURCE = "mixed_csv_s3_ds";
+    private static final String S3_DATASET = "mixed_csv_s3_employees";
+    private static final String S3_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_s3.csv";
 
     // GCS side: emp_no 101..103 (Dave, Eve, Frank)
-    private static final String GCS_DATA_SOURCE = "mixed_parquet_gcs_ds";
-    private static final String GCS_DATASET = "mixed_parquet_gcs_employees";
-    private static final String GCS_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_gcs.parquet";
+    private static final String GCS_DATA_SOURCE = "mixed_csv_gcs_ds";
+    private static final String GCS_DATASET = "mixed_csv_gcs_employees";
+    private static final String GCS_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_gcs.csv";
 
     // Azure side: emp_no 201..203 (Gina, Henry, Ivy)
-    private static final String AZURE_DATA_SOURCE = "mixed_parquet_azure_ds";
-    private static final String AZURE_DATASET = "mixed_parquet_azure_employees";
-    private static final String AZURE_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_azure.parquet";
+    private static final String AZURE_DATA_SOURCE = "mixed_csv_azure_ds";
+    private static final String AZURE_DATASET = "mixed_csv_azure_employees";
+    private static final String AZURE_BLOB_KEY = WAREHOUSE + "/standalone/multi_backend_subquery_azure.csv";
 
     // IN-subquery main dataset on S3: emp_no 1..3 (Alice, Bob, Carol)
-    private static final String IN_S3_DATA_SOURCE = "mixed_parquet_in_s3_ds";
-    private static final String IN_S3_DATASET = "mixed_parquet_in_s3_employees";
-    private static final String IN_S3_BLOB_KEY = WAREHOUSE + "/standalone/in_subquery_parquet_s3.parquet";
+    private static final String IN_S3_DATA_SOURCE = "mixed_csv_in_s3_ds";
+    private static final String IN_S3_DATASET = "mixed_csv_in_s3_employees";
+    private static final String IN_S3_BLOB_KEY = WAREHOUSE + "/standalone/in_subquery_csv_s3.csv";
 
     // IN-subquery filter dataset on GCS: emp_no 2..4 (overlaps the S3 side on {2, 3})
-    private static final String IN_GCS_DATA_SOURCE = "mixed_parquet_in_gcs_ds";
-    private static final String IN_GCS_DATASET = "mixed_parquet_in_gcs_employees";
-    private static final String IN_GCS_BLOB_KEY = WAREHOUSE + "/standalone/in_subquery_parquet_gcs.parquet";
+    private static final String IN_GCS_DATA_SOURCE = "mixed_csv_in_gcs_ds";
+    private static final String IN_GCS_DATASET = "mixed_csv_in_gcs_employees";
+    private static final String IN_GCS_BLOB_KEY = WAREHOUSE + "/standalone/in_subquery_csv_gcs.csv";
 
     // Local time-series index whose `name` dimension joins against the S3 dataset's first_name.
-    private static final String TS_INDEX = "ts_parquet_employees";
+    private static final String TS_INDEX = "ts_csv_employees";
 
     // Union branch: a plain local index (emp_no 301..303).
-    private static final String REGULAR_INDEX = "reg_parquet_employees";
+    private static final String REGULAR_INDEX = "reg_csv_employees";
     // Union branch: a time-series local index read via `TS` (emp_no 401..403).
-    private static final String TS_UNION_INDEX = "ts_union_parquet_employees";
+    private static final String TS_UNION_INDEX = "ts_union_csv_employees";
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
     public static DataSourcesGcsHttpFixture gcsFixture = new DataSourcesGcsHttpFixture();
@@ -118,8 +99,8 @@ public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestT
 
     @AfterClass
     public static void cleanupRegistry() throws IOException {
-        // Cluster is shared across the suite (see Clusters.testCluster); explicit deletes keep state
-        // from leaking into sibling REST ITs reusing the same cluster.
+        // Cluster is shared across the suite; explicit deletes keep state from leaking into sibling
+        // REST ITs reusing the same cluster.
         deleteIgnoringMissing("/_query/dataset/" + S3_DATASET);
         deleteIgnoringMissing("/_query/data_source/" + S3_DATA_SOURCE);
         deleteIgnoringMissing("/_query/dataset/" + GCS_DATASET);
@@ -136,34 +117,33 @@ public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestT
     }
 
     /**
-     * End-to-end: register a Parquet-on-S3 dataset, a Parquet-on-GCS dataset and a Parquet-on-Azure dataset,
-     * then run a single {@code FROM (sub-A), ..., (sub-E)} query whose five subqueries mix all three production
-     * storage backends (through the Parquet format reader) with two local-index source kinds.
+     * End-to-end: register a CSV-on-S3 dataset, a CSV-on-GCS dataset and a CSV-on-Azure dataset, then run a
+     * single {@code FROM (sub-A), ..., (sub-E)} query whose five subqueries mix all three production storage
+     * backends (through the CSV format reader) with two local-index source kinds.
      *
      * <p>Sub-A keeps {@code emp_no IN {2, 3}} from the S3 dataset (Bob, Carol). Sub-B keeps {@code emp_no >= 102}
      * from the GCS dataset (Eve, Frank). Sub-C keeps {@code emp_no >= 202} from the Azure dataset (Henry, Ivy).
      * Sub-D keeps {@code emp_no >= 302} from a plain local index (Kate, Leo). Sub-E reads a local time-series
      * index via {@code TS} and keeps {@code emp_no >= 402} (Nina, Oscar). Combined output, sorted by
-     * {@code emp_no}, is exactly the ten-row interleave asserted below — any other shape means one of the
-     * subqueries silently dropped, returned the wrong rows, or got planned against the wrong source.
+     * {@code emp_no}, is exactly the ten-row interleave asserted below.
      */
     public void testThreeSubqueriesAcrossS3GcsAzure() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
         BackendFixture gcsBackend = new GcsBackendFixture(gcsFixture);
         BackendFixture azureBackend = new AzureBackendFixture(azureFixture);
 
-        // Parquet → S3
-        s3Backend.uploadBlob(S3_BLOB_KEY, EmployeesParquetGenerator.sampleEmployeesParquetBytes());
+        // CSV → S3. Format is inferred from the .csv resource extension; datasets do not accept a `format` setting.
+        s3Backend.uploadBlob(S3_BLOB_KEY, csvBytes("1,Alice,Anderson,50000", "2,Bob,Brown,60000", "3,Carol,Cox,55000"));
         putDataSource(S3_DATA_SOURCE, s3Backend.dataSourceType(), s3Backend.dataSourceSettings());
         putDataset(S3_DATASET, S3_DATA_SOURCE, s3Backend.resourceUri(S3_BLOB_KEY), Map.of());
 
-        // Parquet → GCS
-        gcsBackend.uploadBlob(GCS_BLOB_KEY, EmployeesParquetGenerator.alternateEmployeesParquetBytes());
+        // CSV → GCS
+        gcsBackend.uploadBlob(GCS_BLOB_KEY, csvBytes("101,Dave,Davis,70000", "102,Eve,Edwards,65000", "103,Frank,Foster,80000"));
         putDataSource(GCS_DATA_SOURCE, gcsBackend.dataSourceType(), gcsBackend.dataSourceSettings());
         putDataset(GCS_DATASET, GCS_DATA_SOURCE, gcsBackend.resourceUri(GCS_BLOB_KEY), Map.of());
 
-        // Parquet → Azure
-        azureBackend.uploadBlob(AZURE_BLOB_KEY, azureEmployeesParquetBytes());
+        // CSV → Azure
+        azureBackend.uploadBlob(AZURE_BLOB_KEY, csvBytes("201,Gina,Green,70000", "202,Henry,Hill,75000", "203,Ivy,Ito,80000"));
         putDataSource(AZURE_DATA_SOURCE, azureBackend.dataSourceType(), azureBackend.dataSourceSettings());
         putDataset(AZURE_DATASET, AZURE_DATA_SOURCE, azureBackend.resourceUri(AZURE_BLOB_KEY), Map.of());
 
@@ -203,22 +183,22 @@ public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestT
     }
 
     /**
-     * Cross-backend {@code WHERE ... IN (subquery)}: the main query reads a Parquet dataset on S3 while
-     * the IN subquery reads a Parquet dataset on GCS, so the IN join key is resolved across two distinct
-     * storage backends in one statement. The S3 side carries {@code emp_no {1, 2, 3}}; the GCS filter side
-     * carries {@code {2, 3, 4}}, so only the overlapping {@code {2, 3}} (Bob, Carol) survive the filter.
+     * Cross-backend {@code WHERE ... IN (subquery)}: the main query reads a CSV dataset on S3 while the
+     * IN subquery reads a CSV dataset on GCS, so the IN join key is resolved across two distinct storage
+     * backends in one statement. The S3 side carries {@code emp_no {1, 2, 3}}; the GCS filter side carries
+     * {@code {2, 3, 4}}, so only the overlapping {@code {2, 3}} (Bob, Carol) survive the filter.
      */
     public void testInSubqueryMainS3FilterGcs() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
         BackendFixture gcsBackend = new GcsBackendFixture(gcsFixture);
 
-        // Main Parquet dataset → S3 (emp_no 1..3)
-        s3Backend.uploadBlob(IN_S3_BLOB_KEY, EmployeesParquetGenerator.sampleEmployeesParquetBytes());
+        // Main CSV dataset → S3
+        s3Backend.uploadBlob(IN_S3_BLOB_KEY, csvBytes("1,Alice,Anderson,50000", "2,Bob,Brown,60000", "3,Carol,Cox,55000"));
         putDataSource(IN_S3_DATA_SOURCE, s3Backend.dataSourceType(), s3Backend.dataSourceSettings());
         putDataset(IN_S3_DATASET, IN_S3_DATA_SOURCE, s3Backend.resourceUri(IN_S3_BLOB_KEY), Map.of());
 
-        // Filter Parquet dataset → GCS (emp_no 2..4)
-        gcsBackend.uploadBlob(IN_GCS_BLOB_KEY, gcsFilterEmployeesParquetBytes());
+        // Filter CSV dataset → GCS
+        gcsBackend.uploadBlob(IN_GCS_BLOB_KEY, csvBytes("2,Bob,Brown,60000", "3,Carol,Cox,55000", "4,Dan,Dixon,45000"));
         putDataSource(IN_GCS_DATA_SOURCE, gcsBackend.dataSourceType(), gcsBackend.dataSourceSettings());
         putDataset(IN_GCS_DATASET, IN_GCS_DATA_SOURCE, gcsBackend.resourceUri(IN_GCS_BLOB_KEY), Map.of());
 
@@ -240,16 +220,16 @@ public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestT
     }
 
     /**
-     * Crosses a blob-backed external dataset with a local time-series index: the main query reads the Parquet
-     * dataset on S3 (a blob storage) while the IN subquery reads a {@code time_series}-mode index whose
-     * {@code name} dimension carries {@code {Bob, Carol, Dan}}. Only the dataset rows whose {@code first_name}
-     * appears in the time-series index survive — Bob (2) and Carol (3); Alice is dropped.
+     * Crosses a blob-backed external dataset with a local time-series index: the main query reads the CSV dataset
+     * on S3 (a blob storage) while the IN subquery reads a {@code time_series}-mode index whose {@code name}
+     * dimension carries {@code {Bob, Carol, Dan}}. Only the dataset rows whose {@code first_name} appears in the
+     * time-series index survive — Bob (2) and Carol (3); Alice is dropped.
      */
     public void testInSubqueryMainDatasetSubqueryTimeSeriesIndex() throws Exception {
         BackendFixture s3Backend = new S3BackendFixture(s3Fixture);
 
-        // External Parquet dataset → S3 (Alice/Bob/Carol, emp_no 1..3)
-        s3Backend.uploadBlob(S3_BLOB_KEY, EmployeesParquetGenerator.sampleEmployeesParquetBytes());
+        // External CSV dataset → S3 (Alice/Bob/Carol, emp_no 1..3)
+        s3Backend.uploadBlob(S3_BLOB_KEY, csvBytes("1,Alice,Anderson,50000", "2,Bob,Brown,60000", "3,Carol,Cox,55000"));
         putDataSource(S3_DATA_SOURCE, s3Backend.dataSourceType(), s3Backend.dataSourceSettings());
         putDataset(S3_DATASET, S3_DATA_SOURCE, s3Backend.resourceUri(S3_BLOB_KEY), Map.of());
 
@@ -272,30 +252,12 @@ public class MultiBackendSubqueryRestIT extends AbstractFromDatasetSubqueryRestT
         assertEmployeeRow(values.get(1), 3, "Carol");
     }
 
-    /**
-     * Filter-side parquet blob for {@link #testInSubqueryMainS3FilterGcs()}: {@code emp_no {2, 3, 4}},
-     * overlapping the S3 main dataset's {@code {1, 2, 3}} on {@code {2, 3}} so the cross-backend IN
-     * filter keeps exactly Bob and Carol.
-     */
-    private static byte[] gcsFilterEmployeesParquetBytes() throws IOException {
-        return EmployeesParquetGenerator.employeesParquetBytes(
-            new EmployeeRow(2, "Bob", "Brown", 60000),
-            new EmployeeRow(3, "Carol", "Cox", 55000),
-            new EmployeeRow(4, "Dan", "Dixon", 45000)
-        );
-    }
-
-    /**
-     * Azure sibling of {@code EmployeesParquetGenerator.sampleEmployeesParquetBytes()} /
-     * {@code alternateEmployeesParquetBytes()}. Disjoint {@code emp_no} range (201..203) and disjoint
-     * first-name set (Gina/Henry/Ivy) so each row in the combined query output is unambiguously
-     * attributable to this subquery.
-     */
-    private static byte[] azureEmployeesParquetBytes() throws IOException {
-        return EmployeesParquetGenerator.employeesParquetBytes(
-            new EmployeeRow(201, "Gina", "Green", 70000),
-            new EmployeeRow(202, "Henry", "Hill", 75000),
-            new EmployeeRow(203, "Ivy", "Ito", 80000)
-        );
+    /** Builds a typed-header CSV blob ({@code emp_no:integer,...}) from the supplied {@code emp_no,first,last,salary} rows. */
+    private static byte[] csvBytes(String... dataRows) {
+        StringBuilder sb = new StringBuilder("emp_no:integer,first_name:keyword,last_name:keyword,salary:integer\n");
+        for (String row : dataRows) {
+            sb.append(row).append('\n');
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 }

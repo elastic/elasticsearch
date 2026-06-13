@@ -59,11 +59,6 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
   // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-azure'))
-  // CSV datasource plugin: required by mixed-format multi-backend ITs (e.g. a query whose two
-  // subqueries hit a CSV blob on S3 and a Parquet blob on GCS).
-  clusterPlugins project(xpackModule('esql-datasource-csv'))
-  // NDJSON datasource plugin: needed by MultiBackendSubqueryRestIT's NDJSON-on-Azure subquery.
-  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
 }
 
 // Generate Parquet fixtures at build time from CSV.

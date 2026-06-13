@@ -8,7 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
@@ -20,6 +25,12 @@ import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -34,6 +45,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -54,8 +66,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -3122,10 +3136,426 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertThat(lowered.withoutFields(), equalTo(expectedWithoutFields));
     }
 
+    // -- IN / NOT IN (subquery) crossed with external datasets --
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_SemiJoin[[emp_no{r}#2],[emp_no{r}#7]]
+     *   |_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     *   \_Project[[emp_no{f}#7]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ..]
+     */
+    public void testInSubqueryMainExternalDatasetSubqueryIndex() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM salaries_int
+            | WHERE emp_no IN (FROM test | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        // Main query: external dataset on the left.
+        ExternalRelation leftRelation = as(semiJoin.left(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, leftRelation.sourcePath());
+
+        // Subquery: regular index on the right.
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_AntiJoin[[emp_no{r}#2],[emp_no{r}#7]]
+     *   |_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     *   \_Project[[emp_no{f}#7]]
+     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ..]
+     */
+    public void testNotInSubqueryMainExternalDatasetSubqueryIndex() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM salaries_int
+            | WHERE emp_no NOT IN (FROM test | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertTrue(antiJoin.isAntiJoin());
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        ExternalRelation leftRelation = as(antiJoin.left(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, leftRelation.sourcePath());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_SemiJoin[[emp_no{f}#7],[emp_no{r}#2]]
+     *   |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ..]
+     *   \_Project[[emp_no{r}#2]]
+     *     \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     */
+    public void testInSubqueryMainIndexSubqueryExternalDataset() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM test
+            | WHERE emp_no IN (FROM salaries_int | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        // Main query: regular index on the left.
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Subquery: external dataset on the right.
+        Project rightProject = as(semiJoin.right(), Project.class);
+        ExternalRelation rightRelation = as(rightProject.child(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, rightRelation.sourcePath());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_AntiJoin[[emp_no{f}#7],[emp_no{r}#2]]
+     *   |_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ..]
+     *   \_Project[[emp_no{r}#2]]
+     *     \_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     */
+    public void testNotInSubqueryMainIndexSubqueryExternalDataset() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM test
+            | WHERE emp_no NOT IN (FROM salaries_int | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertTrue(antiJoin.isAntiJoin());
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        ExternalRelation rightRelation = as(rightProject.child(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, rightRelation.sourcePath());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_SemiJoin[[emp_no{r}#2],[emp_no{r}#7]]
+     *   |_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     *   \_Project[[emp_no{r}#7]]
+     *     \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#7, name{r}#8, salary{r}#9]
+     */
+    public void testInSubqueryMainAndSubqueryExternalDataset() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM salaries_int
+            | WHERE emp_no IN (FROM salaries_long | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        // Both sides resolve to external datasets.
+        ExternalRelation leftRelation = as(semiJoin.left(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, leftRelation.sourcePath());
+
+        Project rightProject = as(semiJoin.right(), Project.class);
+        ExternalRelation rightRelation = as(rightProject.child(), ExternalRelation.class);
+        assertEquals(SALARIES_LONG_RESOURCE, rightRelation.sourcePath());
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_AntiJoin[[emp_no{r}#2],[emp_no{r}#7]]
+     *   |_ExternalRelation[s3://bucket/salaries_int.parquet][parquet][emp_no{r}#2, name{r}#3, salary{r}#4]
+     *   \_Project[[emp_no{r}#7]]
+     *     \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#7, name{r}#8, salary{r}#9]
+     */
+    public void testNotInSubqueryMainAndSubqueryExternalDataset() {
+        LogicalPlan plan = analyzeInSubqueryWithExternalDataset("""
+            FROM salaries_int
+            | WHERE emp_no NOT IN (FROM salaries_long | KEEP emp_no)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertTrue(antiJoin.isAntiJoin());
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        ExternalRelation leftRelation = as(antiJoin.left(), ExternalRelation.class);
+        assertEquals(SALARIES_INT_RESOURCE, leftRelation.sourcePath());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        ExternalRelation rightRelation = as(rightProject.child(), ExternalRelation.class);
+        assertEquals(SALARIES_LONG_RESOURCE, rightRelation.sourcePath());
+    }
+
+    // -- IN / NOT IN (subquery) crossed with time-series indices --
+
+    /*
+     * Limit[..]
+     * \_Project[[max_rate{r}#.., cluster{r}#..]]
+     *   \_Eval[[UNPACKDIMENSION(..) AS cluster#..]]
+     *     \_Aggregate[[..],[MAX(RATE_$1{r}#..,..) AS max_rate#.., ..]]
+     *       \_Eval[[PACKDIMENSION(cluster{r}#..) AS ..]]
+     *         \_TimeSeriesAggregate[[_tsid{m}#..],[RATE(network.total_bytes_in{f}#..,..) AS RATE_$1#.., ..],..,TS_COMMAND]
+     *           \_SemiJoin[[cluster{f}#..],[first_name{f}#..]]
+     *             |_EsRelation[k8s][TIME_SERIES][@timestamp{f}#.., cluster{f}#.., ..]
+     *             \_Project[[first_name{f}#..]]
+     *               \_EsRelation[test][_meta_field{f}#.., emp_no{f}#.., first_name{f}#.., ..]
+     */
+    public void testInSubqueryMainTimeSeriesSubqueryIndex() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (FROM test | KEEP first_name)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "max_rate", "cluster");
+
+        SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("first_name"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        // Main query: the k8s time-series source on the left, kept in IndexMode.TIME_SERIES by the rate aggregation.
+        assertK8sTimeSeriesRelation(semiJoin.left());
+
+        // Subquery: regular index on the right.
+        Project rightProject = as(semiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    /*
+     * Limit[..]
+     * \_Project[[max_rate{r}#.., cluster{r}#..]]
+     *   \_..(lowered time-series aggregation)..
+     *     \_AntiJoin[[cluster{f}#..],[first_name{f}#..]]
+     *       |_EsRelation[k8s][TIME_SERIES][@timestamp{f}#.., cluster{f}#.., ..]
+     *       \_Project[[first_name{f}#..]]
+     *         \_EsRelation[test][_meta_field{f}#.., emp_no{f}#.., first_name{f}#.., ..]
+     */
+    public void testNotInSubqueryMainTimeSeriesSubqueryIndex() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (FROM test | KEEP first_name)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(limit.child(), "max_rate", "cluster");
+
+        AntiJoin antiJoin = as(agg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertTrue(antiJoin.isAntiJoin());
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("first_name"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        assertK8sTimeSeriesRelation(antiJoin.left());
+
+        Project rightProject = as(antiJoin.right(), Project.class);
+        EsRelation rightRelation = as(rightProject.child(), EsRelation.class);
+        assertEquals("test", rightRelation.indexPattern());
+    }
+
+    /*
+     * Limit[..]
+     * \_SemiJoin[[first_name{f}#..],[cluster{f}#..]]
+     *   |_EsRelation[test][_meta_field{f}#.., emp_no{f}#.., first_name{f}#.., ..]
+     *   \_Project[[cluster{r}#..]]
+     *     \_Project[[max_rate{r}#.., cluster{r}#..]]
+     *       \_..(lowered time-series aggregation)..
+     *         \_TimeSeriesAggregate[[_tsid{m}#..],[RATE(network.total_bytes_in{f}#..,..) AS RATE_$1#.., ..],..,TS_COMMAND]
+     *           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#.., cluster{f}#.., ..]
+     */
+    public void testInSubqueryMainIndexSubqueryTimeSeries() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            FROM test
+            | WHERE first_name IN (TS k8s
+                                  | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+                                  | KEEP cluster)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("first_name"));
+        assertThat(semiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.output(), equalTo(semiJoin.left().output()));
+
+        // Main query: regular index on the left.
+        EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        // Subquery: the k8s time-series source on the right, kept in IndexMode.TIME_SERIES by the rate aggregation.
+        Project alignProject = as(semiJoin.right(), Project.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(alignProject.child(), "max_rate", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
+    /*
+     * Limit[..]
+     * \_AntiJoin[[first_name{f}#..],[cluster{f}#..]]
+     *   |_EsRelation[test][_meta_field{f}#.., emp_no{f}#.., first_name{f}#.., ..]
+     *   \_Project[[cluster{r}#..]]
+     *     \_..(lowered time-series aggregation over k8s)..
+     *       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#.., cluster{f}#.., ..]
+     */
+    public void testNotInSubqueryMainIndexSubqueryTimeSeries() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            FROM test
+            | WHERE first_name NOT IN (TS k8s
+                                      | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+                                      | KEEP cluster)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertTrue(antiJoin.isAntiJoin());
+        assertThat(antiJoin.config().leftFields().size(), equalTo(1));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("first_name"));
+        assertThat(antiJoin.config().rightFields().size(), equalTo(1));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.output(), equalTo(antiJoin.left().output()));
+
+        EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
+        assertEquals("test", leftRelation.indexPattern());
+
+        Project alignProject = as(antiJoin.right(), Project.class);
+        TimeSeriesAggregate agg = unwrapTsAggregationOverDimension(alignProject.child(), "max_rate", "cluster");
+        assertK8sTimeSeriesRelation(agg.child());
+    }
+
     // -- helpers --
 
     private static LogicalPlan analyzeInSubquery(String query) {
         return analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").query(query);
+    }
+
+    private static final String SALARIES_INT_RESOURCE = "s3://bucket/salaries_int.parquet";
+    private static final String SALARIES_LONG_RESOURCE = "s3://bucket/salaries_long.parquet";
+
+    /**
+     * Analyzes a {@code WHERE <field> IN/NOT IN (subquery)} query that mixes the IN-subquery feature with
+     * external datasets, faithfully replaying the production pipeline order from {@code EsqlSession}:
+     * {@link InSubqueryResolver#resolve} runs first (rewriting every top-level {@code IN}/{@code NOT IN}
+     * into a {@link SemiJoin}/{@link AntiJoin}, detaching the subquery plan into the join's right child),
+     * and only then does {@link DatasetRewriter} turn each {@code FROM <dataset>} — wherever it now sits,
+     * the main relation or the detached subquery branch — into the {@code UnresolvedExternalRelation} the
+     * analyzer resolves against the configured external source schema.
+     *
+     * <p>The regular index {@code test} ({@code mapping-basic.json}, which carries an
+     * {@code emp_no:integer} column) is registered alongside the two external datasets
+     * ({@code salaries_int}/{@code salaries_long}, both exposing {@code emp_no:integer}), so combinations
+     * referencing an index, a dataset, or both on either side of the {@code IN} all resolve on the shared
+     * {@code emp_no} key.
+     */
+    private static LogicalPlan analyzeInSubqueryWithExternalDataset(String query) {
+        assumeTrue("requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
+        DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
+        Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
+        Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("external_ds", dataSource)))
+            .datasets(Map.of("salaries_int", intDataset, "salaries_long", longDataset))
+            .build();
+        // Production order (EsqlSession#execute then #analyzedPlan): resolve IN subqueries into
+        // SemiJoin/AntiJoin first, then rewrite FROM <dataset> targets into external relations.
+        LogicalPlan afterInSubquery = InSubqueryResolver.resolve(TEST_PARSER.parseQuery(query));
+        LogicalPlan rewritten = DatasetRewriter.rewrite(afterInSubquery, projectMetadata, TestIndexNameExpressionResolver.newInstance());
+        ExternalSourceResolution resolution = new ExternalSourceResolution(
+            Map.of(
+                SALARIES_INT_RESOURCE,
+                externalSource(SALARIES_INT_RESOURCE, DataType.INTEGER),
+                SALARIES_LONG_RESOURCE,
+                externalSource(SALARIES_LONG_RESOURCE, DataType.LONG)
+            )
+        );
+        return analyzer().addEmployees("test").externalSourceResolution(resolution).buildAnalyzer().analyze(rewritten);
+    }
+
+    /** A resolved external source named {@code emp_no}/{@code name}/{@code salary} with the given salary type. */
+    private static ExternalSourceResolution.ResolvedSource externalSource(String path, DataType salaryType) {
+        List<Attribute> schema = List.of(
+            referenceAttribute("emp_no", DataType.INTEGER),
+            referenceAttribute("name", DataType.KEYWORD),
+            referenceAttribute("salary", salaryType)
+        );
+        ExternalSourceMetadata metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+        return new ExternalSourceResolution.ResolvedSource(metadata, FileList.UNRESOLVED, Map.of());
     }
 
     private static LogicalPlan analyzeInSubqueryWithK8s(String query) {

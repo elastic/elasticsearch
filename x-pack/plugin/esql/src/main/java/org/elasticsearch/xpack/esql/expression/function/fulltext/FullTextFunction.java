@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -353,6 +354,10 @@ public abstract class FullTextFunction extends Function
 
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
+                    if (lp instanceof ExternalRelation) {
+                        failures.add(fail(plan, "{} cannot be used after [{}]", typeErrorMsgProvider.apply(exp), lp.sourceText()));
+                        return;
+                    }
                     String sourceText = lp.sourceText();
                     String errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
                     if (lp instanceof UnionAll) {
@@ -435,7 +440,7 @@ public abstract class FullTextFunction extends Function
                             "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
                             m.functionName(),
                             m.functionType(),
-                            field.sourceText()
+                            field.sourceText().isEmpty() && field instanceof Attribute attr ? attr.name() : field.sourceText()
                         )
                     );
                 }

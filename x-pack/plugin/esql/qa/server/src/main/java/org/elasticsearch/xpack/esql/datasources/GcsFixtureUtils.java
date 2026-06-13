@@ -107,6 +107,20 @@ public final class GcsFixtureUtils {
          * @return the query with GCS parameters injected
          */
         public String injectParams(String query) {
+            String trimmed = query.trim();
+            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
+
+            String externalPart;
+            String restOfQuery;
+
+            if (pipeIndex == -1) {
+                externalPart = trimmed;
+                restOfQuery = "";
+            } else {
+                externalPart = trimmed.substring(0, pipeIndex).trim();
+                restOfQuery = " " + trimmed.substring(pipeIndex);
+            }
+
             // Escape the service account JSON for embedding inside the WITH clause.
             // The JSON is embedded as a string value, so internal double-quotes must be escaped.
             String escapedCredentials = gcsServiceAccountJson.replace("\\", "\\\\").replace("\"", "\\\"");
@@ -119,7 +133,7 @@ public final class GcsFixtureUtils {
             entries.append("\"project_id\": \"test\", ");
             entries.append("\"token_uri\": \"").append(tokenUri).append("\"");
 
-            return FixtureUtils.injectWithEntriesForEachExternal(query.trim(), entries.toString());
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
     }
 }

@@ -37,6 +37,7 @@ public class Atan extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the arctangent of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of the input\n"
             + "numeric expression as an angle, expressed in radians.",
         examples = @Example(file = "floats", tag = "atan")

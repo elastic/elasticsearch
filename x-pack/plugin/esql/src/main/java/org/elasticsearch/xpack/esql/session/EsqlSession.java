@@ -332,10 +332,10 @@ public class EsqlSession {
                 // an IN subquery are not handled here yet — that requires alternating the two resolvers,
                 // which will be reintroduced in a follow-up.
                 // Collect IN_SUBQUERY telemetry from the pre-resolution plan before the resolver
-                // rewrites the originating InSubquery expressions into SemiJoin/AntiJoin/LeftSemiJoin
+                // rewrites the originating InSubquery expressions into SemiJoin/AntiJoin/MarkJoin
                 // — mirroring how view telemetry is collected before view resolution discards the
                 // view-specific plan nodes. The WHERE counter is set by the analyzer/verifier plan
-                // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/LeftSemiJoin too.
+                // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
                 gatherInSubqueryMetrics(viewResolution.plan());
                 // InSubqueryResolver.resolve is synchronous; any VerificationException it throws
                 // propagates out of this lambda and is caught by delegateFailureAndWrap, which
@@ -563,7 +563,7 @@ public class EsqlSession {
             // Only log on internal server errors. User-facing failures (verification errors, parse
             // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
             if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
-                logAnonymizedPlans(planSnapshot);
+                logAnonymizedPlans(planSnapshot, err);
             }
             next.onFailure(err);
         });
@@ -765,7 +765,7 @@ public class EsqlSession {
         }
     }
 
-    private void logAnonymizedPlans(PlanSnapshot snap) {
+    private void logAnonymizedPlans(PlanSnapshot snap, Exception err) {
         if (LOGGER.isErrorEnabled() == false) {
             return;
         }
@@ -778,18 +778,28 @@ public class EsqlSession {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
                 .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
             LOGGER.error(
-                "ESQL anonymized plans for failed session [{}]\n"
-                    + "schema:\n{}\n"
-                    + "parsed:\n{}\n"
-                    + "analyzed:\n{}\n"
-                    + "optimized:\n{}\n"
-                    + "physical:\n{}",
+                """
+                    ES|QL query failed in session [{}]
+                    failure:
+                    {}
+                    parsed:
+                    {}
+                    analyzed:
+                    {}
+                    optimized:
+                    {}
+                    physical:
+                    {}
+                    schema:
+                    {}""".stripIndent(),
                 sessionId,
-                anonymized.schema(),
+                err.getMessage(),
                 anonymized.parsed(),
                 anonymized.analyzed(),
                 anonymized.optimized(),
-                anonymized.physical()
+                anonymized.physical(),
+                anonymized.schema(),
+                err
             );
         } catch (Exception e) {
             LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
@@ -1081,11 +1091,11 @@ public class EsqlSession {
      * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
      * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}. Called before
      * {@link InSubqueryResolver} so the check sees the originating expressions still in place —
-     * the resolver replaces them with {@code SemiJoin}/{@code AntiJoin}/{@code LeftSemiJoin} and
+     * the resolver replaces them with {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} and
      * the source expression is no longer visible to plan traversals afterwards. Mirrors
      * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter
      * is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
-     * SemiJoin/AntiJoin/LeftSemiJoin (which only originate from a {@code WHERE x IN (sub)}).
+     * SemiJoin/AntiJoin/MarkJoin (which only originate from a {@code WHERE x IN (sub)}).
      */
     private void gatherInSubqueryMetrics(LogicalPlan plan) {
         if (metrics == null) {
@@ -1292,11 +1302,10 @@ public class EsqlSession {
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 executionInfo.queryProfile().inferenceResolutionMarker().start();
-                inferenceService.inferenceResolver(functionRegistry)
-                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
-                        executionInfo.queryProfile().inferenceResolutionMarker().stop();
-                        ll.onResponse(r.withInferenceResolution(inferenceResolution));
-                    }));
+                inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                    executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                    ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
@@ -1480,7 +1489,7 @@ public class EsqlSession {
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
-            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
                 skipClusterOrError(
@@ -1554,7 +1563,7 @@ public class EsqlSession {
     ) {
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n).indexExpression()).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(

@@ -289,8 +289,26 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         );
         assertThat("requires at least two slices", queue.totalSlices(), greaterThanOrEqualTo(2));
         var shardContexts = new IndexedByShardIdFromSingleton<>(shardContext);
-        var op1 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
-        var op2 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
+        var op1 = new LuceneSourceOperator(
+            shardContexts,
+            blockFactory(),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L
+        );
+        var op2 = new LuceneSourceOperator(
+            shardContexts,
+            blockFactory(),
+            100,
+            queue,
+            LuceneOperator.NO_LIMIT,
+            Limiter.NO_LIMIT,
+            false,
+            () -> 0L
+        );
         try {
             Thread thread1 = new Thread(() -> {
                 Page output = op1.getOutput();

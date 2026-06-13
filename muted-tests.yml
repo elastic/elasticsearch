@@ -512,9 +512,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testPeerRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150663
-- class: org.elasticsearch.indices.cluster.SkippedClusterStateIT
-  method: testInitializingPrimaryTermBump
-  issue: https://github.com/elastic/elasticsearch/issues/150666
 - class: org.elasticsearch.index.engine.InternalEngineTests
   method: testShouldPeriodicallyFlushOnSize
   issue: https://github.com/elastic/elasticsearch/issues/150669
@@ -611,9 +608,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBufferTests
-  method: "testEvaluateInManyThreads {TestCase=geo_shape with distance[double]. #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/150965
 - class: org.elasticsearch.reindex.management.ReindexRelocationIT
   method: testNonSlicedRemoteReindexRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150966
@@ -656,3 +650,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:approximation.Approximate stats by with zero variance}
   issue: https://github.com/elastic/elasticsearch/issues/151120
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:change_point.values null column}
+  issue: https://github.com/elastic/elasticsearch/issues/151132

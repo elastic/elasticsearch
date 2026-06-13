@@ -15,14 +15,21 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -169,6 +178,34 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
             searchRequest.source(new SearchSourceBuilder());
             searchRequest.source().size(DEFAULT_SCROLL_SIZE);
         }
+    }
+
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> Request parseXContent(
+        Request request,
+        XContentParser parser,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        Map<String, Consumer<Object>> bodyConsumers
+    ) throws IOException {
+        Map<String, Object> body = parser.map();
+        for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
+            Object value = body.remove(consumer.getKey());
+            if (value != null) {
+                consumer.getValue().accept(value);
+            }
+        }
+        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+        builder.map(body);
+        try (
+            XContentParser innerParser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                    .withDeprecationHandler(parser.getDeprecationHandler()),
+                BytesReference.bytes(builder),
+                parser.contentType()
+            )
+        ) {
+            request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, clusterSupportsFeature);
+        }
+        return request;
     }
 
     /**

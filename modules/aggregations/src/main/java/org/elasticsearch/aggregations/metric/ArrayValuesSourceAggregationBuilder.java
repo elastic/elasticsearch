@@ -243,7 +243,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fields, format, missing, userValueTypeHint);
+        return Objects.hash(super.hashCode(), fields, format, missingMap, userValueTypeHint);
     }
 
     @Override
@@ -254,7 +254,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         ArrayValuesSourceAggregationBuilder<?> other = (ArrayValuesSourceAggregationBuilder<?>) obj;
         return Objects.equals(fields, other.fields)
             && Objects.equals(format, other.format)
-            && Objects.equals(missing, other.missing)
+            && Objects.equals(missingMap, other.missingMap)
             && Objects.equals(userValueTypeHint, other.userValueTypeHint);
     }
 }

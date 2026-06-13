@@ -66,7 +66,11 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
         if (withIndexSorts) {
             config.setIndexSort(new Sort(new SortField("f", SortField.Type.STRING)));
         }
-        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
+            var perFieldFactory = new PerFieldBlockLoaderFactory(factory, new PerFieldBlockLoaderFactory.NullBlockPool(factory))
+        ) {
             for (int i = 0; i < docCount; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
@@ -75,7 +79,6 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             Map<String, Integer> counts = new HashMap<>();
             var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
-            var blockFactory = new ComputeBlockLoaderFactory(factory);
             try (IndexReader reader = indexWriter.getReader()) {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (LeafReaderContext ctx : reader.leaves()) {
@@ -87,7 +90,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
 
                         try (
                             var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx).apply(breaker);
-                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                            BlockLoader.Block block = columnAtATimeReader.read(perFieldFactory, docs, start, false)
                         ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
@@ -138,7 +141,12 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
     public void testAllNull() throws IOException {
         BlockFactory factory = blockFactory();
         int count = 1000;
-        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            var nullBlockPool = new PerFieldBlockLoaderFactory.NullBlockPool(factory);
+            var perFieldFactory = new PerFieldBlockLoaderFactory(factory, nullBlockPool)
+        ) {
             for (int i = 0; i < count; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
@@ -147,9 +155,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (
-                        SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs(), false);
-                    ) {
+                    try (var builder = new SingletonOrdinalsBuilder(perFieldFactory, docValues, ctx.reader().numDocs(), false);) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
                                 assertThat(docValues.advanceExact(i), equalTo(true));
@@ -171,7 +177,13 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
     public void testEmitOrdinalForHighCardinality() throws IOException {
         BlockFactory factory = blockFactory();
         int numOrds = between(50, 100);
-        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+        try (
+            var nullBlockPool = new PerFieldBlockLoaderFactory.NullBlockPool(factory);
+            Directory directory = newDirectory();
+            IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig());
+            var factory1 = new PerFieldBlockLoaderFactory(factory, nullBlockPool);
+            var factory2 = new PerFieldBlockLoaderFactory(factory, nullBlockPool)
+        ) {
             for (int o = 0; o < numOrds; o++) {
                 int docPerOrds = between(10, 15);
                 for (int d = 0; d < docPerOrds; d++) {
@@ -184,8 +196,8 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int batchSize = between(40, 100);
                     int ord = random().nextInt(numOrds);
                     try (
-                        var b1 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean());
-                        var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
+                        var b1 = new SingletonOrdinalsBuilder(factory1, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean());
+                        var b2 = new SingletonOrdinalsBuilder(factory2, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
                     ) {
                         for (int i = 0; i < batchSize; i++) {
                             appendOrd(b1, ord);
@@ -221,7 +233,13 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
         int totalDocs = between(100, 1000);
         var values = new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") };
         int[] counts = new int[4];
-        try (var directory = newDirectory(); var indexWriter = new IndexWriter(directory, config)) {
+        BlockFactory factory = blockFactory();
+        try (
+            var directory = newDirectory();
+            var indexWriter = new IndexWriter(directory, config);
+            var nullBlockPool =  new PerFieldBlockLoaderFactory.NullBlockPool(factory);
+            var perFieldFactory = new PerFieldBlockLoaderFactory(factory, nullBlockPool)
+        ) {
             for (int i = 0; i < totalDocs; i++) {
                 int valueIndex = randomIntBetween(0, values.length - 1);
                 counts[valueIndex]++;
@@ -233,7 +251,6 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
             }
             var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
             var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
-            var blockFactory = new ComputeBlockLoaderFactory(blockFactory());
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 for (LeafReaderContext ctx : reader.leaves()) {
@@ -244,7 +261,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                         BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         try (
                             var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx).apply(breaker);
-                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                            BlockLoader.Block block = columnAtATimeReader.read(perFieldFactory, docs, start, false)
                         ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());

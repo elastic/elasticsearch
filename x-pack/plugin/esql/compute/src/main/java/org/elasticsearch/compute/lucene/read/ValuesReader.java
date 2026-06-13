@@ -70,7 +70,6 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
      * loader for a single invocation of {@link #load}.
      */
     abstract class Run implements Releasable {
-        final ComputeBlockLoaderFactory blockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory());
         final Block[] target;
         /**
          * The "final" builder for the block we're going to return. See {@link #current} for
@@ -199,13 +198,13 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
 
         void moveBuildersAndLoadersToShard() {
             for (int f = 0; f < operator.fields.length; f++) {
-                current[f] = new CurrentWork(blockFactory, docs, operator.fields[f], finalBuilders[f]);
+                current[f] = new CurrentWork(docs, operator.fields[f], finalBuilders[f]);
             }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(blockFactory, Releasables.wrap(finalBuilders), Releasables.wrap(current));
+            Releasables.closeExpectNoException(Releasables.wrap(finalBuilders), Releasables.wrap(current));
         }
     }
 }

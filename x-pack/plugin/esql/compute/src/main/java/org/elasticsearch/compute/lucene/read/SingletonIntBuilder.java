@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -19,14 +18,13 @@ import org.elasticsearch.index.mapper.BlockLoader;
 public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilder, Releasable, Block.Builder {
 
     private final int[] values;
-    private final BlockFactory blockFactory;
+    private final PerFieldBlockLoaderFactory blockFactory;
 
     private int count;
 
-    public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonIntBuilder(int expectedCount, PerFieldBlockLoaderFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new int[expectedCount];
+        this.values = blockFactory.getInts(expectedCount);
     }
 
     @Override
@@ -68,7 +66,9 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
         if (values.length != count) {
             throw new IllegalStateException("expected " + values.length + " values but got " + count);
         }
-        return blockFactory.newIntArrayVector(values, count).asBlock();
+        final var block = blockFactory.factory.newIntArrayVector(values, count).asBlock();
+        block.attachReleasable(() -> blockFactory.returnInts(values));
+        return block;
     }
 
     @Override
@@ -81,15 +81,15 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     }
 
     @Override
-    public BlockLoader.SingletonIntBuilder appendInts(int[] values, int from, int length) {
-        System.arraycopy(values, from, values, count, length);
+    public BlockLoader.SingletonIntBuilder appendInts(int[] src, int from, int length) {
+        System.arraycopy(src, from, this.values, count, length);
         count += length;
         return this;
     }
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+
     }
 
     static long valuesSize(int count) {

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -20,14 +19,13 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 public final class SingletonDoubleBuilder implements BlockLoader.SingletonDoubleBuilder, Releasable, Block.Builder {
 
     private final double[] values;
-    private final BlockFactory blockFactory;
+    private final PerFieldBlockLoaderFactory blockFactory;
 
     private int count;
 
-    public SingletonDoubleBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonDoubleBuilder(int expectedCount, PerFieldBlockLoaderFactory blockFactory) {
         this.blockFactory = blockFactory;
-        blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new double[expectedCount];
+        this.values = blockFactory.getDoubles(expectedCount);
     }
 
     @Override
@@ -69,7 +67,9 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
         if (values.length != count) {
             throw new IllegalStateException("expected " + values.length + " values but got " + count);
         }
-        return blockFactory.newDoubleArrayVector(values, count).asBlock();
+        final var block = blockFactory.factory.newDoubleArrayVector(values, count).asBlock();
+        block.attachReleasable(() -> blockFactory.returnDoubles(values));
+        return block;
     }
 
     @Override
@@ -83,7 +83,7 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+
     }
 
     static long valuesSize(int count) {

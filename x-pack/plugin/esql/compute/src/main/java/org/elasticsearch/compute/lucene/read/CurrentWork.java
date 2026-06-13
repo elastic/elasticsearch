@@ -35,15 +35,10 @@ class CurrentWork implements Releasable {
     BlockLoader.ColumnAtATimeReader columnAtATime;
     BlockLoader.RowStrideReader rowStride;
 
-    CurrentWork(
-        ComputeBlockLoaderFactory blockFactory,
-        DocVector docs,
-        ValuesSourceReaderOperator.FieldWork field,
-        Block.Builder finalBuilder
-    ) {
+    CurrentWork(DocVector docs, ValuesSourceReaderOperator.FieldWork field, Block.Builder finalBuilder) {
         this.field = field;
         this.converter = field.converter;
-        this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
+        this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(field.blockFactory, docs.getPositionCount());
         this.finalBuilder = finalBuilder;
     }
 

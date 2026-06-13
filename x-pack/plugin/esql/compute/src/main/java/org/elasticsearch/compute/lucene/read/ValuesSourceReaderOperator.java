@@ -292,6 +292,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     final int docSequenceBytesRefFieldThreshold;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
+    final PerFieldBlockLoaderFactory.NullBlockPool nullBlockPool;
     private final boolean reuseColumnLoaders;
     private final int docChannel;
 
@@ -348,6 +349,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
+        this.nullBlockPool = new PerFieldBlockLoaderFactory.NullBlockPool(driverContext.blockFactory());
         this.directoryBytesRead = directoryBytesRead;
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
@@ -515,7 +517,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
             }
         }
-        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
+        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields), nullBlockPool);
     }
 
     protected class FieldWork implements Releasable {
@@ -532,9 +534,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         @Nullable
         BlockLoader.RowStrideReader rowStride;
 
+        final PerFieldBlockLoaderFactory blockFactory;
+
         FieldWork(FieldInfo info, int fieldIdx) {
             this.info = info;
             this.fieldIdx = fieldIdx;
+            this.blockFactory = new PerFieldBlockLoaderFactory(driverContext.blockFactory(), nullBlockPool);
         }
 
         void sameSegment(int firstDoc) {
@@ -596,6 +601,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public void close() {
+            Releasables.close(blockFactory);
             closeReaders();
         }
 

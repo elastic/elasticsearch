@@ -237,7 +237,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
         try (
             var directory = newDirectory();
             var indexWriter = new IndexWriter(directory, config);
-            var nullBlockPool =  new PerFieldBlockLoaderFactory.NullBlockPool(factory);
+            var nullBlockPool = new PerFieldBlockLoaderFactory.NullBlockPool(factory);
             var perFieldFactory = new PerFieldBlockLoaderFactory(factory, nullBlockPool)
         ) {
             for (int i = 0; i < totalDocs; i++) {

@@ -28,7 +28,7 @@ public interface RecoveryListener {
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
 
         @Override
-        public void onRecoveryCancelled() {}
+        public void onRecoveryAborted() {}
     };
 
     /// Called when recovery finishes successfully.
@@ -41,8 +41,8 @@ public interface RecoveryListener {
     /// Called when recovery fails with an exception.
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
 
-    /// Called when recovery is cancelled, which either means that shard is closing.
-    void onRecoveryCancelled();
+    /// Called when recovery has been internally aborted, usually due to shard closure or shard relocation
+    void onRecoveryAborted();
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
@@ -69,9 +69,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryCancelled() {
+            public void onRecoveryAborted() {
                 try {
-                    listener.onRecoveryCancelled();
+                    listener.onRecoveryAborted();
                 } finally {
                     runAfter.run();
                 }
@@ -123,10 +123,10 @@ public interface RecoveryListener {
                 }
 
                 @Override
-                public void onRecoveryCancelled() {
+                public void onRecoveryAborted() {
                     assertFirstRun();
                     try {
-                        delegate.onRecoveryCancelled();
+                        delegate.onRecoveryAborted();
                     } catch (Exception e) {
                         assert false : new AssertionError("listener [" + delegate + "] must handle its own exceptions", e);
                         throw e;

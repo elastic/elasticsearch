@@ -73,8 +73,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
             }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
@@ -111,8 +111,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
             }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
@@ -152,8 +152,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
             }
         };
 
@@ -249,8 +249,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onRecoveryCancelled() {
-                    fail("unexpected recovery cancellation");
+                public void onRecoveryAborted() {
+                    fail("unexpected recovery abortion");
                 }
             }, fakeRecoveryState(), schedulingListener -> {
                 started.incrementAndGet();
@@ -317,8 +317,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onRecoveryCancelled() {
-                    fail("recovery cancelled");
+                public void onRecoveryAborted() {
+                    fail("recovery aborted");
                 }
             };
             service.enqueue(
@@ -357,8 +357,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
             }
         };
 
@@ -378,8 +378,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("recovery cancelled");
+            public void onRecoveryAborted() {
+                fail("recovery aborted");
             }
         };
 
@@ -397,10 +397,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertTrue(secondTaskCompleted.get());
     }
 
-    public void testCancellationTriggersNextQueuedRecovery() {
+    public void testRecoveryAbortedTriggersNextQueuedRecovery() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
-        final var firstTaskCancelled = new AtomicBoolean(false);
+        final var firstTaskAborted = new AtomicBoolean(false);
         final var secondTaskCompleted = new AtomicBoolean(false);
 
         RecoveryListener firstListener = new RecoveryListener() {
@@ -410,7 +410,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                fail("first task should be cancelled");
+                fail("first task should be aborted");
             }
 
             @Override
@@ -419,8 +419,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                firstTaskCancelled.set(true);
+            public void onRecoveryAborted() {
+                firstTaskAborted.set(true);
             }
         };
 
@@ -440,14 +440,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                fail("second task should not be cancelled");
+            public void onRecoveryAborted() {
+                fail("second task should not be aborted");
             }
         };
 
-        service.enqueue(firstListener, fakeRecoveryState(), RecoveryListener::onRecoveryCancelled);
+        service.enqueue(firstListener, fakeRecoveryState(), RecoveryListener::onRecoveryAborted);
         service.enqueue(secondListener, fakeRecoveryState(), schedulingListener -> {
-            assertTrue("first task should have completed before second one started", firstTaskCancelled.get());
+            assertTrue("first task should have completed before second one started", firstTaskAborted.get());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
 
@@ -486,7 +486,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onRecoveryCancelled() {
+            public void onRecoveryAborted() {
                 running.decrementAndGet();
                 completed.incrementAndGet();
             }
@@ -513,7 +513,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                         } else {
                             if (randomBoolean()) {
-                                schedulingListener.onRecoveryCancelled();
+                                schedulingListener.onRecoveryAborted();
                             } else {
                                 schedulingListener.onRecoveryFailure(
                                     new RecoveryFailedException(

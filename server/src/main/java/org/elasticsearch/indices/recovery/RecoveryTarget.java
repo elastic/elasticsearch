@@ -258,7 +258,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             try {
                 logger.debug("recovery canceled (reason: [{}])", reason);
                 cancellableThreads.cancel(reason);
-                listener.onRecoveryCancelled();
+                listener.onRecoveryAborted();
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 updateStatsAndDecRef();

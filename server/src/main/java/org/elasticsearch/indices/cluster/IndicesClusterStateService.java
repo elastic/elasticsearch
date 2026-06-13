@@ -1193,8 +1193,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryCancelled() {
-            // We don't need to notify master of anything here because recovery cancellation is a
+        public void onRecoveryAborted() {
+            // We don't need to notify master of anything here because recovery abortion is a
             // symptom of a shard that is closing and this is communicated to master through other
             // means (or the master already knows because the master initiated it, e.g. by moving the shard)
         }

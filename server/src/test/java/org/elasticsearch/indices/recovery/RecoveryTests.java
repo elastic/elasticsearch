@@ -461,7 +461,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onRecoveryCancelled() {
+                    public void onRecoveryAborted() {
                         throw new AssertionError("recovery must fail");
                     }
                 });

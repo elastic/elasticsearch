@@ -115,8 +115,8 @@ class PostRecoveryMerger {
             }
 
             @Override
-            public void onRecoveryCancelled() {
-                recoveryListener.onRecoveryCancelled();
+            public void onRecoveryAborted() {
+                recoveryListener.onRecoveryAborted();
             }
         };
     }

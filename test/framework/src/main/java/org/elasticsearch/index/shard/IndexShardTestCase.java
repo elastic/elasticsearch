@@ -154,9 +154,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
 
         @Override
-        public void onRecoveryCancelled() {
-            // Cancellation is a normal reaction to changes in allocation
-            // or node shutdown. Don't fail here.
+        public void onRecoveryAborted() {
+            // Abortion is a normal reaction to changes in allocation or node shutdown. Don't fail here.
         }
     };
 

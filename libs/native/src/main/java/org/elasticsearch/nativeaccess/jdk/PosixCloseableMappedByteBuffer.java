@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class PosixCloseableMappedByteBuffer extends JdkCloseableMappedByteBuffer {
 
-    static final PosixCLibrary LIB = LegacyNativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
+    static final PosixCLibrary LIB = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
     static final int PAGE_SIZE = LIB.getPageSize();
 
     public static PosixCloseableMappedByteBuffer ofShared(FileChannel fileChannel, MapMode mode, long position, long size)

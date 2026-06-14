@@ -11,7 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
-import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
@@ -36,7 +36,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final PosixConstants constants;
     protected final ProcessLimits processLimits;
 
-    PosixNativeAccess(String name, LegacyNativeLibraryProvider libraryProvider, PosixConstants constants) {
+    PosixNativeAccess(String name, NativeLibraryProvider libraryProvider, PosixConstants constants) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
         this.vectorDistance = vectorSimilarityFunctionsOrNull(libraryProvider);
@@ -70,7 +70,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         }
     }
 
-    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(LegacyNativeLibraryProvider libraryProvider) {
+    static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
         if (isNativeVectorLibSupported()) {
             var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
             logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
@@ -79,7 +79,7 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
         return null;
     }
 
-    static ParquetRsFunctions parquetRsFunctionsOrNull(LegacyNativeLibraryProvider libraryProvider) {
+    static ParquetRsFunctions parquetRsFunctionsOrNull(NativeLibraryProvider libraryProvider) {
         if (isNativeRustLibSupported()) {
             try {
                 var lib = libraryProvider.getLibrary(ParquetRsLibrary.class);

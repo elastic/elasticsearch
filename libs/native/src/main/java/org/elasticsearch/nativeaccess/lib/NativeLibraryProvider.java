@@ -20,12 +20,12 @@ import java.util.function.Supplier;
  * Subclasses register a map of library interfaces to their constructors.
  * Use {@link LibraryProvider#lookupLibrary(Class)} for libraries that have been migrated.
  */
-public abstract class LegacyNativeLibraryProvider {
+public abstract class NativeLibraryProvider {
 
     private final String name;
     private final Map<Class<?>, Supplier<?>> libraries;
 
-    protected LegacyNativeLibraryProvider(String name, Map<Class<?>, Supplier<?>> libraries) {
+    protected NativeLibraryProvider(String name, Map<Class<?>, Supplier<?>> libraries) {
         this.name = name;
         this.libraries = libraries;
     }
@@ -57,12 +57,12 @@ public abstract class LegacyNativeLibraryProvider {
     private static final class Holder {
         private Holder() {}
 
-        static final LegacyNativeLibraryProvider INSTANCE = ServiceLoader.load(LegacyNativeLibraryProvider.class)
+        static final NativeLibraryProvider INSTANCE = ServiceLoader.load(NativeLibraryProvider.class)
             .findFirst()
-            .orElseThrow(() -> new IllegalStateException("No LegacyNativeLibraryProvider found"));
+            .orElseThrow(() -> new IllegalStateException("No NativeLibraryProvider found"));
     }
 
-    public static LegacyNativeLibraryProvider instance() {
+    public static NativeLibraryProvider instance() {
         return Holder.INSTANCE;
     }
 }

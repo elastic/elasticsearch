@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Unwrappable;
-import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -38,7 +38,7 @@ public class PosixCLibraryTests extends ESTestCase {
     public void setup() {
         nativeAccess = NativeAccess.instance();
         if (Constants.LINUX || Constants.MAC_OS_X) {
-            clib = LegacyNativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
+            clib = NativeLibraryProvider.instance().getLibrary(PosixCLibrary.class);
             assertNotNull(clib);
         } else {
             assumeFalse("posix only available on Mac/Linux", Constants.WINDOWS);

@@ -33,9 +33,9 @@ module org.elasticsearch.nativeaccess {
             // invisible to other plugins.
             org.elasticsearch.xpack.esql.datasource.compress;
 
-    uses org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
+    uses org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
-    provides org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider
+    provides org.elasticsearch.nativeaccess.lib.NativeLibraryProvider
         with
             org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
 

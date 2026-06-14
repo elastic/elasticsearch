@@ -52,9 +52,9 @@ public class LibraryProcessor extends AbstractProcessor {
                 TypeElement typeElement = (TypeElement) element;
                 try {
                     implGenerator.generate(model, typeElement);
-                    providerWriter.write(model, typeElement);
+                    providerWriter.generate(model, typeElement);
                     for (StructModel struct : model.structs()) {
-                        structWriter.write(model, struct, typeElement);
+                        structWriter.generate(model, struct, typeElement);
                     }
                 } catch (Exception e) {
                     processingEnv.getMessager()

@@ -61,7 +61,7 @@ class StructClassWriter {
     /**
      * Generates and writes the {@code <StructName>$Impl} class for the given struct model.
      */
-    void write(LibraryModel libraryModel, StructModel struct, TypeElement sourceElement) throws Exception {
+    void generate(LibraryModel libraryModel, StructModel struct, TypeElement sourceElement) throws Exception {
         String innerName = struct.simpleName() + "$Impl";
         String outerPrefix = libraryModel.packageName().isEmpty()
             ? libraryModel.simpleName()

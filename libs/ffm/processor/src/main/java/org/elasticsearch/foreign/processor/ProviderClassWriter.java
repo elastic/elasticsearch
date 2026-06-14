@@ -47,7 +47,7 @@ class ProviderClassWriter {
     /**
      * Generates and writes the {@code $Provider} class for the given library model.
      */
-    void write(LibraryModel model, TypeElement sourceElement) throws Exception {
+    void generate(LibraryModel model, TypeElement sourceElement) throws Exception {
         String prefix = model.packageName().isEmpty() ? model.simpleName() : model.packageName() + "." + model.simpleName();
         ClassDesc implDesc = ClassDesc.of(prefix + "$Impl");
         ClassDesc interfaceDesc = ClassDesc.of(model.qualifiedName());

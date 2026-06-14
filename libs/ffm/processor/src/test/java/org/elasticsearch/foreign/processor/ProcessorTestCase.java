@@ -84,8 +84,8 @@ abstract class ProcessorTestCase extends TestCase {
                 List<String> options = new ArrayList<>();
                 options.add("-classpath");
                 options.add(processorClasspath);
-                options.add("-processorpath");
-                options.add(processorClasspath);
+                options.add("-processor");
+                options.add(LibraryProcessor.class.getName());
 
                 JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, List.of(sourceFile));
                 boolean success = task.call();

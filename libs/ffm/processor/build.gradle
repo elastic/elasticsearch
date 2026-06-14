@@ -23,10 +23,6 @@ tasks.named('compileTestJava').configure {
   options.release = processorJavaVersion.asInt()
 }
 
-tasks.named('test').configure {
-  javaLauncher = javaToolchains.launcherFor { languageVersion = processorJavaVersion }
-}
-
 // Gradle puts the implementation dependency on -classpath by default, but module-info.java
 // requires org.elasticsearch.foreign, so we move it to --module-path instead.
 tasks.named('javadoc').configure {

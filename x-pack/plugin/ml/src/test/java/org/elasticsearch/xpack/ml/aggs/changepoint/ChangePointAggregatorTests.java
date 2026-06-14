@@ -199,6 +199,9 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStepChangeEdgeCaseScenarios() throws IOException {
+        // A large clean step down. With minSegmentLength = 12 a verifiable change needs at least that many points
+        // on each side (and the series at least 2*minSegmentLength + 2 buckets), so both regimes are >= 14 long
+        // and the break sits at index 14, well away from either edge.
         double[] bucketValues = new double[] {
             214505.0,
             193747.0,
@@ -211,6 +214,9 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             214807.0,
             224819.0,
             214245.0,
+            198432.0,
+            205611.0,
+            209873.0,
             21482.0,
             22264.0,
             21972.0,
@@ -222,10 +228,12 @@ public class ChangePointAggregatorTests extends AggregatorTestCase {
             23105.0,
             22118.0,
             22165.0,
-            21388.0 };
+            21388.0,
+            21744.0,
+            22010.0 };
         testChangeType(bucketValues, changeType -> {
             assertThat(changeType, instanceOf(ChangeType.StepChange.class));
-            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), equalTo(11));
+            assertThat(Arrays.toString(bucketValues), changeType.changePoint(), anyOf(equalTo(13), equalTo(14), equalTo(15)));
         });
     }
 

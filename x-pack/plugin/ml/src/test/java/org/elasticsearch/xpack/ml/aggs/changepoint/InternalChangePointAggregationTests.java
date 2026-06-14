@@ -38,14 +38,18 @@ public class InternalChangePointAggregationTests extends AbstractWireSerializing
         return new InternalChangePointAggregation(
             randomAlphaOfLength(10),
             Collections.singletonMap("foo", "bar"),
-            randomBoolean() ? null : new ChangePointBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY),
-            randomFrom(
-                new ChangeType.Stationary(),
-                new ChangeType.NonStationary(randomDouble(), randomDouble(), randomAlphaOfLength(10)),
-                new ChangeType.Dip(randomDouble(), randomInt(1000)),
-                new ChangeType.Spike(randomDouble(), randomInt(1000)),
-                new ChangeType.TrendChange(randomDouble(), randomDouble(), randomInt(1000)),
-                new ChangeType.DistributionChange(randomDouble(), randomInt(1000))
+            randomBoolean()
+                ? List.of()
+                : List.of(new ChangePointBucket(randomAlphaOfLength(10), randomNonNegativeLong(), InternalAggregations.EMPTY)),
+            List.of(
+                randomFrom(
+                    new ChangeType.Stationary(),
+                    new ChangeType.NonStationary(randomDouble(), randomDouble(), randomAlphaOfLength(10)),
+                    new ChangeType.Dip(randomDouble(), randomInt(1000)),
+                    new ChangeType.Spike(randomDouble(), randomInt(1000)),
+                    new ChangeType.TrendChange(randomDouble(), randomDouble(), randomInt(1000)),
+                    new ChangeType.DistributionChange(randomDouble(), randomInt(1000))
+                )
             )
         );
     }

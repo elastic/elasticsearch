@@ -22,8 +22,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
-import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
+import org.elasticsearch.xpack.ml.aggs.changepoint.EventDetector;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -317,7 +317,9 @@ public class ChangePointOperator implements Operator {
             values.stream().mapToDouble(Double::doubleValue).toArray(),
             bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
         );
-        return ChangePointDetector.getChangeType(bucketValues);
+        // TODO: FIXME
+        EventDetector detector = new EventDetector();
+        return detector.detect(bucketValues).get(0);
     }
 
     /**

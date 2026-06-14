@@ -14,6 +14,8 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,21 +40,25 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
             return new InternalChangePointAggregation(
                 name(),
                 metadata(),
-                null,
-                new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]")
+                List.of(),
+                List.of(new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]"))
             );
         }
         MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
 
-        ChangeType change = ChangePointDetector.getChangeType(bucketValues);
-
-        ChangePointBucket changePointBucket = null;
-        if (change.changePoint() != ChangeType.NO_CHANGE_POINT) {
-            changePointBucket = extractBucket(bucketsPaths()[0], aggregations, change.changePoint()).map(
-                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
-            ).orElse(null);
+        EventDetector eventDetector = new EventDetector();
+        List<ChangeType> events = eventDetector.detect(bucketValues);
+        List<ChangePointBucket> changePointBuckets = new ArrayList<>();
+        for (ChangeType c : events) {
+            if (c.isChange()) {
+                changePointBuckets.add(
+                    extractBucket(bucketsPaths()[0], aggregations, c.changePoint()).map(
+                        b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
+                    ).orElse(null)
+                );
+            }
         }
 
-        return new InternalChangePointAggregation(name(), metadata(), changePointBucket, change);
+        return new InternalChangePointAggregation(name(), metadata(), changePointBuckets, events);
     }
 }

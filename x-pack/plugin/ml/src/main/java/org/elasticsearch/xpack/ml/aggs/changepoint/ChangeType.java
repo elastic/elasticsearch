@@ -27,8 +27,16 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         return NO_CHANGE_POINT;
     }
 
+    default boolean isChange() {
+        return changePoint() != NO_CHANGE_POINT;
+    }
+
     default double pValue() {
         return 1.0;
+    }
+
+    default ChangeType remapChangePoint(int changePoint) {
+        return this;
     }
 
     abstract class AbstractChangePoint implements ChangeType {
@@ -180,48 +188,7 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     }
 
     /**
-     * Indicates a step change occurred
-     */
-    class StepChange extends AbstractChangePoint {
-        public static final String NAME = "step_change";
-
-        public StepChange(double pValue, int changePoint) {
-            super(pValue, changePoint);
-        }
-
-        public StepChange(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-    }
-
-    /**
-     * Indicates a distribution change occurred
-     */
-    class DistributionChange extends AbstractChangePoint {
-        public static final String NAME = "distribution_change";
-
-        public DistributionChange(double pValue, int changePoint) {
-            super(pValue, changePoint);
-        }
-
-        public DistributionChange(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public String getName() {
-            return NAME;
-        }
-
-    }
-
-    /**
-     * Indicates a trend change occurred
+     * Indicates the data has a trend
      */
     class NonStationary implements ChangeType {
         public static final String NAME = "non_stationary";
@@ -289,6 +256,56 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
     }
 
     /**
+     * Indicates a distribution change occurred
+     */
+    class DistributionChange extends AbstractChangePoint {
+        public static final String NAME = "distribution_change";
+
+        public DistributionChange(double pValue, int changePoint) {
+            super(pValue, changePoint);
+        }
+
+        public DistributionChange(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new DistributionChange(pValue(), changePoint);
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+    }
+
+    /**
+     * Indicates a step change occurred
+     */
+    class StepChange extends AbstractChangePoint {
+        public static final String NAME = "step_change";
+
+        public StepChange(double pValue, int changePoint) {
+            super(pValue, changePoint);
+        }
+
+        public StepChange(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new StepChange(pValue(), changePoint);
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+    }
+
+    /**
      * Indicates a trend change occurred
      */
     class TrendChange implements ChangeType {
@@ -320,8 +337,13 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new TrendChange(pValue, rValue, changePoint);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().field("p_value", pValue).field("r_value", pValue).field("change_point", changePoint).endObject();
+            return builder.startObject().field("p_value", pValue).field("r_value", rValue).field("change_point", changePoint).endObject();
         }
 
         @Override
@@ -370,6 +392,11 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new Spike(pValue(), changePoint);
+        }
+
+        @Override
         public String getName() {
             return NAME;
         }
@@ -390,9 +417,13 @@ public interface ChangeType extends NamedWriteable, NamedXContentObject {
         }
 
         @Override
+        public ChangeType remapChangePoint(int changePoint) {
+            return new Dip(pValue(), changePoint);
+        }
+
+        @Override
         public String getName() {
             return NAME;
         }
     }
-
 }

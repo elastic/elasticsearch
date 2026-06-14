@@ -141,8 +141,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
-    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
-
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
     // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.
@@ -382,40 +380,35 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             ctx.promqlCommand,
             ctx.analyzerContext,
             ctx.stepBucketAlias,
-            histogramQuantileChildLabels(histogramQuantile, currentPlan)
+            histogramQuantileChildLabels(histogramQuantile)
         );
         TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
 
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
-        Attribute upperBound = findAttributeByPromqlLabelName(childResult.labelSetSpec().declared(), HistogramQuantile.LE_LABEL);
-        if (upperBound == null) {
-            upperBound = findClassicHistogramUpperBound(childResult.plan());
+        Attribute upperBound = childAlreadyAggregated
+            ? findAttributeByPromqlLabelName(childResult.labelSetSpec().declared(), HistogramQuantile.LE_LABEL)
+            : null;
+        if (upperBound == null && childAlreadyAggregated) {
+            upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
         }
         LabelSetSpec exportLabels;
         if (upperBound == null) {
             // Mirrors Prometheus, which warns and drops series whose `le` bucket label is missing.
-            // histogramQuantileUpperBound returns a null keyword literal for a null bound, so the
-            // aggregator wiring below is identical to the le-present path.
+            // The implicit `histogram_quantile(rate(bucket[5m]))` shape is intentionally handled
+            // in a follow-up; this branch only lowers children that explicitly carry `le`.
             HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
             exportLabels = preserveTimeseries(childResult.labelSetSpec(), histogramQuantile.child().output());
         } else {
             exportLabels = LabelSetSpec.without(childResult.labelSetSpec(), List.of(upperBound));
         }
 
-        Alias upperBoundAlias = new Alias(
-            histogramQuantile.source(),
-            TemporaryNameGenerator.locallyUniqueTemporaryName(HistogramQuantile.LE_LABEL),
-            histogramQuantileUpperBound(histogramQuantile.source(), upperBound)
-        );
-        childPlan = new Eval(histogramQuantile.source(), childPlan, List.of(upperBoundAlias));
-
         // The aggregator consumes bucket counts as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
         Expression count = new ToDouble(histogramQuantile.source(), childResult.expression());
         Expression aggregateExpression = new PrometheusHistogramQuantile(
             histogramQuantile.source(),
             count,
-            upperBoundAlias.toAttribute(),
+            histogramQuantileUpperBound(histogramQuantile.source(), upperBound),
             histogramQuantile.quantile()
         );
 
@@ -440,41 +433,12 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return labels;
     }
 
-    private static LabelSetSpec histogramQuantileChildLabels(HistogramQuantile histogramQuantile, LogicalPlan currentPlan) {
+    private static LabelSetSpec histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
         List<Attribute> childLabels = LabelSetSpec.dimensionAttributes(histogramQuantile.child().output());
-        boolean hasConcreteLabels = childLabels.stream().anyMatch(attr -> isTimeSeriesAttributeName(attr.name()) == false);
-        if (hasConcreteLabels) {
-            return LabelSetSpec.of(childLabels);
-        }
-        // Range/rate children expose only _timeseries; use index dimensions so le and other labels still group.
-        List<Attribute> dimensionLabels = new ArrayList<>();
-        currentPlan.forEachDown(
-            EsRelation.class,
-            relation -> { dimensionLabels.addAll(LabelSetSpec.dimensionAttributes(relation.output())); }
-        );
-        if (dimensionLabels.isEmpty()) {
+        if (childLabels.isEmpty()) {
             return LabelSetSpec.of(histogramQuantile.child().output());
         }
-        return LabelSetSpec.of(dimensionLabels);
-    }
-
-    private static Attribute findClassicHistogramUpperBound(LogicalPlan plan) {
-        Attribute upperBound = findAttributeByPromqlLabelName(plan.output(), HistogramQuantile.LE_LABEL);
-        if (upperBound != null) {
-            return upperBound;
-        }
-        // An already-aggregated child that no longer exposes `le` must not re-derive it from the relation,
-        // otherwise we'd resurrect a bucket label the aggregation already folded away.
-        if (findAggregate(plan, Aggregate.class) != null) {
-            return null;
-        }
-        for (EsRelation relation : plan.collect(EsRelation.class)) {
-            upperBound = findAttributeByPromqlLabelName(relation.output(), HistogramQuantile.LE_LABEL);
-            if (upperBound != null) {
-                return upperBound;
-            }
-        }
-        return null;
+        return LabelSetSpec.of(childLabels);
     }
 
     private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {
@@ -496,11 +460,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static String promqlLabelKey(Attribute attr) {
-        String name = LabelSetSpec.fieldName(attr);
-        if (name.startsWith(PROMETHEUS_LABELS_PREFIX)) {
-            return name.substring(PROMETHEUS_LABELS_PREFIX.length());
-        }
-        return name;
+        return LabelSetSpec.fieldName(attr);
     }
 
     private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {

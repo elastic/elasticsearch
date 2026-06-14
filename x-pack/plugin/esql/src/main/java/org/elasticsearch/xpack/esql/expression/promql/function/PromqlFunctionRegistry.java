@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
@@ -108,6 +109,7 @@ public class PromqlFunctionRegistry {
         Variance.PROMQL_DEFINITION,
         //
         Percentile.PROMQL_DEFINITION,
+        PrometheusHistogramQuantile.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -199,7 +201,6 @@ public class PromqlFunctionRegistry {
         "histogram_avg",
         "histogram_count",
         "histogram_fraction",
-        "histogram_quantile",
         "histogram_stddev",
         "histogram_stdvar",
         "histogram_sum"

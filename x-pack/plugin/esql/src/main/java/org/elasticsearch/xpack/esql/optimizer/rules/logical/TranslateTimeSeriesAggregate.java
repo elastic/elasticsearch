@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,9 +51,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -187,17 +184,10 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
-        Map<NameId, Alias> carriedAggInputs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
-        Set<NameId> groupingIds = aggregate.groupings()
-            .stream()
-            .filter(NamedExpression.class::isInstance)
-            .map(NamedExpression.class::cast)
-            .map(NamedExpression::id)
-            .collect(Collectors.toSet());
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
                 final Expression inlineFilter;
@@ -227,15 +217,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                     });
                     return newAgg.toAttribute();
                 });
-                outerAgg = preserveAggregateInputAttributes(
-                    outerAgg,
-                    aggregate.child(),
-                    firstPassAggs,
-                    internalNames,
-                    context,
-                    groupingIds,
-                    carriedAggInputs
-                );
                 secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
             } else if (agg instanceof Alias alias && alias.child() instanceof Literal) {
                 firstPassAggs.add(agg);
@@ -466,38 +447,6 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         } else {
             return new Values(group.source(), group);
         }
-    }
-
-    /**
-     * Carries forward raw child attributes that a second-pass aggregate still references after the
-     * first/second-pass split. Splitting replaces inner {@link TimeSeriesAggregateFunction}s with references
-     * to their phase-1 results, but a second-pass aggregate may also reference a plain child attribute that is
-     * neither a grouping key nor a phase-1 aggregate (e.g. {@code PrometheusHistogramQuantile} reading the {@code le}
-     * upper bound). Such an attribute would dangle in phase 2, so it is wrapped in a phase-1 {@code values()}
-     * aggregate (one per attribute id) and the reference is rewired to that result. This generalizes the existing
-     * carry-forward the splitter already does for non-aggregate phase-2 expressions.
-     */
-    private Expression preserveAggregateInputAttributes(
-        Expression expression,
-        LogicalPlan child,
-        List<NamedExpression> firstPassAggs,
-        TemporaryNameGenerator internalNames,
-        AnalyzerContext context,
-        Set<NameId> groupingIds,
-        Map<NameId, Alias> carriedAggInputs
-    ) {
-        Set<NameId> childOutputIds = child.output().stream().map(Attribute::id).collect(Collectors.toSet());
-        return expression.transformUp(Attribute.class, attribute -> {
-            if (childOutputIds.contains(attribute.id()) == false || groupingIds.contains(attribute.id())) {
-                return attribute;
-            }
-            Alias carried = carriedAggInputs.computeIfAbsent(attribute.id(), id -> {
-                Alias valuesAgg = new Alias(attribute.source(), internalNames.next(attribute.name()), valuesAggregate(context, attribute));
-                firstPassAggs.add(valuesAgg);
-                return valuesAgg;
-            });
-            return carried.toAttribute();
-        });
     }
 
     private void checkWindow(TimeSeriesAggregate agg) {

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -75,6 +76,35 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var plan = planPromqlMetricNamedLabel("PROMQL index=metrics step=30s result=(sum by (name) (container_cpu_usage_seconds_total))");
         assertThat(outputColumns(plan), equalTo(List.of("result", "step")));
         assertThat(groupingKeyNames(plan), not(hasItem("name")));
+    }
+
+    public void testHistogramQuantileExplicitLeUsesOuterAggregate() {
+        var plan = planPromqlClassicHistogram(
+            "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, sum by (cluster, le) "
+                + "(http_request_duration_seconds_bucket)))"
+        );
+
+        assertThat(outputColumns(plan), equalTo(List.of("result", "step", "cluster")));
+        assertThat(collectHistogramQuantiles(plan), hasSize(1));
+
+        Aggregate histogramAggregate = plan.collect(Aggregate.class)
+            .stream()
+            .filter(aggregate -> aggregate instanceof TimeSeriesAggregate == false)
+            .findFirst()
+            .orElseThrow();
+        assertThat(groupingKeyNames(histogramAggregate), hasItem("cluster"));
+        assertThat(groupingKeyNames(histogramAggregate), not(hasItem("le")));
+    }
+
+    public void testHistogramQuantileRateDoesNotResolveImplicitLe() {
+        var plan = planPromqlClassicHistogram(
+            "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m])))"
+        );
+        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
+
+        assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
+        assertThat(groupingKeyNames(plan.collect(TimeSeriesAggregate.class).getFirst()), not(hasItem("le")));
+        assertThat(groupingKeyNames(plan.collect(TimeSeriesAggregate.class).getFirst()), not(hasItem("cluster")));
     }
 
     public void testRangeSelector() {
@@ -275,11 +305,50 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         return logicalOptimizer.optimize(analyzed);
     }
 
+    private LogicalPlan planPromqlClassicHistogram(String query) {
+        var index = new EsIndex(
+            "histograms",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "cluster",
+                new EsField("cluster", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "le",
+                new EsField("le", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
+                "http_request_duration_seconds_bucket",
+                new EsField(
+                    "http_request_duration_seconds_bucket",
+                    DataType.COUNTER_LONG,
+                    Map.of(),
+                    true,
+                    EsField.TimeSeriesFieldType.METRIC
+                )
+            ),
+            Map.of("histograms", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = analyzerWithEnrichPolicies().addIndex(index).unmappedResolution(UnmappedResolution.NULLIFY).query(query);
+        return logicalOptimizer.optimize(analyzed);
+    }
+
     /** Names of every attribute referenced by any aggregate's grouping keys (covers {@link TimeSeriesAggregate}). */
     private static List<String> groupingKeyNames(LogicalPlan plan) {
         List<String> names = new ArrayList<>();
-        plan.forEachDown(Aggregate.class, agg -> agg.groupings().forEach(g -> g.forEachDown(Attribute.class, a -> names.add(a.name()))));
+        plan.forEachDown(Aggregate.class, agg -> names.addAll(groupingKeyNames(agg)));
         return names;
+    }
+
+    private static List<String> groupingKeyNames(Aggregate aggregate) {
+        List<String> names = new ArrayList<>();
+        aggregate.groupings().forEach(g -> g.forEachDown(Attribute.class, a -> names.add(a.name())));
+        return names;
+    }
+
+    private static List<PrometheusHistogramQuantile> collectHistogramQuantiles(LogicalPlan plan) {
+        List<PrometheusHistogramQuantile> quantiles = new ArrayList<>();
+        plan.forEachExpressionDown(PrometheusHistogramQuantile.class, quantiles::add);
+        return quantiles;
     }
 
     private static void assertNoUnresolvedAttributes(LogicalPlan plan) {

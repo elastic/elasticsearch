@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150949
+summary: Preserve _doc metadata for Prometheus info-command plans
+type: bug

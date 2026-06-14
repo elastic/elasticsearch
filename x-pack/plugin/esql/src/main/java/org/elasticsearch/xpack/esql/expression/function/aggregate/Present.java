@@ -47,6 +47,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Returns true if the input expression yields any non-null values.",
         description = "Returns true if the input expression yields any non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,

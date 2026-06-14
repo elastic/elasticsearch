@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.MAX_TOKENS;
 
 public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "google_vertex_ai_chatcompletion_task_settings";

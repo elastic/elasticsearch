@@ -60,6 +60,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
+        briefSummary = "Returns the latest occurrence of a field based on a sort field.",
         description = """
             This function calculates the latest occurrence of the search field
             (the first parameter), where sorting order is determined by the sort

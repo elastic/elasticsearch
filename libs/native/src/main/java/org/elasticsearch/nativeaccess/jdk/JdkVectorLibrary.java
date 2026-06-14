@@ -11,6 +11,7 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.foreign.LinkerHelperUtil;
+import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -19,7 +20,6 @@ import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.BFloat16QueryTyp
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
-import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;

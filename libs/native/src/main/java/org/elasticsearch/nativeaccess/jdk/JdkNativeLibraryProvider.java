@@ -11,9 +11,9 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
+import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;

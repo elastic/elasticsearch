@@ -9,10 +9,10 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.foreign.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 
 import java.lang.foreign.Arena;

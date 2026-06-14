@@ -34,40 +34,7 @@ class LeastSquaresOnlineRegression {
     }
 
     public double residualVariance() {
-        if (statistics.count <= 0.0) {
-            return 0.0;
-        }
-
-        // Total variance of y
-        double meanY = statistics.stats[2 * N - 1];
-        double varRaw = statistics.stats[3 * N - 1] - meanY * meanY;
-        double var = Math.max(varRaw, variancePrecisionFloor(meanY));
-        double residualVariance = var;
-        int n = N + 1;
-        boolean done = false;
-
-        // Loop down polynomial degrees until the SVD matrix condition is stable
-        while (--n > 0 && done == false) {
-            if (n == 1) {
-                return var; // Mean-only fit; residual variance is just total variance
-            } else if (n == this.N) {
-                OptionalDouble maybeResidualVar = residualVariance(N, Nx, Ny, Nz);
-                if (maybeResidualVar.isPresent()) {
-                    residualVariance = clampResidualVariance(maybeResidualVar.getAsDouble(), var);
-                    done = true;
-                }
-            } else {
-                Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
-                Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
-                Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
-                OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
-                if (maybeResidualVar.isPresent()) {
-                    residualVariance = clampResidualVariance(maybeResidualVar.getAsDouble(), var);
-                    done = true;
-                }
-            }
-        }
-        return clampResidualVariance(residualVariance, var);
+        return residualVarianceForDegree(N - 1);
     }
 
     /**

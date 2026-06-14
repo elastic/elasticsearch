@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class DataStreamAction implements Writeable, ToXContentObject {
 
-    public static TransportVersion DELETE_BACKING_INDEX_ACTION_ADDED = TransportVersion.fromName("data_stream.modify.delete_backing_index");
+    public static TransportVersion DELETE_BACKING_INDEX_ACTION_ADDED = TransportVersion.fromName("data_stream_modify_delete_backing_index");
 
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField INDEX = new ParseField("index");

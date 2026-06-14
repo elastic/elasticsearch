@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;
@@ -90,7 +90,7 @@ public class LinuxNativeAccess extends PosixNativeAccess {
     private final LinuxCLibrary linuxLibc;
     private final Systemd systemd;
 
-    LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
+    LinuxNativeAccess(LegacyNativeLibraryProvider libraryProvider) {
         super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1, 8, 64, 144, 48, 64));
         this.linuxLibc = libraryProvider.getLibrary(LinuxCLibrary.class);
         String socketPath = System.getenv("NOTIFY_SOCKET");

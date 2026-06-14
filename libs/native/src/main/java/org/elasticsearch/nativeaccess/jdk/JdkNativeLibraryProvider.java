@@ -9,19 +9,18 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
-import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.util.Map;
 
-public class JdkNativeLibraryProvider extends NativeLibraryProvider {
+public class JdkNativeLibraryProvider extends LegacyNativeLibraryProvider {
 
     public JdkNativeLibraryProvider() {
         super(
@@ -37,8 +36,6 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 JdkMacCLibrary::new,
                 Kernel32Library.class,
                 JdkKernel32Library::new,
-                ZstdLibrary.class,
-                JdkZstdLibrary::new,
                 VectorLibrary.class,
                 JdkVectorLibrary::new,
                 ParquetRsLibrary.class,

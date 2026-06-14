@@ -11,7 +11,7 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 
 class NativeAccessHolder {
 
@@ -20,7 +20,7 @@ class NativeAccessHolder {
     static final NativeAccess INSTANCE;
 
     static {
-        var libProvider = NativeLibraryProvider.instance();
+        var libProvider = LegacyNativeLibraryProvider.instance();
         var os = System.getProperty("os.name");
 
         AbstractNativeAccess inst = null;

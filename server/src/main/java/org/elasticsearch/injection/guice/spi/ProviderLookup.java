@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * A lookup of the provider for a type.
  * <pre>
- *     Provider&lt;PaymentService&gt; paymentServiceProvider
+ *     LibraryProvider&lt;PaymentService&gt; paymentServiceProvider
  *         = getProvider(PaymentService.class);</pre>
  *
  * @author jessewilson@google.com (Jesse Wilson)
@@ -43,14 +43,14 @@ public final class ProviderLookup<T> implements Element {
         @Override
         public T get() {
             if (lookup.delegate == null) {
-                throw new IllegalStateException("This Provider cannot be used until the Injector has been created.");
+                throw new IllegalStateException("This LibraryProvider cannot be used until the Injector has been created.");
             }
             return lookup.delegate.get();
         }
 
         @Override
         public String toString() {
-            return "Provider<" + lookup.key.getTypeLiteral() + ">";
+            return "LibraryProvider<" + lookup.key.getTypeLiteral() + ">";
         }
 
     }

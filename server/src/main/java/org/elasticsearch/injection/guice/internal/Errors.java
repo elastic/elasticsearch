@@ -192,7 +192,7 @@ public final class Errors {
     }
 
     public Errors bindingToProvider() {
-        return addMessage("Binding to Provider is not allowed.");
+        return addMessage("Binding to LibraryProvider is not allowed.");
     }
 
     public Errors optionalConstructor(Constructor constructor) {
@@ -285,7 +285,7 @@ public final class Errors {
     }
 
     public Errors cannotInjectRawProvider() {
-        return addMessage("Cannot inject a Provider that has no type parameter");
+        return addMessage("Cannot inject a LibraryProvider that has no type parameter");
     }
 
     public Errors cannotInjectRawMembersInjector() {

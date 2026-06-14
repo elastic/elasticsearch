@@ -197,7 +197,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("but the SSO endpoint of this Identity Provider is"));
+        assertThat(e.getMessage(), containsString("but the SSO endpoint of this Identity LibraryProvider is"));
         assertThat(e.getMessage(), containsString("wrong.destination.org"));
     }
 
@@ -212,7 +212,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("The registered ACS URL for this Service Provider is"));
+        assertThat(e.getMessage(), containsString("The registered ACS URL for this Service LibraryProvider is"));
         assertThat(e.getMessage(), containsString("https://malicious.kibana.org/saml/acs"));
     }
 
@@ -228,7 +228,7 @@ public class SamlAuthnRequestValidatorTests extends IdpSamlTestCase {
         PlainActionFuture<SamlValidateAuthnRequestResponse> future = new PlainActionFuture<>();
         validator.processQueryString(getQueryString(authnRequest, relayState), future);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity LibraryProvider"));
         assertThat(e.getMessage(), containsString("https://unknown.kibana.org"));
     }
 

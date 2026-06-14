@@ -1,0 +1,43 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.java'
+
+// The annotation processor uses java.lang.classfile (finalized JDK 24, JEP 484) and
+// java.lang.foreign (finalized JDK 22, JEP 454), requiring Java 25 at minimum.
+def processorJavaVersion = JavaLanguageVersion.of(25)
+
+tasks.named('compileJava').configure {
+  javaCompiler = javaToolchains.compilerFor { languageVersion = processorJavaVersion }
+  options.release = processorJavaVersion.asInt()
+}
+
+tasks.named('compileTestJava').configure {
+  javaCompiler = javaToolchains.compilerFor { languageVersion = processorJavaVersion }
+  options.release = processorJavaVersion.asInt()
+}
+
+tasks.named('test').configure {
+  javaLauncher = javaToolchains.launcherFor { languageVersion = processorJavaVersion }
+}
+
+// Gradle puts the implementation dependency on -classpath by default, but module-info.java
+// requires org.elasticsearch.foreign, so we move it to --module-path instead.
+tasks.named('javadoc').configure {
+  javadocTool = javaToolchains.javadocToolFor { languageVersion = processorJavaVersion }
+  doFirst {
+    options.modulePath(classpath.files.toList())
+    classpath = files()
+  }
+}
+
+dependencies {
+  implementation project(':libs:ffm')
+  testImplementation buildLibs.junit
+}

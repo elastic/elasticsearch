@@ -92,7 +92,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
+ * An integration test for validating SAML authentication against a real Identity LibraryProvider (Shibboleth)
  */
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class SamlAuthenticationIT extends ESRestTestCase {

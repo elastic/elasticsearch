@@ -9,11 +9,11 @@
 
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.nativeaccess.exports.NativeAccessModuleExportsService;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires transitive org.elasticsearch.foreign;
     requires java.management; // for access to heap size
 
     exports org.elasticsearch.nativeaccess
@@ -33,7 +33,13 @@ module org.elasticsearch.nativeaccess {
             // invisible to other plugins.
             org.elasticsearch.xpack.esql.datasource.compress;
 
-    uses NativeLibraryProvider;
+    uses org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
+
+    provides org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider
+        with org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
+
+    provides org.elasticsearch.foreign.NativeLibraryProvider
+        with org.elasticsearch.nativeaccess.lib.ZstdLibrary$Provider;
 
     provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
 

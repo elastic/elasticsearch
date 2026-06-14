@@ -27,7 +27,7 @@ import java.util.List;
  * Contains several default bindings:
  * <ul>
  * <li>This {@link Injector} instance itself
- * <li>A {@code Provider<T>} for each binding of type {@code T}
+ * <li>A {@code LibraryProvider<T>} for each binding of type {@code T}
  * <li>The {@link java.util.logging.Logger} for the class being injected
  * </ul>
  * <p>

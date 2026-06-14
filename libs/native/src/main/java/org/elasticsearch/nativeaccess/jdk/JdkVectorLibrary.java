@@ -10,6 +10,7 @@
 package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.foreign.LinkerHelperUtil;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
@@ -41,8 +42,8 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.functionAddressOrNull;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.functionAddressOrNull;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 

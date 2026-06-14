@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.jdk.JdkCloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -49,7 +49,7 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
 
     private final Kernel32Library kernel;
 
-    WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
+    WindowsNativeAccess(LegacyNativeLibraryProvider libraryProvider) {
         super("Windows", libraryProvider);
         this.kernel = libraryProvider.getLibrary(Kernel32Library.class);
     }

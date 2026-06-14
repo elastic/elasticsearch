@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.foreign;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
@@ -17,17 +17,17 @@ import java.lang.invoke.VarHandle;
 /**
  * Utility methods to act on MemorySegment apis which have changed in subsequent JDK releases.
  */
-class MemorySegmentUtil {
+public class MemorySegmentUtil {
 
-    static String getString(MemorySegment segment, long offset) {
+    public static String getString(MemorySegment segment, long offset) {
         return segment.getUtf8String(offset);
     }
 
-    static void setString(MemorySegment segment, long offset, String value) {
+    public static void setString(MemorySegment segment, long offset, String value) {
         segment.setUtf8String(offset, value);
     }
 
-    static MemorySegment allocateString(Arena arena, String s) {
+    public static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateUtf8String(s);
     }
 
@@ -40,7 +40,7 @@ class MemorySegmentUtil {
      * @param element The element within the struct to access
      * @return A {@link VarHandle} that accesses the element with a fixed offset of 0
      */
-    static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
+    public static VarHandle varHandleWithoutOffset(MemoryLayout layout, MemoryLayout.PathElement element) {
         return layout.varHandle(element);
     }
 

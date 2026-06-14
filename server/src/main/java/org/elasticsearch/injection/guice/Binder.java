@@ -57,10 +57,10 @@ import org.elasticsearch.injection.guice.spi.Message;
  *     bind(Service.class).toProvider(ServiceProvider.class);</pre>
  *
  * In this example, {@code ServiceProvider} must extend or implement
- * {@code Provider<Service>}. This binding specifies that Guice should resolve
+ * {@code LibraryProvider<Service>}. This binding specifies that Guice should resolve
  * an unannotated injection request for {@code Service} by first resolving an
  * instance of {@code ServiceProvider} in the regular way, then calling
- * {@link Provider#get get()} on the resulting Provider instance to obtain the
+ * {@link Provider#get get()} on the resulting LibraryProvider instance to obtain the
  * {@code Service} instance.
  *
  * <p>The {@link Provider} you use here does not have to be a "factory"; that

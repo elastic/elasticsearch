@@ -9,10 +9,11 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.foreign.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     protected boolean isMemoryLocked = false;
     protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
 
-    protected AbstractNativeAccess(String name, NativeLibraryProvider libraryProvider) {
+    protected AbstractNativeAccess(String name, LegacyNativeLibraryProvider libraryProvider) {
         this.name = name;
         this.javaLib = libraryProvider.getLibrary(JavaLibrary.class);
         this.zstd = new Zstd(libraryProvider.getLibrary(ZstdLibrary.class));

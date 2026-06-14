@@ -36,7 +36,7 @@ public final class Providers {
      *
      * @param instance the instance that should always be provided.  This is also
      *                 permitted to be null, to enable aggressive testing, although in real
-     *                 life a Guice-supplied Provider will never return null.
+     *                 life a Guice-supplied LibraryProvider will never return null.
      */
     public static <T> Provider<T> of(final T instance) {
         return new Provider<T>() {

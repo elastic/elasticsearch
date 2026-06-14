@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.foreign.MemorySegmentUtil;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
@@ -22,7 +23,7 @@ import java.lang.invoke.MethodHandle;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
-import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.foreign.LinkerHelper.downcallHandle;
 
 /**
  * Panama FFI bindings to the Rust es_parquet_rs shared library for Parquet operations.

@@ -12,7 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
+import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class MacNativeAccess extends PosixNativeAccess {
 
     private final MacCLibrary macLibc;
 
-    MacNativeAccess(NativeLibraryProvider libraryProvider) {
+    MacNativeAccess(LegacyNativeLibraryProvider libraryProvider) {
         super("MacOS", libraryProvider, new PosixConstants(9223372036854775807L, 5, 1, 6, 512, 144, 96, 104));
         this.macLibc = libraryProvider.getLibrary(MacCLibrary.class);
     }

@@ -7,18 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.foreign.processor;
 
-import java.lang.foreign.Linker;
+import org.elasticsearch.foreign.SymbolResolver;
 
-public class LinkerHelperUtil {
+import java.lang.foreign.SymbolLookup;
 
-    static final Linker.Option[] NONE = new Linker.Option[0];
-
-    /** Returns an empty linker option array, since critical is only available since Java 22. */
-    static Linker.Option[] critical() {
-        return NONE;
+/**
+ * A no-op {@link SymbolResolver} used in annotation processor tests.
+ * Returns the base name unchanged.
+ */
+public class TestSymbolResolver implements SymbolResolver {
+    @Override
+    public String resolve(String baseName, SymbolLookup lookup) {
+        return baseName;
     }
-
-    private LinkerHelperUtil() {}
 }

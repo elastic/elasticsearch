@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+package org.elasticsearch.foreign;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -20,7 +20,7 @@ import java.lang.invoke.MethodHandles;
 /**
  * Utility methods for calling into the native linker.
  */
-class LinkerHelper {
+public class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP;
     private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.lookup();
@@ -33,23 +33,34 @@ class LinkerHelper {
         SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
     }
 
-    static MemorySegment functionAddress(String function) {
+    public static SymbolLookup defaultLookup() {
+        return SYMBOL_LOOKUP;
+    }
+
+    public static MemorySegment functionAddress(String function) {
         return SYMBOL_LOOKUP.find(function).orElseThrow(() -> new LinkageError("Native function " + function + " could not be found"));
     }
 
-    static MemorySegment functionAddressOrNull(String function) {
+    public static MemorySegment functionAddressOrNull(String function) {
         return SYMBOL_LOOKUP.find(function).orElse(null);
     }
 
-    static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+    public static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
-    static MethodHandle downcallHandle(MemorySegment functionAddress, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+    public static MethodHandle downcallHandle(MemorySegment functionAddress, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
-    static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {
+    public static MethodHandle downcallHandleWithErrno(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+        Linker.Option[] allOptions = new Linker.Option[options.length + 1];
+        allOptions[0] = Linker.Option.captureCallState("errno");
+        System.arraycopy(options, 0, allOptions, 1, options.length);
+        return LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
+    }
+
+    public static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {
         try {
             return MH_LOOKUP.findVirtual(clazz, methodName, functionDescriptor.toMethodType());
         } catch (Throwable t) {
@@ -57,7 +68,7 @@ class LinkerHelper {
         }
     }
 
-    static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
+    public static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
         try {
             mh = mh.bindTo(instance);
             return LINKER.upcallStub(mh, functionDescriptor, arena);

@@ -7,18 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.jdk;
+import org.elasticsearch.foreign.processor.LibraryProcessor;
 
-import java.lang.foreign.Linker;
+module org.elasticsearch.foreign.processor {
+    requires java.compiler;
+    requires org.elasticsearch.foreign;
 
-public class LinkerHelperUtil {
-
-    static final Linker.Option[] ALLOW_HEAP_ACCESS = new Linker.Option[] { Linker.Option.critical(true) };
-
-    /** Returns a linker option used to mark a foreign function as critical. */
-    static Linker.Option[] critical() {
-        return ALLOW_HEAP_ACCESS;
-    }
-
-    private LinkerHelperUtil() {}
+    provides javax.annotation.processing.Processor with LibraryProcessor;
 }

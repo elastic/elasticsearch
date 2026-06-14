@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,11 +38,11 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
  * This is only intended for lowering {@code histogram_quantile()} inside PROMQL, with the
  * classic-histogram {@code le} label passed through as a keyword upper bound.
  */
-public class PrometheusHistogramQuantile extends AggregateFunction implements ToAggregator {
+public class PromqlHistogramQuantile extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "PrometheusHistogramQuantile",
-        PrometheusHistogramQuantile::new
+        "PromqlHistogramQuantile",
+        PromqlHistogramQuantile::new
     );
 
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
@@ -57,7 +57,7 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
     private final Expression quantile;
 
     @FunctionInfo(returnType = "double", type = FunctionType.AGGREGATE)
-    public PrometheusHistogramQuantile(
+    public PromqlHistogramQuantile(
         Source source,
         @Param(name = "count", type = { "double" }) Expression field,
         @Param(name = "upper_bound", type = { "keyword" }) Expression upperBound,
@@ -66,7 +66,7 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
         this(source, field, Literal.TRUE, NO_WINDOW, upperBound, quantile);
     }
 
-    public PrometheusHistogramQuantile(
+    public PromqlHistogramQuantile(
         Source source,
         Expression field,
         Expression filter,
@@ -79,7 +79,7 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
         this.quantile = quantile;
     }
 
-    private PrometheusHistogramQuantile(StreamInput in) throws IOException {
+    private PromqlHistogramQuantile(StreamInput in) throws IOException {
         super(in);
         this.upperBound = parameters().get(0);
         this.quantile = parameters().get(1);
@@ -116,13 +116,13 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
     }
 
     @Override
-    protected NodeInfo<PrometheusHistogramQuantile> info() {
-        return NodeInfo.create(this, PrometheusHistogramQuantile::new, field(), filter(), window(), upperBound, quantile);
+    protected NodeInfo<PromqlHistogramQuantile> info() {
+        return NodeInfo.create(this, PromqlHistogramQuantile::new, field(), filter(), window(), upperBound, quantile);
     }
 
     @Override
-    public PrometheusHistogramQuantile replaceChildren(List<Expression> newChildren) {
-        return new PrometheusHistogramQuantile(
+    public PromqlHistogramQuantile replaceChildren(List<Expression> newChildren) {
+        return new PromqlHistogramQuantile(
             source(),
             newChildren.get(0),
             newChildren.get(1),
@@ -133,16 +133,16 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
     }
 
     @Override
-    public PrometheusHistogramQuantile withFilter(Expression filter) {
-        return new PrometheusHistogramQuantile(source(), field(), filter, window(), upperBound, quantile);
+    public PromqlHistogramQuantile withFilter(Expression filter) {
+        return new PromqlHistogramQuantile(source(), field(), filter, window(), upperBound, quantile);
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
-        return new PrometheusHistogramQuantileAggregatorFunctionSupplier(source(), quantileValue());
+        return new PromqlHistogramQuantileAggregatorFunctionSupplier(source(), quantileValue());
     }
 
     private double quantileValue() {
-        return doubleValueOf(quantile, source().text(), "PrometheusHistogramQuantile");
+        return doubleValueOf(quantile, source().text(), "PromqlHistogramQuantile");
     }
 }

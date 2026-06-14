@@ -11,8 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.Bucket;
-import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.SingleState;
+import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileStates.SingleState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -31,15 +31,15 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
+public class PromqlHistogramQuantileStatesTests extends ComputeTestCase {
 
     public void testBucketQuantileInterpolatesWithinBucket() {
-        double result = PrometheusHistogramQuantileStates.bucketQuantile(
+        double result = PromqlHistogramQuantileStates.bucketQuantile(
             0.5,
             List.of(
-                new PrometheusHistogramQuantileStates.Bucket(1.0, 1.0),
-                new PrometheusHistogramQuantileStates.Bucket(2.0, 3.0),
-                new PrometheusHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 4.0)
+                new PromqlHistogramQuantileStates.Bucket(1.0, 1.0),
+                new PromqlHistogramQuantileStates.Bucket(2.0, 3.0),
+                new PromqlHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 4.0)
             )
         );
 
@@ -61,7 +61,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         );
 
         assertBucketQuantileMatchesMonotonicVariant(0.5, brokenBuckets, monotonicBuckets);
-        assertThat(PrometheusHistogramQuantileStates.bucketQuantile(0.5, monotonicBuckets), closeTo(2.1666666666666665, 1e-12));
+        assertThat(PromqlHistogramQuantileStates.bucketQuantile(0.5, monotonicBuckets), closeTo(2.1666666666666665, 1e-12));
     }
 
     public void testBucketQuantileIgnoresSmallRelativeDeltas() {
@@ -80,13 +80,13 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         );
 
         assertBucketQuantileMatchesMonotonicVariant(quantile, brokenBuckets, monotonicBuckets);
-        assertThat(PrometheusHistogramQuantileStates.bucketQuantile(quantile, monotonicBuckets), closeTo(2.00000000000025, 1e-15));
+        assertThat(PromqlHistogramQuantileStates.bucketQuantile(quantile, monotonicBuckets), closeTo(2.00000000000025, 1e-15));
     }
 
     public void testBucketQuantileAssertsDuplicateBounds() {
         AssertionError e = expectThrows(
             AssertionError.class,
-            () -> PrometheusHistogramQuantileStates.bucketQuantile(
+            () -> PromqlHistogramQuantileStates.bucketQuantile(
                 0.5,
                 List.of(new Bucket(1.0, 1.0), new Bucket(1.0, 1.0), new Bucket(Double.POSITIVE_INFINITY, 2.0))
             )
@@ -95,42 +95,42 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
     }
 
     public void testBucketQuantileSortsUnsortedBuckets() {
-        List<Bucket> unsortedBuckets = PrometheusHistogramQuantileTestHelpers.unsortedCanonicalHistogram();
-        List<Bucket> sortedBuckets = PrometheusHistogramQuantileTestHelpers.canonicalHistogram();
+        List<Bucket> unsortedBuckets = PromqlHistogramQuantileTestHelpers.unsortedCanonicalHistogram();
+        List<Bucket> sortedBuckets = PromqlHistogramQuantileTestHelpers.canonicalHistogram();
 
         assertBucketQuantileMatchesMonotonicVariant(0.5, unsortedBuckets, sortedBuckets);
-        assertThat(PrometheusHistogramQuantileStates.bucketQuantile(0.5, sortedBuckets), equalTo(1.5));
+        assertThat(PromqlHistogramQuantileStates.bucketQuantile(0.5, sortedBuckets), equalTo(1.5));
     }
 
     public void testBucketQuantileReturnsZeroBucketBoundForQuantileZero() {
         List<Bucket> buckets = List.of(new Bucket(0.0, 5.0), new Bucket(1.0, 10.0), new Bucket(Double.POSITIVE_INFINITY, 10.0));
 
-        assertThat(PrometheusHistogramQuantileStates.bucketQuantile(0.0, buckets), equalTo(0.0));
+        assertThat(PromqlHistogramQuantileStates.bucketQuantile(0.0, buckets), equalTo(0.0));
     }
 
     public void testBucketQuantileReturnsPreviousFiniteBoundForQuantileOne() {
         List<Bucket> buckets = List.of(new Bucket(1.0, 0.4), new Bucket(2.0, 0.6), new Bucket(Double.POSITIVE_INFINITY, 1.0));
 
-        assertThat(PrometheusHistogramQuantileStates.bucketQuantile(1.0, buckets), equalTo(2.0));
+        assertThat(PromqlHistogramQuantileStates.bucketQuantile(1.0, buckets), equalTo(2.0));
     }
 
     public void testParseUpperBound() {
         // "+Inf" is the sentinel terminating every classic histogram. The accepted spellings mirror Go's
         // strconv.ParseFloat (what Prometheus uses to parse `le`): inf/infinity with an optional sign, case-insensitive.
         for (String text : List.of("+Inf", "Inf", "inf", "+INF", "Infinity", "+Infinity")) {
-            assertThat(text, PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(text, PromqlHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.POSITIVE_INFINITY));
         }
         for (String text : List.of("-Inf", "-inf", "-Infinity")) {
-            assertThat(text, PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(text, PromqlHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.NEGATIVE_INFINITY));
         }
-        assertThat(PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef("0.5")), equalTo(0.5));
-        assertThat(PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef("1000")), equalTo(1000.0));
-        assertThat(PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef("-7.25")), equalTo(-7.25));
-        assertTrue(Double.isNaN(PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef("NaN"))));
+        assertThat(PromqlHistogramQuantileStates.parseUpperBound(new BytesRef("0.5")), equalTo(0.5));
+        assertThat(PromqlHistogramQuantileStates.parseUpperBound(new BytesRef("1000")), equalTo(1000.0));
+        assertThat(PromqlHistogramQuantileStates.parseUpperBound(new BytesRef("-7.25")), equalTo(-7.25));
+        assertTrue(Double.isNaN(PromqlHistogramQuantileStates.parseUpperBound(new BytesRef("NaN"))));
         // The exception names the offending value, mirroring Prometheus' "bad bucket label" warning.
         NumberFormatException e = expectThrows(
             NumberFormatException.class,
-            () -> PrometheusHistogramQuantileStates.parseUpperBound(new BytesRef("not_a_number"))
+            () -> PromqlHistogramQuantileStates.parseUpperBound(new BytesRef("not_a_number"))
         );
         assertThat(e.getMessage(), equalTo("bucket label [le] has a malformed value of [not_a_number]"));
     }
@@ -142,9 +142,9 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
 
         // Prometheus warns and skips malformed `le` buckets, preserving the valid buckets for the same histogram.
         try (var state = new SingleState(blockFactory.breaker(), 0.5, warnings)) {
-            PrometheusHistogramQuantileAggregator.combine(state, 2.0, new BytesRef("1.0"));
-            PrometheusHistogramQuantileAggregator.combine(state, 1.0, new BytesRef("not_a_number"));
-            PrometheusHistogramQuantileAggregator.combine(state, 4.0, new BytesRef("+Inf"));
+            PromqlHistogramQuantileAggregator.combine(state, 2.0, new BytesRef("1.0"));
+            PromqlHistogramQuantileAggregator.combine(state, 1.0, new BytesRef("not_a_number"));
+            PromqlHistogramQuantileAggregator.combine(state, 4.0, new BytesRef("+Inf"));
 
             try (DoubleBlock result = (DoubleBlock) state.evaluateFinal(driverContext)) {
                 assertThat(result.getDouble(0), equalTo(1.0));
@@ -159,7 +159,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
     public void testBucketQuantileNaNQuantile() {
         assertTrue(
             Double.isNaN(
-                PrometheusHistogramQuantileStates.bucketQuantile(Double.NaN, PrometheusHistogramQuantileTestHelpers.canonicalHistogram())
+                PromqlHistogramQuantileStates.bucketQuantile(Double.NaN, PromqlHistogramQuantileTestHelpers.canonicalHistogram())
             )
         );
     }
@@ -194,7 +194,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
             state.add(1.0, 1.0);
             state.add(2.0, 2.0);
             assertTrue(
-                Double.isNaN(PrometheusHistogramQuantileStates.bucketQuantile(0.5, List.of(new Bucket(1.0, 1.0), new Bucket(2.0, 2.0))))
+                Double.isNaN(PromqlHistogramQuantileStates.bucketQuantile(0.5, List.of(new Bucket(1.0, 1.0), new Bucket(2.0, 2.0))))
             );
 
             try (Block result = state.evaluateFinal(driverContext)) {
@@ -245,7 +245,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
             mergeIntermediate(combined, shardTwoState, driverContext);
 
             try (Block result = combined.evaluateFinal(driverContext)) {
-                assertThat(((DoubleBlock) result).getDouble(0), equalTo(PrometheusHistogramQuantileStates.bucketQuantile(0.5, merged)));
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(PromqlHistogramQuantileStates.bucketQuantile(0.5, merged)));
             }
         }
     }
@@ -254,7 +254,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
-        try (var state = new PrometheusHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)) {
+        try (var state = new PromqlHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)) {
             state.add(0, 1.0, 1.0);
             state.add(0, 2.0, 3.0);
             state.add(0, Double.POSITIVE_INFINITY, 4.0);
@@ -335,42 +335,42 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
     }
 
     public void testBucketQuantileHandlesPrometheusEdgeCases() {
-        assertTrue(Double.isNaN(PrometheusHistogramQuantileStates.bucketQuantile(0.5, List.of())));
+        assertTrue(Double.isNaN(PromqlHistogramQuantileStates.bucketQuantile(0.5, List.of())));
         assertThat(
-            PrometheusHistogramQuantileStates.bucketQuantile(
+            PromqlHistogramQuantileStates.bucketQuantile(
                 -0.1,
                 List.of(
-                    new PrometheusHistogramQuantileStates.Bucket(1.0, 1.0),
-                    new PrometheusHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 1.0)
+                    new PromqlHistogramQuantileStates.Bucket(1.0, 1.0),
+                    new PromqlHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 1.0)
                 )
             ),
             equalTo(Double.NEGATIVE_INFINITY)
         );
         assertThat(
-            PrometheusHistogramQuantileStates.bucketQuantile(
+            PromqlHistogramQuantileStates.bucketQuantile(
                 1.1,
                 List.of(
-                    new PrometheusHistogramQuantileStates.Bucket(1.0, 1.0),
-                    new PrometheusHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 1.0)
+                    new PromqlHistogramQuantileStates.Bucket(1.0, 1.0),
+                    new PromqlHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 1.0)
                 )
             ),
             equalTo(Double.POSITIVE_INFINITY)
         );
         assertTrue(
             Double.isNaN(
-                PrometheusHistogramQuantileStates.bucketQuantile(
+                PromqlHistogramQuantileStates.bucketQuantile(
                     0.5,
-                    List.of(new PrometheusHistogramQuantileStates.Bucket(1.0, 1.0), new PrometheusHistogramQuantileStates.Bucket(2.0, 2.0))
+                    List.of(new PromqlHistogramQuantileStates.Bucket(1.0, 1.0), new PromqlHistogramQuantileStates.Bucket(2.0, 2.0))
                 )
             )
         );
         assertTrue(
             Double.isNaN(
-                PrometheusHistogramQuantileStates.bucketQuantile(
+                PromqlHistogramQuantileStates.bucketQuantile(
                     0.5,
                     List.of(
-                        new PrometheusHistogramQuantileStates.Bucket(1.0, 0.0),
-                        new PrometheusHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 0.0)
+                        new PromqlHistogramQuantileStates.Bucket(1.0, 0.0),
+                        new PromqlHistogramQuantileStates.Bucket(Double.POSITIVE_INFINITY, 0.0)
                     )
                 )
             )
@@ -382,8 +382,8 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
         try (
-            var source = new PrometheusHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5);
-            var target = new PrometheusHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)
+            var source = new PromqlHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5);
+            var target = new PromqlHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)
         ) {
             source.add(0, 1.0, 1.0);
             source.add(0, 2.0, 3.0);
@@ -400,8 +400,8 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
                 }
 
                 DoubleBlock serialized = (DoubleBlock) intermediates[0];
-                PrometheusHistogramQuantileAggregator.combineIntermediate(target, 0, serialized, 0);
-                PrometheusHistogramQuantileAggregator.combineIntermediate(target, 1, serialized, 1);
+                PromqlHistogramQuantileAggregator.combineIntermediate(target, 0, serialized, 0);
+                PromqlHistogramQuantileAggregator.combineIntermediate(target, 1, serialized, 1);
             } finally {
                 Releasables.close(intermediates);
             }
@@ -420,7 +420,7 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
-        try (var state = new PrometheusHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)) {
+        try (var state = new PromqlHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)) {
             state.add(0, new BytesRef("1.0"), 2.0);
             state.add(0, new BytesRef("not_a_number"), 1.0);
             state.add(0, new BytesRef("+Inf"), 4.0);
@@ -464,8 +464,8 @@ public class PrometheusHistogramQuantileStatesTests extends ComputeTestCase {
         List<Bucket> monotonicBuckets
     ) {
         assertThat(
-            PrometheusHistogramQuantileStates.bucketQuantile(quantile, brokenBuckets),
-            equalTo(PrometheusHistogramQuantileStates.bucketQuantile(quantile, monotonicBuckets))
+            PromqlHistogramQuantileStates.bucketQuantile(quantile, brokenBuckets),
+            equalTo(PromqlHistogramQuantileStates.bucketQuantile(quantile, monotonicBuckets))
         );
     }
 }

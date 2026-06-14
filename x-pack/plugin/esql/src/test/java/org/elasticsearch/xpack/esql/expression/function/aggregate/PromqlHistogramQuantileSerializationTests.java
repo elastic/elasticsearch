@@ -12,14 +12,14 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class PrometheusHistogramQuantileSerializationTests extends AbstractExpressionSerializationTests<PrometheusHistogramQuantile> {
+public class PromqlHistogramQuantileSerializationTests extends AbstractExpressionSerializationTests<PromqlHistogramQuantile> {
     @Override
-    protected PrometheusHistogramQuantile createTestInstance() {
-        return new PrometheusHistogramQuantile(randomSource(), randomChild(), randomChild(), randomChild());
+    protected PromqlHistogramQuantile createTestInstance() {
+        return new PromqlHistogramQuantile(randomSource(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
-    protected PrometheusHistogramQuantile mutateInstance(PrometheusHistogramQuantile instance) throws IOException {
+    protected PromqlHistogramQuantile mutateInstance(PromqlHistogramQuantile instance) throws IOException {
         Expression field = instance.field();
         Expression upperBound = instance.upperBound();
         Expression quantile = instance.quantile();
@@ -28,6 +28,6 @@ public class PrometheusHistogramQuantileSerializationTests extends AbstractExpre
             case 1 -> upperBound = randomValueOtherThan(upperBound, AbstractExpressionSerializationTests::randomChild);
             default -> quantile = randomValueOtherThan(quantile, AbstractExpressionSerializationTests::randomChild);
         }
-        return new PrometheusHistogramQuantile(instance.source(), field, upperBound, quantile);
+        return new PromqlHistogramQuantile(instance.source(), field, upperBound, quantile);
     }
 }

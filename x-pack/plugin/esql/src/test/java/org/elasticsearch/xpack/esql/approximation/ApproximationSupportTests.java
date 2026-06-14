@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
@@ -206,7 +206,7 @@ public class ApproximationSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
         // A quantile interpolated across cumulative histogram buckets is not amenable to sampling-based approximation.
-        PrometheusHistogramQuantile.class,
+        PromqlHistogramQuantile.class,
 
         // Counting distinct values is hard to approximate.
         // For more details, see:

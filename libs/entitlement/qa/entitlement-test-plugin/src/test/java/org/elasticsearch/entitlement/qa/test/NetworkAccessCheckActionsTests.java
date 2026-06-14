@@ -30,7 +30,7 @@ import java.security.Security;
  *   <li>Entitlement denial — thrown by the instrumentation as
  *       {@code new NoSuchAlgorithmException(notEntitledException)}, where the cause is a
  *       {@code NotEntitledException}</li>
- *   <li>LibraryProvider absent (FIPS) — thrown by JCA as
+ *   <li>Provider absent (FIPS) — thrown by JCA as
  *       {@code new NoSuchAlgorithmException("LDAP CertStore not available")}, so {@code getCause() == null}</li>
  * </ul>
  * Only the former is re-thrown; the latter (and any NSAE whose cause is not a {@code NotEntitledException})
@@ -171,7 +171,7 @@ public class NetworkAccessCheckActionsTests extends ESTestCase {
                     break;
                 }
             }
-            assertNotEquals("LibraryProvider " + providers[j].getName() + " not found in installed providers", -1, found);
+            assertNotEquals("Provider " + providers[j].getName() + " not found in installed providers", -1, found);
             positions[j] = found;
             Security.removeProvider(providers[j].getName());
         }

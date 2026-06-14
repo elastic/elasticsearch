@@ -13,6 +13,10 @@ import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
 import org.elasticsearch.foreign.processor.model.StructModel;
 
+import java.io.IOException;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -25,6 +29,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic.Kind;
+import javax.tools.StandardLocation;
 
 @SupportedAnnotationTypes("org.elasticsearch.foreign.LibrarySpecification")
 @SupportedOptions(LibraryProcessor.OPTION_JAVA_VERSION)
@@ -33,6 +38,10 @@ public class LibraryProcessor extends AbstractProcessor {
     /** Processor option: the minimum Java release the generated classes must run on (e.g. {@code 21}). */
     static final String OPTION_JAVA_VERSION = "javaVersion";
 
+    private static final String LIBRARY_PROVIDER_SERVICE = "META-INF/services/org.elasticsearch.foreign.LibraryProvider";
+
+    private final List<String> generatedProviderNames = new ArrayList<>();
+
     @Override
     public SourceVersion getSupportedSourceVersion() {
         return SourceVersion.RELEASE_21;
@@ -40,6 +49,10 @@ public class LibraryProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        if (roundEnv.processingOver()) {
+            writeServicesFile();
+            return false;
+        }
         if (annotations.isEmpty()) {
             return false;
         }
@@ -65,6 +78,7 @@ public class LibraryProcessor extends AbstractProcessor {
                     for (StructModel struct : model.structs()) {
                         structWriter.generate(model, struct, typeElement);
                     }
+                    generatedProviderNames.add(model.qualifiedName() + "$Provider");
                 } catch (Exception e) {
                     processingEnv.getMessager()
                         .printMessage(Kind.ERROR, "Failed to generate class for " + model.qualifiedName() + ": " + e.getMessage(), element);
@@ -86,6 +100,29 @@ public class LibraryProcessor extends AbstractProcessor {
         } catch (NumberFormatException e) {
             processingEnv.getMessager().printMessage(Kind.ERROR, OPTION_JAVA_VERSION + " must be an integer, got: " + option);
             return -1;
+        }
+    }
+
+    /**
+     * Writes the {@code META-INF/services/org.elasticsearch.foreign.LibraryProvider} file listing every
+     * {@code $Provider} generated in this compilation. Required for non-modular consumers (e.g. tests
+     * running on the classpath); modular consumers still need a {@code provides} directive in
+     * {@code module-info.java} because the JDK requires it for named modules.
+     */
+    private void writeServicesFile() {
+        if (generatedProviderNames.isEmpty()) {
+            return;
+        }
+        try {
+            var fileObject = processingEnv.getFiler().createResource(StandardLocation.CLASS_OUTPUT, "", LIBRARY_PROVIDER_SERVICE);
+            try (Writer writer = fileObject.openWriter()) {
+                for (String name : generatedProviderNames) {
+                    writer.write(name);
+                    writer.write('\n');
+                }
+            }
+        } catch (IOException e) {
+            processingEnv.getMessager().printMessage(Kind.ERROR, "Failed to write " + LIBRARY_PROVIDER_SERVICE + ": " + e.getMessage());
         }
     }
 }

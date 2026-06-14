@@ -191,18 +191,23 @@ public class CacheFileReader {
         // the executor can be null if the calling thread is not an {@link org.elasticsearch.common.util.concurrent.EsExecutors.EsThread}
         String executorName = EsExecutors.executorName(Thread.currentThread());
 
-        if (executorName != null
-            && (executorName.equals(SEARCH)
-                || executorName.equals("esql_worker")
-                || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
-            long start = relativeTimeInMillisSupplier.getAsLong();
+        if (executorName == null
+            || (!executorName.equals(SEARCH)
+                && !executorName.equals("esql_worker")
+                && !executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
-            long elapsed = relativeTimeInMillisSupplier.getAsLong() - start;
-            blobCacheMetrics.getSearchOriginDownloadTime()
-                .record(elapsed, executorName.equals(SEARCH) ? BLOB_POPULATION_SOURCE_ATTRIBUTES : PEER_POPULATION_SOURCE_ATTRIBUTES);
-            blobCacheMetrics.addSearchCacheMissDownloadTotal(elapsed);
+            return;
+        }
+        long start = relativeTimeInMillisSupplier.getAsLong();
+        doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+        long elapsed = relativeTimeInMillisSupplier.getAsLong() - start;
+        if (executorName.equals(SEARCH)) {
+            blobCacheMetrics.recordSearchCacheMissDownload(elapsed, BLOB_POPULATION_SOURCE_ATTRIBUTES);
+        } else if (executorName.equals("esql_worker")) {
+            blobCacheMetrics.recordEsqlWorkerCacheMissDownload(elapsed, PEER_POPULATION_SOURCE_ATTRIBUTES);
         } else {
-            doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+            // VBCC: histogram only, no dampening counter
+            blobCacheMetrics.getSearchOriginDownloadTime().record(elapsed, PEER_POPULATION_SOURCE_ATTRIBUTES);
         }
     }
 

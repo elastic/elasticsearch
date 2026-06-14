@@ -53,14 +53,10 @@ public class BlobCacheMetrics {
     private final LongAdder readCount = new LongAdder();
     private final LongAdder searchCacheMissDownloadMs = new LongAdder();
     private final LongAdder searchCacheMissDownloadEvents = new LongAdder();
+    private final LongAdder esqlWorkerCacheMissDownloadMs = new LongAdder();
+    private final LongAdder esqlWorkerCacheMissDownloadEvents = new LongAdder();
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
-
-    // Cumulative accumulators for cache-miss download time on search threads.
-    // Updated alongside the searchOriginDownloadTime histogram so that callers
-    // can compute per-interval deltas (note that the histogram is lossy)
-    private final LongAdder searchCacheMissDownloadTotal = new LongAdder();
-    private final LongAdder searchCacheMissDownloadCount = new LongAdder();
 
     public enum CachePopulationReason {
         /**
@@ -221,24 +217,6 @@ public class BlobCacheMetrics {
     }
 
     /**
-     * Accumulates cache-miss download time for search-origin reads.
-     * Called alongside {@link #getSearchOriginDownloadTime()} so that the cumulative totals can be
-     * differenced per sampling interval without reading back from the write-only histogram.
-     */
-    public void addSearchCacheMissDownloadTotal(long elapsedMillis) {
-        searchCacheMissDownloadTotal.add(elapsedMillis);
-        searchCacheMissDownloadCount.increment();
-    }
-
-    public long searchCacheMissDownloadTimeMillis() {
-        return searchCacheMissDownloadTotal.longValue();
-    }
-
-    public long searchCacheMissDownloadCount() {
-        return searchCacheMissDownloadCount.longValue();
-    }
-
-    /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
      * @param fileName The actual (lucene) file that's requested from the blob location
@@ -327,6 +305,31 @@ public class BlobCacheMetrics {
      */
     public long searchCacheMissDownloadCount() {
         return searchCacheMissDownloadEvents.sum();
+    }
+
+    /**
+     * Record the duration (ms) of a cache-miss download from an esql_worker-thread context.
+     * Increments both the cumulative millisecond total and the event count for the esql_worker pool,
+     * separate from the SEARCH-pool counters. Also records to the searchOriginDownloadTime histogram.
+     */
+    public void recordEsqlWorkerCacheMissDownload(long durationMs, Map<String, Object> attributes) {
+        searchOriginDownloadTime.record(durationMs, attributes);
+        esqlWorkerCacheMissDownloadMs.add(durationMs);
+        esqlWorkerCacheMissDownloadEvents.increment();
+    }
+
+    /**
+     * Returns the cumulative milliseconds spent on esql_worker-thread cache-miss downloads since node start.
+     */
+    public long esqlWorkerCacheMissDownloadTimeMillis() {
+        return esqlWorkerCacheMissDownloadMs.sum();
+    }
+
+    /**
+     * Returns the cumulative count of esql_worker-thread cache-miss download events since node start.
+     */
+    public long esqlWorkerCacheMissDownloadCount() {
+        return esqlWorkerCacheMissDownloadEvents.sum();
     }
 
     /**

@@ -358,7 +358,7 @@ public class MetadataDataStreamsService {
             }
             updatedProjectMetadata = builder.build();
         }
-        projectState.updateProject(updatedProjectMetadata);
+        projectState = projectState.updateProject(updatedProjectMetadata);
         if (indicesToRemove.isEmpty() == false) {
             return MetadataDeleteIndexService.deleteIndices(projectState, indicesToRemove, nodeSettings);
         } else {

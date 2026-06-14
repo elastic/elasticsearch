@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.jdk.PosixCloseableMappedByteBuffer;
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.ParquetRsLibrary;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;

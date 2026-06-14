@@ -60,10 +60,14 @@ class ProviderClassWriter {
             cb.withFlags(AccessFlag.PUBLIC, AccessFlag.FINAL, AccessFlag.SUPER);
             cb.withSuperclass(CD_Object);
             cb.withInterfaceSymbols(CD_LibraryProvider);
-            cb.with(SignatureAttribute.of(ClassSignature.of(
-                ClassTypeSig.of(CD_Object),
-                ClassTypeSig.of(CD_LibraryProvider, TypeArg.of(ClassTypeSig.of(interfaceDesc)))
-            )));
+            cb.with(
+                SignatureAttribute.of(
+                    ClassSignature.of(
+                        ClassTypeSig.of(CD_Object),
+                        ClassTypeSig.of(CD_LibraryProvider, TypeArg.of(ClassTypeSig.of(interfaceDesc)))
+                    )
+                )
+            );
 
             // public no-arg constructor (required for SPI)
             cb.withMethodBody("<init>", MethodTypeDesc.of(CD_void), ClassFile.ACC_PUBLIC, init -> {

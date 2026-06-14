@@ -12,7 +12,6 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.nativeaccess.lib.MacCLibrary;
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary.RLimit;
 
 import java.io.IOException;

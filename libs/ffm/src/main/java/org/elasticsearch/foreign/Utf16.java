@@ -20,4 +20,5 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.PARAMETER)
-public @interface Utf16 {}
+public @interface Utf16 {
+}

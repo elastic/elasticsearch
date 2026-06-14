@@ -12,7 +12,6 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.jdk.JdkCloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library.Handle;
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;

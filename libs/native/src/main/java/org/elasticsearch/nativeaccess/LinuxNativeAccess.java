@@ -12,7 +12,6 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFProg;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary.SockFilter;
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.util.Map;

@@ -147,7 +147,12 @@ public final class Zstd {
         Objects.requireNonNull(src, "Null source buffer");
         checkRange("Destination", dstOffset, dstSize, dst.length);
         checkRange("Source", srcOffset, srcSize, src.length);
-        long ret = zstdLib.decompressHeap(MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize), (long) dstSize, MemorySegment.ofArray(src).asSlice(srcOffset, srcSize), (long) srcSize);
+        long ret = zstdLib.decompressHeap(
+            MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize),
+            (long) dstSize,
+            MemorySegment.ofArray(src).asSlice(srcOffset, srcSize),
+            (long) srcSize
+        );
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {
@@ -167,7 +172,13 @@ public final class Zstd {
         Objects.requireNonNull(src, "Null source buffer");
         checkRange("Destination", dstOffset, dstSize, dst.length);
         checkRange("Source", srcOffset, srcSize, src.length);
-        long ret = zstdLib.compressHeap(MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize), (long) dstSize, MemorySegment.ofArray(src).asSlice(srcOffset, srcSize), (long) srcSize, level);
+        long ret = zstdLib.compressHeap(
+            MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize),
+            (long) dstSize,
+            MemorySegment.ofArray(src).asSlice(srcOffset, srcSize),
+            (long) srcSize,
+            level
+        );
         if (zstdLib.isError(ret)) {
             throw new IllegalArgumentException(zstdLib.getErrorName(ret));
         } else if (ret < 0 || ret > Integer.MAX_VALUE) {

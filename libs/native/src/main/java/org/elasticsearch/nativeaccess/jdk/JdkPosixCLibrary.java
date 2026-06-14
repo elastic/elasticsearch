@@ -9,10 +9,10 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.foreign.MemorySegmentUtil;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.lang.foreign.Arena;

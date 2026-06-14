@@ -49,7 +49,11 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
-    public static MethodHandle downcallHandle(MemorySegment functionAddress, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+    public static MethodHandle downcallHandle(
+        MemorySegment functionAddress,
+        FunctionDescriptor functionDescriptor,
+        Linker.Option... options
+    ) {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 

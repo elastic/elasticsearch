@@ -11,7 +11,6 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
 
 class NativeAccessHolder {
 

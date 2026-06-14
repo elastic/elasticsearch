@@ -53,9 +53,11 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.fieldClassDesc
 class StructClassWriter {
 
     private final Filer filer;
+    private final int classFileVersion;
 
-    StructClassWriter(Filer filer) {
+    StructClassWriter(Filer filer, int classFileVersion) {
         this.filer = filer;
+        this.classFileVersion = classFileVersion;
     }
 
     /**
@@ -74,7 +76,7 @@ class StructClassWriter {
         List<FieldModel> fields = struct.fields();
 
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
-            cb.withVersion(ClassFile.JAVA_21_VERSION, 0);
+            cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
             cb.withSuperclass(CD_Object);
             cb.withInterfaceSymbols(interfaceDesc);

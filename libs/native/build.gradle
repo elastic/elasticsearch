@@ -86,6 +86,7 @@ tasks.register('runAnnotationProcessor', Exec) {
       '-proc:only',
       '--module-path', modulePath,
       '--processor-module-path', processorModulePath,
+      '-AjavaVersion=21',
       '-d', outputDir.absolutePath
     ] + sourceFiles
   }

@@ -69,9 +69,11 @@ class ImplClassWriter {
     private static final ClassDesc CD_int = ClassDesc.ofDescriptor("I");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private final Filer filer;
+    private final int classFileVersion;
 
-    ImplClassWriter(Filer filer) {
+    ImplClassWriter(Filer filer, int classFileVersion) {
         this.filer = filer;
+        this.classFileVersion = classFileVersion;
     }
 
     /**
@@ -98,7 +100,7 @@ class ImplClassWriter {
             || functionPointerMethods.stream().anyMatch(MethodModel.FunctionPointerMethod::capturesErrno);
 
         byte[] classBytes = ClassFile.of().build(generatedDesc, cb -> {
-            cb.withVersion(ClassFile.JAVA_21_VERSION, 0);
+            cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.FINAL, AccessFlag.SUPER);
             cb.withSuperclass(CD_Object);
             cb.withInterfaceSymbols(interfaceDesc);

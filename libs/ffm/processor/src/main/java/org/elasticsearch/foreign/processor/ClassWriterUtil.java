@@ -37,6 +37,14 @@ final class ClassWriterUtil {
     // java.lang.invoke types
     static final ClassDesc CD_VarHandle = ClassDesc.of("java.lang.invoke.VarHandle");
 
+    /**
+     * Converts a Java release number (e.g. 21) to the corresponding class file major version
+     * (e.g. 65) for use with {@link java.lang.classfile.ClassBuilder#withVersion}.
+     */
+    static int classFileVersion(int javaRelease) {
+        return 44 + javaRelease;
+    }
+
     private ClassWriterUtil() {}
 
     /** Maps a primitive {@link NativeType} to its JVM {@link ClassDesc}. Throws on non-primitive types. */

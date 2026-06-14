@@ -39,9 +39,11 @@ class ProviderClassWriter {
     private static final ClassDesc CD_LibraryProvider = ClassDesc.of("org.elasticsearch.foreign.LibraryProvider");
 
     private final Filer filer;
+    private final int classFileVersion;
 
-    ProviderClassWriter(Filer filer) {
+    ProviderClassWriter(Filer filer, int classFileVersion) {
         this.filer = filer;
+        this.classFileVersion = classFileVersion;
     }
 
     /**
@@ -56,7 +58,7 @@ class ProviderClassWriter {
         ClassDesc providerDesc = ClassDesc.of(providerName);
 
         byte[] classBytes = ClassFile.of().build(providerDesc, cb -> {
-            cb.withVersion(ClassFile.JAVA_21_VERSION, 0);
+            cb.withVersion(classFileVersion, 0);
             cb.withFlags(AccessFlag.PUBLIC, AccessFlag.FINAL, AccessFlag.SUPER);
             cb.withSuperclass(CD_Object);
             cb.withInterfaceSymbols(CD_LibraryProvider);

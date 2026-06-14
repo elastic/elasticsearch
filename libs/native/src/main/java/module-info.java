@@ -35,7 +35,9 @@ module org.elasticsearch.nativeaccess {
 
     uses org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
 
-    provides org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider with org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
+    provides org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider
+        with
+            org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
 
     provides org.elasticsearch.foreign.NativeLibraryProvider with org.elasticsearch.nativeaccess.lib.ZstdLibrary$Provider;
 

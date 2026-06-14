@@ -47,10 +47,7 @@ abstract class ProcessorTestCase extends TestCase {
             if (outputDir == null) {
                 return null;
             }
-            URLClassLoader cl = new URLClassLoader(
-                new URL[] { outputDir.toUri().toURL() },
-                ProcessorTestCase.class.getClassLoader()
-            );
+            URLClassLoader cl = new URLClassLoader(new URL[] { outputDir.toUri().toURL() }, ProcessorTestCase.class.getClassLoader());
             try {
                 return Class.forName(className, initialize, cl);
             } catch (ClassNotFoundException e) {

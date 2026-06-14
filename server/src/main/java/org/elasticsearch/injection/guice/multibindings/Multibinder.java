@@ -120,9 +120,9 @@ public abstract class Multibinder<T> {
      * injector itself (and not the multibinder), each multibinder has access to
      * all contributions from all multibinders.
      * <p>
-     * As a LibraryProvider, this constructs the set instances.
+     * As a Provider, this constructs the set instances.
      * <p>
-     * We use a subclass to hide 'implements Module, LibraryProvider' from the public
+     * We use a subclass to hide 'implements Module, Provider' from the public
      * API.
      */
     public static final class RealMultibinder<T> extends Multibinder<T> implements Module, Provider<Set<T>> {

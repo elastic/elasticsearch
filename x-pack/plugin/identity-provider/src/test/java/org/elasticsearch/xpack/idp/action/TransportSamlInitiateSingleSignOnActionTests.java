@@ -98,7 +98,7 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
 
         Exception e = expectThrows(Exception.class, () -> future.get());
         assertThat(e.getCause().getMessage(), containsString("https://sp2.other.org"));
-        assertThat(e.getCause().getMessage(), containsString("is not known to this Identity LibraryProvider"));
+        assertThat(e.getCause().getMessage(), containsString("is not known to this Identity Provider"));
     }
 
     public void testGetResponseWithoutSecondaryAuthenticationInSpInitiatedFlow() throws Exception {

@@ -105,7 +105,7 @@ class InjectorBuilder {
         for (InjectorShell shell : shells) {
             ((DeferredLookups) shell.getInjector().lookups).initialize(errors);
         }
-        stopwatch.resetAndLog("LibraryProvider verification");
+        stopwatch.resetAndLog("Provider verification");
 
         for (InjectorShell shell : shells) {
             if (shell.getElements().isEmpty() == false) {

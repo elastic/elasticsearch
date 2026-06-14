@@ -18,7 +18,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
 
-/** LibraryProvider of scripted similarities. */
+/** Provider of scripted similarities. */
 final class ScriptedSimilarityProvider implements TriFunction<Settings, IndexVersion, ScriptService, Similarity> {
 
     @Override

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Mutable, thread-safe counter struct for storage I/O. LibraryProvider implementations
+ * Mutable, thread-safe counter struct for storage I/O. Provider implementations
  * hold one of these per {@link StorageObject} instance, increment it around each
  * I/O call, and surface the latest values via {@link #snapshot()} from
  * {@link StorageObject#metrics()}.

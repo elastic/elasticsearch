@@ -24,7 +24,7 @@ public class LocalStateReservedAutoscalingStateHandlerProvider implements Reserv
     private final LocalStateAutoscaling plugin;
 
     public LocalStateReservedAutoscalingStateHandlerProvider() {
-        throw new IllegalStateException("LibraryProvider must be constructed using PluginsService");
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
     public LocalStateReservedAutoscalingStateHandlerProvider(LocalStateAutoscaling plugin) {

@@ -12,6 +12,7 @@ package org.elasticsearch.nativeaccess;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Unwrappable;
+import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

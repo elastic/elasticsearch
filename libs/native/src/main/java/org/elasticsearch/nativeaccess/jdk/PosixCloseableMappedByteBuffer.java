@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
 import java.io.IOException;

@@ -317,7 +317,7 @@ public class HasherTests extends ESTestCase {
         SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 13)).toCharArray());
         Hasher pbkdfHasher = randomFrom(Hasher.PBKDF2, Hasher.PBKDF2_50000, Hasher.PBKDF2_1000000);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> pbkdfHasher.hash(passwd));
-        assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security LibraryProvider"));
+        assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security Provider"));
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {

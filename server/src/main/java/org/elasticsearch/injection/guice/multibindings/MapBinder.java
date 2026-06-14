@@ -58,11 +58,11 @@ import static org.elasticsearch.injection.guice.util.Types.newParameterizedTypeW
  * }</code></pre>
  * <p>
  * In addition to binding {@code Map<K, V>}, a mapbinder will also bind
- * {@code Map<K, LibraryProvider<V>>} for lazy value provision:
+ * {@code Map<K, Provider<V>>} for lazy value provision:
  * <pre><code>
  * class SnackMachine {
  *   {@literal @}Inject
- *   public SnackMachine(Map&lt;String, LibraryProvider&lt;Snack&gt;&gt; snackProviders) { ... }
+ *   public SnackMachine(Map&lt;String, Provider&lt;Snack&gt;&gt; snackProviders) { ... }
  * }</code></pre>
  * <p>
  * Creating mapbindings from different modules is supported. For example, it
@@ -115,14 +115,14 @@ public abstract class MapBinder<K, V> {
         return (TypeLiteral<Map<K, V>>) TypeLiteral.get(Types.mapOf(keyType.getType(), valueType.getType()));
     }
 
-    @SuppressWarnings("unchecked") // a provider map <K, V> is safely a Map<K, LibraryProvider<V>>
+    @SuppressWarnings("unchecked") // a provider map <K, V> is safely a Map<K, Provider<V>>
     private static <K, V> TypeLiteral<Map<K, Provider<V>>> mapOfProviderOf(TypeLiteral<K> keyType, TypeLiteral<V> valueType) {
         return (TypeLiteral<Map<K, Provider<V>>>) TypeLiteral.get(
             Types.mapOf(keyType.getType(), newParameterizedType(Provider.class, valueType.getType()))
         );
     }
 
-    @SuppressWarnings("unchecked") // a provider entry <K, V> is safely a Map.Entry<K, LibraryProvider<V>>
+    @SuppressWarnings("unchecked") // a provider entry <K, V> is safely a Map.Entry<K, Provider<V>>
     private static <K, V> TypeLiteral<Map.Entry<K, Provider<V>>> entryOfProviderOf(TypeLiteral<K> keyType, TypeLiteral<V> valueType) {
         return (TypeLiteral<Entry<K, Provider<V>>>) TypeLiteral.get(
             newParameterizedTypeWithOwner(Map.class, Entry.class, keyType.getType(), Types.providerOf(valueType.getType()))
@@ -202,7 +202,7 @@ public abstract class MapBinder<K, V> {
         }
 
         /**
-         * This creates two bindings. One for the {@code Map.Entry<K, LibraryProvider<V>>}
+         * This creates two bindings. One for the {@code Map.Entry<K, Provider<V>>}
          * and another for {@code V}.
          */
         @Override
@@ -257,7 +257,7 @@ public abstract class MapBinder<K, V> {
         public void configure(Binder binder) {
             Multibinder.checkConfiguration(isInitialized() == false, "MapBinder was already initialized");
 
-            // binds a Map<K, LibraryProvider<V>> from a collection of Map<Entry<K, LibraryProvider<V>>
+            // binds a Map<K, Provider<V>> from a collection of Map<Entry<K, Provider<V>>
             final Provider<Set<Entry<K, Provider<V>>>> entrySetProvider = binder.getProvider(entrySetBinder.getSetKey());
             binder.bind(providerMapKey).toProvider(new MapBinderProviderWithDependencies(RealMapBinder.this, entrySetProvider));
 

@@ -196,12 +196,12 @@ public abstract class Plugin implements Closeable {
         ProjectResolver projectResolver();
 
         /**
-         * LibraryProvider for additional SlowLog fields
+         * Provider for additional SlowLog fields
          */
         ActionLoggingFieldsProvider loggingFieldsProvider();
 
         /**
-         * LibraryProvider for indexing pressure
+         * Provider for indexing pressure
          */
         IndexingPressure indexingPressure();
 

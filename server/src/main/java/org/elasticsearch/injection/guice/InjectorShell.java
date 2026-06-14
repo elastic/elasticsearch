@@ -169,7 +169,7 @@ class InjectorShell {
 
         @Override
         public String toString() {
-            return "LibraryProvider<Injector>";
+            return "Provider<Injector>";
         }
     }
 
@@ -211,7 +211,7 @@ class InjectorShell {
 
         @Override
         public String toString() {
-            return "LibraryProvider<Logger>";
+            return "Provider<Logger>";
         }
     }
 

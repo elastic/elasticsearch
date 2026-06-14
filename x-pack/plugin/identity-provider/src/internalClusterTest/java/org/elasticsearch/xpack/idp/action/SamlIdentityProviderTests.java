@@ -145,7 +145,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         request.setJsonEntity("{ \"entity_id\": \"" + entityId + randomAlphaOfLength(3) + "\", \"acs\": \"" + acsUrl + "\" }");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        assertThat(e.getMessage(), containsString("is not known to this Identity LibraryProvider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 
@@ -317,7 +317,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         final String query = getQueryString(authnRequest, relayString, false, null);
         validateRequest.setJsonEntity("{\"authn_request_query\":\"" + query + "\"}");
         ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(validateRequest));
-        assertThat(e.getMessage(), containsString("is not known to this Identity LibraryProvider"));
+        assertThat(e.getMessage(), containsString("is not known to this Identity Provider"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
     }
 

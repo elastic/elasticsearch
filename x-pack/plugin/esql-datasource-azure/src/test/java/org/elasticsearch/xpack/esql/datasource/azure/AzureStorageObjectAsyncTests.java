@@ -152,7 +152,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         );
         try (AzureStorageProvider provider = new AzureStorageProvider(azureConfig, null)) {
             var obj = provider.newObject(PATH);
-            assertTrue("LibraryProvider-created objects should support native async", obj.supportsNativeAsync());
+            assertTrue("Provider-created objects should support native async", obj.supportsNativeAsync());
         }
     }
 }

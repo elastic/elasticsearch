@@ -123,7 +123,7 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     /**
-     * Returns true if the key type is LibraryProvider (but not a subclass of LibraryProvider).
+     * Returns true if the key type is Provider (but not a subclass of Provider).
      */
     static boolean isProvider(Key<?> key) {
         return key.getTypeLiteral().getRawType().equals(Provider.class);
@@ -155,20 +155,20 @@ class InjectorImpl implements Injector, Lookups {
     }
 
     /**
-     * Creates a synthetic binding to {@code LibraryProvider<T>}, i.e. a binding to the provider from
+     * Creates a synthetic binding to {@code Provider<T>}, i.e. a binding to the provider from
      * {@code Binding<T>}.
      */
     private <T> BindingImpl<Provider<T>> createProviderBinding(Key<Provider<T>> key, Errors errors) throws ErrorsException {
         Type providerType = key.getTypeLiteral().getType();
 
-        // If the LibraryProvider has no type parameter (raw LibraryProvider)...
+        // If the Provider has no type parameter (raw Provider)...
         if ((providerType instanceof ParameterizedType) == false) {
             throw errors.cannotInjectRawProvider().toException();
         }
 
         Type entryType = ((ParameterizedType) providerType).getActualTypeArguments()[0];
 
-        @SuppressWarnings("unchecked") // safe because T came from Key<LibraryProvider<T>>
+        @SuppressWarnings("unchecked") // safe because T came from Key<Provider<T>>
         Key<T> providedKey = (Key<T>) key.ofType(entryType);
 
         BindingImpl<T> delegate = getBindingOrThrow(providedKey, errors);
@@ -377,7 +377,7 @@ class InjectorImpl implements Injector, Lookups {
      * Returns a new just-in-time binding created by resolving {@code key}. The strategies used to
      * create just-in-time bindings are:
      * <ol>
-     * <li>Internalizing Providers. If the requested binding is for {@code LibraryProvider<T>}, we delegate
+     * <li>Internalizing Providers. If the requested binding is for {@code Provider<T>}, we delegate
      * to the binding for {@code T}.
      * <li>Converting constants.
      * <li>ImplementedBy and ProvidedBy annotations. Only for unannotated keys.
@@ -392,10 +392,10 @@ class InjectorImpl implements Injector, Lookups {
             throw errors.childBindingAlreadySet(key).toException();
         }
 
-        // Handle cases where T is a LibraryProvider<?>.
+        // Handle cases where T is a Provider<?>.
         if (isProvider(key)) {
-            // These casts are safe. We know T extends LibraryProvider<X> and that given Key<LibraryProvider<X>>,
-            // createProviderBinding() will return BindingImpl<LibraryProvider<X>>.
+            // These casts are safe. We know T extends Provider<X> and that given Key<Provider<X>>,
+            // createProviderBinding() will return BindingImpl<Provider<X>>.
             @SuppressWarnings("unchecked")
             BindingImpl<T> binding = (BindingImpl<T>) createProviderBinding((Key<Provider<T>>) key, errors);
             return binding;

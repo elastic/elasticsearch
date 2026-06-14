@@ -16,14 +16,14 @@ import java.util.Collections;
 import java.util.Objects;
 
 /**
- * Mock Security LibraryProvider implementation for the {@link ReservedStateHandlerProvider} service interface. This is used
+ * Mock Security Provider implementation for the {@link ReservedStateHandlerProvider} service interface. This is used
  * for {@link org.elasticsearch.test.ESIntegTestCase} because the Security Plugin is really LocalStateSecurity in those tests.
  */
 public class LocalReservedSecurityStateHandlerProvider implements ReservedStateHandlerProvider {
     protected final LocalStateSecurity plugin;
 
     public LocalReservedSecurityStateHandlerProvider() {
-        throw new IllegalStateException("LibraryProvider must be constructed using PluginsService");
+        throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
     public LocalReservedSecurityStateHandlerProvider(LocalStateSecurity plugin) {

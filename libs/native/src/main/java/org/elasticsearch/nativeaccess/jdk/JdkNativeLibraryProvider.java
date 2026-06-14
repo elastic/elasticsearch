@@ -9,7 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
-import org.elasticsearch.nativeaccess.LegacyNativeLibraryProvider;
+import org.elasticsearch.nativeaccess.lib.LegacyNativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 import org.elasticsearch.nativeaccess.lib.LinuxCLibrary;

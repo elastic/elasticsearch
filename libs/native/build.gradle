@@ -22,7 +22,7 @@ configurations {
   processorPath
 }
 
-def generatedApClassesDir = layout.buildDirectory.dir('generated-ap-classes')
+def generatedLibraryClassesDir = layout.buildDirectory.dir('generated-library-classes')
 
 // Run annotation processing only (-proc:only) using JDK 25 javac as an external process.
 // This generates ZstdLibrary$Impl.class (and any other @NativeLibrary implementations)
@@ -31,7 +31,7 @@ tasks.register('runAnnotationProcessor', Exec) {
   dependsOn ':libs:ffm:assemble', ':libs:core:assemble', ':libs:logging:assemble',
             ':libs:ffm:processor:assemble'
 
-  outputs.dir(generatedApClassesDir)
+  outputs.dir(generatedLibraryClassesDir)
   inputs.files(sourceSets.main.java)
   inputs.files(configurations.processorPath)
   // Also depend on the compile classpath JARs (e.g. annotation definitions in libs/ffm)
@@ -45,7 +45,7 @@ tasks.register('runAnnotationProcessor', Exec) {
   def processorDistDir = project(':libs:ffm:processor').layout.buildDirectory.dir('distributions')
 
   doFirst {
-    def outputDir = generatedApClassesDir.get().asFile
+    def outputDir = generatedLibraryClassesDir.get().asFile
     outputDir.mkdirs()
 
     def jdk25Compiler = javaToolchains.compilerFor {
@@ -93,7 +93,7 @@ tasks.register('runAnnotationProcessor', Exec) {
 
 // Include generated class files in the main jar so ZstdLibrary$Impl is available at runtime.
 tasks.named('jar').configure {
-  from generatedApClassesDir
+  from generatedLibraryClassesDir
   dependsOn runAnnotationProcessor
 }
 
@@ -104,7 +104,7 @@ tasks.named('compileJava').configure {
   // Patch the module being compiled with the generated class files so the compiler can
   // resolve ZstdLibrary$Impl (and any other generated types) within org.elasticsearch.nativeaccess.
   doFirst {
-    def genDir = generatedApClassesDir.get().asFile.absolutePath
+    def genDir = generatedLibraryClassesDir.get().asFile.absolutePath
     options.compilerArgs += ['--patch-module', "org.elasticsearch.nativeaccess=${genDir}"]
   }
 }

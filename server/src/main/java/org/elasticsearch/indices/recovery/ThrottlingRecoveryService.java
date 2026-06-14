@@ -15,9 +15,11 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.Closeable;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -25,7 +27,9 @@ import java.util.function.Consumer;
 /// released when the recovery's [RecoveryListener] completes.
 /// The max number of concurrent recovery slots is controlled by the [#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING]
 /// dynamic setting.
-public final class ThrottlingRecoveryService {
+public final class ThrottlingRecoveryService implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
     /// Controls the max number of concurrent recoveries allowed on this data node (excludes peer recoveries for which this
     /// node is the source, see [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING]).
@@ -42,11 +46,13 @@ public final class ThrottlingRecoveryService {
     private final Executor executor;
     // Dynamically updated through setting updates, controls max number of running "slots"
     private volatile int maxConcurrentRecoveries;
-
+    // Recoveries that have been dispatched to the executor and not yet reached closeAndMaybeDispatch
     private final AtomicInteger runningRecoveries = new AtomicInteger(0);
-    private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
+    // Queue of recoveries waiting to be dispatched
+    private final Queue<PendingRecovery> pendingRecoveries = new ConcurrentLinkedQueue<>();
 
-    private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
+    // visible for testing
+    final AtomicBoolean closed = new AtomicBoolean();
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;
@@ -56,41 +62,72 @@ public final class ThrottlingRecoveryService {
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+        if (closed.get()) {
+            logger.debug(
+                "service is closed, aborting recovery: recoverySource: [{}], shardId: [{}]",
+                recoveryState.getRecoverySource(),
+                recoveryState.getShardId()
+            );
+            recoveryListener.onRecoveryAborted();
+            return;
+        }
         logger.trace(
             "enqueue recovery: recoverySource: [{}], shardId: [{}]",
             recoveryState.getRecoverySource(),
             recoveryState.getShardId()
         );
-        pendingRecoveries.add(new RecoveryTask(recoveryState, task, RecoveryListener.runAfter(recoveryListener, () -> {
-            logger.trace(
-                "close recovery: recoverySource: [{}], shardId: [{}]",
-                recoveryState.getRecoverySource(),
-                recoveryState.getShardId()
-            );
-            int current = runningRecoveries.decrementAndGet();
-            assert current >= 0 : "negative number of running recoveries " + current;
-            fillSlots();
-        })));
+        pendingRecoveries.add(new PendingRecovery(recoveryState, task, recoveryListener));
         fillSlots();
     }
 
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            drainQueue();
+        }
+    }
+
+    /// Aborts all pending (not-yet-dispatched) recoveries by calling [RecoveryListener#onRecoveryAborted] on each.
+    private void drainQueue() {
+        assert closed.get();
+        PendingRecovery pending;
+        while ((pending = pendingRecoveries.poll()) != null) {
+            pending.listener.onRecoveryAborted();
+        }
+    }
+
     /// Drains the pending queue up to the max slot capacity
-    private void fillSlots() {
-        int current;
-        while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && pendingRecoveries.isEmpty() == false) {
+    void fillSlots() {
+        while (closed.get() == false && pendingRecoveries.isEmpty() == false) {
+            final int current = runningRecoveries.get();
+            if (current >= maxConcurrentRecoveries) {
+                break;
+            }
             if (runningRecoveries.compareAndSet(current, current + 1)) {
-                RecoveryTask nextTask = pendingRecoveries.poll();
-                if (nextTask != null) {
+                PendingRecovery next = pendingRecoveries.poll();
+                if (next != null) {
                     logger.trace(
                         "dispatch recovery: recoverySource: [{}], shardId: [{}]",
-                        nextTask.recoveryState.getRecoverySource(),
-                        nextTask.recoveryState.getShardId()
+                        next.recoveryState.getRecoverySource(),
+                        next.recoveryState.getShardId()
                     );
-                    executor.execute(nextTask);
+                    executor.execute(new RecoveryRunnable(next, () -> {
+                        logger.trace(
+                            "close recovery: recoverySource: [{}], shardId: [{}]",
+                            next.recoveryState.getRecoverySource(),
+                            next.recoveryState.getShardId()
+                        );
+                        int currentRunning = runningRecoveries.decrementAndGet();
+                        assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
+                        fillSlots();
+                    }));
                 } else {
                     runningRecoveries.decrementAndGet();
                 }
             }
+        }
+        if (closed.get()) {
+            drainQueue();
         }
     }
 
@@ -107,15 +144,17 @@ public final class ThrottlingRecoveryService {
         return pendingRecoveries.size();
     }
 
-    private static class RecoveryTask extends AbstractRunnable {
+    private record PendingRecovery(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener listener) {}
+
+    private static class RecoveryRunnable extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
         private final RecoveryListener listener;
 
-        private RecoveryTask(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener recoveryListener) {
-            this.recoveryState = recoveryState;
-            this.task = task;
-            this.listener = RecoveryListener.assertOnce(recoveryListener);
+        private RecoveryRunnable(PendingRecovery pending, Runnable runAfter) {
+            this.recoveryState = pending.recoveryState;
+            this.task = pending.task;
+            this.listener = RecoveryListener.assertOnce(RecoveryListener.runAfter(pending.listener, runAfter));
         }
 
         @Override

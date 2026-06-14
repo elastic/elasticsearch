@@ -117,6 +117,10 @@ When using `RERANK` with a multivalue column, each value is ranked individually.
 The score column is then assigned the maximum score resulting from ranking the
 individual values.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+
 ## Requirements
 
 The `RERANK` command requires an

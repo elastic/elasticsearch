@@ -103,8 +103,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
 
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
-        assertThat(groupingKeyNames(plan.collect(TimeSeriesAggregate.class).getFirst()), not(hasItem("le")));
-        assertThat(groupingKeyNames(plan.collect(TimeSeriesAggregate.class).getFirst()), not(hasItem("cluster")));
+        assertThat(collectHistogramQuantiles(plan), empty());
     }
 
     public void testRangeSelector() {

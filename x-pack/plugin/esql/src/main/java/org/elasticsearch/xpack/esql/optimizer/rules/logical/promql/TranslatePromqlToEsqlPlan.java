@@ -399,9 +399,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // in a follow-up; this branch only lowers children that explicitly carry `le`.
             HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
             exportLabels = preserveTimeseries(childResult.labelSetSpec(), histogramQuantile.child().output());
-        } else {
-            exportLabels = LabelSetSpec.without(childResult.labelSetSpec(), List.of(upperBound));
+            LogicalPlan filteredChild = new Filter(histogramQuantile.source(), childPlan, Literal.FALSE);
+            Expression emptyResult = new Values(histogramQuantile.source(), new Literal(histogramQuantile.source(), null, DataType.DOUBLE));
+            LogicalPlan resultPlan = childAlreadyAggregated
+                ? createOuterAggregatePlan(ctx, filteredChild, exportLabels, emptyResult)
+                : createInnermostAggregatePlan(ctx, filteredChild, exportLabels, emptyResult);
+            return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
         }
+
+        exportLabels = LabelSetSpec.without(childResult.labelSetSpec(), List.of(upperBound));
 
         // The aggregator consumes bucket counts as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
         Expression count = new ToDouble(histogramQuantile.source(), childResult.expression());

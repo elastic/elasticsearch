@@ -165,9 +165,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
             return new TestCaseSupplier.TestCase(
                 args,
-                timestampType == DataType.DATE_NANOS
-                    ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                    : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                Matchers.startsWith("FixedRoundToLong"),
                 timestampType,
                 matcher(args, step.toMillis(), now)
             ).withConfiguration(
@@ -204,9 +202,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     );
                     return new TestCaseSupplier.TestCase(
                         args,
-                        timestampType == DataType.DATE_NANOS
-                            ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                            : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                        Matchers.startsWith("FixedRoundToLong"),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
                     ).withConfiguration(
@@ -240,9 +236,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
                         return new TestCaseSupplier.TestCase(
                             args,
-                            timestampType == DataType.DATE_NANOS
-                                ? Matchers.startsWith("DateTruncDateNanosEvaluator[")
-                                : Matchers.startsWith("DateTruncDatetimeEvaluator["),
+                            Matchers.startsWith("FixedRoundToLong"),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
                         ).withConfiguration(

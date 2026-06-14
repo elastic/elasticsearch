@@ -210,8 +210,8 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
             source(),
             timestamp,
             step,
-            null,
-            null,
+            from,
+            to,
             configuration.withZoneId(ZoneOffset.UTC),
             offsetToLong(ctx),
             Rounding.RoundingConvention.UP

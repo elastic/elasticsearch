@@ -212,7 +212,7 @@ public class StructuralChangeDetector {
     /**
      * Residual variance of the weighted degree-{@link #SEGMENT_DEGREE} (linear) fit over {@code [tau, t)},
      * computed in O(1) from the prefix-summed weighted moments.
-     * 
+     *
      * This reproduces {@link LeastSquaresOnlineRegression#residualVariance()} for a degree-1 model: it forms
      * the same normalised moment system, falls back to the mean-only total variance when the 2x2 system is
      * ill-conditioned (the analytic analogue of that method's SVD condition guard, using the eigenvalues of

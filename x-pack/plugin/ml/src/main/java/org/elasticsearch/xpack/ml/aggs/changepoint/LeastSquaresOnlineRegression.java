@@ -29,7 +29,7 @@ class LeastSquaresOnlineRegression {
             return 0.0;
         }
         // Sign of the OLS slope = sign of Cov(x, y) = E[xy] - E[x] E[y]. From statisticAdj the moment
-        // layout is E[x] = stats[1], E[y] = stats[2 * N - 1], E[xy] = stats[2 *N].
+        // layout is E[x] = stats[1], E[y] = stats[2 * N - 1], E[xy] = stats[2 * N].
         return Math.signum(statistics.stats[2 * N] - statistics.stats[1] * statistics.stats[2 * N - 1]);
     }
 
@@ -65,6 +65,40 @@ class LeastSquaresOnlineRegression {
                     residualVariance = clampResidualVariance(maybeResidualVar.getAsDouble(), var);
                     done = true;
                 }
+            }
+        }
+        return clampResidualVariance(residualVariance, var);
+    }
+
+    /**
+     * Residual variance of the best polynomial fit of the given {@code degree}, computed from the
+     * already-accumulated moments without re-reading the data. The normal-equation system for any
+     * degree is a leading principal submatrix of the order-N system, so one accumulation at the
+     * maximum degree yields the fit for every degree less than that maximum — removing a factor of
+     * {@code degree} from a per-degree model search. Falls back to a lower degree if the requested
+     * one is ill-conditioned, matching the behaviour of {@link #residualVariance()}.
+     */
+    public double residualVarianceForDegree(int degree) {
+        if (statistics.count <= 0.0) {
+            return 0.0;
+        }
+        double meanY = statistics.stats[2 * N - 1];
+        double varRaw = statistics.stats[3 * N - 1] - meanY * meanY;
+        double var = Math.max(varRaw, variancePrecisionFloor(meanY));
+        int n = Math.min(Math.max(degree + 1, 1), N) + 1;
+        boolean done = false;
+        double residualVariance = var;
+        while (--n > 0 && done == false) {
+            if (n == 1) {
+                return var; // Mean-only fit; residual variance is just total variance
+            }
+            Array2DRowRealMatrix x = new Array2DRowRealMatrix(n, n);
+            Array2DRowRealMatrix y = new Array2DRowRealMatrix(n, 1);
+            Array2DRowRealMatrix z = new Array2DRowRealMatrix(n, 1);
+            OptionalDouble maybeResidualVar = residualVariance(n, x, y, z);
+            if (maybeResidualVar.isPresent()) {
+                residualVariance = clampResidualVariance(maybeResidualVar.getAsDouble(), var);
+                done = true;
             }
         }
         return clampResidualVariance(residualVariance, var);

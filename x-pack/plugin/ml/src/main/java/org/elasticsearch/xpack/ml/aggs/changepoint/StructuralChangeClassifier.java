@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.changepoint;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

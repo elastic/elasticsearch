@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -57,12 +57,12 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         );
     }
 
-    public void testHistogramQuantileLowersToPrometheusHistogramQuantileAggregate() {
+    public void testHistogramQuantileLowersToPromqlHistogramQuantileAggregate() {
         LogicalPlan translated = planHistogramPromql(
             "PROMQL index=prom_hist step=1m result=(histogram_quantile(0.9, sum by (job, le) (request_duration_seconds_bucket)))",
             false
         );
-        List<PrometheusHistogramQuantile> quantiles = collectQuantiles(translated);
+        List<PromqlHistogramQuantile> quantiles = collectQuantiles(translated);
 
         assertThat(quantiles, hasSize(1));
         assertThat(quantiles.getFirst().upperBound().dataType(), equalTo(DataType.KEYWORD));
@@ -79,7 +79,7 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
             "PROMQL index=prom_hist step=1m result=(histogram_quantile(0.9, request_count_bucket))",
             false
         );
-        List<PrometheusHistogramQuantile> quantiles = collectQuantiles(translated);
+        List<PromqlHistogramQuantile> quantiles = collectQuantiles(translated);
 
         assertThat(quantiles, hasSize(1));
         assertThat(quantiles.getFirst().field().dataType(), equalTo(DataType.DOUBLE));
@@ -105,7 +105,7 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         assertThat(upperBound, equalTo(Instant.parse("2024-05-10T00:10:00Z").toEpochMilli()));
     }
 
-    public void testSumHistogramQuantileUsesOuterAggregateOverPrometheusHistogramQuantile() {
+    public void testSumHistogramQuantileUsesOuterAggregateOverPromqlHistogramQuantile() {
         LogicalPlan translated = planHistogramPromql(
             "PROMQL index=prom_hist step=5m start=\"2024-05-10T00:10:00Z\" end=\"2024-05-10T00:10:00Z\" "
                 + "result=(sum(histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m]))) by (job))",
@@ -172,7 +172,7 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         );
         assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
         // rate(...) is already aggregated, so histogram_quantile lowers into a regular Aggregate.
-        PrometheusHistogramQuantile quantile = collectQuantiles(translated).getFirst();
+        PromqlHistogramQuantile quantile = collectQuantiles(translated).getFirst();
 
         assertThat(quantile.upperBound().collect(Attribute.class), not(empty()));
         assertThat(quantile.upperBound().collect(Literal.class), empty());
@@ -217,11 +217,11 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;
     }
 
-    private static List<PrometheusHistogramQuantile> collectQuantiles(LogicalPlan plan) {
+    private static List<PromqlHistogramQuantile> collectQuantiles(LogicalPlan plan) {
         return plan.collect(Aggregate.class)
             .stream()
             .flatMap(aggregate -> aggregate.aggregates().stream())
-            .flatMap(namedExpression -> namedExpression.collect(PrometheusHistogramQuantile.class).stream())
+            .flatMap(namedExpression -> namedExpression.collect(PromqlHistogramQuantile.class).stream())
             .toList();
     }
 

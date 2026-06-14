@@ -656,3 +656,6 @@ tests:
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testStoredIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/151167
+- class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
+  method: testWaitUntilShouldNotWaitForUpload
+  issue: https://github.com/elastic/elasticsearch/issues/151168

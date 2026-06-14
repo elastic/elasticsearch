@@ -37,7 +37,10 @@ public class ModuleInfoAugmenterTests extends TestCase {
         byte[] augmented = ModuleInfoAugmenter.augment(original, List.of("test.MyLib$Provider"));
 
         ModuleAttribute attr = readModuleAttribute(augmented);
-        List<ModuleProvideInfo> libraryProvides = attr.provides().stream().filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER)).toList();
+        List<ModuleProvideInfo> libraryProvides = attr.provides()
+            .stream()
+            .filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER))
+            .toList();
         assertEquals("Expected exactly one `provides LibraryProvider` directive", 1, libraryProvides.size());
         assertEquals(
             List.of(ClassDesc.of("test.MyLib$Provider")),
@@ -59,7 +62,10 @@ public class ModuleInfoAugmenterTests extends TestCase {
         byte[] augmented = ModuleInfoAugmenter.augment(original, List.of("test.MyLib$Provider", "test.Existing$Provider"));
 
         ModuleAttribute attr = readModuleAttribute(augmented);
-        List<ModuleProvideInfo> libraryProvides = attr.provides().stream().filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER)).toList();
+        List<ModuleProvideInfo> libraryProvides = attr.provides()
+            .stream()
+            .filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER))
+            .toList();
         assertEquals(1, libraryProvides.size());
         assertEquals(
             "Existing impl must be kept, new one appended, duplicate ignored",
@@ -95,12 +101,21 @@ public class ModuleInfoAugmenterTests extends TestCase {
         byte[] twice = ModuleInfoAugmenter.augment(once, List.of("test.MyLib$Provider"));
 
         ModuleAttribute attr = readModuleAttribute(twice);
-        List<ModuleProvideInfo> libraryProvides = attr.provides().stream().filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER)).toList();
+        List<ModuleProvideInfo> libraryProvides = attr.provides()
+            .stream()
+            .filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER))
+            .toList();
         assertEquals(1, libraryProvides.size());
-        assertEquals(List.of(ClassDesc.of("test.MyLib$Provider")), libraryProvides.get(0).providesWith().stream().map(e -> e.asSymbol()).toList());
+        assertEquals(
+            List.of(ClassDesc.of("test.MyLib$Provider")),
+            libraryProvides.get(0).providesWith().stream().map(e -> e.asSymbol()).toList()
+        );
     }
 
-    private static byte[] buildModuleInfo(String moduleName, java.util.function.Consumer<ModuleAttribute.ModuleAttributeBuilder> configure) {
+    private static byte[] buildModuleInfo(
+        String moduleName,
+        java.util.function.Consumer<ModuleAttribute.ModuleAttributeBuilder> configure
+    ) {
         return ClassFile.of().buildModule(ModuleAttribute.of(ModuleDesc.of(moduleName), configure));
     }
 

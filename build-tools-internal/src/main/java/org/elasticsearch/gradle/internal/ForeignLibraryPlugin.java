@@ -88,12 +88,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
     private void registerRunAnnotationProcessorTask(Project project, Configuration processorPath, DirectoryProperty generatedClassesDir) {
         project.getTasks().register("runAnnotationProcessor", Exec.class, task -> {
-            task.dependsOn(
-                ":libs:ffm:assemble",
-                ":libs:core:assemble",
-                ":libs:logging:assemble",
-                ":libs:ffm:processor:assemble"
-            );
+            task.dependsOn(":libs:ffm:assemble", ":libs:core:assemble", ":libs:logging:assemble", ":libs:ffm:processor:assemble");
 
             SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
 
@@ -111,12 +106,9 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
                 File outputDir = generatedClassesDir.get().getAsFile();
                 outputDir.mkdirs();
 
-                String javacExe = javaToolchains.compilerFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR)))
-                    .get()
-                    .getMetadata()
-                    .getInstallationPath()
-                    .getAsFile()
-                    .getAbsolutePath() + "/bin/javac";
+                String javacExe = javaToolchains.compilerFor(
+                    spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR))
+                ).get().getMetadata().getInstallationPath().getAsFile().getAbsolutePath() + "/bin/javac";
 
                 String ffmJar = findDistJar(ffmDistDir.get().getAsFile());
                 String coreJar = findDistJar(coreDistDir.get().getAsFile());
@@ -192,7 +184,8 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
                 );
             });
 
-            task.getJavaLauncher().set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR))));
+            task.getJavaLauncher()
+                .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(JDK_VERSION_FOR_PROCESSOR))));
         });
     }
 

@@ -53,9 +53,7 @@ public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
     public void testHistogramQuantileExplicitLeViaRateDropsLeLabel() throws Exception {
         ingestClassicHistogram();
 
-        ObjectPath response = executeQueryRange(
-            "histogram_quantile(0.5, sum by (job, le) (rate(" + METRIC + "[1m])))"
-        );
+        ObjectPath response = executeQueryRange("histogram_quantile(0.5, sum by (job, le) (rate(" + METRIC + "[1m])))");
         List<Map<String, Object>> results = response.evaluate("data.result");
         assertThat("unexpected series: " + results, results, hasSize(1));
         Map<String, Object> metric = response.evaluate("data.result.0.metric");

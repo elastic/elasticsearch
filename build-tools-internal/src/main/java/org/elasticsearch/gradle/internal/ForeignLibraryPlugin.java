@@ -23,17 +23,11 @@ import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
-import org.gradle.process.ExecOperations;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 
@@ -60,15 +54,11 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
     private static final int JDK_VERSION_FOR_PROCESSOR = 25;
     private static final int DEFAULT_TARGET_JAVA_RELEASE = 21;
 
-    private static final Pattern MODULE_DECL = Pattern.compile("^\\s*module\\s+([\\w.]+)\\s*\\{", Pattern.MULTILINE);
-
     private final JavaToolchainService javaToolchains;
-    private final ExecOperations execOperations;
 
     @Inject
-    public ForeignLibraryPlugin(JavaToolchainService javaToolchains, ExecOperations execOperations) {
+    public ForeignLibraryPlugin(JavaToolchainService javaToolchains) {
         this.javaToolchains = javaToolchains;
-        this.execOperations = execOperations;
     }
 
     @Override
@@ -92,8 +82,8 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
         mainSourceSet.getOutput().dir(java.util.Map.of("builtBy", "runAnnotationProcessor"), generatedClassesDir);
 
-        wireCompileJava(project, generatedClassesDir);
-        wireJar(project, generatedClassesDir, augmentedModuleInfoDir);
+        wireCompileJava(project);
+        wireJar(project, augmentedModuleInfoDir);
     }
 
     private void registerRunAnnotationProcessorTask(Project project, Configuration processorPath, DirectoryProperty generatedClassesDir) {
@@ -206,22 +196,15 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         });
     }
 
-    private void wireCompileJava(Project project, DirectoryProperty generatedClassesDir) {
+    private void wireCompileJava(Project project) {
         project.getTasks().named("compileJava", JavaCompile.class).configure(task -> {
             task.dependsOn(project.getTasks().named("runAnnotationProcessor"));
             // Annotation processing already happened in runAnnotationProcessor — disable it here.
             task.getOptions().getCompilerArgs().add("-proc:none");
-            task.doFirst(t -> {
-                JavaCompile compile = (JavaCompile) t;
-                String moduleName = readModuleName(project);
-                String genDir = generatedClassesDir.get().getAsFile().getAbsolutePath();
-                compile.getOptions().getCompilerArgs().add("--patch-module");
-                compile.getOptions().getCompilerArgs().add(moduleName + "=" + genDir);
-            });
         });
     }
 
-    private void wireJar(Project project, DirectoryProperty generatedClassesDir, DirectoryProperty augmentedModuleInfoDir) {
+    private void wireJar(Project project, DirectoryProperty augmentedModuleInfoDir) {
         project.getTasks().named("jar", Jar.class).configure(task -> {
             task.dependsOn(project.getTasks().named("augmentModuleInfo"));
 
@@ -262,23 +245,4 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         return null;
     }
 
-    /** Parses the module name from {@code src/main/java/module-info.java}. */
-    private static String readModuleName(Project project) {
-        File moduleInfo = project.file("src/main/java/module-info.java");
-        if (moduleInfo.exists() == false) {
-            throw new GradleException(
-                "elasticsearch.foreign-library plugin requires a module-info.java at " + moduleInfo + " but it was not found"
-            );
-        }
-        try {
-            String content = Files.readString(moduleInfo.toPath(), StandardCharsets.UTF_8);
-            Matcher m = MODULE_DECL.matcher(content);
-            if (m.find() == false) {
-                throw new GradleException("Could not parse module declaration from " + moduleInfo);
-            }
-            return m.group(1);
-        } catch (IOException e) {
-            throw new GradleException("Failed to read " + moduleInfo, e);
-        }
-    }
 }

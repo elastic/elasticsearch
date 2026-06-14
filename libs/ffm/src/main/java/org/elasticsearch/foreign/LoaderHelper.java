@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.foreign;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -39,7 +39,7 @@ module org.elasticsearch.nativeaccess {
         with
             org.elasticsearch.nativeaccess.jdk.JdkNativeLibraryProvider;
 
-    provides org.elasticsearch.foreign.NativeLibraryProvider with org.elasticsearch.nativeaccess.lib.ZstdLibrary$Provider;
+    provides org.elasticsearch.foreign.LibraryProvider with org.elasticsearch.nativeaccess.lib.ZstdLibrary$Provider;
 
     provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
 

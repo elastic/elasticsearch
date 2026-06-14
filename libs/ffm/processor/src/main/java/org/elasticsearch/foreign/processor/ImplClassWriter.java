@@ -43,9 +43,9 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClass
  *
  * <p>Each generated class:
  * <ul>
- *   <li>is {@code public final} with a no-arg public constructor</li>
+ *   <li>is package-private {@code final} with a package-private no-arg constructor (only {@code $Provider} in the same package can instantiate it)</li>
  *   <li>implements the annotated interface</li>
- *   <li>has one {@code private static final MethodHandle} field per {@code @Function} method</li>
+ *   <li>has one {@code private static final MethodHandle} field per {@code @Function} or {@code @FunctionPointer} method</li>
  *   <li>initializes those fields in {@code <clinit>}</li>
  *   <li>implements each interface method by calling {@code MethodHandle.invokeExact}</li>
  * </ul>
@@ -61,7 +61,7 @@ class ImplClassWriter {
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of("org.elasticsearch.foreign.LinkerHelper");
     private static final ClassDesc CD_LinkerHelperUtil = ClassDesc.of("org.elasticsearch.foreign.LinkerHelperUtil");
     private static final ClassDesc CD_NativeSymbolResolver = ClassDesc.of("org.elasticsearch.foreign.SymbolResolver");
-    private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.nativeaccess.lib.LoaderHelper");
+    private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
     private static final ClassDesc CD_SymbolLookup = ClassDesc.of("java.lang.foreign.SymbolLookup");
     private static final ClassDesc CD_MemoryLayoutPathElementArray = ClassDesc.ofDescriptor(
         "[Ljava/lang/foreign/MemoryLayout$PathElement;"

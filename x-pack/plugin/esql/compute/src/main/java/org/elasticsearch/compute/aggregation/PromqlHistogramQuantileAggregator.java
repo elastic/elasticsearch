@@ -30,11 +30,7 @@ class PromqlHistogramQuantileAggregator {
         return "promql_histogram_quantile";
     }
 
-    public static PromqlHistogramQuantileStates.SingleState initSingle(
-        DriverContext driverContext,
-        double quantile,
-        Warnings warnings
-    ) {
+    public static PromqlHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
         return new PromqlHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
     }
 

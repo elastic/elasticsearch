@@ -158,9 +158,7 @@ public class PromqlHistogramQuantileStatesTests extends ComputeTestCase {
 
     public void testBucketQuantileNaNQuantile() {
         assertTrue(
-            Double.isNaN(
-                PromqlHistogramQuantileStates.bucketQuantile(Double.NaN, PromqlHistogramQuantileTestHelpers.canonicalHistogram())
-            )
+            Double.isNaN(PromqlHistogramQuantileStates.bucketQuantile(Double.NaN, PromqlHistogramQuantileTestHelpers.canonicalHistogram()))
         );
     }
 

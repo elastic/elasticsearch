@@ -11,6 +11,7 @@ import org.elasticsearch.foreign.processor.LibraryProcessor;
 
 module org.elasticsearch.foreign.processor {
     requires java.compiler;
+    requires jdk.compiler;
     requires org.elasticsearch.foreign;
 
     provides javax.annotation.processing.Processor with LibraryProcessor;

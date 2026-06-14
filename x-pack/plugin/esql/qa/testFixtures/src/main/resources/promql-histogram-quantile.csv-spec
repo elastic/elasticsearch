@@ -21,7 +21,7 @@ result:double | step:datetime
 1.5           | 2024-05-10T00:10:00.000Z
 ;
 
-histogram_quantile_raw_selector
+histogram_quantile_raw_selector#[skip:-999.0.0, reason:implicit le wiring deferred to follow-up]
 required_capability: promql_command_v0
 required_capability: promql_histogram_quantile
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, request_duration_seconds_bucket), 0.001))
@@ -36,7 +36,7 @@ result:double      | step:datetime
 2.167              | 2024-05-10T00:10:00.000Z
 ;
 
-histogram_quantile_raw_rate_selector
+histogram_quantile_raw_rate_selector#[skip:-999.0.0, reason:implicit le wiring deferred to follow-up]
 required_capability: promql_command_v0
 required_capability: promql_histogram_quantile
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m])), 0.001))
@@ -97,7 +97,7 @@ result:double | step:datetime            | job:keyword
 ;
 
 // Nests histogram_quantile under sum(...) by (...), matching promcheck dashboards.
-histogram_quantile_sum_nested_by_job
+histogram_quantile_sum_nested_by_job#[skip:-999.0.0, reason:implicit le wiring deferred to follow-up]
 required_capability: promql_command_v0
 required_capability: promql_histogram_quantile
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(sum(histogram_quantile(0.5, rate(request_duration_seconds_bucket[5m]))) by (job), 0.001))

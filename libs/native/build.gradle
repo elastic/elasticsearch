@@ -16,7 +16,6 @@ apply plugin: 'elasticsearch.foreign-library'
 apply plugin: 'java-test-fixtures'
 
 dependencies {
-  api project(':libs:ffm')
   api project(':libs:core')
   api project(':libs:logging')
   testImplementation(project(":test:framework")) {

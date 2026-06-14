@@ -14,7 +14,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.DirectoryProperty;
-import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaLibraryPlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.Exec;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.SourceSet;
@@ -25,7 +26,6 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +52,6 @@ import javax.inject.Inject;
 public class ForeignLibraryPlugin implements Plugin<Project> {
 
     private static final int JDK_VERSION_FOR_PROCESSOR = 25;
-    private static final int DEFAULT_TARGET_JAVA_RELEASE = 21;
 
     private final JavaToolchainService javaToolchains;
 
@@ -63,7 +62,11 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(JavaPlugin.class);
+        project.getPluginManager().apply(JavaLibraryPlugin.class);
+
+        // libs/ffm is part of the consumer's public API: annotated interfaces extend types from
+        // org.elasticsearch.foreign (e.g. CloseableByteBuffer), so it must be exposed transitively.
+        project.getDependencies().add("api", project.project(":libs:ffm"));
 
         Configuration processorPath = project.getConfigurations().create("foreignLibraryProcessor");
         project.getDependencies().add("foreignLibraryProcessor", project.project(":libs:ffm:processor"));
@@ -90,6 +93,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
         project.getTasks().register("runAnnotationProcessor", Exec.class, task -> {
             task.dependsOn(":libs:ffm:assemble", ":libs:core:assemble", ":libs:logging:assemble", ":libs:ffm:processor:assemble");
 
+            JavaPluginExtension javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
 
             task.getOutputs().dir(generatedClassesDir);
@@ -138,7 +142,7 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
                 command.add(modulePath);
                 command.add("--processor-module-path");
                 command.add(processorModulePath);
-                command.add("-AjavaVersion=" + DEFAULT_TARGET_JAVA_RELEASE);
+                command.add("-AjavaVersion=" + javaExtension.getTargetCompatibility().getMajorVersion());
                 command.add("-d");
                 command.add(outputDir.getAbsolutePath());
                 for (File f : mainSourceSet.getJava().getFiles()) {
@@ -204,18 +208,12 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
             // Substitute the augmented module-info.class for the original from compileJava.
             // The generated $Impl/$Provider classes and META-INF/services file are picked up
             // automatically via the main source set's output dirs (configured in apply()).
-            Path classesDir = project.getTasks()
+            File compiledModuleInfo = project.getTasks()
                 .named("compileJava", JavaCompile.class)
-                .flatMap(JavaCompile::getDestinationDirectory)
+                .flatMap(t -> t.getDestinationDirectory().file("module-info.class"))
                 .get()
-                .getAsFile()
-                .toPath();
-            task.eachFile(details -> {
-                if (details.getRelativePath().getPathString().equals("module-info.class")
-                    && details.getFile().toPath().startsWith(classesDir)) {
-                    details.exclude();
-                }
-            });
+                .getAsFile();
+            task.exclude(element -> element.getFile().equals(compiledModuleInfo));
             task.from(augmentedModuleInfoDir, spec -> spec.include("module-info.class"));
         });
     }

@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Integration tests for PromQL {@code histogram_quantile()} over classic histograms ingested via remote write.
  */
-public class PrometheusHistogramQuantileRestIT extends AbstractPrometheusRestIT {
+public class PromqlHistogramQuantileRestIT extends AbstractPrometheusRestIT {
 
     private static final String METRIC = "request_duration_seconds_bucket";
     private static final String[] LE_BUCKETS = { "0.5", "1.0", "2.0", "+Inf" };

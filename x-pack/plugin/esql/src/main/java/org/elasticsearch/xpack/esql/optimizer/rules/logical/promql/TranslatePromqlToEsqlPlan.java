@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -405,7 +405,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         // The aggregator consumes bucket counts as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
         Expression count = new ToDouble(histogramQuantile.source(), childResult.expression());
-        Expression aggregateExpression = new PrometheusHistogramQuantile(
+        Expression aggregateExpression = new PromqlHistogramQuantile(
             histogramQuantile.source(),
             count,
             histogramQuantileUpperBound(histogramQuantile.source(), upperBound),

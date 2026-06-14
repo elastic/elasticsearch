@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -345,9 +345,9 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         return names;
     }
 
-    private static List<PrometheusHistogramQuantile> collectHistogramQuantiles(LogicalPlan plan) {
-        List<PrometheusHistogramQuantile> quantiles = new ArrayList<>();
-        plan.forEachExpressionDown(PrometheusHistogramQuantile.class, quantiles::add);
+    private static List<PromqlHistogramQuantile> collectHistogramQuantiles(LogicalPlan plan) {
+        List<PromqlHistogramQuantile> quantiles = new ArrayList<>();
+        plan.forEachExpressionDown(PromqlHistogramQuantile.class, quantiles::add);
         return quantiles;
     }
 

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationT
  * <ul>
  * <li>The quantile argument is required — the constructor reads {@code parameters.getFirst()}, but
  * {@link org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests} typically supplies an empty parameter list.</li>
- * <li>The node uses {@link org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile#PROMQL_DEFINITION},
+ * <li>The node uses {@link org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile#PROMQL_DEFINITION},
  * not the generic {@code VECTOR} stub that {@link org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests} picks for
  * {@link org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition} arguments.</li>
  * <li>{@link HistogramQuantile#output()} filters the {@value HistogramQuantile#LE_LABEL} label, so believable children
@@ -53,7 +53,7 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
         return new HistogramQuantile(
             source,
             randomChildWithLeLabel(),
-            PrometheusHistogramQuantile.PROMQL_DEFINITION,
+            PromqlHistogramQuantile.PROMQL_DEFINITION,
             List.of(randomQuantile(source))
         );
     }
@@ -152,7 +152,7 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
         HistogramQuantile node = new HistogramQuantile(
             source,
             child,
-            PrometheusHistogramQuantile.PROMQL_DEFINITION,
+            PromqlHistogramQuantile.PROMQL_DEFINITION,
             List.of(randomQuantile(source))
         );
 

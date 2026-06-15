@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -125,7 +126,7 @@ public class DLMFrozenTransitionPlugin extends Plugin {
         return List.of(
             DLMFrozenTransitionService.POLL_INTERVAL_SETTING,
             DLMFrozenCleanupService.POLL_INTERVAL_SETTING,
-            DLMConvertToFrozen.DLM_CREATED_SETTING
+            DataStreamLifecycleService.DLM_CREATED_SETTING
         );
     }
 }

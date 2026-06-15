@@ -715,7 +715,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
             assertThat(
                 "Frozen index should have the DLM-created setting",
-                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                DataStreamLifecycleService.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
                 is(true)
             );
 

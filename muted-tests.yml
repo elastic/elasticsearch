@@ -743,3 +743,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/190_lookup_join/mv-on-query}
   issue: https://github.com/elastic/elasticsearch/issues/151283
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/192_lookup_join_on_aliases/fails when alias or pattern resolves to multiple v2}
+  issue: https://github.com/elastic/elasticsearch/issues/151284

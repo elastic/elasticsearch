@@ -48,6 +48,7 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -766,14 +767,14 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         q = ft.prefixQuery("foo", null, true, MOCK_CONTEXT);
         assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
 
-        // Binary DV, case-sensitive → StringScriptFieldPrefixQuery
+        // Binary DV, case-sensitive → SlowCustomBinaryDocValuesPrefixQuery
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.prefixQuery("foo", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesPrefixQuery.class));
 
-        // Binary DV, case-insensitive → StringScriptFieldPrefixQuery
+        // Binary DV, case-insensitive → SlowCustomBinaryDocValuesPrefixQuery
         q = binaryFt.prefixQuery("foo", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesPrefixQuery.class));
 
         // Neither indexed nor doc values → error
         TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());

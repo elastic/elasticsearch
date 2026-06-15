@@ -45,6 +45,7 @@ public class Floor extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Rounds a number down to the nearest integer.",
         description = "Round a number down to the nearest integer.",
         note = """
             This is a noop for `long` (including unsigned) and `integer`.

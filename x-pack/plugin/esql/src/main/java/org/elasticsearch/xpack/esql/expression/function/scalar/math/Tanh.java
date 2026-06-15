@@ -37,6 +37,7 @@ public class Tanh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the hyperbolic tangent of a number.",
         description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic tangent] of a number.",
         examples = @Example(file = "floats", tag = "tanh")
     )

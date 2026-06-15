@@ -370,6 +370,14 @@ public final class PromqlFunctionDefinition {
             return this;
         }
 
+        public PromqlFunctionDefinition.Builder histogramBinary(PromqlParamInfo paramInfo, FunctionBuilder builder) {
+            this.functionType = FunctionType.HISTOGRAM;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = builder;
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
         public PromqlFunctionDefinition.Builder scalar(Function<Source, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.SCALAR;
             this.arity = PromqlFunctionArity.NONE;

@@ -69,6 +69,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the first value from a multi-value field.",
         description = """
             Converts a multivalued expression into a single valued column containing the
             first value. This is most useful when reading from a function that emits

@@ -10,23 +10,35 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FakeTimeThreadPool;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -48,6 +60,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -355,6 +368,120 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                     )
                 )
             );
+        }
+    }
+
+    /**
+     * When the relocation source is shutting down, the per-target warming timeout scales linearly with the number of search shards
+     * concurrently relocating from that source to the same target. Two targets in the same cluster state — one receiving 3 such
+     * relocations, the other receiving 1 — must yield timeouts in a 3:1 ratio because all other inputs (remaining grace, shards on
+     * source, share factor) are identical between the two calls.
+     */
+    public void testSearchRecoveryTimeoutScalesByConcurrentRelocationsToTarget() {
+        try (
+            var threadPool = new FakeTimeThreadPool(
+                getTestName(),
+                randomNonNegativeLong() / 2,
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true)
+            )
+        ) {
+            threadPool.setCurrentTimeInMillis(0L);
+            var service = newWarmingService(threadPool);
+
+            final Index index = new Index("idx", randomUUID());
+            final String primaryNodeId = "primary-node";
+            final String sourceNodeId = "source-node";
+            final String targetT1 = "target-t1";
+            final String targetT2 = "target-t2";
+            final String masterNodeId = "master-node";
+
+            final int totalSearchShards = 4;
+            final int relocationsToTarget1 = 3;
+
+            // Each search shard is modeled as its own ShardId with an INDEX_ONLY primary; ShardIds must be distinct because every
+            // search replica is currently on sourceNodeId, and IndexShardRoutingTable forbids two routings of the same ShardId on
+            // the same node. The primary is placed on a separate primaryNodeId for the same reason (it must not collide with the
+            // relocating replica's current or target node).
+            final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), totalSearchShards, 1))
+                .build();
+
+            final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(index);
+            for (int s = 0; s < totalSearchShards; s++) {
+                final ShardId sid = new ShardId(index, s);
+                final ShardRouting primary = TestShardRouting.shardRoutingBuilder(sid, primaryNodeId, true, STARTED)
+                    .withRole(ShardRouting.Role.INDEX_ONLY)
+                    .build();
+                final String relocationTarget = s < relocationsToTarget1 ? targetT1 : targetT2;
+                final ShardRouting relocating = TestShardRouting.shardRoutingBuilder(sid, sourceNodeId, false, RELOCATING)
+                    .withRelocatingNodeId(relocationTarget)
+                    .withRole(ShardRouting.Role.SEARCH_ONLY)
+                    .build();
+                routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(relocating));
+            }
+
+            long shutdownStartedMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedMillis);
+            final SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+                .setNodeId(sourceNodeId)
+                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                .setReason(getTestName())
+                .setStartedAtMillis(threadPool.absoluteTimeInMillis())
+                .setNodeSeen(true)
+                .build();
+
+            final ClusterState state = ClusterState.builder(new ClusterName("test"))
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(DiscoveryNodeUtils.create(masterNodeId))
+                        .masterNodeId(masterNodeId)
+                        .localNodeId(masterNodeId)
+                        .add(DiscoveryNodeUtils.create(primaryNodeId))
+                        .add(DiscoveryNodeUtils.create(sourceNodeId))
+                        .add(DiscoveryNodeUtils.create(targetT1))
+                        .add(DiscoveryNodeUtils.create(targetT2))
+                        .build()
+                )
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(sourceNodeId, shutdown)))
+                        .put(ProjectMetadata.builder(DEFAULT_PROJECT_ID).put(indexMetadata, false))
+                        .build()
+                )
+                .routingTable(
+                    GlobalRoutingTable.builder().put(DEFAULT_PROJECT_ID, RoutingTable.builder().add(routingBuilder).build()).build()
+                )
+                .build();
+
+            assertThat(state.getRoutingNodes().node(sourceNodeId).size(), equalTo(totalSearchShards));
+            assertThat(state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId), is(true));
+
+            final ShardRouting selfT1 = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, randomIntBetween(0, relocationsToTarget1 - 1)))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            final ShardRouting selfT2 = state.routingTable(DEFAULT_PROJECT_ID)
+                .shardRoutingTable(new ShardId(index, randomIntBetween(relocationsToTarget1, totalSearchShards - 1)))
+                .shardsWithState(RELOCATING)
+                .get(0)
+                .getTargetRelocatingShard();
+            assertThat(selfT1.currentNodeId(), equalTo(targetT1));
+            assertThat(selfT2.currentNodeId(), equalTo(targetT2));
+
+            // advance time
+            threadPool.setCurrentTimeInMillis(shutdownStartedMillis + randomLongBetween(1, 100_000));
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT1 = service.searchRecoveryTimeout(state, mockIndexShard(selfT1));
+            SharedBlobCacheWarmingService.SearchRecoveryTimeout planT2 = service.searchRecoveryTimeout(state, mockIndexShard(selfT2));
+
+            assertThat(planT1.awaitWarming(), is(true));
+            assertThat(planT2.awaitWarming(), is(true));
+
+            assertThat(planT1.timeout().millis(), greaterThan(0L));
+            assertThat(planT2.timeout().millis(), greaterThan(0L));
+            // Out of a total of 4 search shards, there are 3 shards concurrently relocating to the target1 node and only one relocating to
+            // the target2 node. So, we should allow approx 3x more time for recovery for the shards recovering to target1 than target2.
+            assertThat(Math.round(((double) planT1.timeout().millis()) / planT2.timeout().millis()), is(3L));
         }
     }
 

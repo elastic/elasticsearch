@@ -69,6 +69,7 @@ public class MvLast extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the last value from a multi-value field.",
         description = """
             Converts a multivalue expression into a single valued column containing the last
             value. This is most useful when reading from a function that emits multivalued

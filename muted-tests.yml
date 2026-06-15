@@ -746,3 +746,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/192_lookup_join_on_aliases/fails when alias or pattern resolves to multiple v2}
   issue: https://github.com/elastic/elasticsearch/issues/151284
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/140_metadata/sort on _source not allowed}
+  issue: https://github.com/elastic/elasticsearch/issues/151285

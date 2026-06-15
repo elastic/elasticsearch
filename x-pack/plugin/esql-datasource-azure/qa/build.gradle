@@ -13,12 +13,6 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecomm
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
-// Exclude grpc-context globally to avoid jar hell with grpc-api
-// (grpc-api 1.70.0 absorbed grpc-context classes, but older transitive deps still pull grpc-context 1.49.2)
-configurations.javaRestTestRuntimeClasspath {
-  exclude group: 'io.grpc', module: 'grpc-context'
-}
-
 dependencies {
   // Test fixtures and spec reader infrastructure
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -26,27 +20,14 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
   javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
 
-  // GCS fixture infrastructure for mocking GCS operations
-  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+  // Azure HTTPS fixture + self-signed TLS scaffolding (cluster reaches the fixture over HTTPS,
+  // so the cluster JVM needs the trust store; the test JVM needs the certificate to seed blobs).
+  javaRestTestImplementation project(':test:fixtures:azure-fixture')
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
 
-  // GCS datasource provider for discovery tests
-  javaRestTestImplementation project(xpackModule('esql-datasource-gcs'))
-
-  // Google Cloud Storage client library (needed for GcsStorageProvider in tests)
-  javaRestTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
-  javaRestTestImplementation 'com.google.cloud:google-cloud-core:2.53.1'
-  javaRestTestImplementation 'com.google.cloud:google-cloud-core-http:2.53.1'
-  javaRestTestImplementation 'com.google.auth:google-auth-library-credentials:1.33.1'
-  javaRestTestImplementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
-  javaRestTestImplementation 'com.google.http-client:google-http-client:1.46.3'
-  javaRestTestImplementation 'com.google.api:api-common:2.46.1'
-  javaRestTestImplementation 'com.google.api:gax:2.63.1'
-
-  // The DEFAULT distribution already bundles repository-gcs, workload-identity, and every
-  // esql-datasource-* module needed by GcsWorkloadIdentityAuthIT (the only test in this source set
-  // that boots a cluster). Re-declaring them as clusterPlugins/clusterModules duplicates them
-  // under both distro/modules/ and distro/plugins/ and crashes ES boot with a duplicate-key
-  // error. Mapper plugins are not in DEFAULT and remain as clusterPlugins.
+  // The DEFAULT distribution already bundles repository-azure and every esql-datasource-* module
+  // this test needs, so no .module()/.plugin() calls are required on the cluster builder. Mapper
+  // plugins are not in DEFAULT and remain as clusterPlugins.
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
 }
@@ -56,20 +37,16 @@ tasks.named('javaRestTestTestingConventions').configure {
   baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/*.parquet'
-}
-
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 
-  // Increase timeouts for GCS operations which may take longer than standard queries
+  // Match the longer timeouts used by other Azure ITs; HTTPS handshakes plus IMDS round-trips
+  // can push first-request latency above the default REST client timeout.
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'
 
-  // Enable more verbose logging for debugging
   testLogging {
     events = ["passed", "skipped", "failed"]
     exceptionFormat = "full"

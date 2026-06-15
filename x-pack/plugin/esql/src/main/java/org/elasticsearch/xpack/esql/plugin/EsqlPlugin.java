@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -154,6 +155,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -313,6 +315,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        );
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
+                v -> workloadIdentityEnabled.set(isStateless == false && v)
+            );
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
@@ -322,6 +335,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
+            workloadIdentityEnabled::get,
             services.threadPool()
         );
 
@@ -386,7 +400,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
-                if (formatKeyResolver != null && v instanceof FileDataSourceValidator fdv) {
+                if (effective instanceof FileDataSourceValidator fdv) {
+                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
+                }
+                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {

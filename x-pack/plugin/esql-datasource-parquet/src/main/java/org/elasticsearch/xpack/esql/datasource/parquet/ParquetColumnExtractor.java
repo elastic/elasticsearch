@@ -222,7 +222,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // bounded by the per-query concurrency budget which sits inside readBytesAsync.
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         @SuppressWarnings("unchecked")
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<
+            ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
         for (int i = 0; i < buckets.size(); i++) {
             BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
             futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.arrowAllocator());

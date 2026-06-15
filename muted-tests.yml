@@ -845,3 +845,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_enrich/Enrich with brackets in policy name}
   issue: https://github.com/elastic/elasticsearch/issues/151317
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/constant field filter matches}
+  issue: https://github.com/elastic/elasticsearch/issues/151318

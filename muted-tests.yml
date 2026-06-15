@@ -413,9 +413,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
     extractedAssemble, #2]"
   issue: https://github.com/elastic/elasticsearch/issues/150410
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
-  method: testCanTransitionIndex
-  issue: https://github.com/elastic/elasticsearch/issues/149770
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/150435
@@ -509,9 +506,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTypeConflictTimeseriesDoubleUnmappedWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150672
-- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
-  method: testRRFRetrieverPartialSearchErrorsTrue
-  issue: https://github.com/elastic/elasticsearch/issues/150673
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150686
@@ -644,3 +638,6 @@ tests:
 - class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
   method: testWriteLoadForecastGetsPopulatedDuringRollovers
   issue: https://github.com/elastic/elasticsearch/issues/151173
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/140_metadata/Aggregate ignored field}
+  issue: https://github.com/elastic/elasticsearch/issues/151216

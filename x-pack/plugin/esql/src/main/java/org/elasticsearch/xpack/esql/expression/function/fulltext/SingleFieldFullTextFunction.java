@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
@@ -19,8 +20,10 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +34,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -113,6 +117,35 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return TypeResolution.TYPE_RESOLVED;
         }
         return Options.resolve(options(), source(), TypeResolutions.ParamOrdinal.THIRD, getAllowedOptions());
+    }
+
+    /**
+     * Converts the query expression to an Object suitable for the Lucene query.
+     * Handles common conversions for BytesRef, UNSIGNED_LONG, DATETIME, and DATE_NANOS.
+     */
+    protected Object queryAsObject() {
+        Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
+
+        // Convert BytesRef to string for string-based values
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return switch (query().dataType()) {
+                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
+                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
+                default -> bytesRef.utf8ToString();
+            };
+        }
+
+        // Converts specific types to the correct type for the query
+        if (query().dataType() == DataType.UNSIGNED_LONG) {
+            return org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
+        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But Match/MatchPhrase query needs a date string
+            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
+        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
+        }
+
+        return queryAsObject;
     }
 
     /**

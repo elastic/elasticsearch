@@ -163,7 +163,7 @@ public abstract class Foldables {
 
     public static Object queryAsObject(Expression queryField, String sourceText) {
         if (queryField instanceof Literal literal) {
-            return literalValueAsLuceneQueryObject(literal.value(), literal.dataType());
+            return literal.value();
         }
         throw new EsqlIllegalArgumentException(
             format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)

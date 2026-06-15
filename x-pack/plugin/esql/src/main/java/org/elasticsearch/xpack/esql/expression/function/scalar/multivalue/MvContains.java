@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -348,10 +347,6 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
         LinkedHashSet<Object> terms = new LinkedHashSet<>();
         values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, left().dataType())));
 
-        return new TermsSetQuery(
-            source(),
-            handler.nameOf(left()),
-            terms
-        );
+        return new TermsSetQuery(source(), handler.nameOf(left()), terms);
     }
 }

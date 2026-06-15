@@ -60,16 +60,6 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         }
     }
 
-    private static CacheRegion<FileCacheKey> region(ShardId shardId, String file) {
-        return () -> new FileCacheKey(shardId, 1L, file);
-    }
-
-    private static long[] randomOlderAndRecentCreationDates() {
-        long olderDate = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
-        long recentDate = randomLongBetween(olderDate + 1, Long.MAX_VALUE);
-        return new long[] { olderDate, recentDate };
-    }
-
     public void testCanEvictOlderRegionForNewerIncoming() {
         long[] creationDates = randomOlderAndRecentCreationDates();
         ShardId oldShard = new ShardId("old", randomUUID(), 0);
@@ -141,10 +131,6 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             .build();
         EvictionPolicy<FileCacheKey> policy = StatelessSharedBlobCacheService.createEvictionPolicy(settings, mock(ClusterService.class));
         assertThat(policy, instanceOf(IndexAgeEvictionPolicy.class));
-    }
-
-    private static long cacheRegionSizeInBytes(long numPages) {
-        return numPages * SharedBytes.PAGE_SIZE;
     }
 
     /**
@@ -240,5 +226,19 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         } finally {
             clusterService.close();
         }
+    }
+
+    private static CacheRegion<FileCacheKey> region(ShardId shardId, String file) {
+        return () -> new FileCacheKey(shardId, 1L, file);
+    }
+
+    private static long[] randomOlderAndRecentCreationDates() {
+        long olderDate = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
+        long recentDate = randomLongBetween(olderDate + 1, Long.MAX_VALUE);
+        return new long[] { olderDate, recentDate };
+    }
+
+    private static long cacheRegionSizeInBytes(long numPages) {
+        return numPages * SharedBytes.PAGE_SIZE;
     }
 }

@@ -12,7 +12,9 @@ import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.util.ArrayList;
@@ -38,15 +40,34 @@ import static org.hamcrest.Matchers.containsString;
 
 public class DataPointGroupingContextTests extends ESTestCase {
 
-    private final DataPointGroupingContext context = new DataPointGroupingContext(new BufferedByteStringAccessor());
+    private final DataPointGroupingContext context = new DataPointGroupingContext(
+        new BufferedByteStringAccessor(),
+        MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+    );
     private final long nowUnixNanos = System.currentTimeMillis() * 1_000_000L;
 
     public void testGroupingSameGroup() throws Exception {
-        // Group data points
         ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
             List.of(
                 createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
                 createGaugeMetric("system.memory.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
+                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
+            )
+        );
+        context.groupDataPoints(metricsRequest);
+        assertEquals(3, context.totalItems());
+        assertEquals(0, context.getIgnoredItems());
+        assertEquals("", context.getIgnoredItemsMessage(10));
+
+        AtomicInteger groupCount = new AtomicInteger(0);
+        context.consume(dataPointGroup -> groupCount.incrementAndGet());
+        assertEquals(1, groupCount.get());
+    }
+
+    public void testGroupingDifferentTemporality() throws Exception {
+        ExportMetricsServiceRequest metricsRequest = createMetricsRequest(
+            List.of(
+                createGaugeMetric("system.cpu.usage", "", List.of(createDoubleDataPoint(nowUnixNanos))),
                 createSumMetric(
                     "http.requests.count",
                     "",
@@ -67,18 +88,24 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     "",
                     List.of(HistogramDataPoint.newBuilder().setTimeUnixNano(nowUnixNanos).setStartTimeUnixNano(nowUnixNanos).build()),
                     AGGREGATION_TEMPORALITY_DELTA
-                ),
-                createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
+                )
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(6, context.totalItems());
+        assertEquals(4, context.totalItems());
         assertEquals(0, context.getIgnoredItems());
         assertEquals("", context.getIgnoredItemsMessage(10));
 
         AtomicInteger groupCount = new AtomicInteger(0);
         context.consume(dataPointGroup -> groupCount.incrementAndGet());
-        assertEquals(1, groupCount.get());
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            // gauge (null temporality), cumulative counter, and delta histograms are in separate groups
+            assertEquals(3, groupCount.get());
+        } else {
+            // without the feature flag, temporality is not a grouping dimension
+            // gauge, cumulative counter, and delta histograms all end up in same group (same TSID)
+            assertEquals(1, groupCount.get());
+        }
     }
 
     public void testGroupingDifferentTargetIndex() throws Exception {

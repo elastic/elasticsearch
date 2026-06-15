@@ -15,7 +15,6 @@ plugins {
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
-  id 'elasticsearch.eclipse'
   id 'elasticsearch.versions'
   id 'elasticsearch.formatting'
 }
@@ -39,10 +38,6 @@ gradlePlugin {
     buildComplete {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
-    }
-    taskStatusTracker {
-      id = 'elasticsearch.task-status-tracker'
-      implementationClass = 'org.elasticsearch.gradle.internal.ci.TaskStatusTrackerPlugin'
     }
     componentMetadataRules {
       id = 'elasticsearch.component-metadata-rules'

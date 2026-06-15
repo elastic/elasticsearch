@@ -100,8 +100,10 @@ public class QuerySettings {
         - Only `MATCH`, `MATCH_PHRASE`, the match operator (`:`), and `KNN` are supported; other
           full-text search functions are not yet supported.
         - Referencing subfields of `flattened` parents is not supported.
-        - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
-        unless referenced in a `KEEP` or `DROP`.
+        - Partially unmapped non-keyword fields can be used in expressions. Values remain typed where mapped and are `null`
+          for rows from indices where the field is unmapped.
+        - `RENAME` of partially unmapped non-keyword fields is not supported.
+        - Multi-type conflicts across mapped indices still require explicit disambiguation (for example with casts/conversion functions).
         """)
     @Example(file = "unmapped-nullify", tag = "unmapped-nullify-simple-keep", description = """
         Field `unmapped_message` is not mapped; it doesn't appear in the mapping of index `partial_mapping_sample_data`. It appears,

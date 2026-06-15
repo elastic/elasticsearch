@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -119,6 +121,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -169,6 +172,7 @@ public class EsqlDataTypeConverter {
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
         Map.entry(TDIGEST, ToTDigest::new),
+        Map.entry(TEXT, ToText::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
         Map.entry(VERSION, ToVersion::new),
         Map.entry(DATE_PERIOD, ToDatePeriod::new),
@@ -987,6 +991,9 @@ public class EsqlDataTypeConverter {
     }
 
     public static TriFunction<Source, Expression, Configuration, AbstractConvertFunction> converterFunctionFactory(DataType toType) {
+        if (toType == TEXT && Build.current().isSnapshot() == false) {
+            return null;
+        }
         var converter = TYPE_TO_CONVERTER_FUNCTION.get(toType);
         if (converter != null) {
             return (source, expression, configuration) -> converter.apply(source, expression);

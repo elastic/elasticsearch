@@ -430,12 +430,13 @@ c:long | last_name:keyword
 0      | Azuma
 ;
 
-// Verify that a partially-mapped TEXT field is not automatically loaded from _source for the unmapped field index.
+// Verify that a partially-mapped TEXT field is loaded from _source for the unmapped field index when TO_TEXT is available.
 // employees_no_gender doesn't have the gender field in its mappings, but it does have it in its _source, while
-// employees_gender_text has gender mapped as a TEXT field. Don't load gender from _source for employees_no_gender.
+// employees_gender_text has gender mapped as a TEXT field.
 typeConflictPartiallyUnmappedTextFieldNotLoaded
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -446,17 +447,18 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
-10001          | null                  | employees_no_gender
+10001          | M                     | employees_no_gender
 10002          | F                     | employees_gender_text
-10002          | null                  | employees_no_gender
+10002          | F                     | employees_no_gender
 10003          | M                     | employees_gender_text
-10003          | null                  | employees_no_gender
+10003          | M                     | employees_no_gender
 ;
 
 
 typeConflictPartiallyUnmappedTextFieldNotLoadedWithDrop
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
 
 SET unmapped_fields="load"\;
 FROM employees_gender_text, employees_no_gender METADATA _index
@@ -467,11 +469,11 @@ FROM employees_gender_text, employees_no_gender METADATA _index
 
 emp_no:integer | gender:text           | _index:keyword
 10001          | M                     | employees_gender_text
-10001          | null                  | employees_no_gender
+10001          | M                     | employees_no_gender
 10002          | F                     | employees_gender_text
-10002          | null                  | employees_no_gender
+10002          | F                     | employees_no_gender
 10003          | M                     | employees_gender_text
-10003          | null                  | employees_no_gender
+10003          | M                     | employees_no_gender
 ;
 
 // Verify that partially-mapped non-keyword fields (date, ip, long) are NOT loaded from _source when not mentioned
@@ -1996,6 +1998,30 @@ colors                 | null
 ;
 
 ##############################
+# WHERE without type casts   #
+##############################
+
+typeConflictLongUnmappedWhereNoCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE event_duration > 3000000
+| KEEP _index, event_duration
+| SORT _index, event_duration
+;
+
+_index:keyword         | event_duration:long
+no_mapping_sample_data | 3450232
+no_mapping_sample_data | 5033754
+no_mapping_sample_data | 8268152
+sample_data            | 3450233
+sample_data            | 5033755
+sample_data            | 8268153
+;
+
+##############################
 # WHERE with type casts      #
 ##############################
 
@@ -2644,6 +2670,41 @@ tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
 749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
 ;
 
+// network.eth0.tx is aggregate_metric_double in k8s-downsampled and unmapped in k8s_unmapped.
+// Under load mode, function application should keep mapped rows and nullify unmapped ones.
+typeConflictAggregateMetricDoubleUnmappedToGauge
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped METADATA _index
+| WHERE _index == "k8s_unmapped"
+| EVAL tx = TO_GAUGE(network.eth0.tx)
+| STATS rows = COUNT(*), tx_count = COUNT(tx)
+;
+
+rows:long | tx_count:long
+200       | 0
+;
+
+// Same setup as above; aggregate functions over this single-type PUNK should see nulls on unmapped rows.
+typeConflictAggregateMetricDoubleUnmappedStatsNoCast
+required_capability: optional_fields_v5
+required_capability: optional_fields_fix_load_partially_mapped
+required_capability: aggregate_metric_double_v0
+
+SET unmapped_fields="load"\;
+FROM k8s-downsampled, k8s_unmapped METADATA _index
+| WHERE _index == "k8s_unmapped"
+| STATS avg_tx = AVG(network.eth0.tx), sum_tx = SUM(network.eth0.tx), tx_count = COUNT(network.eth0.tx), rows = COUNT(*)
+;
+
+avg_tx:double | sum_tx:double | tx_count:long | rows:long
+null          | null          | null          | 200
+;
+
 ###############################################
 # Timeseries with 2x mapped + unmapped fields #
 ###############################################
@@ -2764,10 +2825,11 @@ addresses_no_continent  | Tokyo             | Milky Way
 ;
 
 // Same as above, but using addresses_text where galaxy is mapped as text (non-keyword).
-// Without a cast, galaxy is a regular text field: values from addresses_text, null from addresses_no_continent.
+// Without a cast, galaxy is loaded from both indices when TO_TEXT is available.
 deeplyNestedNonKeywordSubfieldUnderPartiallyUnmappedParentNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
@@ -2776,20 +2838,21 @@ FROM addresses_text, addresses_no_continent METADATA _index
 ;
 
 _index:keyword           | city.country.continent.planet.galaxy:text
-addresses_no_continent   | null
-addresses_no_continent   | null
-addresses_no_continent   | null
+addresses_no_continent   | Milky Way
+addresses_no_continent   | Milky Way
+addresses_no_continent   | Milky Way
 addresses_text           | Milky Way
 addresses_text           | Milky Way
 addresses_text           | Milky Way
 ;
 
 // city.country.continent.name is text (non-keyword) in addresses_text, unmapped in addresses_no_continent.
-// Without a cast, it's a regular field: values from addresses_text, null from addresses_no_continent.
+// Without a cast, it's loaded from both indices when TO_TEXT is available.
 // Note: city.name has a type conflict (keyword vs text) across these indices, so we avoid referencing it.
 deeplyNestedNonKeywordSubfieldPartiallyUnmappedNotCast
 required_capability: optional_fields_v5
 required_capability: optional_fields_fix_load_partially_mapped
+required_capability: fn_to_text
 
 SET unmapped_fields="load"\;
 FROM addresses_text, addresses_no_continent METADATA _index
@@ -2799,9 +2862,9 @@ FROM addresses_text, addresses_no_continent METADATA _index
 ignoreOrder:true
 
 _index:keyword           | city.country.continent.name:text
-addresses_no_continent   | null
-addresses_no_continent   | null
-addresses_no_continent   | null
+addresses_no_continent   | Asia
+addresses_no_continent   | Europe
+addresses_no_continent   | North America
 addresses_text           | Asia
 addresses_text           | Europe
 addresses_text           | North America
@@ -2949,7 +3012,8 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 SET unmapped_fields="load"\;
 FROM dense_vector_arithmetic, no_mapping_s*
 | keep id, client_ip, env 
-| rename id AS language_name
+| eval language_name = id
+| drop id
 | stats client_ip = first(greatest(language_name, 4, -72), null)
 ;
 
@@ -2964,7 +3028,8 @@ required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
 SET unmapped_fields="load"\;
 FROM dense_vector_arithmetic, no_mapping_sample_data
 | KEEP id
-| RENAME id AS language_name
+| EVAL language_name = id
+| DROP id
 | EVAL x = GREATEST(language_name, 4, -72)
 ;
 ignoreOrder:true

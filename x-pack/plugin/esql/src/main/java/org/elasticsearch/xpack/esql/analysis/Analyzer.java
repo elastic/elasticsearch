@@ -2865,9 +2865,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
 
                         if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
-                            Expression keywordField = existingConvert.field();
-                            Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
-                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                            if (supportedTypes.contains(KEYWORD)) {
+                                Expression keywordField = existingConvert.field();
+                                Expression rewrappedUnmapped = resolvedConvertExpression.replaceChildren(singletonList(keywordField));
+                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
+                            } else {
+                                // At the moment this path is exercised by TO_DEGREES/TO_RADIANS for single-type PUNKs under LOAD.
+                                // Function cannot consume keyword, so keep mapped branches and nullify unmapped ones.
+                                rewrapped = rewrapped.withPotentiallyUnmappedExpression(null);
+                            }
                         } else if (unmappedExpr != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
@@ -2958,17 +2964,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Check if all the original types in the {@code UnionTypeEsField} are supported by the convert function. If the field is partially
-         * unmapped, we additionally check if the convert function accept KEYWORD.
+         * Check if all the original mapped types in the {@code UnionTypeEsField} are supported by the convert function.
+         * If the field is partially unmapped and the function cannot consume {@code KEYWORD}, unmapped branches are nullified separately.
          *
          * @param unionTypeEsField
          * @param supportedTypes The types supported by the convert function
          * @return True if we can convert.
          */
         private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
-            if (unionTypeEsField.getUnmappedConversionExpression() != null && supportedTypes.contains(KEYWORD) == false) {
-                return false;
-            }
             return unionTypeEsField.getConversionExpressions()
                 .stream()
                 .allMatch(

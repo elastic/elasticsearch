@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
-import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
@@ -134,10 +133,12 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
-        // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
-        // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
+        // Temporary guard before we implement https://github.com/elastic/elasticsearch/issues/141995.
+        // Single-type PUNK usage is allowed in expressions under LOAD, but renaming such fields is still rejected.
+        // This check runs before the bail-out so that a query with both an UnsupportedAttribute and an illegal
+        // PUNK rename produces both errors in one batch.
         if (unmappedResolution == UnmappedResolution.LOAD) {
-            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
+            checkPartiallyUnmappedNonKeywordRenaming(plan, failures, context);
         }
 
         // in case of failures bail-out as all other checks will be redundant
@@ -564,63 +565,28 @@ public class Verifier {
     }
 
     /**
-     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) that couldn't be auto-cast by
-     * {@code ResolveTwoLeggedPunksInEsRelation} when {@code unmapped_fields="load"}.
-     *
-     * Expressions referencing these non-auto-castable PUNKs are flagged as a verification failure, except in KEEP/DROP.
-     *
-     * <p>
-     * Example
-     * <p>
-     * With the two indices below
-     * <ol>
-     *     <li>index1 has foo(aggregate_metric_double)</li>
-     *     <li>index2 has bar(keyword)</li>
-     * </ol>
-     *
-     * The following queries should pass (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>KEEP foo</li>
-     *     <li>DROP foo*</li>
-     * </ul>
-     * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
-     * <ul>
-     *     <li>RENAME foo as x</li>
-     *     <li>EVAL x = foo</li>
-     *     <li>EVAL x = foo::aggregate_metric_double</li>
-     *     <li>WHERE foo IS NOT NULL</li>
-     * </ul>
+     * Reject renaming partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
+     * Single-type PUNK expression usage is allowed (values are loaded where mapped, and null where unmapped),
+     * but {@code RENAME} on such fields remains unsupported.
      */
-    private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
+    private static void checkPartiallyUnmappedNonKeywordRenaming(LogicalPlan plan, Failures failures, AnalyzerContext context) {
         final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
 
         AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
-        Consumer<FieldAttribute> addFailureIfPunk = fa -> {
+        Consumer<FieldAttribute> addFailureIfPunkRename = fa -> {
             if (punks.contains(fa)) {
                 failures.add(fail(fa, errorMessage, fa.fieldName().string()));
             }
         };
 
         plan.forEachUp(p -> {
-            // Fork will have a PUNK in the output even if it wasn't actually used in the query, that's fine.
-            if (p instanceof EsRelation || p instanceof Fork) {
-                return;
-            }
-
-            // Project represents KEEP/DROP/RENAME. We are consistent with UnsupportedAttribute (unsupported type/type conflict):
-            // - RENAME is forbidden.
-            // - KEEP/DROP are fine, with and without wildcards.
             if (p instanceof Project project) {
                 for (NamedExpression projection : project.projections()) {
-                    if (projection instanceof Attribute) {
-                        continue;
+                    if (projection instanceof Alias alias && alias.child() instanceof FieldAttribute fa) {
+                        addFailureIfPunkRename.accept(fa);
                     }
-                    projection.forEachDown(FieldAttribute.class, addFailureIfPunk);
                 }
-                return;
             }
-
-            p.forEachExpression(FieldAttribute.class, addFailureIfPunk);
         });
     }
 
@@ -635,10 +601,7 @@ public class Verifier {
             if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
                 Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
                 for (Attribute attr : relation.output()) {
-                    // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.
-                    if (attr instanceof FieldAttribute fa
-                        && punkFieldNames.contains(fa.fieldName().string())
-                        && fa.field() instanceof UnionTypeEsField == false) {
+                    if (attr instanceof FieldAttribute fa && punkFieldNames.contains(fa.fieldName().string())) {
                         punks.add(fa);
                     }
                 }

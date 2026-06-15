@@ -41,6 +41,7 @@ public class Acosh extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the inverse hyperbolic cosine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[inverse hyperbolic cosine] of a number.",
         examples = @Example(file = "floats", tag = "acosh")
     )

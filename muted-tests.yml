@@ -722,3 +722,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/80_text/remove text typecast}
   issue: https://github.com/elastic/elasticsearch/issues/151276
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indexes and aggregate converted client_ip}
+  issue: https://github.com/elastic/elasticsearch/issues/151277

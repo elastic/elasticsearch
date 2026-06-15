@@ -50,9 +50,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Gate microbench for the receiver-specialized evaluator codegen change tracked in
- * <a href="https://github.com/elastic/esql-planning/issues/696">esql-planning#696</a>.
- *
+ * Gate microbench for the receiver-specialized evaluator codegen change
  * <p>{@link SumIntAggregatorFunction#addRawInput(Page, BooleanVector)} routes through two polymorphic call sites:
  * <ul>
  *   <li><b>addRawVector(IntVector)</b> — {@code IntVector.getInt(i)} over {@code IntArrayVector},
@@ -80,7 +78,17 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(value = 1, jvmArgs = { "--add-opens=java.base/java.nio=ALL-UNNAMED" })
+@Fork(
+    value = 1,
+    jvmArgs = {
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        // SumIntAggregatorFunction's vec_arrow32 arm reduces an off-heap ArrowBuf via
+        // MemorySegment.reinterpret (a restricted FFM method). Without this flag the JVM
+        // prints a runtime warning into JMH's result stream on JDK 22-23 and hard-fails on
+        // JDK 24+ (production sets --illegal-native-access=deny there). Production grants
+        // this via the load_native_libraries entitlement on the esql plugin.
+        "--enable-native-access=ALL-UNNAMED" }
+)
 public class SumIntAggregatorBenchmark {
 
     static final int BLOCK_LENGTH = 8 * 1024;

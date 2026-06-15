@@ -117,7 +117,9 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             splitPoint,
             end,
             p -> { if (lower.isDone()) onProgress(p); },
-            originalProgressConsumer == null ? null : p -> { if (lower.isDone()) originalProgressConsumer.accept(p); }
+            originalProgressConsumer == null ? null : p -> {
+                if (lower.isDone()) originalProgressConsumer.accept(p);
+            }
         );
 
         // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.

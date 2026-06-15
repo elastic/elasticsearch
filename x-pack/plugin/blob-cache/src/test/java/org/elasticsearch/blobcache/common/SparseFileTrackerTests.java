@@ -1151,10 +1151,6 @@ public class SparseFileTrackerTests extends ESTestCase {
 
         upperGap.onProgress(90L);
         assertTrue("listener at threshold 90 must have fired", listener90Fired.get());
-        assertThat(
-            "complete must advance to 90 when upper's listener fires after lower is done",
-            tracker.getComplete(),
-            equalTo(90L)
-        );
+        assertThat("complete must advance to 90 when upper's listener fires after lower is done", tracker.getComplete(), equalTo(90L));
     }
 }

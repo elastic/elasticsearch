@@ -11,14 +11,10 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -55,7 +51,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -66,6 +61,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IncrementalBulkIT extends ESIntegTestCase {
 
@@ -560,16 +556,29 @@ public class IncrementalBulkIT extends ESIntegTestCase {
     public void testCancellableIncrementBulkServiceHandler() throws Exception {
         ExecutorService executorService = Executors.newFixedThreadPool(1);
 
+        // Artificially low watermarks to force incrementalOperation.maybeSplit() always split batches.
+        final String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "1b")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1b")
+                .build()
+        );
+
+        String index = "test";
+        createIndex(
+            index,
+            Settings.builder()
+                .put("index.routing.allocation.require._name", nodeName)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
         try (Releasable ignored = executorService::shutdown) {
-            String index = "test";
-            createIndex(index);
-
             // Test Case 1: Cancel before the very first client.bulk()
-            // First handler.addItems() comes from test thread.
-            String randomNodeName = internalCluster().getRandomNodeName();
-            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, randomNodeName);
-
-            IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, randomNodeName);
+            IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
+            IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
 
             AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
@@ -613,40 +622,27 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             // Subsequent handler.addItems() should short circuit.
             ensureGreen(index);
 
-            IndicesStatsResponse response = indicesAdmin().prepareStats(index).get();
-            String primaryId = Stream.of(response.getShards())
-                .map(ShardStats::getShardRouting)
-                .filter(ShardRouting::primary)
-                .findAny()
-                .get()
-                .currentNodeId();
-            DiscoveryNodes nodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes();
-            String primaryName = nodes.get(primaryId).getName();
-
-            indexingPressure = internalCluster().getInstance(IndexingPressure.class, primaryName);
-            incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, primaryName);
-
-            TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
+            TransportService primaryService = internalCluster().getInstance(TransportService.class, nodeName);
             final MockTransportService primaryTransportService = (MockTransportService) primaryService;
             PlainActionFuture<BulkResponse> future2 = new PlainActionFuture<>();
-            TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
 
-            final CountDownLatch cancelled = new CountDownLatch(1);
-            final CountDownLatch reachedShard = new CountDownLatch(1);
+            final CountDownLatch readyForCancellation = new CountDownLatch(1);
+            final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
 
             IncrementalBulkService.Handler handler2 = incrementalBulkService.newBulkRequest();
 
-            IndexRequest notCancelled = indexRequest(index);
-            IndexRequest cancelledRequest = indexRequest(index);
-            IndexRequest cancelledLastItem = indexRequest(index);
+            IndexRequest notCancelled = indexRequest(index).id("not-cancelled");
+            IndexRequest cancelledFirstRequest = indexRequest(index).id("cancelled-first");
+            IndexRequest cancelledLastItem = indexRequest(index).id("cancelled-last");
 
             refCounted.incRef();
             handler2.addItems(List.of(notCancelled), refCounted::decRef, () -> {
-
+                // Verify child task banned.
                 primaryTransportService.addRequestHandlingBehavior(
                     TaskCancellationService.BAN_PARENT_ACTION_NAME,
                     (transportRequestHandler, request, channel, task) -> {
-                        System.out.println("cancelled zhubo");
+                        childTaskBanned.set(true);
                         transportRequestHandler.messageReceived(request, channel, task);
                     }
                 );
@@ -656,56 +652,52 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                     TransportShardBulkAction.ACTION_NAME + "[p]",
                     (transportRequestHandler, request, channel, task) -> {
                         assertThat(task, instanceOf(ReplicationTask.class));
-
-                        reachedShard.countDown();
-                        // cancelled.await();
-                        // Verify cancellation signal is propagated here.
-
-                        // assertThat(task.getParentTaskId().isEmpty(), is(false));
-
+                        readyForCancellation.countDown();
                         assertBusy(
                             () -> assertThat(taskManager.getCancellableTask(task.getParentTaskId().getId()).isCancelled(), is(true))
                         );
-
                         assertBusy(() -> assertThat(((ReplicationTask) task).isCancelled(), is(true)));
                         transportRequestHandler.messageReceived(request, channel, task);
                     }
                 );
 
                 refCounted.incRef();
-                handler2.addItems(List.of(cancelledRequest), refCounted::decRef, () -> {
+                handler2.addItems(List.of(cancelledFirstRequest), refCounted::decRef, () -> {
                     refCounted.incRef();
                     handler2.lastItems(List.of(cancelledLastItem), refCounted::decRef, future2);
                 });
+
                 try {
-                    reachedShard.await();
+                    readyForCancellation.await();
                 } catch (Exception e) {
                     fail(e, "did not reach shard");
                 }
 
                 handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
-                cancelled.countDown();
-
             });
 
-            try {
-                bulkResponse = future2.actionGet();
-            } catch (Exception e) {
-                assertThat(ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
-                System.out.println("something");
-            }
+            bulkResponse = future2.actionGet();
+            assertThat(childTaskBanned.get(), is(true));
+            assertThat(bulkResponse.getItems().length, is(3));
+            assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());
+            assertThat(bulkResponse.getItems()[0].isFailed(), is(false));
+            Throwable rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[1].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
 
-            IndexingPressureStats finalStats2 = indexingPressure.stats();
-            assertThat(finalStats2.getCurrentCoordinatingOps(), is(0L));
+            rootCause = ExceptionsHelper.unwrap(bulkResponse.getItems()[2].getFailure().getCause(), TaskCancelledException.class);
+            assertThat(rootCause, notNullValue());
+            assertThat(
+                rootCause.getMessage(),
+                is("task cancelled [after first additem() before second TransportShardBulkAction submit to write thread pool]")
+            );
 
             primaryTransportService.clearAllRules();
             handler2.close();
-
-            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
-            // TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
-
         }
-
     }
 
     private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {

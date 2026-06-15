@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -204,7 +205,6 @@ public class IncrementalBulkService {
         }
 
         public void cancel(String reason, Runnable listener) {
-            taskManager.cancel(bulkSessionTask, reason, listener);
             taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.noop());
         }
 
@@ -226,11 +226,7 @@ public class IncrementalBulkService {
 
             if (bulkActionLevelFailure != null
                 || bulkSessionTask.notifyIfCancelled(
-                    ActionListener.wrap(
-                        ignored -> {},
-                        // Cancellation is not global failure.
-                        exception -> handleBulkFailure(false, exception)
-                    )
+                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
                 )) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
@@ -277,11 +273,7 @@ public class IncrementalBulkService {
             assert bulkInProgress == false;
             if (bulkActionLevelFailure != null
                 || bulkSessionTask.notifyIfCancelled(
-                    ActionListener.wrap(
-                        ignored -> {},
-                        // Cancellation is not global failure.
-                        exception -> handleBulkFailure(false, exception)
-                    )
+                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
                 )) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
@@ -354,7 +346,8 @@ public class IncrementalBulkService {
 
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
             assert bulkActionLevelFailure == null;
-            globalFailure = isFirstRequest;
+            // Task cancellation is not a global failure.
+            globalFailure = isFirstRequest && e instanceof TaskCancelledException == false;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
             bulkRequest = null;

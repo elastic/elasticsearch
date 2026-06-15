@@ -217,10 +217,11 @@ public class LongLongBucketedSort implements Releasable {
             blocks[offset] = builder.build();
             try {
                 blocks[offset + 1] = extraBuilder.build();
-            } catch (Exception e) {
-                blocks[offset].close();
-                blocks[offset] = null;
-                throw e;
+            } finally {
+                if (blocks[offset + 1] == null) {
+                    blocks[offset].close();
+                    blocks[offset] = null;
+                }
             }
         }
     }

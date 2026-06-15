@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,6 +34,9 @@ import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -68,20 +72,30 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
     private MockResponse mockResponse = new MockResponse().setResponseCode(200)
         .addHeader("Content-Type", "application/foo")
         .setBody("This is the content");
-    private EmailServer server;
+    private static volatile EmailServer server;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @ClassRule
+    public static final ExternalResource emailServerSetup = new ExternalResource() {
+        @Override
+        protected void before() {
+            server = EmailServer.localhost(LogManager.getLogger(EmailAttachmentTests.class));
+        }
+
+        @Override
+        protected void after() {
+            server.stop();
+        }
+    };
+
+    @Before
+    public void startServers() throws Exception {
         webServer.enqueue(mockResponse);
         webServer.start();
-
-        server = EmailServer.localhost(logger);
     }
 
     @After
     public void cleanup() throws Exception {
-        server.stop();
+        server.clearListeners();
         webServer.close();
     }
 

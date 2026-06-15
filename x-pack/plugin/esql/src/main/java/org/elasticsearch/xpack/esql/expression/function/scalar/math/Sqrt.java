@@ -39,7 +39,7 @@ public class Sqrt extends UnaryScalarFunction {
         .example("sqrt(http_requests_total)")
         .name("sqrt");
 
-    @FunctionInfo(returnType = "double", description = """
+    @FunctionInfo(returnType = "double", briefSummary = "Returns the square root of a number.", description = """
         Returns the square root of a number. The input can be any numeric value, the return value is always a double.
         Square roots of negative numbers and infinities are null.""", examples = @Example(file = "math", tag = "sqrt"))
     public Sqrt(

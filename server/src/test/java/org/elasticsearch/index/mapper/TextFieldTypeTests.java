@@ -31,6 +31,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -766,6 +767,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
+    }
+
     public void testPrefixQueryDocValuesOnly() {
         // SortedSet DV, case-sensitive → PrefixQuery with DOC_VALUES_REWRITE
         TextFieldType ft = sortedSetDocValuesOnly();
@@ -871,6 +876,19 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             ee.getMessage(),
             equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
         );
+    }
+
+    public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        TextFieldType ft = sortedSetDocValuesOnly();
+        Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        TextFieldType binaryFt = binaryDocValuesOnly();
+        q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
     }
 
 }

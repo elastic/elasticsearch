@@ -133,10 +133,10 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
     private abstract static class NativeFloatScorer extends AbstractNativeScorer<float[]> {
         private final FloatVectorValues[] vectors = new FloatVectorValues[BULK_SIZE];
 
-        NativeFloatScorer(FloatVectorValues vectors) throws IOException{
+        NativeFloatScorer(FloatVectorValues vectors) throws IOException {
             super(vectors);
 
-            for (int i=0; i<BULK_SIZE; i++) {
+            for (int i = 0; i < BULK_SIZE; i++) {
                 this.vectors[i] = vectors.copy();
             }
         }
@@ -173,7 +173,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         NativeByteScorer(ByteVectorValues vectors) throws IOException {
             super(vectors);
 
-            for (int i=0; i<BULK_SIZE; i++) {
+            for (int i = 0; i < BULK_SIZE; i++) {
                 this.vectors[i] = vectors.copy();
             }
         }
@@ -188,7 +188,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         private final ByteVectorValues targetVectors;
         private byte[] target;
 
-        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException{
+        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
         }

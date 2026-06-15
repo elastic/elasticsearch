@@ -488,6 +488,21 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
         float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
         assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+    }
+
+    public void testSquareDistanceRangeByte() {
+        int vectorSize = randomIntBetween(64, 2048);
+        int offset = randomIntBetween(0, vectorSize - 1);
+        int length = randomIntBetween(1, vectorSize - offset);
+        byte[] a = randomByteArrayOfLength(vectorSize);
+        byte[] b = randomByteArrayOfLength(vectorSize);
+        float expected = defaultedProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        float actual = panamaProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
+        actual = nativeProvider.getVectorUtilSupport().squareDistance(a, b, offset, length);
+        assertEquals(expected, actual, 1e-3f * length);
     }
 
     public void testSquareDistanceBulkRange() {

@@ -43,6 +43,7 @@ public class Abs extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
+        briefSummary = "Returns the absolute value of a number.",
         description = "Returns the absolute value.",
         examples = { @Example(file = "math", tag = "abs"), @Example(file = "math", tag = "abs-employees") }
     )

@@ -545,9 +545,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonFormatSpecIT
   method: test {csv-spec:external-basic.inlineStatsMaxSalary [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/150791
-- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
-  method: testScoringWithMultipleChildren
-  issue: https://github.com/elastic/elasticsearch/issues/150813
 - class: org.elasticsearch.xpack.esql.qa.csv.ExternalCsvMultiNodePushdownIT
   method: testCountStarColdThenWarmShortCircuitsAcrossNodes
   issue: https://github.com/elastic/elasticsearch/issues/150594
@@ -584,12 +581,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/150884
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔and LIMIT 1}
-  issue: https://github.com/elastic/elasticsearch/issues/150897
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/52_esql_insist_operator_synthetic_source/FROM with INSIST_🐔}
-  issue: https://github.com/elastic/elasticsearch/issues/150898
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSeek
   issue: https://github.com/elastic/elasticsearch/issues/150912

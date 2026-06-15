@@ -60,11 +60,6 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
     private S3StallingHttpHandler s3StallingHttpHandler;
 
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(S3RepositoryPlugin.class, TestTelemetryPlugin.class);
     }

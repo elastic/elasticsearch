@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -653,7 +652,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = project.index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
-            List<DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
                 project::index,
                 nowSupplier
@@ -694,7 +693,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
-        List<DownsamplingRound> downsamplingRounds,
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
         DownsampleConfig.SamplingMethod downsamplingMethod,
         ProjectMetadata project
     ) {
@@ -702,11 +701,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
         Set<Index> affectedIndices = new HashSet<>();
-        DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+        DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
         Index index = backingIndex.getIndex();
         String indexName = index.getName();
-        for (DownsamplingRound round : downsamplingRounds) {
+        for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
@@ -747,7 +746,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
     private void downsampleIndexOnce(
-        DownsamplingRound round,
+        DataStreamLifecycle.DownsamplingRound round,
         DownsampleConfig.SamplingMethod requestedDownsamplingMethod,
         ProjectId projectId,
         IndexMetadata sourceIndexMetadata,
@@ -800,8 +799,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ProjectId projectId,
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
-        DownsamplingRound currentRound,
-        DownsamplingRound lastRound,
+        DataStreamLifecycle.DownsamplingRound currentRound,
+        DataStreamLifecycle.DownsamplingRound lastRound,
         DownsampleConfig.SamplingMethod downsamplingMethod,
         IndexMetadata backingIndex,
         Index downsampleIndex
@@ -1687,7 +1686,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
         // Indices can be downsampled, which makes them unable to accept new documents.
         if (lifecycle.downsamplingRounds() != null) {
-            for (DownsamplingRound round : lifecycle.downsamplingRounds()) {
+            for (DataStreamLifecycle.DownsamplingRound round : lifecycle.downsamplingRounds()) {
                 // The oldest the downsample round can happen is the after period minus the generation time.
                 long downsampleAfter = round.after().getMillis();
                 long oldestDownsamplePoint = oldestPossibleGenerationTime - downsampleAfter;

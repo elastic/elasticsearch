@@ -39,7 +39,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformServices;
 
 import java.time.Clock;
@@ -76,6 +74,24 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
 
 public class TransportGetCheckpointAction extends HandledTransportAction<Request, Response> {
+
+    /**
+     * Per-cluster result from a GetCheckpoint fan-out leg: at most one of {@code response} and
+     * {@code exception} is non-null.
+     */
+    private record ClusterCheckpointResult(Response response, Exception exception) {
+        ClusterCheckpointResult {
+            assert response == null || exception == null : "ClusterCheckpointResult cannot hold both a response and an exception";
+        }
+
+        ClusterCheckpointResult(Response response) {
+            this(response, null);
+        }
+
+        ClusterCheckpointResult(Exception exception) {
+            this(null, exception);
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(TransportGetCheckpointAction.class);
     private final ClusterService clusterService;
@@ -129,11 +145,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             });
         }
 
-        ActionListener<Map<String, Response>> mergeAndValidateListener = listener.delegateFailureAndWrap(
-            (l, responsesByCluster) -> validateAndMergeResponses(request, responsesByCluster, l)
-        );
-
-        fanOut(task, request, clusterState, remoteClusterIndices, mergeAndValidateListener);
+        fanOut(task, request, clusterState, remoteClusterIndices, listener);
     }
 
     private void fanOut(
@@ -141,23 +153,65 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         Request request,
         ClusterState clusterState,
         Map<String, OriginalIndices> remoteClusterIndices,
-        ActionListener<Map<String, Response>> listener
+        ActionListener<Response> listener
     ) {
         var localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
         // we only need the response's resolved indices if we are cross-project, otherwise we ignore it
         var includeResolvedIndexExpressions = crossProjectModeDecider.resolvesCrossProject(request);
 
-        ActionListener<Tuple<String, Response>> responsesByClusterListener;
-        var numClusters = remoteClusterIndices.size() + (localIndices != null ? 1 : 0);
-        if (numClusters > 1) {
-            responsesByClusterListener = new GroupedActionListener<>(
-                numClusters,
-                listener.map(responsesByCluster -> responsesByCluster.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)))
+        int numRemote = remoteClusterIndices.size();
+
+        if (numRemote == 0) {
+            // Only local indices; no fan-out needed.
+            assert localIndices != null;
+            resolveLocalCheckpoints(
+                task,
+                request,
+                clusterState,
+                localIndices,
+                includeResolvedIndexExpressions,
+                listener.delegateFailureAndWrap(
+                    (l, response) -> validateAndMergeResponses(
+                        request,
+                        Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response),
+                        Map.of(),
+                        l
+                    )
+                )
             );
-        } else {
-            responsesByClusterListener = listener.map(tuple -> Map.of(tuple.v1(), tuple.v2()));
+            return;
         }
+
+        // Multiple clusters: collect one ClusterCheckpointResult per leg. Failures are wrapped in the
+        // result rather than aborting the group (mirrors TransportSearchAction.collectRemoteResolvedIndices),
+        // then forwarded to CrossProjectIndexResolutionValidator. The local leg failure is fatal.
+        int numClusters = numRemote + (localIndices != null ? 1 : 0);
+        var groupedListener = new GroupedActionListener<Map.Entry<String, ClusterCheckpointResult>>(
+            numClusters,
+            listener.delegateFailureAndWrap((l, results) -> {
+                Map<String, Response> responsesByCluster = new HashMap<>(numClusters);
+                Map<String, Exception> remoteExceptions = new HashMap<>(numRemote);
+                Exception localErr = null;
+                for (var entry : results) {
+                    var result = entry.getValue();
+                    if (result.exception() != null) {
+                        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(entry.getKey())) {
+                            localErr = result.exception();
+                        } else {
+                            remoteExceptions.put(entry.getKey(), result.exception());
+                        }
+                    } else {
+                        responsesByCluster.put(entry.getKey(), result.response());
+                    }
+                }
+                if (localErr != null) {
+                    l.onFailure(localErr);
+                } else {
+                    validateAndMergeResponses(request, responsesByCluster, remoteExceptions, l);
+                }
+            })
+        );
 
         if (localIndices != null) {
             resolveLocalCheckpoints(
@@ -166,7 +220,12 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 clusterState,
                 localIndices,
                 includeResolvedIndexExpressions,
-                responsesByClusterListener.map(response -> Tuple.tuple(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, response))
+                ActionListener.wrap(
+                    response -> groupedListener.onResponse(
+                        Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ClusterCheckpointResult(response))
+                    ),
+                    e -> groupedListener.onResponse(Map.entry(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ClusterCheckpointResult(e)))
+                )
             );
         }
 
@@ -189,7 +248,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             remoteClusterClient.execute(
                 GetCheckpointAction.REMOTE_TYPE,
                 remoteRequest,
-                responsesByClusterListener.<Response>map(response -> Tuple.tuple(cluster, response))
+                ActionListener.wrap(
+                    response -> groupedListener.onResponse(Map.entry(cluster, new ClusterCheckpointResult(response))),
+                    e -> groupedListener.onResponse(Map.entry(cluster, new ClusterCheckpointResult(e)))
+                )
             );
         });
     }
@@ -203,7 +265,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         ActionListener<Response> listener
     ) {
         String[] concreteIndices;
-        if (crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+        if (includeResolvedIndexExpressions) {
             // For cross-project search, ResolvedIndexExpressions will have resolved our local indices already, and we will filter ones
             // that have successfully resolved before calling their shards. Any indices that did not successfully resolve are validated
             // when aggregated with all Response objects in validateAndMergeResponses().
@@ -255,6 +317,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     private void validateAndMergeResponses(
         Request request,
         Map<String, Response> responsesByCluster,
+        Map<String, Exception> remoteExceptions,
         ActionListener<Response> mergedResponseListener
     ) {
         // if we're calling cross-project, we have to validate all cross-project responses together with the local response
@@ -264,15 +327,15 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 .filter(entry -> RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(entry.getKey()) == false)
                 .filter(entry -> entry.getValue().resolvedIndexExpressions() != null)
                 .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().resolvedIndexExpressions()));
-            // GroupedActionListener is all-or-nothing: validateAndMergeResponses only runs
-            // when all remote calls succeed, so there are no remote exceptions to report.
-            // skip_unavailable clusters are excluded earlier by groupIndices.
+            // remoteExceptions carries per-cluster failures (e.g. connection errors for non-skip_unavailable projects).
+            // The validator decides whether these surface as 404/403 or are tolerated based on project routing and
+            // allow_no_indices. skip_unavailable clusters are excluded earlier by groupIndices and never appear here.
             var crossProjectException = CrossProjectIndexResolutionValidator.validate(
                 request.indicesOptions(),
                 request.getProjectRouting(),
                 request.getResolvedIndexExpressions(),
                 remoteResolvedExpressions,
-                Map.of()
+                remoteExceptions
             );
             if (crossProjectException != null) {
                 mergedResponseListener.onFailure(crossProjectException);
@@ -354,7 +417,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             null,
             null,
             false,
-            request.getCluster()
+            null  // clusterAlias: this request runs against the local TransportSearchShardsAction regardless of request.getCluster()
         );
         searchShardsRequest.setParentTask(parentTaskId);
         searchShardsRequest.setIncludeSkippedShardsInIterators(true);

@@ -84,7 +84,7 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
                 new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), true, SplitShardCountSummary.UNSET),
                 // SHARD_B_0 skipped on NODE_1 and NODE_2
                 new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), true, SplitShardCountSummary.UNSET)
-                // SHARD_A_1 and SHARD_B_1 absent from response on all nodes → kept everywhere
+            // SHARD_A_1 and SHARD_B_1 absent from response on all nodes → kept everywhere
             ),
             2,
             Set.of(),

@@ -225,6 +225,9 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
                 getProjectRouting(),
                 includeResolvedIndexExpressions
             );
+            // resolvedIndexExpressions is transient and not serialized in writeTo. For the same-JVM local leg
+            // this hands the SAF-populated field through directly. For serialized remote legs this is a no-op:
+            // the field arrives null on the remote node and is re-populated by that node's own security filter.
             rewritten.setResolvedIndexExpressions(getResolvedIndexExpressions());
             return rewritten;
         }

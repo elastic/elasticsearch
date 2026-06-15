@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
@@ -49,6 +50,10 @@ public class DatafeedJobBuilder {
     private final boolean remoteClusterClient;
     private final ClusterService clusterService;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    // Supplied lazily because the real serverless CloudCredentialManager is installed via SPI
+    // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
+    // here and silently strip the cloud token from the datafeed runner's field_caps probe.
+    private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -62,7 +67,8 @@ public class DatafeedJobBuilder {
         Supplier<Long> currentTimeSupplier,
         JobResultsPersister jobResultsPersister,
         Settings settings,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -76,6 +82,7 @@ public class DatafeedJobBuilder {
         this.ccsStabilizationFloorMs = CCS_STABILIZATION_FLOOR.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -175,6 +182,7 @@ public class DatafeedJobBuilder {
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,
+            cloudCredentialManagerSupplier.get(),
             effectiveDatafeedConfig,
             null,
             job,

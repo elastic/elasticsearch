@@ -1,12 +1,15 @@
-import { describe, expect, test } from "bun:test";
-import { toBuildkitePipeline } from "./buildkite";
-import { buildCommands } from "../commands";
-import {
+import { describe, expect, test } from "vitest";
+import { toBuildkitePipeline } from "./buildkite.ts";
+import { buildCommands } from "../commands.ts";
+import type {
   ClassifiedTest,
+  RunnableCommand,
+} from "../domain.ts";
+
+import {
   DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
-  RunnableCommand,
-} from "../domain";
+} from "../domain.ts";
 
 function pipelineFromTests(tests: ClassifiedTest[]) {
   return toBuildkitePipeline(
@@ -73,10 +76,14 @@ describe("toBuildkitePipeline end-to-end", () => {
     // Each parallel batch is independently wrapped under the inner timeout.
     expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
     expect(step.env!["BATCH_COMMAND_4"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
-    expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
-    // The `$$` escape prevents Buildkite pipeline interpolation from trying to
-    // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,
-    // which fails with "Expected identifier to start with a letter, got !".
+    // Both `$$` escapes defer interpolation past BK's pipeline-upload pass:
+    //   * BUILDKITE_PARALLEL_JOB is a per-job runtime var; if not escaped, BK
+    //     substitutes empty at upload time and the indirect lookup becomes a
+    //     no-op (the bug observed on build 150689).
+    //   * `${!VARNAME}` (bash indirect expansion) can't be parsed by BK as a
+    //     variable identifier because of the leading `!`.
+    expect(step.command).toContain('$${BUILDKITE_PARALLEL_JOB}');
+    expect(step.command).not.toMatch(/[^$]\$\{BUILDKITE_PARALLEL_JOB\}/);
     expect(step.command).toContain('$${!VARNAME}');
     expect(step.command).not.toMatch(/[^$]\$\{!VARNAME\}/);
 
@@ -199,11 +206,10 @@ describe("toBuildkitePipeline", () => {
     // No agents override — analyze inherits the parent pipeline's default
     // (which has npm). The gradle-tuned cfg.agents image does not.
     expect(analyze.agents).toBeUndefined();
-    expect(analyze.command).toContain("npm install -g bun@");
     expect(analyze.command).toContain(
       'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'
     );
-    expect(analyze.command).toContain("bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
+    expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Order: bun install → download → analyzer.
     const installIdx = analyze.command.indexOf("npm install");
     const downloadIdx = analyze.command.indexOf("artifact download");

@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -426,8 +427,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
-        // build a subquery tree starting from its source command (FROM or ROW),
-        // then fold any trailing processing commands on top of it
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
@@ -440,6 +439,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) {
         if (ctx.fromCommand() != null) {
             return visitFromCommand(ctx.fromCommand());
+        } else if (ctx.timeSeriesCommand() != null) {
+            return visitTimeSeriesCommand(ctx.timeSeriesCommand());
         } else {
             return visitRowCommand(ctx.rowCommand());
         }
@@ -1554,26 +1555,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
     }
 
-    private static LogicalPlan injectDocAttribute(Source source, LogicalPlan input) {
-        return input.transformDown(r -> {
-            if (r instanceof UnresolvedRelation unresolved) {
-                List<NamedExpression> metadataFields = unresolved.metadataFields();
-                for (NamedExpression field : metadataFields) {
-                    if (field.name().equals(MetadataAttribute.DOC)) {
-                        return r;
-                    }
-                }
-                return unresolved.addMetadataField(new MetadataAttribute(source, MetadataAttribute.DOC, DataType.DOC_DATA_TYPE, false));
-            }
-            return r;
-        });
-    }
-
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
         return input -> {
             Source source = source(ctx);
-            return new MetricsInfo(source, injectDocAttribute(source, input));
+            return new MetricsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, input));
         };
     }
 
@@ -1581,7 +1567,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
         return input -> {
             var source = source(ctx);
-            return new TsInfo(source, injectDocAttribute(source, input));
+            return new TsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, input));
         };
     }
 

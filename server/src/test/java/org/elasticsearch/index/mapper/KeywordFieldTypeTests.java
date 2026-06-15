@@ -104,6 +104,30 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
+    public void testTermQueryWithSingleValueDocValues() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
+            Settings.EMPTY
+        );
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", indexSettings);
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        builder.indexed(false);
+        KeywordFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            false
+        );
+        assertTermQueryWithBinaryDocValues(ft);
+    }
+
     public void testTermQueryHighCardinality() {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
         builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);

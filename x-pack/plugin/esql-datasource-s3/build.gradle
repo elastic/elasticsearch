@@ -13,7 +13,7 @@ esplugin {
   name = 'esql-datasource-s3'
   description = 'S3 storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.s3.S3DataSourcePlugin'
-  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons']
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-netty-commons', 'workload-identity']
 }
 
 base {
@@ -26,7 +26,15 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  
+  // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
+  // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
+  compileOnly project(':libs:arrow')
+
+  // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
+  compileOnly project(':modules:workload-identity:spi')
+  // Async, non-blocking STS AssumeRoleWithWebIdentity credentials provider for keyless auth.
+  implementation project(':libs:workload-identity-aws')
+
   // AWS SDK for S3 access - following repository-s3 pattern
   // Using explicit module declarations instead of bundle for better classloading
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
@@ -79,7 +87,12 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
   testImplementation project(':test:framework')
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':libs:arrow')
+  testImplementation project(xpackModule('esql:compute'))
+  // Workload-identity SPI types used by keyless-auth unit tests (compileOnly in main; tests need them on the classpath).
+  testImplementation project(':modules:workload-identity:spi')
   // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
   testImplementation project(':test:fixtures:s3-fixture')
   testImplementation project(':test:fixtures:aws-fixture-utils')
@@ -117,6 +130,16 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: 'url-connection-client',    to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
   mapping from: /netty-nio-client/,         to: 'aws-sdk-2'
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption later
+  // in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

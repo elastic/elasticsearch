@@ -49,6 +49,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -386,6 +387,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         multiProjectEnabled = Booleans.parseBoolean(System.getProperty("tests.multi_project.enabled", "false"));
     }
 
+    @Override
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
+        super.setUp();
+    }
+
+    @Override
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -705,7 +718,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
      * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
      * to filter out outstanding tasks that are expected to be there. In addition to the expected tasks that are defined by the filter we
-     * expect the list task to be there since it is created by the call and the health node task which is always running on the background.
+     * expect the list task to be there since it is created by the call, the health node task, and the index balance metrics task which are
+     * always running in the background.
      *
      * @param restClient the admin client
      * @param taskFilter  predicate used to filter tasks that are expected to be there
@@ -734,6 +748,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                             final String taskName = line.split("\\s+")[0];
                             if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
+                                || taskName.startsWith(IndexBalanceMetricsTaskExecutor.TASK_NAME)
                                 || taskName.startsWith(LEADER_CHECK_ACTION_NAME)
                                 || taskName.startsWith(FOLLOWER_CHECK_ACTION_NAME)
                                 || taskFilter.test(taskName)) {

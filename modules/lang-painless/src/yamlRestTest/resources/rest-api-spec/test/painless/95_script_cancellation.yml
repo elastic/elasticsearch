@@ -2164,3 +2164,360 @@
               field: rt_field.count
   - is_true: timed_out
 
+
+---
+"Search timeout aborts a long-running each augmentation loop":
+  - do:
+      indices.create:
+        index: test_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware `each` augmentation drives the iteration itself; the cancellation poll injected
+  # into the augmentation must honor the search timeout even though the script body has no loop. A
+  # short build loop fills a small list, then nested each() iterates ~1e9 times until the 100ms
+  # timeout cancels it.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 1000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> a.each(z -> z.hashCode())));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running def each augmentation loop":
+  - do:
+      indices.create:
+        index: test_def_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_def_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # Same as above but the receiver is def-typed, so each() is dispatched dynamically through
+  # Def.lookupMethod, which must still route the call through the script-aware overload and poll.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_def_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  def a = new ArrayList();
+                  for (int i = 0; i < 1000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> a.each(z -> z.hashCode())));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a nested each-in-each augmentation loop":
+  - do:
+      indices.create:
+        index: test_nested_each_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_nested_each_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # An each() whose consumer runs another each(): the cancellation poll must propagate into the
+  # inner augmentation's driver loop too. Two levels over a ~50k list (~2.5e9 iterations) outlast
+  # the 100ms timeout, which must cancel without any user-written loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_nested_each_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.each(y -> y.hashCode()));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running Iterable findResults augmentation loop":
+  - do:
+      indices.create:
+        index: test_iterable_findresults_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_iterable_findresults_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Iterable.findResults drives the iteration itself; the cancellation poll injected
+  # into the augmentation must honour the search timeout even though the script body has no loop.
+  # An outer each() over a small list invokes a nested findResults that maps each element, totalling
+  # ~2.5e9 iterations until the 100 ms timeout cancels it.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_iterable_findresults_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.findResults(y -> y.toString()));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running Collection findAll augmentation loop":
+  - do:
+      indices.create:
+        index: test_collection_findall_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_collection_findall_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Collection.findAll drives the iteration itself. Nested calls inside each
+  # multiply the iteration count well past the timeout budget; the cancellation poll inside findAll
+  # must fire so the 100 ms timeout cancels even though the script body has no loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_collection_findall_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.findAll(y -> y < x));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running Map findAll augmentation loop":
+  - do:
+      indices.create:
+        index: test_map_findall_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_map_findall_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Map.findAll drives the iteration itself. An outer each() over the map entries
+  # invokes nested findAll calls; the cancellation poll inside findAll must fire so the 100 ms
+  # timeout cancels even though the script body has no loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_map_findall_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  Map m = new HashMap();
+                  for (int i = 0; i < 50000; i++) { m.put(i, i); }
+                  m.each((k, v) -> m.findAll((k2, v2) -> k2 < k));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running removeIf augmentation loop":
+  - do:
+      indices.create:
+        index: test_removeif_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_removeif_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Collection.removeIf drives the iteration itself. An outer each() over a list
+  # invokes a nested removeIf with an always-false predicate so the inner list size is preserved;
+  # the cancellation poll inside removeIf must fire so the 100 ms timeout cancels even though the
+  # script body has no loop.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_removeif_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  List b = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { b.add(i); }
+                  a.each(x -> b.removeIf(y -> false));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running Stream forEach augmentation loop":
+  - do:
+      indices.create:
+        index: test_stream_foreach_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_stream_foreach_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware Stream.forEach drives the JDK terminal-op pipeline; the wrapping Consumer
+  # polls once per element so a long iteration honours the search timeout.  Build a 50k list once,
+  # then run stream().forEach() inside an outer for loop ~1000 times so the total per-element
+  # polling adds up past the 100 ms budget.  (Nesting forEach as a lambda body is rejected by
+  # Painless because Stream.forEach returns void and a Consumer lambda's body must produce a value.)
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_stream_foreach_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  for (int j = 0; j < 1000; j++) { a.stream().forEach(y -> y.toString()); }
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running IntStream reduce augmentation loop":
+  - do:
+      indices.create:
+        index: test_intstream_reduce_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_intstream_reduce_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The @script_aware IntStream.reduce wraps its IntBinaryOperator to poll per element so the
+  # 100 ms timeout cancels even a long-running reduce.  Nested each() over a 50k list invokes
+  # stream().mapToInt().reduce() on the same list; the outer each lambda body returns the int
+  # result of reduce (non-void), so Painless's lambda value requirement is satisfied.
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_intstream_reduce_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  List a = new ArrayList();
+                  for (int i = 0; i < 50000; i++) { a.add(i); }
+                  a.each(x -> a.stream().mapToInt(y -> y).reduce(0, (m, n) -> m + n));
+                  return true;
+  - is_true: timed_out
+
+---
+"Search timeout aborts a long-running String.replace augmentation loop":
+  - do:
+      indices.create:
+        index: test_replace_augmentation_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_replace_augmentation_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  # The malicious pattern: repeatedly replacing into a growing string. String.replace is now the
+  # @script_aware augmentation, so its O(length) work advances the script's cancellation budget and the
+  # 100ms timeout cancels it even though the loop count stays under maxLoopCounter (999999 < 1e6).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_replace_augmentation_timeout
+        timeout: 100ms
+        body:
+          query:
+            script:
+              script:
+                source: |
+                  String s = 'AAAAAAA';
+                  for (int i = 0; i < 999999; i++) { s = s.replace('A', 'AB'); }
+                  return s.length() > 0;
+  - is_true: timed_out
+

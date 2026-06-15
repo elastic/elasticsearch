@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -65,11 +66,26 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
+    /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
+    @Nullable
+    private final DataSourceCredentials credentials;
     private volatile int maxConcurrentRequests;
     private volatile int throttleMaxRetryDurationSeconds;
+    /** Schedules async read-retry continuations off a timer; {@code DIRECT} (no ThreadPool) in tests. */
+    private final RetryScheduler retryScheduler;
 
     public StorageProviderRegistry(Settings settings) {
+        this(settings, null, RetryScheduler.DIRECT);
+    }
+
+    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
+        this(settings, credentials, RetryScheduler.DIRECT);
+    }
+
+    public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials, RetryScheduler retryScheduler) {
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.credentials = credentials;
+        this.retryScheduler = retryScheduler != null ? retryScheduler : RetryScheduler.DIRECT;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
     }
@@ -129,6 +145,12 @@ public class StorageProviderRegistry implements Closeable {
     public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
+        // Flatten the _datasource sub-map and decrypt any encrypted secrets here, so every provider
+        // construction path gets plaintext credentials regardless of how it assembled its config.
+        config = ExternalSourceResolver.storageConfig(config);
+        if (credentials != null) {
+            config = credentials.decryptInPlace(config);
+        }
         Map<String, Object> storageConfig = stripFrameworkKeys(config);
         if (storageConfig == null || storageConfig.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
@@ -197,7 +219,7 @@ public class StorageProviderRegistry implements Closeable {
         AdaptiveBackoff backoff = backoffForScheme(scheme);
         RetryPolicy retryPolicy = buildRetryPolicy(backoff);
         StorageProvider limited = new ConcurrencyLimitedStorageProvider(provider, limiter);
-        return new RetryableStorageProvider(limited, retryPolicy);
+        return new RetryableStorageProvider(limited, retryPolicy, retryScheduler);
     }
 
     /**

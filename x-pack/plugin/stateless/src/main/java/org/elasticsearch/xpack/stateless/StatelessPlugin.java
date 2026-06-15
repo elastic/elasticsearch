@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
@@ -2022,7 +2024,32 @@ public class StatelessPlugin extends Plugin
         @Override
         public boolean test(ShardId shardId) {
             IndexShard indexShard = indicesService.getShardOrNull(shardId);
-            return indexShard == null || indexShard.routingEntry().relocating();
+            if (indexShard == null || indexShard.routingEntry().relocating()) {
+                return true;
+            }
+            return isReshardingWithTargetInClone(indexShard);
+        }
+
+        // We want to avoid merges on the source shard during the HANDOFF phase of resharding.
+        // During this phase, the target shard is in CLONE state and source is copying commits to
+        // target shard. After acquiring all indexing permits on the source shard, a final (second) FLUSH
+        // on the source shard can take a long time to copy commits, if there have been large merges in the
+        // background. See SplitSourceService.
+        private static boolean isReshardingWithTargetInClone(IndexShard indexShard) {
+            IndexReshardingMetadata reshardingMetadata = indexShard.indexSettings().getIndexMetadata().getReshardingMetadata();
+            if (reshardingMetadata == null || reshardingMetadata.isSplit() == false) {
+                return false;
+            }
+            IndexReshardingState.Split split = reshardingMetadata.getSplit();
+            int shardNum = indexShard.shardId().id();
+            if (split.isSourceShard(shardNum)) {
+                if (split.getSourceShardState(shardNum) != IndexReshardingState.Split.SourceShardState.SOURCE) {
+                    return false;
+                }
+                // Skip while any target for this source is still in CLONE
+                return split.allTargetStatesAtLeast(shardNum, IndexReshardingState.Split.TargetShardState.HANDOFF) == false;
+            }
+            return false;
         }
     }
 

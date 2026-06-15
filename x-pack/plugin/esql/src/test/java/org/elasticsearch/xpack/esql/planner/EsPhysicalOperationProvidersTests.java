@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -297,6 +298,27 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertThat("other_field must be excluded", result.containsKey("other_field"), equalTo(false));
         assertThat("embedding must be excluded", result.containsKey("embedding"), equalTo(false));
         assertThat("exactly 2 fields survive", result.size(), equalTo(2));
+    }
+
+    public void testBuildSourceFilterWithTooComplexPatternsThrowsIllegalArgument() throws IOException {
+        var indexSettings = Settings.builder().put("index.mapping.exclude_source_vectors", true).build();
+        var mapperService = createMapperService(indexSettings, mapping(b -> {
+            b.startObject("text_field").field("type", "text").endObject();
+            b.startObject("embedding").field("type", "dense_vector").field("dims", 3).endObject();
+        }));
+        var searchExecutionContext = createSearchExecutionContext(mapperService, null);
+
+        Set<String> complexPaths = new HashSet<>();
+        for (int i = 0; i < 50; i++) {
+            complexPaths.add("*" + randomAlphaOfLength(10) + "*");
+        }
+
+        var mappingLookup = searchExecutionContext.getMappingLookup();
+        var idxSettings = searchExecutionContext.getIndexSettings();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> EsPhysicalOperationProviders.DefaultShardContext.buildSourceFilter(complexPaths, mappingLookup, idxSettings)
+        );
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter temporalityLoader(EsPhysicalOperationProviders provider) {

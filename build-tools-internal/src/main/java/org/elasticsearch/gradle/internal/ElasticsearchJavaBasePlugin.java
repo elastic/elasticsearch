@@ -140,18 +140,17 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private static void configureNativeLibraryPath(Project project) {
         String nativeProject = ":libs:native:native-libraries";
-        // Gradle 9.x requires explicit configuration roles: a configuration created via
-        // `configurations.create(name)` is no longer implicitly resolvable. We declare this one as
+        // Gradle 9.x requires explicit configuration roles. We declare this configuration as
         // resolvable because we feed its resolved files into `es.nativelibs.path` below via `getAsPath()`.
-        Configuration nativeConfig = project.getConfigurations().resolvable("nativeLibs", c -> {
-            c.defaultDependencies(deps -> {
-                // Request the dedicated `nativeLibs` consumable variant explicitly. We intentionally do not
-                // rely on the `default` configuration of `:libs:native:native-libraries`: if any plugin (e.g.
-                // `elasticsearch.build`) ends up applied to that project, `default` is silently rebound to the
-                // Java runtime variant, which would corrupt `es.nativelibs.path` for every test JVM.
-                deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")));
-            });
-        }).get();
+        // Note that `defaultDependencies(…)` is only permitted on dependency-scope configurations under
+        // 9.x role semantics, so we add the project dependency directly to this resolvable configuration
+        // instead. We intentionally request the producer's dedicated `nativeLibs` consumable variant by
+        // name rather than relying on the `default` configuration of `:libs:native:native-libraries`:
+        // if any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
+        // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
+        Configuration nativeConfig = project.getConfigurations().resolvable("nativeLibs").get();
+        project.getDependencies()
+            .add("nativeLibs", project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")));
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection nativeConfigFiles = nativeConfig;
 

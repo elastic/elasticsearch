@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -108,6 +110,21 @@ public final class PromqlAttributesTranslationContext {
     private static final List<Attribute> ALL = null;
 
     /**
+     * The <b>scalar</b> sentinel: a subtree that exposes no series identity at all (a literal/scalar, or a bare {@code NONE}
+     * aggregate that collapses every series into one). Like {@code T} it is "top" for the set operations - a {@code BY}
+     * stacked on top keeps its declared keys ({@code intersect} returns them) - but unlike {@code T} it must <b>not</b>
+     * materialise a {@code _timeseries} grouping. Distinguishing it from {@code T} is what lets an empty {@code without ()}
+     * (which retains the full label set {@code T}) be told apart from {@code none()} (which retains nothing). It is a unique
+     * instance compared by identity; no finite list ever equals it.
+     */
+    private static final List<Attribute> SCALAR = Collections.unmodifiableList(new ArrayList<>());
+
+    /** Whether {@code set} is one of the two "top" sentinels ({@code T} or scalar) rather than a finite, enumerable set. */
+    private static boolean isTop(List<Attribute> set) {
+        return set == ALL || set == SCALAR;
+    }
+
+    /**
      * The <b>inherited</b> attribute: the scope a subtree must preserve, threaded down the aggregate chain. An
      * {@code InheritedAttributes} is produced by {@link #unconstrained()} above the outermost aggregate and narrowed by each
      * aggregate before being handed to its child. The leaf selector ends the descent with {@link #reflect()}.
@@ -129,9 +146,15 @@ public final class PromqlAttributesTranslationContext {
             return new InheritedAttributes(ALL, List.of());
         }
 
-        /** {@code BY(W)}: only {@code W} stays in scope; accumulated exclusions are carried through unchanged. */
+        /**
+         * {@code BY(W)}: only {@code W} stays in scope, and the accumulated exclusions are <b>cleared</b>. A {@code BY}
+         * fixes its subtree's output to concrete keys, so any outer {@code WITHOUT} applies over those concrete labels
+         * (handled by the outer aggregate), not as a leaf {@code _timeseries} exclusion. Carrying the outer exclusions
+         * past a {@code BY} would wrongly inject a {@code _timeseries} into the inner concrete aggregate, making it group
+         * by {@code identity \ excluded} instead of {@code W} and leaking every other label.
+         */
         public InheritedAttributes including(List<Attribute> attributes) {
-            return new InheritedAttributes(canonicalizeByFieldName(attributes), accumulatedExclusions);
+            return new InheritedAttributes(canonicalizeByFieldName(attributes), List.of());
         }
 
         /** {@code WITHOUT(E)}: {@code E} drops out of scope ({@code G \ E}) and joins the accumulated exclusions. */
@@ -180,11 +203,12 @@ public final class PromqlAttributesTranslationContext {
         }
 
         /**
-         * The shape of a subtree that exposes no specific grouping (a literal selector, a scalar). It carries the full
-         * set {@code T} so that a {@code BY} stacked directly on top keeps its declared keys.
+         * The shape of a subtree that exposes no specific grouping (a literal selector, a scalar, a bare {@code NONE}
+         * aggregate). It carries the {@code SCALAR} sentinel: top-like for set operations (so a {@code BY} stacked directly
+         * on top keeps its declared keys) but, unlike {@code T}, it does not materialise a {@code _timeseries} grouping.
          */
         public static SynthesizedAttributes none() {
-            return new SynthesizedAttributes(ALL, List.of(), List.of());
+            return new SynthesizedAttributes(SCALAR, List.of(), List.of());
         }
 
         /** A shape built directly from a known label set, e.g., a bare selector's output. */
@@ -263,6 +287,14 @@ public final class PromqlAttributesTranslationContext {
         private ResolvedAttributes translateAgainst(List<Attribute> available, List<Attribute> excludedDimensions) {
             List<Attribute> projected = projected();
             Attribute ts = findByFieldName(available, MetadataAttribute.TIMESERIES);
+            // Grouping by the full runtime label set T (a WITHOUT, including the empty `without ()`) is the opaque
+            // `_timeseries` identity. When the available columns don't already carry one, surface a `_timeseries`
+            // grouping key here so the plan builder lowers it like any other `_timeseries` - its (possibly empty)
+            // exclusion set comes from excludedDimensions. The scalar sentinel deliberately does not match: a
+            // scalar/NONE collapse must NOT carry a `_timeseries`.
+            if (ts == null && projected == ALL) {
+                ts = FieldAttribute.timeSeriesAttribute(Source.EMPTY);
+            }
             List<Attribute> resolved = resolveAgainst(projected, available);
             List<Attribute> missing = asList(minus(projected, resolved));
 
@@ -331,7 +363,7 @@ public final class PromqlAttributesTranslationContext {
      * stored, so the algebra below can assume its inputs are already duplicate-free.
      */
     private static List<Attribute> canonicalizeByFieldName(List<Attribute> labels) {
-        assert labels != ALL : "canonicalizeByFieldName expects a finite list, not T";
+        assert isTop(labels) == false : "canonicalizeByFieldName expects a finite list, not a top sentinel";
         List<Attribute> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Attribute attr : labels) {
@@ -344,7 +376,7 @@ public final class PromqlAttributesTranslationContext {
 
     /** {@code a | b} by field name, order-preserving ({@code a} first). Both operands are finite. */
     static List<Attribute> union(List<Attribute> a, List<Attribute> b) {
-        assert a != ALL && b != ALL : "union expects finite operands, not T";
+        assert isTop(a) == false && isTop(b) == false : "union expects finite operands, not a top sentinel";
         List<Attribute> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (Attribute attr : a) {
@@ -360,21 +392,21 @@ public final class PromqlAttributesTranslationContext {
         return result;
     }
 
-    /** {@code a & b}. {@code a} may be {@code T} (then the result is exactly {@code b}); {@code b} is finite. */
+    /** {@code a & b}. {@code a} may be a top sentinel ({@code T} or scalar; then the result is exactly {@code b}); {@code b} is finite. */
     private static List<Attribute> intersect(List<Attribute> a, List<Attribute> b) {
-        assert b != ALL : "intersect expects a finite right operand, not T";
-        if (a == ALL) {
+        assert isTop(b) == false : "intersect expects a finite right operand, not a top sentinel";
+        if (isTop(a)) {
             return new ArrayList<>(b);
         }
         Set<String> names = fieldNames(b);
         return filter(a, attr -> names.contains(fieldName(attr)));
     }
 
-    /** {@code a \ b}. {@code a} may be {@code T} ({@code T} minus a finite set stays {@code T}); {@code b} is finite. */
+    /** {@code a \ b}. {@code a} may be a top sentinel (top minus a finite set stays that same sentinel); {@code b} is finite. */
     private static List<Attribute> minus(List<Attribute> a, List<Attribute> b) {
-        assert b != ALL : "minus expects a finite right operand, not T";
-        if (a == ALL) {
-            return ALL;
+        assert isTop(b) == false : "minus expects a finite right operand, not a top sentinel";
+        if (isTop(a)) {
+            return a;
         }
         Set<String> names = fieldNames(b);
         return filter(a, attr -> names.contains(fieldName(attr)) == false);
@@ -387,7 +419,7 @@ public final class PromqlAttributesTranslationContext {
      * {@code available} sharing its field name, dropping entries with no match.
      */
     private static List<Attribute> resolveAgainst(List<Attribute> set, List<Attribute> available) {
-        if (set == ALL) {
+        if (isTop(set)) {
             return List.of();
         }
         if (available == ALL) {
@@ -409,7 +441,7 @@ public final class PromqlAttributesTranslationContext {
 
     /** The member with this field name, or {@code null} (always {@code null} for {@code T}). */
     static Attribute findByFieldName(List<Attribute> set, String name) {
-        if (set == ALL) {
+        if (isTop(set)) {
             return null;
         }
         for (Attribute attr : set) {
@@ -420,9 +452,9 @@ public final class PromqlAttributesTranslationContext {
         return null;
     }
 
-    /** The concrete members, or the empty list for {@code T}. */
+    /** The concrete members, or the empty list for a top sentinel ({@code T} or scalar). */
     private static List<Attribute> asList(List<Attribute> set) {
-        return set == ALL ? List.of() : set;
+        return isTop(set) ? List.of() : set;
     }
 
     private static Set<String> fieldNames(List<Attribute> set) {

@@ -216,10 +216,10 @@ required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
 | SORT result;
 
-result:double | step:datetime            | _timeseries:keyword
-15.875        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
-18.625        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
-26.5          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | cluster:keyword | region:keyword
+15.875        | 2024-05-10T01:00:00.000Z | staging         | us
+18.625        | 2024-05-10T01:00:00.000Z | prod            | [eu, us]
+26.5          | 2024-05-10T01:00:00.000Z | qa              | null
 ;
 
 

@@ -710,6 +710,8 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         // exclusions).
         var translation = synthesizedAttributes.translateLeaf(pathExclusions);
 
+        // Empty `without ()` retains the full label set T: translateLeaf surfaces a `_timeseries` grouping key for it
+        // (with an empty exclusion set), so hasTSGrouping already covers it - no separate full-label-set signal needed.
         boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || translation.excludedDimensions().isEmpty() == false;
         // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner
         // TimeSeriesAggregateFunctions (e.g. LastOverTime) with references to phase-1 results.
@@ -732,7 +734,16 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(ctx.stepAttr());
 
         if (needsTimeSeriesGrouping) {
-            var function = new TimeSeriesWithout(source, new ArrayList<>(new ArrayList<Expression>(translation.excludedDimensions())));
+            // Resolve each excluded label to the concrete dimension column the child exposes, so the exclusion names
+            // match the backing dimension fields the `_timeseries` block loader enumerates: PromQL `pod` must become the
+            // stored dimension `labels.pod` for Prometheus passthrough data, otherwise the bare key never matches and
+            // the label leaks into the output. A label absent from the child stays unresolved and is simply a no-op.
+            List<Expression> excluded = new ArrayList<>(translation.excludedDimensions().size());
+            for (Attribute label : translation.excludedDimensions()) {
+                Attribute resolved = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(label));
+                excluded.add(resolved != null ? resolved : label);
+            }
+            var function = new TimeSeriesWithout(source, excluded);
             var expression = function.createNamedExpression();
             groupings.add(expression);
             aggregates.add(expression.toAttribute());
@@ -773,7 +784,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         var translation = labels.translate(plan.output());
 
-        if (labels.hasExclusions() && hasTSGrouping(translation.groupings())) {
+        if (labels.hasExclusions()) {
+            // A WITHOUT regroup (whether the child exposes `_timeseries` or only concrete labels) must pack its carried
+            // dimensions before aggregating: a multi-valued dimension would otherwise split the row and double-count.
             // Pack all carried dimensions before the aggregate to prevent multi-valued splitting,
             // then Unpack after. This covers keys (_timeseries or concrete), attributes (labels
             // to pass through), and missing labels (null-synthesized for BY over WITHOUT).

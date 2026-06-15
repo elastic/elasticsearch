@@ -936,10 +936,59 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
     }
 
+    /** {@code PrimitiveIterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-int-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongPrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-long-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code PrimitiveIterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoublePrimitiveIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x);"),
+            "cancelled-double-primitiveiterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfInt.forEachRemaining} visits every element and must poll. */
+    public void testIntSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-int-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfLong.forEachRemaining} visits every element and must poll. */
+    public void testLongSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-long-spliterator-foreachremaining"
+        );
+    }
+
+    /** {@code Spliterator.OfDouble.forEachRemaining} visits every element and must poll. */
+    public void testDoubleSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"),
+            "cancelled-double-spliterator-foreachremaining"
+        );
+    }
+
     /**
      * Each new native-wrapper script-aware augmentation must take the no-poll fast path when the
-     * script has no cancellation check installed.  Exercises all seven native wrappers (Iterable,
-     * Collection, Iterator, List, Map x2, Spliterator) in one script execution.
+     * script has no cancellation check installed.  Exercises all native wrappers (Iterable,
+     * Collection, Iterator, List, Map x2, Spliterator, and the six primitive iterator/spliterator
+     * variants) in one script execution.
      */
     public void testNativeWrapperAugmentationsNoRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileFillThen(
@@ -950,7 +999,13 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.replaceAll(x -> x); "
                 + "Map m = newMap(); m.forEach((k, v) -> v.toString()); "
                 + "Map m2 = newMap(); m2.replaceAll((k, v) -> v); "
-                + "big.spliterator().forEachRemaining(x -> x.toString());"
+                + "big.spliterator().forEachRemaining(x -> x.toString()); "
+                + "big.stream().mapToInt(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).iterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToInt(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToLong(x -> x).spliterator().forEachRemaining(x -> x); "
+                + "big.stream().mapToDouble(x -> x).spliterator().forEachRemaining(x -> x);"
         );
         // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
         script.execute();

@@ -754,7 +754,7 @@ public class MetadataDataStreamsService {
                 return backingIndex;
             }
         }
-        throw new IllegalArgumentException("index [" + indexName + "] not found");
+        throw new IllegalArgumentException("index [" + indexName + "] not found in data stream [" + dataStreamName + "]");
     }
 
     private static DataStream validateDataStream(ProjectMetadata project, String dataStreamName) {

@@ -135,6 +135,10 @@ setup:
 ---
 "Test case-insensitive regexp query on sorted-set doc-values-only keyword field":
 
+  - requires:
+      cluster_features: ["mapper.keyword.doc_values_case_insensitive_regexp"]
+      reason: "case-insensitive regexp on doc-values-only keyword fields requires mapper.keyword.doc_values_case_insensitive_regexp"
+
   - do:
       search:
         index: test_kw_dv_low
@@ -190,6 +194,10 @@ setup:
 
 ---
 "Test case-insensitive regexp query on binary doc-values-only keyword field":
+
+  - requires:
+      cluster_features: ["mapper.keyword.doc_values_case_insensitive_regexp"]
+      reason: "case-insensitive regexp on doc-values-only keyword fields requires mapper.keyword.doc_values_case_insensitive_regexp"
 
   - do:
       search:

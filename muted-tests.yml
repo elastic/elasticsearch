@@ -683,3 +683,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indexes, convert client_ip and group by something invalid}
   issue: https://github.com/elastic/elasticsearch/issues/151263
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load single index ip_long and aggregate client_ip my message}
+  issue: https://github.com/elastic/elasticsearch/issues/151264

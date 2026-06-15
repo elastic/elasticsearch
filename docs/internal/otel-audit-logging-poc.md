@@ -25,6 +25,7 @@ References for the requirements below:
 - **elasticsearch-team#2170**: tracking issue for audit-in-serverless work; the issue body itself is a one-line pointer to the `#log-delivery-project-team` Slack channel where the work is being discussed. [GitHub](https://github.com/elastic/elasticsearch-team/issues/2170).
 - **Customer-facing audit log configuration TDD**: *TDD — Customer-facing audit log configuration in Serverless* (Julio Camarero). [Google Doc](https://docs.google.com/document/d/1M9Uzq6M8s3R6cfKMdJcoIkgswbADQbbANnS40anbb3E/edit). Covers how customers configure audit logging (and other log streams) in serverless: Project API shape, cross-app consistency between ES and Kibana, and the structural relationship between per-setting plumbing and a framework-level solution. See also [§4.15](#sec-4-15) and [§5.5](#sec-5-5).
 - **TRACING.md**: *Tracing in Elasticsearch* (inline ES doc). [GitHub](https://github.com/elastic/elasticsearch/blob/b037081bb93f8e9466438980c4855fd740a38a79/TRACING.md). Documents the existing OTel tracing infrastructure in ES — the `tracing` package abstraction, the APM agent, and telemetry configuration (including the optional auth credentials `telemetry.secret_token` / `telemetry.api_key`). Background context for the `modules/apm/` module this work extends.
+- **OTel SDK settings proposal**: *Review telemetry settings and flags* (Matteo Mazzola). [Google Doc](https://docs.google.com/document/d/1Zn8X01m_mgFwvo8rOsomMoyNVm7Hq7IwKJq09ljXyME/edit). Proposes the final `telemetry.*` setting namespace — dropping the `otel` infix, unifying per-signal prefixes (`telemetry.metrics.*`, `telemetry.tracing.*`, `telemetry.logs.*`), and adding shared export settings under `telemetry.export.*`. Directly affects §4.9 and §4.10.
 
 Each requirement below has a status of *Satisfied*, *Partially satisfied*, or *Gap*. The status line points to [§3](#sec-3) evidence or [§4](#sec-4) gap analysis.
 
@@ -98,7 +99,7 @@ Source: Gateway TDD §"Unavailability issues mitigation" point 1: *"In case of c
 
 *Gap ([§4](#sec-4)).*
 
-ES must not emit OTel audit records when audit logging is disabled for the cluster. Filtering must happen in ES before the OTel emit, not downstream in the gateway or MOTel. For project-per-cluster, this reduces to a cluster-level `telemetry.otel.logs.enabled` toggle; see [§4.8](#sec-4-8). Multi-project per-project filtering rationale and design are in [Appendix C](#sec-appendix-c).
+ES must not emit OTel audit records when audit logging is disabled for the cluster. Filtering must happen in ES before the OTel emit, not downstream in the gateway or MOTel. For project-per-cluster, this reduces to a cluster-level `telemetry.logs.enabled` toggle; see [§4.8](#sec-4-8). Multi-project per-project filtering rationale and design are in [Appendix C](#sec-appendix-c).
 
 **Customer toggle**: `_cluster/settings` is permanently off the table in serverless (Ryan Ernst, Mark Vieira; see [§4.15](#sec-4-15)). Customers turn audit on/off per project via the Control Plane's Project API (`PATCH /api/v1/serverless/projects/<type>/{id}`), which is already wired up for audit-logging enablement today. The signal reaches ES via file-based settings. In a project-per-cluster deployment, R8 reduces to a cluster-level dynamic delivery toggle; see [§4.9](#sec-4-9).
 
@@ -130,9 +131,9 @@ Source: Gateway TDD §"Reliability & throughput" + §"Unavailability issues miti
 
 *Gap ([§4](#sec-4)).*
 
-Toggling audit logging must take effect without a restart. The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup, so toggling it requires a restart today.
+Toggling audit logging must take effect without a restart. The PoC reads `telemetry.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup, so toggling it requires a restart today.
 
-Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.otel.logs.enabled`. (The R6 `emit_*` settings are already `Property.Dynamic`; toggling them on serverless requires no extra work.)
+Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.logs.enabled`. (The R6 `emit_*` settings are already `Property.Dynamic`; toggling them on serverless requires no extra work.)
 
 ### <a id="sec-2-13"></a>2.13 R13: Retry-policy and buffer-size targets
 
@@ -150,7 +151,7 @@ These concerns belong to other tracks.
 
 - **The existing `audit_rolling` file appender is unchanged.** Customers consuming `<cluster>_audit.json` with Filebeat keep doing so. Making `audit_rolling` non-blocking is also out of scope.
 - **Non-audit ES log streams** (server, deprecation, slowlog, ESQL). Tracked under ES-13255.
-- **Cluster-level dynamic enable/disable of `xpack.security.audit.enabled`** (Audit TDD Req 1; in flight via [PR 147333](https://github.com/elastic/elasticsearch/pull/147333)). The corresponding work for `telemetry.otel.logs.enabled` is ours; see [§4.9](#sec-4-9). Multi-project per-project granularity is deferred; see [Appendix C](#sec-appendix-c).
+- **Cluster-level dynamic enable/disable of `xpack.security.audit.enabled`** (Audit TDD Req 1; in flight via [PR 147333](https://github.com/elastic/elasticsearch/pull/147333)). The corresponding work for `telemetry.logs.enabled` is ours; see [§4.9](#sec-4-9). Multi-project per-project granularity is deferred; see [Appendix C](#sec-appendix-c).
 - **Origin-type / realm filtering of internal traffic.** Audit TDD Reqs 3, 4. Owned by Ankit Sethi; tracked under elasticsearch-team#2170.
 - **Operator-privilege placeholder for Elastic-employee access.** Audit TDD Req 5.
 - **UIAM / CPS audit instrumentation.** Audit TDD Req 6.
@@ -166,13 +167,13 @@ The headline result: an audit event emitted by `LoggingAuditTrail` reaches a rec
 ### <a id="sec-3-1"></a>3.1 End-to-end OTLP delivery: *satisfies R1*
 
 The test is `OtelAuditLogsIT.testAuditEventArrivesAsOtlpLogRecord`.
-The test boots a security-enabled `ElasticsearchCluster` with `xpack.security.audit.enabled=true`, `telemetry.otel.logs.enabled=true`, and the gateway endpoint pointed at an in-process `RecordingApmServer`. It hits `/_security/_authenticate` (which produces an `authentication_success` audit event), forces a flush via `/_flush_telemetry`, and asserts a `ReceivedTelemetry.ReceivedLog` arrives within `TELEMETRY_TIMEOUT`.
+The test boots a security-enabled `ElasticsearchCluster` with `xpack.security.audit.enabled=true`, `telemetry.logs.enabled=true`, and the gateway endpoint pointed at an in-process `RecordingApmServer`. It hits `/_security/_authenticate` (which produces an `authentication_success` audit event), forces a flush via `/_flush_telemetry`, and asserts a `ReceivedTelemetry.ReceivedLog` arrives within `TELEMETRY_TIMEOUT`.
 
 **Pipeline construction:**
 
 - `OtelSdkExportLogsSupplier.install()` builds the OTel SDK (`SdkLoggerProvider` + `OtlpGrpcLogRecordExporter` + `BatchLogRecordProcessor`), constructs an `OpenTelemetryAppender` programmatically, and attaches it to the audit logger's `LoggerConfig`. This must happen programmatically; see [Appendix A.2](#sec-a-2) for why declaring the appender in `log4j2.properties` doesn't work.
 - `APM.createComponents()` wires the supplier into the plugin lifecycle and exposes it via `APMTelemetryProvider`.
-- Settings `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` registered in `OtelSdkSettings` and added to the plugin's setting list.
+- Settings `telemetry.logs.enabled` and `telemetry.logs.endpoint` registered in `OtelSdkSettings` and added to the plugin's setting list.
 - `attemptFlushLogs()` plumbed through `TelemetryProvider` and `APMTelemetryProvider` so tests and graceful shutdown can force-flush the `BatchLogRecordProcessor`.
 
 ### <a id="sec-3-2"></a>3.2 Non-blocking on the calling thread: *satisfies R9; partially satisfies R10, R11*
@@ -299,7 +300,7 @@ Multi-project per-project filtering is explicitly out of scope. In a project-per
 
 ### <a id="sec-4-9"></a>4.9 R12: Configuration without cluster restart
 
-`telemetry.otel.logs.enabled` is a static (NodeScope) install-time gate and should remain so — it controls whether the OTel SDK is installed at all, not whether delivery is currently active. There is no dynamic on/off mechanism today.
+`telemetry.logs.enabled` is a static (NodeScope) install-time gate and should remain so — it controls whether the OTel SDK is installed at all, not whether delivery is currently active. There is no dynamic on/off mechanism today.
 
 The suggested approach: a second Dynamic NodeScope setting paired with a `LogRecordProcessor` that wraps `BatchLogRecordProcessor`. The processor gates delivery on a `BooleanSupplier` that a settings listener updates; records are dropped before they enter the queue when delivery is off. No SDK teardown, no SDK restart.
 
@@ -312,6 +313,15 @@ Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being address
 ### <a id="sec-4-10"></a>4.10 R13: Tuned retry policy and buffer size
 
 Default `BatchLogRecordProcessor` settings are in place. Explicit "retry up to 2 minutes / buffer 30–50 MB" targets aren't configured. Configuring them is cheap once the right knobs are picked.
+
+The proposed shared export settings (from Matteo Mazzola's OTel SDK settings doc, 2026-06-15) are:
+- `telemetry.export.send_timeout` (5 s) — total export call deadline including retries
+- `telemetry.export.connect_timeout` (2 s)
+- `telemetry.export.max_attempts` (2) — total attempts including the initial one
+- `telemetry.export.initial_backoff` (1 s)
+- `telemetry.export.backoff_multiplier` (1.5)
+
+With 2 max attempts and 1 s initial backoff, total retry window is ~1–2 s, well short of the ~2-minute target from §2.13. The gateway team's buffer-size and retry-window targets should drive the final values here.
 
 ### <a id="sec-4-11"></a>4.11 `request.body` PII story
 
@@ -361,7 +371,7 @@ Multi-project per-project settings scoping is explicitly out of scope for this w
 
 The delivery path already exists. Customers configure audit logging via the Project API's public `PATCH /api/v1/serverless/projects/<type>/{id}` endpoint, already used today to enable audit logging at the project level. The API persists configuration in CosmosDB and propagates it via `elasticsearchappconfig` / `kibanaappconfig` Kubernetes resources to the regional `elasticsearch-controller` / `kibana-controller`, which renders file settings into the cluster. ES reads them via the generic `ReservedClusterSettingsAction` — the same handler used by data stream retention settings and other dynamically-delivered cluster settings. No dedicated handler is needed.
 
-The audit filter and emit settings (`xpack.security.audit.logfile.events.include`, `events.exclude`, the five `events.ignore_filters.*` affix settings, and the six `emit_*` settings) are already declared `NodeScope + Dynamic` and already have `addSettingsUpdateConsumer` / `addAffixGroupUpdateConsumer` listeners registered in `LoggingAuditTrail`. Changes delivered via file settings fire the existing listeners and take effect without a restart. The only gap on the OTel-logs side is that `telemetry.otel.logs.enabled` and `telemetry.otel.logs.endpoint` are not yet `Dynamic`; see [§4.9](#sec-4-9).
+The audit filter and emit settings (`xpack.security.audit.logfile.events.include`, `events.exclude`, the five `events.ignore_filters.*` affix settings, and the six `emit_*` settings) are already declared `NodeScope + Dynamic` and already have `addSettingsUpdateConsumer` / `addAffixGroupUpdateConsumer` listeners registered in `LoggingAuditTrail`. Changes delivered via file settings fire the existing listeners and take effect without a restart. The only gap on the OTel-logs side is that `telemetry.logs.enabled` and `telemetry.logs.endpoint` are not yet `Dynamic`; see [§4.9](#sec-4-9).
 
 The Customer-facing audit log configuration TDD ([§2](#sec-2) references) covers the full Project API shape, cross-app consistency between ES, Kibana, and Fleet. The customer-controllable settings inventory covers at least: five `xpack.security.audit.logfile.events.ignore_filters.*`, plus `events.include` and `events.exclude`. Valentin Crettaz is compiling a full mapping covering ES audit logs, Kibana audit logs, ES query logs, and Kibana user activity logs.
 

@@ -733,17 +733,13 @@ public class ClientTransformIndexerTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
 
-        var context = new TransformContext(
-            TransformTaskState.STARTED,
-            "",
-            0,
-            null,
-            mock(TransformContext.Listener.class),
-            projectId
-        );
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, null, mock(TransformContext.Listener.class), projectId);
         var indexer = createTestIndexer(null, clusterService, resolver(), context);
 
-        assertFalse("indexer whose project is in upgrade mode must not trigger", indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli()));
+        assertFalse(
+            "indexer whose project is in upgrade mode must not trigger",
+            indexer.maybeTriggerAsyncJob(Instant.now().toEpochMilli())
+        );
     }
 
     public void testProjectIdPropagatedToClientExecute() throws InterruptedException {

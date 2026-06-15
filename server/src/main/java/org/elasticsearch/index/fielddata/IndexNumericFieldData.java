@@ -111,6 +111,14 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return sortField;
         }
 
+        // single-valued fields store NUMERIC doc values; SortedNumericSortField requires SORTED_NUMERIC
+        if (isSingleValuedDocValues()) {
+            SortField sortField = new SortField(getFieldName(), targetNumericType.sortFieldType, reverse);
+            sortField.setMissingValue(source.missingObject(missingValue, reverse));
+            sortField.setOptimizeSortWithPoints(canUseOptimizedSort(indexType()));
+            return sortField;
+        }
+
         SortedNumericSelector.Type selectorType = sortMode == MultiValueMode.MAX
             ? SortedNumericSelector.Type.MAX
             : SortedNumericSelector.Type.MIN;
@@ -131,6 +139,15 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * about how the data is indexed. Therefore, they cannot be used in all cases.
      */
     protected abstract boolean sortRequiresCustomComparator();
+
+    /**
+     * Returns {@code true} if the field stores single-valued {@link org.apache.lucene.index.DocValuesType#NUMERIC} doc values
+     * ({@code doc_values.multi_value: false}). When {@code true}, index sorting must use a plain {@link SortField} rather than a
+     * {@link SortedNumericSortField}, because Lucene validates the doc-values type matches the sort-field type at merge time.
+     */
+    protected boolean isSingleValuedDocValues() {
+        return false;
+    }
 
     /**
      * Return true if, and only if the field is indexed with points that match the content of doc values.
@@ -172,7 +189,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         if (getNumericType().sortFieldType != SortField.Type.INT
             // we introduced INT sort type in 8.19 and from 9.1
             || indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE)
-            || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)) {
+            || indexCreatedVersion.between(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19, UPGRADE_TO_LUCENE_10_0_0)
+            // single-valued fields always use a plain SortField; no rewrite needed
+            || isSingleValuedDocValues()) {
             return sortField;
         }
 

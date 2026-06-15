@@ -45,6 +45,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
         private final IndexType indexType;
+        private boolean multiValue = true;
 
         public Builder(
             String name,
@@ -60,9 +61,15 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
             this.indexType = indexType;
         }
 
+        /** Marks the field as single-valued ({@code doc_values.multi_value: false}). */
+        public Builder singleValued() {
+            this.multiValue = false;
+            return this;
+        }
+
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, multiValue);
         }
     }
 
@@ -71,6 +78,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
     protected final IndexType indexType;
+    private final boolean multiValue;
 
     public SortedDoublesIndexFieldData(
         String fieldName,
@@ -79,12 +87,24 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
         IndexType indexType
     ) {
+        this(fieldName, numericType, valuesSourceType, toScriptFieldFactory, indexType, true);
+    }
+
+    public SortedDoublesIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+        IndexType indexType,
+        boolean multiValue
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexType = indexType;
+        this.multiValue = multiValue;
     }
 
     @Override
@@ -100,6 +120,11 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return numericType == NumericType.HALF_FLOAT;
+    }
+
+    @Override
+    protected boolean isSingleValuedDocValues() {
+        return multiValue == false;
     }
 
     @Override

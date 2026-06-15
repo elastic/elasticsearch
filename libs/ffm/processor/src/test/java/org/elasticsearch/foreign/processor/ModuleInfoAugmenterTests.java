@@ -174,10 +174,7 @@ public class ModuleInfoAugmenterTests extends TestCase {
             );
         }
         if (suppress.contains("uses") == false) {
-            assertEquals(
-                expected.uses().stream().map(u -> u.asSymbol()).toList(),
-                actual.uses().stream().map(u -> u.asSymbol()).toList()
-            );
+            assertEquals(expected.uses().stream().map(u -> u.asSymbol()).toList(), actual.uses().stream().map(u -> u.asSymbol()).toList());
         }
         if (suppress.contains("provides") == false) {
             assertEquals(

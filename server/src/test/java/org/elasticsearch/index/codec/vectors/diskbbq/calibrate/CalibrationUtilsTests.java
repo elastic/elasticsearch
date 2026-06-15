@@ -20,6 +20,8 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.StringHelper;
@@ -35,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class CalibrationUtilsTests extends ESTestCase {
 
@@ -70,37 +71,59 @@ public class CalibrationUtilsTests extends ESTestCase {
             null,
             DIM
         );
-        FloatVectorValues concatenated = new ConcatenatedFloatVectorValues(new FloatVectorValues[] { seg0, seg1 });
-        assertEquals(5, concatenated.size());
+        FieldInfo fieldInfo = vectorFieldInfo("vec");
+        try (Directory dir = newDirectory()) {
+            FloatVectorValues concatenated = CalibrationUtils.build(
+                fieldInfo,
+                mergeState(
+                    new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0), heapVectorReader(fieldInfo, seg1) },
+                    new Bits[] { liveDocs(1), liveDocs(2) },
+                    backgroundSegmentInfo(dir),
+                    fieldInfo
+                )
+            );
+            assertEquals(5, concatenated.size());
 
-        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(concatenated, 1, 2);
-        assertEquals(1, sampled.queryOrdinals().length);
-        assertEquals(2, sampled.corpusOrdinals().length);
-        HashSet<Integer> all = new HashSet<>();
-        for (int o : sampled.queryOrdinals()) {
-            assertTrue(all.add(o));
+            CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(concatenated, 1, 2);
+            assertEquals(1, sampled.queryOrdinals().length);
+            assertEquals(2, sampled.corpusOrdinals().length);
+            HashSet<Integer> all = new HashSet<>();
+            for (int o : sampled.queryOrdinals()) {
+                assertTrue(all.add(o));
+            }
+            for (int o : sampled.corpusOrdinals()) {
+                assertTrue(all.add(o));
+            }
+            assertTrue(sampled.queryOrdinals()[0] >= 0 && sampled.queryOrdinals()[0] < 5);
+            assertTrue(sampled.corpusOrdinals()[0] >= 0 && sampled.corpusOrdinals()[0] < 5);
+            assertTrue(sampled.corpusOrdinals()[1] >= 0 && sampled.corpusOrdinals()[1] < 5);
         }
-        for (int o : sampled.corpusOrdinals()) {
-            assertTrue(all.add(o));
-        }
-        assertTrue(sampled.queryOrdinals()[0] >= 0 && sampled.queryOrdinals()[0] < 5);
-        assertTrue(sampled.corpusOrdinals()[0] >= 0 && sampled.corpusOrdinals()[0] < 5);
-        assertTrue(sampled.corpusOrdinals()[1] >= 0 && sampled.corpusOrdinals()[1] < 5);
     }
 
-    public void testConcatenatedFloatVectorValuesDispatchesByGlobalOrdinal() throws IOException {
+    public void testConcatenatedViewDispatchesByGlobalOrdinal() throws IOException {
         FloatVectorValues seg0 = KMeansFloatVectorValues.build(List.of(new float[] { 1f, 2f, 3f, 4f }), null, DIM);
         FloatVectorValues seg1 = KMeansFloatVectorValues.build(
             List.of(new float[] { 5f, 6f, 7f, 8f }, new float[] { 9f, 10f, 11f, 12f }),
             null,
             DIM
         );
-        ConcatenatedFloatVectorValues concatenated = new ConcatenatedFloatVectorValues(new FloatVectorValues[] { seg0, seg1 });
+        FieldInfo fieldInfo = vectorFieldInfo("vec");
+        try (Directory dir = newDirectory()) {
+            FloatVectorValues concatenated = CalibrationUtils.build(
+                fieldInfo,
+                mergeState(
+                    new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0), heapVectorReader(fieldInfo, seg1) },
+                    new Bits[] { liveDocs(1), liveDocs(2) },
+                    backgroundSegmentInfo(dir),
+                    fieldInfo
+                )
+            );
 
-        assertEquals(3, concatenated.size());
-        assertArrayEquals(new float[] { 1f, 2f, 3f, 4f }, concatenated.vectorValue(0), 0f);
-        assertArrayEquals(new float[] { 5f, 6f, 7f, 8f }, concatenated.vectorValue(1), 0f);
-        assertArrayEquals(new float[] { 9f, 10f, 11f, 12f }, concatenated.vectorValue(2), 0f);
+            assertEquals(3, concatenated.size());
+            assertArrayEquals(new float[] { 1f, 2f, 3f, 4f }, concatenated.vectorValue(0), 0f);
+            assertArrayEquals(new float[] { 5f, 6f, 7f, 8f }, concatenated.vectorValue(1), 0f);
+            assertArrayEquals(new float[] { 9f, 10f, 11f, 12f }, concatenated.vectorValue(2), 0f);
+        }
     }
 
     public void testBuildFromSegmentReadersNoHeapCopy() throws IOException {
@@ -113,7 +136,6 @@ public class CalibrationUtilsTests extends ESTestCase {
         FieldInfo fieldInfo = vectorFieldInfo("vec");
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
-                dir,
                 new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0), heapVectorReader(fieldInfo, seg1) },
                 new Bits[] { liveDocs(1), liveDocs(2) },
                 backgroundSegmentInfo(dir),
@@ -121,7 +143,8 @@ public class CalibrationUtilsTests extends ESTestCase {
             );
 
             FloatVectorValues built = CalibrationUtils.build(fieldInfo, mergeState);
-            assertThat(built, instanceOf(ConcatenatedFloatVectorValues.class));
+            assertNotSame(seg0, built);
+            assertNotSame(seg1, built);
             assertEquals(3, built.size());
             assertArrayEquals(new float[] { 1f, 0f, 0f, 0f }, built.vectorValue(0), 0f);
             assertArrayEquals(new float[] { 2f, 0f, 0f, 0f }, built.vectorValue(1), 0f);
@@ -134,7 +157,6 @@ public class CalibrationUtilsTests extends ESTestCase {
         FieldInfo fieldInfo = vectorFieldInfo("vec");
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
-                dir,
                 new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0) },
                 new Bits[] { liveDocs(1) },
                 backgroundSegmentInfo(dir),
@@ -182,8 +204,8 @@ public class CalibrationUtilsTests extends ESTestCase {
             public void search(
                 String field,
                 float[] target,
-                org.apache.lucene.search.KnnCollector knnCollector,
-                org.apache.lucene.search.AcceptDocs acceptDocs
+                KnnCollector knnCollector,
+                AcceptDocs acceptDocs
             ) {}
 
             @Override
@@ -208,7 +230,6 @@ public class CalibrationUtilsTests extends ESTestCase {
     }
 
     private static MergeState mergeState(
-        Directory dir,
         KnnVectorsReader[] readers,
         Bits[] liveDocsBits,
         SegmentInfo segmentInfo,

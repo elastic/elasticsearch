@@ -842,3 +842,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/192_lookup_join_on_aliases/alias-pattern-single}
   issue: https://github.com/elastic/elasticsearch/issues/151316
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich with brackets in policy name}
+  issue: https://github.com/elastic/elasticsearch/issues/151317

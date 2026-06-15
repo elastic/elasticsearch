@@ -21,7 +21,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -508,7 +507,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
         assert context.nonRootDocuments().iterator().hasNext() == false;
 
-        var memoryIndex = MemoryIndex.fromDocument(context.doc(), Lucene.KEYWORD_ANALYZER);
+        var memoryIndex = MemoryIndex.fromDocument(context.doc(), null);
         var reader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
         var leafCtx = reader.getContext();
         int docId = 0;

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
@@ -52,7 +53,7 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
+        private final Parameter<Boolean> index;
         private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
@@ -78,8 +79,13 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
+        private final IndexSettings indexSettings;
+
+        public Builder(String name, IndexSettings indexSettings) {
             super(name);
+            this.indexSettings = indexSettings;
+            // In strict columnar mode the dense index is disabled by default in favor of doc values (and a skipper).
+            this.index = Parameter.indexParam(m -> toType(m).index, () -> indexSettings.isIndexDisabledByDefault() == false);
         }
 
         @Override
@@ -97,11 +103,18 @@ public class TokenCountFieldMapper extends FieldMapper {
             if (analyzer.getValue() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + leafName() + "] but wasn't.");
             }
+            final boolean hasDocValues = docValuesParameters.getValue().enabled();
+            final IndexType indexType;
+            if (index.getValue() == false && hasDocValues && Parameter.useColumnarDocValuesSkippers(indexSettings)) {
+                // In strict columnar mode the dense point index is dropped by default in favor of a doc values skipper.
+                indexType = IndexType.skippers();
+            } else {
+                indexType = IndexType.points(index.getValue(), hasDocValues);
+            }
             MappedFieldType ft = new TokenCountFieldType(
                 context.buildFullName(leafName()),
-                index.getValue(),
+                indexType,
                 store.getValue(),
-                docValuesParameters.getValue().enabled(),
                 nullValue.getValue(),
                 meta.getValue(),
                 context.isSourceSynthetic()
@@ -114,9 +127,8 @@ public class TokenCountFieldMapper extends FieldMapper {
 
         TokenCountFieldType(
             String name,
-            boolean isSearchable,
+            IndexType indexType,
             boolean isStored,
-            boolean hasDocValues,
             Number nullValue,
             Map<String, String> meta,
             boolean isSyntheticSource
@@ -124,7 +136,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             super(
                 name,
                 NumberFieldMapper.NumberType.INTEGER,
-                IndexType.points(isSearchable, hasDocValues),
+                indexType,
                 isStored,
                 false,
                 nullValue,
@@ -147,7 +159,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexSettings()));
 
     private final boolean index;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
@@ -156,6 +168,7 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
     private final DocValuesFieldFactory dvFactory;
+    private final IndexSettings indexSettings;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, defaultFieldType, builderParams);
@@ -165,8 +178,13 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.index = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
         this.store = builder.store.getValue();
-        // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
-        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
+        this.indexSettings = builder.indexSettings;
+        // The skipper flag mirrors the field's IndexType, which is IndexType.skippers() in strict columnar mode.
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            defaultFieldType.indexType().hasDocValuesSkipper(),
+            IndexVersion.current()
+        );
     }
 
     @Override
@@ -188,7 +206,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             context.doc(),
             fieldType().name(),
             tokenCount,
-            IndexType.points(index, docValuesParameters.enabled()),
+            fieldType().indexType(),
             store,
             dvFactory
         );
@@ -247,6 +265,6 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSettings).init(this);
     }
 }

@@ -13,15 +13,21 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -288,6 +294,23 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsDocValuesSkippers() {
+        // token_count produces a skipper only in strict columnar mode (see testColumnarModeUsesDocValuesSkipper), not via the generic
+        // index:false standard-skipper pathway exercised by MapperTestCase#testDocValuesSkippers.
         return false;
+    }
+
+    public void testColumnarModeUsesDocValuesSkipper() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(this::minimalMapping)).documentMapper();
+
+        FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
+        assertThat(fieldMapper.fieldType().indexType(), equalTo(IndexType.skippers()));
+
+        IndexableField f = mapper.parse(source(b -> b.field("field", "some words"))).rootDoc().getField("field");
+        assertThat(f.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_NUMERIC));
+        assertThat(f.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
+        // The dense point index must be dropped.
+        assertThat(f.fieldType().pointDimensionCount(), equalTo(0));
     }
 }

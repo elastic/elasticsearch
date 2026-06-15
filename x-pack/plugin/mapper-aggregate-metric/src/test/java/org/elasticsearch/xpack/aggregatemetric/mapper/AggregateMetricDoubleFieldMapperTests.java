@@ -600,6 +600,29 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testColumnarModeUsesDocValuesSkipper() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+
+        // Multi-metric: the aggregate field type is doc-values-only, but each numeric metric sub-field uses a skipper.
+        MapperService mapperService = createMapperService(indexSettings, fieldMapping(this::minimalMapping));
+        assertIndexType(mapperService.fieldType("field"), IndexType.docValuesOnly(), IndexType.skippers());
+
+        // Single-metric: the aggregate field type delegates to the single metric's skipper IndexType.
+        MapperService singleMetric = createMapperService(
+            indexSettings,
+            fieldMapping(b -> randomSingleMetricMapping(b, randomIntBetween(0, 3)))
+        );
+        assertIndexType(singleMetric.fieldType("field"), IndexType.skippers(), IndexType.skippers());
+
+        // The written per-metric doc values actually carry the range skipper.
+        IndexableField f = mapperService.documentMapper()
+            .parse(source(b -> b.startObject("field").field("value_count", 14).field("sum", 100.0).endObject()))
+            .rootDoc()
+            .getField("field.sum");
+        assertThat(f.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
+    }
+
     private void assertIndexType(MappedFieldType ft, IndexType indexType, IndexType metricIndexType) {
         assertThat(ft, instanceOf(AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType.class));
         AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aft =

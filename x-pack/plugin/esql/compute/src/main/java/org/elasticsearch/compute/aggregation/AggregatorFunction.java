@@ -16,6 +16,9 @@ import org.elasticsearch.core.Releasable;
 
 /**
  * A non-grouped aggregation.
+ * <p>
+ * Implementations consume input pages and maintain running aggregation state until the
+ * final result is produced.
  */
 public interface AggregatorFunction extends Releasable {
     /**

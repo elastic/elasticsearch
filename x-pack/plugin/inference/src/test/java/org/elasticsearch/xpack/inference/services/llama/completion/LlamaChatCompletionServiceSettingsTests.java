@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaChatCompletionServiceSettings> {
@@ -135,7 +136,7 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
             );
-            assertThat(e.getMessage(), is(Strings.format("[1:2] [service_settings] unknown field [%s]", immutableField)));
+            assertThat(e.getMessage(), endsWith(Strings.format("[service_settings] unknown field [%s]", immutableField)));
         }
     }
 

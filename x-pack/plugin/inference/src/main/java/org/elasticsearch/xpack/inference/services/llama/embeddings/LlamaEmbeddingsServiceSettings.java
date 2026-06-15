@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,6 +29,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.common.parser.EnumParser.parseFromStringInObjectParserContext;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
@@ -225,13 +225,6 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         return Objects.hash(super.hashCode(), dimensions, maxInputTokens, similarity);
     }
 
-    private static Integer requirePositive(@Nullable Integer value, String field) {
-        if (value != null && value <= 0) {
-            throw new IllegalArgumentException(Strings.format("Invalid value [%d]. [%s] must be a positive integer", value, field));
-        }
-        return value;
-    }
-
     /**
      * Accumulates the embeddings-specific fields on top of the common Llama fields and builds a
      * {@link LlamaEmbeddingsServiceSettings}, enforcing that {@code dimensions} and {@code max_input_tokens} are positive.
@@ -242,7 +235,8 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         private Integer maxInputTokens;
 
         public void setDimensions(Integer dimensions) {
-            this.dimensions = requirePositive(dimensions, DIMENSIONS);
+            validatePositiveInteger(dimensions, DIMENSIONS);
+            this.dimensions = dimensions;
         }
 
         public void setSimilarity(String similarity) {
@@ -257,7 +251,8 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         }
 
         public void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = requirePositive(maxInputTokens, MAX_INPUT_TOKENS);
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
         }
 
         @Override
@@ -283,7 +278,8 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         private Integer maxInputTokens;
 
         private void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = requirePositive(maxInputTokens, MAX_INPUT_TOKENS);
+            validatePositiveInteger(maxInputTokens, MAX_INPUT_TOKENS);
+            this.maxInputTokens = maxInputTokens;
         }
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {

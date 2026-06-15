@@ -29,6 +29,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.InferenceUtils.validateRequiredNonEmptyString;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
@@ -153,16 +154,8 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
         protected abstract T build(String modelId, URI uri, RateLimitSettings rateLimitSettings);
 
         public final T build() {
-            if (modelId == null) {
-                throw new IllegalArgumentException(
-                    Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, MODEL_ID)
-                );
-            }
-            if (Strings.isNullOrEmpty(url)) {
-                throw new IllegalArgumentException(
-                    Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, URL)
-                );
-            }
+            validateRequiredNonEmptyString(modelId, MODEL_ID);
+            validateRequiredNonEmptyString(url, URL);
             return build(modelId, createUri(url), rateLimitSettings);
         }
     }

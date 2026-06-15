@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializationTestCase<LlamaEmbeddingsServiceSettings> {
@@ -112,7 +113,13 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+            is(
+                Strings.format(
+                    "[%s] does not contain the required setting [%s]",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.MODEL_ID
+                )
+            )
         );
     }
 
@@ -133,7 +140,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.URL))
         );
     }
 
@@ -154,7 +161,13 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+            is(
+                Strings.format(
+                    "[%s] Invalid value empty string. [%s] must be a non-empty string",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.URL
+                )
+            )
         );
     }
 
@@ -219,7 +232,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[1:54] [%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.SIMILARITY))
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.SIMILARITY))
         );
         assertThat(
             thrownException.getCause().getMessage(),
@@ -280,11 +293,18 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[1:157] [%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.DIMENSIONS))
+            endsWith(Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.DIMENSIONS))
         );
         assertThat(
             thrownException.getCause().getMessage(),
-            is(Strings.format("Invalid value [%d]. [%s] must be a positive integer", dimensions, ServiceFields.DIMENSIONS))
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    dimensions,
+                    ServiceFields.DIMENSIONS
+                )
+            )
         );
     }
 
@@ -341,19 +361,16 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[1:111] [%s] failed to parse field [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    ServiceFields.MAX_INPUT_TOKENS
-                )
+            endsWith(
+                Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.MAX_INPUT_TOKENS)
             )
         );
         assertThat(
             thrownException.getCause().getMessage(),
             is(
                 Strings.format(
-                    "Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
                     nonPositiveMaxInputTokens,
                     ServiceFields.MAX_INPUT_TOKENS
                 )
@@ -422,7 +439,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
             );
-            assertThat(e.getMessage(), is(Strings.format("[1:2] [service_settings] unknown field [%s]", immutableField)));
+            assertThat(e.getMessage(), endsWith(Strings.format("[service_settings] unknown field [%s]", immutableField)));
         }
     }
 
@@ -450,19 +467,16 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             e.getMessage(),
-            is(
-                Strings.format(
-                    "[1:21] [%s] failed to parse field [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    ServiceFields.MAX_INPUT_TOKENS
-                )
+            endsWith(
+                Strings.format("[%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.MAX_INPUT_TOKENS)
             )
         );
         assertThat(
             e.getCause().getMessage(),
             is(
                 Strings.format(
-                    "Invalid value [%d]. [%s] must be a positive integer",
+                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
+                    ModelConfigurations.SERVICE_SETTINGS,
                     nonPositiveMaxInputTokens,
                     ServiceFields.MAX_INPUT_TOKENS
                 )

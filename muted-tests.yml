@@ -698,3 +698,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indices and drop ambiguous field event_duration}
   issue: https://github.com/elastic/elasticsearch/issues/151268
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert and then drop ambiguous field event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151269

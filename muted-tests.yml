@@ -770,3 +770,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/180_match_operator/match on overwritten column}
   issue: https://github.com/elastic/elasticsearch/issues/151292
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/Test Interval in Input Params}
+  issue: https://github.com/elastic/elasticsearch/issues/151293

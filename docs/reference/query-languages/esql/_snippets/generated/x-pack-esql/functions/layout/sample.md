@@ -4,6 +4,10 @@
 stack: ga 9.1.0
 ```
 
+
+:::{include} ../briefSummary/sample.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/sample.svg

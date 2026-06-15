@@ -242,6 +242,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Whether the test node should enable index slicing validation.
+     * This adds the {@link IndexSettings#SLICE_VALIDATED} setting to all indices created in the cluster. In production, this happens
+     * via an x-pack plugin.
+     */
+    protected boolean enableIndexSlice() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
@@ -290,6 +299,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
+        if (enableIndexSlice()) {
+            plugins.add(ESIntegTestCase.AlwaysValidateSlicePlugin.class);
+        }
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins.add(getTestTransportPlugin());
         }

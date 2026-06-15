@@ -108,7 +108,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 TaskType.COMPLETION,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -131,7 +131,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -155,7 +155,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
@@ -180,7 +180,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
@@ -200,7 +200,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
                     new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
-                    new HashMap<>(Map.of()),
+                    new HashMap<>(),
                     getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 failureListener

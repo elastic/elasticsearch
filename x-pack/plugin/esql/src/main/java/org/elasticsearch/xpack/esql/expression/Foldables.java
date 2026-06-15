@@ -174,27 +174,35 @@ public abstract class Foldables {
      * Converts a literal value to an Object suitable to be passed as a query term in a Lucene query.
      * Handles common conversions for BytesRef, UNSIGNED_LONG, DATETIME, and DATE_NANOS.
      */
-    public static Object literalValueAsLuceneQueryObject(Object queryAsObject, DataType dataType) {
-        // Convert BytesRef to string for string-based values
-        if (queryAsObject instanceof BytesRef bytesRef) {
-            return switch (dataType) {
-                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
-                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
-                default -> bytesRef.utf8ToString();
-            };
-        }
-
-        // Converts specific types to the correct type for the query
-        if (dataType == DataType.UNSIGNED_LONG) {
-            return org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
-        } else if (dataType == DataType.DATETIME && queryAsObject instanceof Long) {
-            // When casting to date and datetime, we get a long back. But most QueryBuilders need a date string
-            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
-        } else if (dataType == DATE_NANOS && queryAsObject instanceof Long) {
-            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
-        }
-
-        return queryAsObject;
+    public static Object literalValueAsLuceneQueryObject(Object literalValue, DataType dataType) {
+        return switch (dataType) {
+            case IP -> {
+                assert literalValue instanceof BytesRef;
+                yield EsqlDataTypeConverter.ipToString((BytesRef) literalValue);
+            }
+            case VERSION -> {
+                assert literalValue instanceof BytesRef;
+                yield EsqlDataTypeConverter.versionToString((BytesRef) literalValue);
+            }
+            case UNSIGNED_LONG -> {
+                assert literalValue instanceof Long;
+                yield org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger((Long) literalValue);
+            }
+            case DATETIME -> {
+                assert literalValue instanceof Long;
+                yield EsqlDataTypeConverter.dateTimeToString((Long) literalValue);
+            }
+            case DATE_NANOS -> {
+                assert literalValue instanceof Long;
+                yield EsqlDataTypeConverter.nanoTimeToString((Long) literalValue);
+            }
+            case KEYWORD, TEXT, FLATTENED -> {
+                assert literalValue instanceof BytesRef;
+                yield ((BytesRef) literalValue).utf8ToString();
+            }
+            case BOOLEAN, DOUBLE, LONG, INTEGER -> literalValue;
+            default -> throw new IllegalArgumentException("Unsupported data type for Lucene query conversion " + dataType);
+        };
     }
 
     public static String queryAsString(Expression queryField, String sourceText) {

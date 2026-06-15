@@ -8,9 +8,9 @@ ProjectExec[[result{r}#0, step{r}#1]]
             \_ExchangeExec[[_tsid{m}#3, step{r}#1],true]
               \_TimeSeriesAggregateExec[[_tsid{m}#3, step{r}#1],[step{r}#1 AS step#1],INITIAL,[_tsid{m}#3, step{r}#1],8,BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION]),BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION])]
                 \_FieldExtractExec[_tsid{m}#3]<[],[],[]>
-                  \_EvalExec[[$$@timestamp$ROUND_TO$0{f$}#5 AS step#1]]
-                    \_FieldExtractExec[$$@timestamp$ROUND_TO$0{f$}#5]<[],[],[]>
-                      \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#6], limit[], sort[] estimatedRowSize[36] queryBuilderAndTags [[QueryBuilderAndTags[query={
+                  \_EvalExec[[BUCKET(@timestamp{f}#4,PT5M[TIME_DURATION]) AS step#1]]
+                    \_FieldExtractExec[@timestamp{f}#4]<[],[],[]>
+                      \_EsQueryExec[k8s], indexMode[standard], [_doc{f}#5], limit[], sort[] estimatedRowSize[36] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "@timestamp",
     "next" : {

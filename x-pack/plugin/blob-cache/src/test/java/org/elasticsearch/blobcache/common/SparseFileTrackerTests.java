@@ -439,7 +439,7 @@ public class SparseFileTrackerTests extends ESTestCase {
      * splits the overlapping range at the boundary so that each caller receives only gaps that lie within its own
      * requested range.
      */
-    public void testClaimedGapsDoNotExtendBeyondRequestedRange() {
+    public void testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller1FillsFirst() {
         final SparseFileTracker tracker = new SparseFileTracker("test", 100);
 
         // Caller 1 creates a pending range [0, 50) but only needs [0, 40) — subRange ends inside the
@@ -506,7 +506,7 @@ public class SparseFileTrackerTests extends ESTestCase {
      * range and caller 1 picks up the remainder. Using range != subRange verifies that the bothFiredRef on the split
      * correctly requires both halves before firing the listener regardless of fill order.
      */
-    public void testClaimedGapsDoNotExtendBeyondRequestedRangeWhenClaimer2First() {
+    public void testClaimedGapsDoNotExtendBeyondRequestedRangeWhenCaller2FillsFirst() {
         final SparseFileTracker tracker = new SparseFileTracker("test", 100);
 
         // Caller 1 range [0,50), subRange [0,40): listener threshold 40 lies inside B=[30,50), so the
@@ -520,7 +520,7 @@ public class SparseFileTrackerTests extends ESTestCase {
         final var gaps2 = tracker.waitForRange(ByteRange.of(30, 80), ByteRange.of(30, 70), future2);
         assertTrue(gaps2.isPresent());
 
-        // Caller 2 claims first this time
+        // Caller 2 claims first
         final List<SparseFileTracker.Gap> gaps2List = gaps2.get().claim();
         assertThat(gaps2List.size(), equalTo(2)); // [30, 50) and [50, 80)
         assertThat(gaps2List.get(0).start(), equalTo(30L));

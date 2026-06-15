@@ -13,15 +13,15 @@ import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link PrometheusHistogramQuantileAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link PromqlHistogramQuantileAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class PrometheusHistogramQuantileAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class PromqlHistogramQuantileAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   WarningSourceLocation warningsSource;
 
   private final double quantile;
 
-  public PrometheusHistogramQuantileAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+  public PromqlHistogramQuantileAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
       double quantile) {
     this.warningsSource = warningsSource;
     this.quantile = quantile;
@@ -29,30 +29,30 @@ public final class PrometheusHistogramQuantileAggregatorFunctionSupplier impleme
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return PrometheusHistogramQuantileAggregatorFunction.intermediateStateDesc();
+    return PromqlHistogramQuantileAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return PrometheusHistogramQuantileGroupingAggregatorFunction.intermediateStateDesc();
+    return PromqlHistogramQuantileGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public PrometheusHistogramQuantileAggregatorFunction aggregator(DriverContext driverContext,
+  public PromqlHistogramQuantileAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new PrometheusHistogramQuantileAggregatorFunction(warnings, driverContext, channels, quantile);
+    return new PromqlHistogramQuantileAggregatorFunction(warnings, driverContext, channels, quantile);
   }
 
   @Override
-  public PrometheusHistogramQuantileGroupingAggregatorFunction groupingAggregator(
+  public PromqlHistogramQuantileGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
     var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
-    return new PrometheusHistogramQuantileGroupingAggregatorFunction(warnings, channels, driverContext, quantile);
+    return new PromqlHistogramQuantileGroupingAggregatorFunction(warnings, channels, driverContext, quantile);
   }
 
   @Override
   public String describe() {
-    return PrometheusHistogramQuantileAggregator.describe();
+    return PromqlHistogramQuantileAggregator.describe();
   }
 }

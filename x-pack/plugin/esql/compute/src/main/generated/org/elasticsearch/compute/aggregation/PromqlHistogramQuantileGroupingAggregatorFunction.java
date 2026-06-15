@@ -24,14 +24,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link PrometheusHistogramQuantileAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link PromqlHistogramQuantileAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class PrometheusHistogramQuantileGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class PromqlHistogramQuantileGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("buckets", ElementType.DOUBLE)  );
 
-  private final PrometheusHistogramQuantileStates.GroupingState state;
+  private final PromqlHistogramQuantileStates.GroupingState state;
 
   private final Warnings warnings;
 
@@ -41,12 +41,12 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
 
   private final double quantile;
 
-  PrometheusHistogramQuantileGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+  PromqlHistogramQuantileGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
       DriverContext driverContext, double quantile) {
     this.quantile = quantile;
     this.warnings = warnings;
     this.channels = channels;
-    this.state = PrometheusHistogramQuantileAggregator.initGrouping(driverContext, quantile, warnings);
+    this.state = PromqlHistogramQuantileAggregator.initGrouping(driverContext, quantile, warnings);
     this.driverContext = driverContext;
   }
 
@@ -178,7 +178,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
           int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
           for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
             BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
-            PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+            PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
           }
         }
       }
@@ -199,7 +199,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
         int groupId = groups.getInt(g);
         double countValue = countVector.getDouble(valuesPosition);
         BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
-        PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+        PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
       }
     }
   }
@@ -210,7 +210,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
     DoubleBlock buckets = (DoubleBlock) bucketsUncast;
-    PrometheusHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
+    PromqlHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock countBlock,
@@ -239,7 +239,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
           int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
           for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
             BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
-            PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+            PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
           }
         }
       }
@@ -260,7 +260,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
         int groupId = groups.getInt(g);
         double countValue = countVector.getDouble(valuesPosition);
         BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
-        PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+        PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
       }
     }
   }
@@ -271,7 +271,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
     DoubleBlock buckets = (DoubleBlock) bucketsUncast;
-    PrometheusHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
+    PromqlHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock countBlock,
@@ -294,7 +294,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
         int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
           BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
-          PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+          PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
         }
       }
     }
@@ -308,7 +308,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
       int groupId = groups.getInt(groupPosition);
       double countValue = countVector.getDouble(valuesPosition);
       BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
-      PrometheusHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
+      PromqlHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
     }
   }
 
@@ -318,7 +318,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
     DoubleBlock buckets = (DoubleBlock) bucketsUncast;
-    PrometheusHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
+    PromqlHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock countBlock,
@@ -364,7 +364,7 @@ public final class PrometheusHistogramQuantileGroupingAggregatorFunction impleme
 
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = PrometheusHistogramQuantileAggregator.evaluateFinal(state, selectedInPage, ctx);
+    blocks[offset] = PromqlHistogramQuantileAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

@@ -217,7 +217,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
             new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
 
-        // TODO: not used but wired for follow up PR
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,

@@ -209,7 +209,8 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
             assertEquals(0, SharedBlobCacheServiceTestUtils.freeRegionCount(cacheService));
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo((long) numRegions));
 
-            for (int i = 0; i < randomIntBetween(1, numRegions); i++) {
+            final int oldIndexReinsertions = randomIntBetween(1, numRegions);
+            for (int i = 0; i < oldIndexReinsertions; i++) {
                 var key = new FileCacheKey(oldShard, 1L, "file-" + randomIntBetween(0, numRegions - 1));
                 SharedBlobCacheServiceTestUtils.cacheRegion(cacheService, key, randomLongBetween(1, regionSizeInBytes - 1L), 0);
             }

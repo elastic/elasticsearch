@@ -159,8 +159,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         }
         // Gradle 9.x enforces strict configuration roles: a single configuration cannot both declare
         // dependencies and be resolved. We therefore use a pair:
-        //   - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
-        //   - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
+        // - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
+        // - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
         // We intentionally request the producer's dedicated `nativeLibs` consumable variant by name
         // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
         // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be

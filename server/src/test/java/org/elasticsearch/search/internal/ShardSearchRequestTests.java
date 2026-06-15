@@ -121,7 +121,8 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             randomAlphaOfLengthBetween(3, 10),
             shardSearchContextId,
             keepAlive,
-            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards)),
+            randomBoolean()
         );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {

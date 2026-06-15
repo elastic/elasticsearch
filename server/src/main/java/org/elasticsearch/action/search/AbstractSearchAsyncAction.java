@@ -845,7 +845,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * Builds an request for the initial search phase.
+     * Builds a shard search request before each search phase, on the coordinating node
      *
      * @param shardIt the target {@link SearchShardIterator}
      * @param shardIndex the index of the shard that is used in the coordinator node to
@@ -867,7 +867,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            shardIt.getSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary(),
+            true
         );
     }
 

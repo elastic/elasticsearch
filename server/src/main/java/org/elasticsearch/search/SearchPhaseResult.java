@@ -154,7 +154,18 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     protected final void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
-        this.shardSearchRequest = shardSearchRequest;
+        // only include the SSR in the result if the coordinator cannot recreate it from its own data
+        if (shardSearchRequest != null && shardSearchRequest.enableShardResultsSkipRequest() == false) {
+            this.shardSearchRequest = shardSearchRequest;
+        }
+    }
+
+    protected final void readShardSearchRequest(StreamInput in) throws IOException {
+        this.shardSearchRequest = in.readOptionalWriteable(ShardSearchRequest::new);
+    }
+
+    protected final void writeShardSearchRequest(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(shardSearchRequest);
     }
 
     public final RescoreDocIds getRescoreDocIds() {

@@ -19,7 +19,7 @@ import java.util.Map;
 /**
  * Telemetry when bulk-by-scroll tasks fail because the keep-alive of the underlying search contexts expire
  */
-public class BulkByScrollSearchContextMetrics {
+public class BulkByPaginatedSearchSearchContextMetrics {
 
     public static final String SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER = "es.bulk_by_scroll.search_context.keepalive_expired.total";
 
@@ -37,7 +37,7 @@ public class BulkByScrollSearchContextMetrics {
 
     private final LongCounter searchContextKeepaliveExpiredCounter;
 
-    public BulkByScrollSearchContextMetrics(MeterRegistry meterRegistry) {
+    public BulkByPaginatedSearchSearchContextMetrics(MeterRegistry meterRegistry) {
         this.searchContextKeepaliveExpiredCounter = meterRegistry.registerLongCounter(
             SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER,
             "Bulk-by-scroll tasks whose missing scroll/PIT contexts expired before the next refresh (heuristic)",

@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -171,7 +172,8 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 entry.getValue().forEach(c -> msg.add("    '" + c + "',"));
                 String fullMessage = String.join(System.lineSeparator(), msg);
                 LOGGER.error(fullMessage);
-                reporter.report(
+                ProblemReporting.reportError(
+                    reporter,
                     ProblemId.create("split-package", "Split package detected", ElasticsearchBuildProblems.SPLIT_PACKAGES),
                     spec -> spec.contextualLabel("Split package '" + packageName + "' in project " + projectPath)
                         .details(fullMessage)

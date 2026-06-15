@@ -14,6 +14,7 @@ import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -234,7 +235,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 .count();
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
-                problemReporter.report(
+                ProblemReporting.reportError(
+                    problemReporter,
                     ProblemId.create("pointless-exclusions", "All exclusions are unnecessary", ElasticsearchBuildProblems.FORBIDDEN_APIS),
                     spec -> spec.contextualLabel("All excluded classes seem to have no issues")
                         .details(
@@ -267,7 +269,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
                 missingClasses.forEach(
-                    cls -> problemReporter.report(
+                    cls -> ProblemReporting.reportError(
+                        problemReporter,
                         ProblemId.create("missing-class", "Missing third-party class", ElasticsearchBuildProblems.MISSING_CLASSES),
                         spec -> spec.contextualLabel("Missing class: " + cls)
                             .severity(Severity.ERROR)
@@ -278,7 +281,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (violationsClasses.isEmpty() == false) {
                 getLogger().error("Classes with violations:\n{}", formatClassList(violationsClasses));
                 violationsClasses.forEach(
-                    cls -> problemReporter.report(
+                    cls -> ProblemReporting.reportError(
+                        problemReporter,
                         ProblemId.create("api-violation", "Forbidden API violation", ElasticsearchBuildProblems.FORBIDDEN_APIS),
                         spec -> spec.contextualLabel("Forbidden API violation in: " + cls)
                             .severity(Severity.ERROR)
@@ -350,7 +354,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         jdkJarHellClasses.removeAll(jdkJarHellExcludes);
         if (jdkJarHellClasses.isEmpty() == false) {
             jdkJarHellClasses.forEach(
-                cls -> problemReporter.report(
+                cls -> ProblemReporting.reportError(
+                    problemReporter,
                     ProblemId.create("jdk-jar-hell", "JDK jar hell conflict", ElasticsearchBuildProblems.JAR_HELL),
                     spec -> spec.contextualLabel("JDK jar hell conflict: " + cls)
                         .severity(Severity.ERROR)

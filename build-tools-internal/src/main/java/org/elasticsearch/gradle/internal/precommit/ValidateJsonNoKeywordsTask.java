@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -141,7 +142,8 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                             final Set<String> errorsForFile = errors.computeIfAbsent(file, _file -> new HashSet<>());
                             String detail = component + " is a reserved keyword in these languages: " + languagesByKeyword.get(component);
                             errorsForFile.add(detail);
-                            problemReporter.report(
+                            ProblemReporting.reportError(
+                                problemReporter,
                                 ProblemId.create(
                                     "keyword-conflict",
                                     "API name conflicts with reserved keyword",

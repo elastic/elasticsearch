@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.EmptyFileVisitor;
@@ -142,7 +143,8 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             if (mismatchingBaseClasses.isEmpty() == false) {
                 ProblemReporter reporter = getProblems().getReporter();
                 for (Class<?> clazz : mismatchingBaseClasses) {
-                    reporter.report(
+                    ProblemReporting.reportError(
+                        reporter,
                         ProblemId.create(
                             "missing-base-class",
                             "Testing convention violation",
@@ -167,7 +169,8 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
                 ProblemReporter reporter = getProblems().getReporter();
                 for (Class<?> clazz : matchingBaseClassNotMatchingSuffix) {
-                    reporter.report(
+                    ProblemReporting.reportError(
+                        reporter,
                         ProblemId.create("invalid-suffix", "Testing convention violation", ElasticsearchBuildProblems.TESTING_CONVENTIONS),
                         spec -> spec.contextualLabel(clazz.getName())
                             .severity(Severity.ERROR)

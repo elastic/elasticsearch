@@ -64,7 +64,7 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
         return () -> new FileCacheKey(shardId, 1L, file);
     }
 
-    private long[] randomOlderAndRecentCreationDates() {
+    private static long[] randomOlderAndRecentCreationDates() {
         long olderDate = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
         long recentDate = randomLongBetween(olderDate + 1, Long.MAX_VALUE);
         return new long[] { olderDate, recentDate };

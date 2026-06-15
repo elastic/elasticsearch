@@ -1006,6 +1006,19 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
     }
 
+    /** {@code Stream.collect(Collector)} drives the whole stream through the collector's accumulator and must poll. */
+    public void testStreamCollectCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.toList());"), "cancelled-stream-collect-collector");
+    }
+
+    /**
+     * {@code Stream.collect(Collector)} with a finishing collector ({@code counting()} is not
+     * {@code IDENTITY_FINISH}) still polls — the rebuilt collector applies the original finisher.
+     */
+    public void testStreamCollectFinishingCollectorAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().collect(Collectors.counting());"), "cancelled-stream-collect-counting");
+    }
+
     // --- IntStream terminal-op script-aware augmentations: per-method fires tests ---
 
     /** {@code IntStream.forEach} drives the pipeline and must poll. */
@@ -1167,6 +1180,8 @@ public class AugmentationCancellationTests extends ScriptTestCase {
                 + "big.stream().reduce(0, (a, b) -> a); "
                 + "big.stream().reduce(0, (a, b) -> a, (a, b) -> a); "
                 + "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b)); "
+                + "big.stream().collect(Collectors.toList()); "
+                + "big.stream().collect(Collectors.counting()); "
                 + "big.stream().mapToInt(x -> x).forEach(x -> x); "
                 + "big.stream().mapToInt(x -> x).allMatch(x -> true); "
                 + "big.stream().mapToInt(x -> x).reduce((a, b) -> a); "
@@ -1437,5 +1452,35 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             params
         );
         assertEquals("thE qUIck brOwn fOx", out);
+    }
+
+    /**
+     * The polling branch rebuilds the collector, so pin that its output matches the JDK across an
+     * {@code IDENTITY_FINISH} collector ({@code toList}), a finishing collector ({@code counting}), and a
+     * finishing collector with a non-trivial finisher ({@code joining}).  Receiver is a statically typed
+     * {@code Stream}, so this exercises the static augmentation dispatch path.
+     */
+    public void testStreamCollectCollectorWithCheckInstalledMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(
+            List.of("a", "b", "c"),
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.toList());", params)
+        );
+        assertEquals(
+            3L,
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.counting());", params)
+        );
+        assertEquals(
+            "a,b,c",
+            execSourceWithCheckInstalled("List l = params['items']; state['r'] = l.stream().collect(Collectors.joining(','));", params)
+        );
+    }
+
+    /** A {@code def}-typed stream receiver dispatches the collector wrapper through {@code Def.lookupMethod}; pin its output. */
+    public void testStreamCollectCollectorDefReceiverMatchesExpectedOutput() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("items", List.of("a", "b", "c"));
+        assertEquals(List.of("a", "b", "c"), execWithCheckInstalled("params['items'].stream().collect(Collectors.toList())", params));
     }
 }

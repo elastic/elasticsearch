@@ -57,6 +57,7 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -1188,6 +1189,35 @@ public class Augmentation {
             accumulator.accept(r, t);
             script._pollCancellation();
         }, combiner);
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Stream#collect(Collector)}.  Unlike the other stream
+     * terminals there is no per-element argument to wrap directly — the accumulator is bundled inside
+     * the {@link Collector} — so this decomposes the collector and rebuilds an equivalent one whose
+     * accumulator also polls {@link PainlessScript#_pollCancellation()} once per element.  Painless does
+     * not expose {@link Stream#parallel()}, so the stream is always sequential: the accumulator runs once
+     * per element and the combiner is never invoked.  The rebuilt collector drops {@code IDENTITY_FINISH}
+     * (the original finisher, an identity function in that case, is applied explicitly) so the result is
+     * identical to the JDK; remaining characteristics are preserved.  Fast path delegates straight to the
+     * JDK when the script has no cancellation check installed.
+     */
+    public static <T, A, R> R collect(PainlessScript script, Stream<T> receiver, Collector<? super T, A, R> collector) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(collector);
+        }
+        BiConsumer<A, ? super T> accumulator = collector.accumulator();
+        List<Collector.Characteristics> characteristics = new ArrayList<>();
+        for (Collector.Characteristics characteristic : collector.characteristics()) {
+            if (characteristic != Collector.Characteristics.IDENTITY_FINISH) {
+                characteristics.add(characteristic);
+            }
+        }
+        Collector<T, A, R> polling = Collector.of(collector.supplier(), (a, t) -> {
+            accumulator.accept(a, t);
+            script._pollCancellation();
+        }, collector.combiner(), collector.finisher(), characteristics.toArray(new Collector.Characteristics[0]));
+        return receiver.collect(polling);
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#forEach}. */

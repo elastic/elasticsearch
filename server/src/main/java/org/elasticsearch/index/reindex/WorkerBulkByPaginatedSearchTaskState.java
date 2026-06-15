@@ -241,8 +241,9 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
     }
 
     public TimeValue throttleWaitTime(long lastBatchStartTimeNS, long nowNS, int lastBatchSize) {
-        long earliestNextBatchStartTime = nowNS + (long) perfectlyThrottledBatchTime(lastBatchSize);
-        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, earliestNextBatchStartTime - System.nanoTime()));
+        long targetBatchTime = (long) perfectlyThrottledBatchTime(lastBatchSize);
+        long elapsedBatchTime = max(0, nowNS - lastBatchStartTimeNS);
+        long waitTime = min(MAX_THROTTLE_WAIT_TIME.nanos(), max(0, targetBatchTime - elapsedBatchTime));
         return timeValueNanos(waitTime);
     }
 

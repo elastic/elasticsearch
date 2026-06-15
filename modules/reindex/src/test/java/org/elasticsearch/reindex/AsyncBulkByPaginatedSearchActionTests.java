@@ -1081,6 +1081,111 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testScrollThrottleDelaySubtractsElapsedBulkProcessingTime() {
+        assertThrottleDelaySubtractsElapsedBulkProcessingTime(false);
+    }
+
+    public void testPITThrottleDelaySubtractsElapsedBulkProcessingTime() {
+        assertThrottleDelaySubtractsElapsedBulkProcessingTime(true);
+    }
+
+    public void testScrollResponseWaitDoesNotShortenThrottleDelay() {
+        assertPaginatedResponseWaitDoesNotShortenThrottleDelay(false);
+    }
+
+    public void testPITResponseWaitDoesNotShortenThrottleDelay() {
+        assertPaginatedResponseWaitDoesNotShortenThrottleDelay(true);
+    }
+
+    private void assertThrottleDelaySubtractsElapsedBulkProcessingTime(boolean usePit) {
+        configurePitOrScroll(usePit);
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        setupClient(capturingDelayThreadPool(capturedDelay));
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        worker.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime() - TimeUnit.SECONDS.toNanos(10);
+        simulatePaginatedResponse(action, lastBatchStartTimeNS, 60, newPaginatedResponse(usePit, 1), usePit);
+
+        assertThat(capturedDelay.get().seconds(), either(equalTo(49L)).or(equalTo(50L)));
+    }
+
+    private void assertPaginatedResponseWaitDoesNotShortenThrottleDelay(boolean usePit) {
+        configurePitOrScroll(usePit);
+        AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
+        setupClient(capturingDelayThreadPool(capturedDelay));
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        worker.rethrottle(1f);
+
+        action.notifyDone(System.nanoTime() - TimeUnit.MINUTES.toNanos(10), newConsumableHitsResponse(usePit, 0), 60);
+        action.onScrollResponse(newConsumableHitsResponse(usePit, 1));
+
+        assertThat(capturedDelay.get().seconds(), either(equalTo(59L)).or(equalTo(60L)));
+    }
+
+    private TestThreadPool capturingDelayThreadPool(AtomicReference<TimeValue> capturedDelay) {
+        return new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                capturedDelay.set(delay);
+                return new ScheduledCancellable() {
+                    @Override
+                    public long getDelay(TimeUnit unit) {
+                        return unit.convert(delay.nanos(), TimeUnit.NANOSECONDS);
+                    }
+
+                    @Override
+                    public int compareTo(Delayed o) {
+                        return 0;
+                    }
+
+                    @Override
+                    public boolean cancel() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean isCancelled() {
+                        return false;
+                    }
+                };
+            }
+        };
+    }
+
+    private PaginatedHitSource.Response newPaginatedResponse(boolean usePit, int numberOfHits) {
+        List<PaginatedHitSource.BasicHit> hits = IntStream.range(0, numberOfHits)
+            .mapToObj(i -> new PaginatedHitSource.BasicHit("index", "id-" + i, -1))
+            .toList();
+        return createPaginatedResponse(
+            usePit,
+            false,
+            emptyList(),
+            numberOfHits,
+            hits,
+            usePit ? null : scrollId(),
+            usePit ? new Object[] { "search_after" } : null
+        );
+    }
+
+    private AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse newConsumableHitsResponse(
+        boolean usePit,
+        int numberOfHits
+    ) {
+        PaginatedHitSource.Response response = newPaginatedResponse(usePit, numberOfHits);
+        return new AbstractAsyncBulkByPaginatedSearchAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+            @Override
+            public PaginatedHitSource.Response response() {
+                return response;
+            }
+
+            @Override
+            public void done(TimeValue extraKeepAlive) {}
+        });
+    }
+
     /**
      * Execute a bulk retry test case. The total number of failures is random and the number of retries attempted is set to
      * testRequest.getMaxRetries and controlled by the failWithRejection parameter.

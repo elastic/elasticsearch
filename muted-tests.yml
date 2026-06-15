@@ -785,3 +785,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: "test {p0=esql/100_bug_fix/grok with duplicate names and different types #110533}"
   issue: https://github.com/elastic/elasticsearch/issues/151297
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/sort by counter_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/151298

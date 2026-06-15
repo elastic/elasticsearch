@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -37,7 +38,9 @@ import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -181,7 +184,13 @@ public enum IndexMode {
             }
             MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
             if (fieldType == null) {
-                return;
+                throw new IllegalArgumentException(
+                    "["
+                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                        + "] field ["
+                        + temporalityFieldName
+                        + "] does not exist in the mapping"
+                );
             }
             if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
                 throw new IllegalArgumentException(
@@ -219,7 +228,24 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            String temporalityField = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings.getSettings());
+            if (temporalityField != null && temporalityField.isEmpty() == false) {
+                return createDefaultMappingWithTemporalityField(temporalityField);
+            }
             return DEFAULT_MAPPING_TIMESTAMP;
+        }
+
+        private static CompressedXContent createDefaultMappingWithTemporalityField(String temporalityFieldName) {
+            try {
+                return createDefaultMapping(
+                    b -> b.startObject(temporalityFieldName)
+                        .field("type", KeywordFieldMapper.CONTENT_TYPE)
+                        .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
+                        .endObject()
+                );
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
         }
 
         @Override
@@ -704,7 +730,8 @@ public enum IndexMode {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
-    private static CompressedXContent createDefaultMapping(boolean includeHostName) throws IOException {
+    private static CompressedXContent createDefaultMapping(CheckedConsumer<XContentBuilder, IOException> fieldsCustomizer)
+        throws IOException {
         return new CompressedXContent((builder, params) -> {
             builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                 .startObject(DataStreamTimestampFieldMapper.NAME)
@@ -715,9 +742,7 @@ public enum IndexMode {
                 .field("type", DateFieldMapper.CONTENT_TYPE)
                 .endObject();
 
-            if (includeHostName) {
-                builder.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject();
-            }
+            fieldsCustomizer.accept(builder);
 
             return builder.endObject().endObject();
         });
@@ -729,8 +754,10 @@ public enum IndexMode {
 
     static {
         try {
-            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
-            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(b -> {});
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(
+                b -> b.startObject(HOST_NAME).field("type", KeywordFieldMapper.CONTENT_TYPE).field("ignore_above", 1024).endObject()
+            );
         } catch (IOException e) {
             throw new AssertionError(e);
         }

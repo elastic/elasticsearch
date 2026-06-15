@@ -259,38 +259,6 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         ensureNoWarnings();
     }
 
-    public void testTemporalityWithMissingField() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(
-                tsdbSettings("missing_temporality"),
-                mapping(
-                    b -> b.startObject("@timestamp")
-                        .field("type", "date")
-                        .endObject()
-                        .startObject("host")
-                        .field("type", "keyword")
-                        .field("time_series_dimension", true)
-                        .endObject()
-                )
-            ),
-            null
-        );
-        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
-            0,
-            new NoOpReleasable(),
-            searchExecutionContext,
-            AliasFilter.EMPTY
-        );
-        var provider = new EsPhysicalOperationProviders(
-            FoldContext.small(),
-            new IndexedByShardIdFromSingleton<>(shardContext),
-            null,
-            PlannerSettings.DEFAULTS
-        );
-        assertThat(temporalityLoader(provider).loader(), equalTo(ConstantNull.INSTANCE));
-        ensureNoWarnings();
-    }
-
     /**
      * Verifies that when {@code index.mapping.exclude_source_vectors} is enabled,
      * the source filter retains the original field includes from the ES|QL projection

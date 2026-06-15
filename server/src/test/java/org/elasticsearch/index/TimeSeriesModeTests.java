@@ -12,6 +12,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.Script;
@@ -29,6 +30,7 @@ import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TimeSeriesModeTests extends MapperServiceTestCase {
 
@@ -287,19 +289,21 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         }));
     }
 
-    public void testTemporalityFieldMissingFromMapping() throws IOException {
+    public void testTemporalityFieldAddedToDefaultMapping() throws IOException {
         assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
             .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
             .build();
-        createMapperService(
-            s,
-            mapping(b -> { b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        var mapperService = createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        var fieldType = mapperService.fieldType("temporality");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertTrue(fieldType.isDimension());
     }
 
-    public void testTemporalityFieldNotKeyword() {
+    public void testTemporalityFieldOverrideWithWrongType() {
         assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
@@ -309,13 +313,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("temporality").field("type", "integer").field("time_series_dimension", true).endObject();
         })));
-        assertThat(
-            e.getMessage(),
-            equalTo("[index.time_series.temporality_field] field [temporality] must be of type [keyword] but is [integer]")
-        );
+        assertThat(e.getMessage(), equalTo("mapper [temporality] cannot be changed from type [keyword] to [integer]"));
     }
 
-    public void testTemporalityFieldNotDimension() {
+    public void testTemporalityFieldOverrideWithoutDimension() {
         assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         Settings s = Settings.builder()
             .put(getSettings("dim"))
@@ -325,7 +326,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("temporality").field("type", "keyword").endObject();
         })));
-        assertThat(e.getMessage(), equalTo("[index.time_series.temporality_field] field [temporality] must be a [time_series_dimension]"));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [time_series_dimension] from [true] to [false]"));
     }
 
     public void testIndexDisabledByDefault() {

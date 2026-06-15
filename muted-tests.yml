@@ -734,3 +734,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/192_lookup_join_on_aliases/alias-repeated-index}
   issue: https://github.com/elastic/elasticsearch/issues/151280
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/180_match_operator/match within eval}
+  issue: https://github.com/elastic/elasticsearch/issues/151281

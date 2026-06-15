@@ -1100,9 +1100,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             );
 
             setReplicaCount(0, indexName);
-            assertBusy(
-                () -> assertFalse("store must close promptly without waiting for queued warming tasks", store.hasReferences())
-            );
+            assertBusy(() -> assertFalse("store must close promptly without waiting for queued warming tasks", store.hasReferences()));
 
             // A new search copy can be established while the old warming tasks are still pending.
             // Before the fix, the store ref blocked shard closure, so a new recovery on the same

@@ -74,6 +74,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Collects sample values for a field.",
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
         examples = {

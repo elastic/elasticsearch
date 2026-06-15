@@ -13,3 +13,7 @@ All [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-
 
 `MATCH_PHRASE` returns true if the provided query matches the row.
 
+:::{tip}
+Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+:::
+

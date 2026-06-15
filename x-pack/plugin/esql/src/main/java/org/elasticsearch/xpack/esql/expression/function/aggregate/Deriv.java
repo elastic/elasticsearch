@@ -54,6 +54,7 @@ public class Deriv extends TimeSeriesAggregateFunction implements ToAggregator, 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the derivative over time of a numeric field using linear regression.",
         description = "Calculates the derivative over time of a numeric field using linear regression.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),

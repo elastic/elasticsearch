@@ -45,6 +45,7 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the population standard deviation of a numeric field.",
         description = "The population standard deviation of a numeric field.",
         type = FunctionType.AGGREGATE,
         examples = {

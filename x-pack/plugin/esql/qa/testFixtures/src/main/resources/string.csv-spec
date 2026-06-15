@@ -937,6 +937,46 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvConcatFromEmployees
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "Internship, Senior Python Developer"
+10008          | "Internship, Junior Developer, Purchase Manager, Senior Python Developer"
+10007          | null
+10006          | "Principal Support Engineer, Senior Team Lead, Tech Lead"
+10005          | null
+10004          | "Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "Accountant, Senior Python Developer"
+;
+
+mvConcatFieldDelimiter
+FROM employees
+| WHERE emp_no < 10010
+| EVAL joined = MV_CONCAT(job_positions, last_name)
+| KEEP emp_no, joined
+| SORT emp_no DESC
+;
+
+emp_no:integer | joined:keyword
+10009          | "InternshipPeacSenior Python Developer"
+10008          | "InternshipKalloufiJunior DeveloperKalloufiPurchase ManagerKalloufiSenior Python Developer"
+10007          | null
+10006          | "Principal Support EngineerPreusigSenior Team LeadPreusigTech Lead"
+10005          | null
+10004          | "Head Human ResourcesKoblickReporting AnalystKoblickSupport EngineerKoblickTech Lead"
+10003          | null
+10002          | "Senior Team Lead"
+10001          | "AccountantFacelloSenior Python Developer"
+;
+
 mvSort
 required_capability: mv_sort
 

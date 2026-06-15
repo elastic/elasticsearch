@@ -396,34 +396,21 @@ public class AggregatorImplementer {
     private static final ClassName VALUE_LAYOUT = ClassName.get("java.lang.foreign", "ValueLayout");
 
     /**
-     * Conservative rendered-source-length proxy for the JIT HugeMethodLimit (~8 KB bytecode; a method
-     * over it is never compiled). A folded vector method renders well under this for the simple
-     * aggregators we fold; anything larger falls back to the single-loop shape.
-     */
-    private static final int FOLDED_VECTOR_METHOD_MAX_RENDERED_CHARS = 6000;
-
-    /**
      * Emits {@code addRawVector}. When the first argument's Vector type has a dispatch catalog and the
      * aggregator has the simple loop shape, emit a single folded method that dispatches inline on the
      * concrete type (one {@code getClass()} check per block, then a monomorphic per-type body) — the
      * same-width Arrow arm reduces the off-heap buffer via {@code MemorySegment}. This avoids a
      * dispatcher + one leaf method per subtype, which would bloat the class and destabilize the JIT's
-     * inlining of the unchanged block path. Otherwise the plain single-loop {@link #addRawVector} is used.
+     * inlining of the unchanged block path. {@code first}/scratch aggregators keep the plain
+     * single-loop {@link #addRawVector}.
      */
     private void addAddRawVectorMethods(TypeSpec.Builder typeBuilder, boolean masked) {
         if (aggParams.getFirst() instanceof BlockArgument) {
             throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
-        // Fold every aggregator with a dispatch catalog and the simple loop shape: the per-block
-        // getClass() dispatch monomorphizes ALL arms (non-Arrow included, exactly like the per-type
-        // leaf approach did) without the leaf-method bloat. The same-width Arrow arm additionally uses
-        // the MemorySegment reduction. first/scratch aggregators keep main's single loop.
         if (foldVectorDispatch() && vectorDispatchSubtypes().isEmpty() == false) {
-            MethodSpec folded = buildAddRawVectorFolded(masked, vectorDispatchSubtypes());
-            if (folded.toString().length() <= FOLDED_VECTOR_METHOD_MAX_RENDERED_CHARS) {
-                typeBuilder.addMethod(folded);
-                return;
-            }
+            typeBuilder.addMethod(buildAddRawVectorFolded(masked, vectorDispatchSubtypes()));
+            return;
         }
         typeBuilder.addMethod(addRawVector(masked));
     }

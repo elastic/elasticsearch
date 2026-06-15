@@ -38,15 +38,6 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     }
 
     @Override
-    public float squareDistance(float[] a, float[] b, int offset, int length) {
-        return Similarities.squareDistanceF32(
-            MemorySegment.ofArray(a).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
-            MemorySegment.ofArray(b).asSlice((long) offset * Float.BYTES, (long) length * Float.BYTES),
-            length
-        );
-    }
-
-    @Override
     public float cosine(byte[] a, byte[] b) {
         return Similarities.cosineI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
     }
@@ -59,15 +50,6 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     @Override
     public float squareDistance(byte[] a, byte[] b) {
         return Similarities.squareDistanceI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length);
-    }
-
-    @Override
-    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
-        return Similarities.squareDistanceI8(
-            MemorySegment.ofArray(a).asSlice(offset, length),
-            MemorySegment.ofArray(b).asSlice(offset, length),
-            length
-        );
     }
 
     @Override

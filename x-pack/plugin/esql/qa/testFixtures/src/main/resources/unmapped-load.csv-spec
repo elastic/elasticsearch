@@ -175,6 +175,42 @@ language_code:keyword | language_name:keyword
 2                     | French
 ;
 
+fullTextMatchOperatorOnFullyMappedTextField
+required_capability: optional_fields_v5
+required_capability: match_operator_colon
+
+SET unmapped_fields="load"\;
+FROM books
+| WHERE author:"Faulkner"
+| KEEP book_no, author
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+;
+
+knnOnMappedDenseVectorFieldUnderLoad
+required_capability: optional_fields_v5
+required_capability: knn_function_v5
+
+SET unmapped_fields="load"\;
+FROM colors METADATA _score
+| WHERE knn(rgb_vector, [0, 120, 0])
+| SORT _score DESC, color ASC
+| KEEP color
+| LIMIT 3
+;
+
+color:text
+green
+black
+olive
+;
+
 ######################
 # Single index tests #
 ######################

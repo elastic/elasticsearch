@@ -41,9 +41,12 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -485,22 +488,25 @@ public class Verifier {
     }
 
     /**
-     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
-     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
-     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+     * With {@code unmapped_fields="load"}, allow full-text functions that bind directly to a single field
+     * ({@link Match}, {@link MatchPhrase}, {@code :}, and {@link Knn}) so PUNK checks can validate the referenced field.
+     * Keep query-string style functions (for example {@code KQL}/{@code QSTR}) rejected.
      */
     private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
         List<FullTextFunction> fullTextFunctions = new ArrayList<>();
         plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
-        fullTextFunctions.forEach(
-            f -> failures.add(
+        fullTextFunctions.forEach(f -> {
+            if (f instanceof Match || f instanceof MatchPhrase || f instanceof Knn) {
+                return;
+            }
+            failures.add(
                 fail(
                     f,
                     "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
                     f.functionName()
                 )
-            )
-        );
+            );
+        });
     }
 
     /**

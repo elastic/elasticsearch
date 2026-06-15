@@ -96,7 +96,9 @@ public class QuerySettings {
         [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
         Special notes about the `LOAD` option:
-        - `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+        - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
+        - Only `MATCH`, `MATCH_PHRASE`, the match operator (`:`), and `KNN` are supported; other
+          full-text search functions are not yet supported.
         - Referencing subfields of `flattened` parents is not supported.
         - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
         unless referenced in a `KEEP` or `DROP`.

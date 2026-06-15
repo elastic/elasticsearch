@@ -772,6 +772,94 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
+    public void testTypeConflictTextUnmappedWithMatchOperator() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(VerificationException.class, () -> ta.statement(setUnmappedLoad("FROM foo, bar | WHERE message:\"foo\"")));
+        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
+    }
+
+    public void testTypeConflictTextUnmappedWithMatchFunction() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires MATCH_FUNCTION", EsqlCapabilities.Cap.MATCH_FUNCTION.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            () -> ta.statement(setUnmappedLoad("FROM foo, bar | WHERE match(message, \"foo\")"))
+        );
+        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
+    }
+
+    public void testTypeConflictTextUnmappedWithMatchPhraseFunction() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires MATCH_PHRASE_FUNCTION", EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            () -> ta.statement(setUnmappedLoad("FROM foo, bar | WHERE match_phrase(message, \"foo bar\")"))
+        );
+        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
+    }
+
+    public void testTypeConflictTextUnmappedWithKnnFunction() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assumeTrue("Requires KNN_FUNCTION_V5", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
+        TestAnalyzer ta = analyzer();
+        for (var entry : resolutions.entrySet()) {
+            ta.addIndex(entry.getKey().indexPattern(), entry.getValue());
+        }
+        var e = expectThrows(
+            VerificationException.class,
+            () -> ta.statement(setUnmappedLoad("FROM foo, bar | WHERE knn(message, [1, 2, 3]) | LIMIT 10"))
+        );
+        assertThat(e.getMessage(), partiallyUnmappedNonKeywordError("message"));
+    }
+
     public void testSameMappingHashNotPartiallyUnmapped() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -1493,7 +1581,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
         var esIndex = partialIndex(Map.of("partial_long", longField("partial_long")), Set.of("partial_long"));
         // partial_long is in the index but not referenced in any downstream expression — no PUNK violation
-        assertNotNull(analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM idx*"));
+        var plan = analyzer().addIndex(esIndex).statement("SET unmapped_fields=\"load\"; FROM idx*");
+        assertSingleOutputType(plan, "partial_long", DataType.LONG);
     }
 
     private Matcher<String> unmappedLoadAndFlattenedSubfieldHelper(String... pairs) {
@@ -1664,39 +1753,42 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * One assertion per forbidden full-text function so that re-enabling any of them (e.g. QSTR, KNN, MATCH_PHRASE)
      * would cause this test to fail. When full-text function support grows, this test will need updates; see #144121.
      */
-    public void testUnmappedFieldsLoadWithFullTextSearchFails() {
-        // Assert the new message format and that the specific full-text function is named in brackets
-        // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR, :)
+    public void testUnmappedFieldsLoadWithSupportedSingleFieldFullTextFunctions() {
         var analyzer = test();
-        analyzer.statementError(
-            setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [:]; use \"default\" or \"nullify\""
-                )
-            )
+        assertSingleOutputType(
+            analyzer.statement(setUnmappedLoad("FROM test | WHERE gender:\"M\" | KEEP gender")),
+            "gender",
+            DataType.TEXT
         );
-        analyzer.statementError(
-            setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MATCH]; "
-                        + "use \"default\" or \"nullify\""
-                )
-            )
+        assertSingleOutputType(
+            analyzer.statement(setUnmappedLoad("FROM test | WHERE match(gender, \"M\") | KEEP gender")),
+            "gender",
+            DataType.TEXT
         );
-        analyzer.statementError(
-            setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
-            allOf(
-                containsString("Found 1 problem"),
-                containsString(
-                    "line 1:47: unmapped_fields=\"load\" does not support full-text search function [MatchPhrase]; "
-                        + "use \"default\" or \"nullify\""
-                )
-            )
+        assertSingleOutputType(
+            analyzer.statement(setUnmappedLoad("FROM test | WHERE match_phrase(gender, \"M\") | KEEP gender")),
+            "gender",
+            DataType.TEXT
         );
+
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
+            var knnAnalyzer = analyzer().addIndex("test", "mapping-full_text_search.json");
+            assertSingleOutputType(
+                knnAnalyzer.statement(setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | LIMIT 10 | KEEP vector")),
+                "vector",
+                DataType.DENSE_VECTOR
+            );
+        }
+    }
+
+    /**
+     * Under {@code unmapped_fields=load}, only full-text functions with a direct field argument are supported.
+     * Query-string full-text functions (for example QSTR/KQL) remain disallowed.
+     */
+    public void testUnmappedFieldsLoadWithUnsupportedFullTextSearchFails() {
+        // Assert the message format and that the specific full-text function is named in brackets.
+        // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR).
+        var analyzer = test();
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             analyzer.statementError(
                 setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
@@ -1721,18 +1813,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 )
             );
         }
-        analyzer().addIndex("test", "mapping-full_text_search.json")
-            .statementError(
-                setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString(
-                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KNN]; "
-                            + "use \"default\" or \"nullify\""
-                    )
-                )
-
-            );
     }
 
     private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {
@@ -1831,4 +1911,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         return analyzer;
     }
 
+    private static void assertSingleOutputType(LogicalPlan plan, String fieldName, DataType dataType) {
+        assertThat(Expressions.names(plan.output()), is(List.of(fieldName)));
+        assertThat(plan.output().getFirst().dataType(), is(dataType));
+    }
 }

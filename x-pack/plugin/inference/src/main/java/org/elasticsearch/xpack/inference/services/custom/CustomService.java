@@ -190,7 +190,11 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
 
         for (var request : batchedRequests) {
             var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

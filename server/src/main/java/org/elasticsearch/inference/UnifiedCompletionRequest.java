@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +67,7 @@ public record UnifiedCompletionRequest(
     @Nullable List<Tool> tools,
     @Nullable Float topP,
     @Nullable Reasoning reasoning
-) implements Writeable, ToXContentFragment {
+) implements Accountable, Writeable, ToXContentFragment {
 
     /**
      * We currently allow providers to override the model id that is written to JSON.
@@ -138,6 +140,8 @@ public record UnifiedCompletionRequest(
     public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
     }
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UnifiedCompletionRequest.class);
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -289,6 +293,19 @@ public record UnifiedCompletionRequest(
         return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        // Single floats, longs are negligible
+        var messagesRamBytesUsed = messages().stream().mapToLong(Message::ramBytesUsed).sum();
+        var modelRamBytesUsed = RamUsageEstimator.sizeOf(model());
+        var toolChoicesRamBytesUsed = toolChoice() == null ? 0L : toolChoice().ramBytesUsed();
+        var toolsRamBytesUsed = tools() == null ? 0L : tools().stream().mapToLong(Tool::ramBytesUsed).sum();
+        var reasoningRamBytesUsed = reasoning() == null ? 0L : reasoning().ramBytesUsed();
+
+        return SHALLOW_SIZE + messagesRamBytesUsed + modelRamBytesUsed + toolChoicesRamBytesUsed + toolsRamBytesUsed
+            + reasoningRamBytesUsed;
+    }
+
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {
         var token = parser.currentToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -299,4 +316,5 @@ public record UnifiedCompletionRequest(
 
         throw new XContentParseException("Unsupported token [" + token + "]");
     }
+
 }

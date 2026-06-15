@@ -166,7 +166,11 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
 
         for (var request : batchedRequests) {
             var action = huggingFaceModel.accept(actionCreator);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference.chunking;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -47,19 +49,50 @@ import java.util.stream.Collectors;
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) {
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, InferenceString input) implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Request.class);
+
         public InferenceString chunkText() {
+            // Chunk contains whole input string
             if (chunk.start() == 0 && chunk.end() == input.value().length()) {
                 return input;
             } else {
                 return new InferenceString(input.dataType(), input.dataFormat(), input.value().substring(chunk.start(), chunk.end()));
             }
         }
+
+        @Override
+        public long ramBytesUsed() {
+            // Chunk contains whole input string, where we do not allocate a new {@link InferenceString}
+            if (chunk.start() == 0 && chunk.end() == input.value().length()) {
+                return SHALLOW_SIZE;
+            }
+
+            // We calculate the size manually instead of measuring it directly
+            // using RamUsageEstimator.sizeOf(chunkText()) to not materialize potentially costly strings twice
+            int originalInputLength = input.value().length();
+            long originalInputRamBytesUsed = RamUsageEstimator.sizeOf(input.value());
+            long originalInputDataRamBytesUsed = originalInputRamBytesUsed - RamUsageEstimator.shallowSizeOfInstance(String.class)
+                - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
+            int chunkChars = chunk.end() - chunk.start();
+            return originalInputDataRamBytesUsed * chunkChars / originalInputLength;
+        }
     }
 
-    public record BatchRequest(List<Request> requests) {
+    public record BatchRequest(List<Request> requests) implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BatchRequest.class);
+
         public Supplier<List<InferenceStringGroup>> inputs() {
             return () -> requests.stream().map(request -> new InferenceStringGroup(request.chunkText())).collect(Collectors.toList());
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var requestsRamBytesUsed = requests().stream().mapToLong(Request::ramBytesUsed).sum();
+            return SHALLOW_SIZE + requestsRamBytesUsed;
         }
     }
 

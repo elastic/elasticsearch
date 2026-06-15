@@ -206,7 +206,11 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
 
         for (var request : batchedRequests) {
             var action = jinaaiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

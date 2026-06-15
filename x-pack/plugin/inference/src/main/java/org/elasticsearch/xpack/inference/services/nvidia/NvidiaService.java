@@ -236,7 +236,11 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
 
         for (var request : batchedRequests) {
             var action = nvidiaEmbeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

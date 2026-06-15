@@ -164,7 +164,11 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
 
             for (var request : batchedRequests) {
                 var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+                action.execute(
+                    new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                    timeout,
+                    request.listener()
+                );
             }
         } else {
             listener.onFailure(createInvalidModelException(model));

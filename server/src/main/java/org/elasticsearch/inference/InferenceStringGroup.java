@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,7 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * }
  * </pre>
  */
-public final class InferenceStringGroup implements Writeable, ToXContentObject {
+public final class InferenceStringGroup implements Accountable, Writeable, ToXContentObject {
     public static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
@@ -53,6 +55,8 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
             return new InferenceStringGroup(inferenceStrings);
         }
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceStringGroup.class);
 
     static {
         PARSER.declareObjectArray(constructorArg(), InferenceString.PARSER::apply, new ParseField(CONTENT_FIELD));
@@ -193,6 +197,11 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
             }
         }
         return null;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(inferenceStrings());
     }
 
     @Override

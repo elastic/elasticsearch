@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +44,7 @@ public record Message(
     @Nullable List<ToolCall> toolCalls,
     @Nullable String reasoning,
     @Nullable List<ReasoningDetail> reasoningDetails
-) implements Writeable, ToXContentObject {
+) implements Accountable, Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
@@ -56,6 +58,8 @@ public record Message(
             (List<ReasoningDetail>) args[5]
         )
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Message.class);
 
     static {
         PARSER.declareField(
@@ -134,5 +138,20 @@ public record Message(
         }
 
         return builder.endObject();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var contentRamBytesUsed = content() == null ? 0L : content().ramBytesUsed();
+        var roleRamBytesUsed = RamUsageEstimator.sizeOf(role());
+        var toolCallIdRamBytesUsed = RamUsageEstimator.sizeOf(toolCallId());
+        var toolCallsRamBytesUsed = toolCalls() == null ? 0L : toolCalls().stream().mapToLong(ToolCall::ramBytesUsed).sum();
+        var reasoningRamBytesUsed = RamUsageEstimator.sizeOf(reasoning());
+        var reasoningDetailsRamBytesUsed = reasoningDetails() == null
+            ? 0L
+            : reasoningDetails().stream().mapToLong(ReasoningDetail::ramBytesUsed).sum();
+
+        return SHALLOW_SIZE + contentRamBytesUsed + roleRamBytesUsed + toolCallIdRamBytesUsed + toolCallsRamBytesUsed
+            + reasoningRamBytesUsed + reasoningDetailsRamBytesUsed;
     }
 }

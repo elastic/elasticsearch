@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,12 +32,14 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public record Tool(String type, FunctionField function) implements Writeable, ToXContentObject {
+public record Tool(String type, FunctionField function) implements Accountable, Writeable, ToXContentObject {
 
     public static final ConstructingObjectParser<Tool, Void> PARSER = new ConstructingObjectParser<>(
         Tool.class.getSimpleName(),
         args -> new Tool((String) args[0], (FunctionField) args[1])
     );
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Tool.class);
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("type"));
@@ -62,18 +66,28 @@ public record Tool(String type, FunctionField function) implements Writeable, To
         return builder.endObject();
     }
 
+    @Override
+    public long ramBytesUsed() {
+        var typeRamBytesUsed = RamUsageEstimator.sizeOf(type());
+        var functionRamBytesUsed = RamUsageEstimator.sizeOf(function());
+
+        return SHALLOW_SIZE + typeRamBytesUsed + functionRamBytesUsed;
+    }
+
     public record FunctionField(
         @Nullable String description,
         String name,
         @Nullable Map<String, Object> parameters,
         @Nullable Boolean strict
-    ) implements Writeable, ToXContentObject {
+    ) implements Accountable, Writeable, ToXContentObject {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
             "tool_function_field",
             args -> new FunctionField((String) args[0], (String) args[1], (Map<String, Object>) args[2], (Boolean) args[3])
         );
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FunctionField.class);
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
@@ -104,6 +118,16 @@ public record Tool(String type, FunctionField function) implements Writeable, To
                 builder.field(STRICT_FIELD, strict);
             }
             return builder.endObject();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var descriptionRamBytesUsed = RamUsageEstimator.sizeOf(description());
+            var nameRamBytesUsed = RamUsageEstimator.sizeOf(name());
+            var parametersRamBytesUsed = RamUsageEstimator.sizeOfMap(parameters());
+            // strict is a boolean, therefore free
+
+            return SHALLOW_SIZE + descriptionRamBytesUsed + nameRamBytesUsed + parametersRamBytesUsed;
         }
     }
 }

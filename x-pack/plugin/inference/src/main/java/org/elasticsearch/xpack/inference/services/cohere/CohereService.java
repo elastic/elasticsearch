@@ -191,7 +191,11 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
 
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

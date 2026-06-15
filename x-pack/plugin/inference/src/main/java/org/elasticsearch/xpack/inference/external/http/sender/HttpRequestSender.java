@@ -61,7 +61,12 @@ public class HttpRequestSender implements Sender {
             var executorServiceSettings = new RequestExecutorServiceSettings(serviceComponents.settings());
             executorServiceSettings.init(clusterService);
 
-            var service = new RequestExecutorService(serviceComponents.threadPool(), executorServiceSettings, requestSender);
+            var service = new RequestExecutorService(
+                serviceComponents.threadPool(),
+                executorServiceSettings,
+                requestSender,
+                serviceComponents.circuitBreaker()
+            );
 
             httpRequestSender = new HttpRequestSender(serviceComponents.threadPool(), httpClientManager, requestSender, service);
         }

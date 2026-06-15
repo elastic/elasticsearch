@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -45,7 +47,7 @@ import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.extr
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.throwIfNotEmptyMap;
 
-public abstract sealed class ContentObject implements NamedWriteable, ToXContent permits ContentObject.ContentObjectText,
+public abstract sealed class ContentObject implements Accountable, NamedWriteable, ToXContent permits ContentObject.ContentObjectText,
     ContentObject.ContentObjectImage, ContentObject.ContentObjectFile {
 
     public enum ContentObjectType {
@@ -99,6 +101,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
     public static final class ContentObjectFile extends ContentObject {
         public static final String NAME = "content_object_file";
         private final ContentObjectFileFields fileFields;
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectFile.class);
 
         public ContentObjectFile(ContentObjectFileFields fileFields) {
             super(FILE);
@@ -155,6 +158,12 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
             return NAME;
         }
 
+        @Override
+        public long ramBytesUsed() {
+            var fileFieldsRamBytesUsed = fileFields.ramBytesUsed();
+            return SHALLOW_SIZE + fileFieldsRamBytesUsed;
+        }
+
         /**
          * Represents the fields of a file content object in a unified completion request.
          * Includes the file data, file ID, and filename.
@@ -170,8 +179,11 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
          */
         public record ContentObjectFileFields(@Nullable String fileData, @Nullable String fileId, @Nullable String filename)
             implements
+                Accountable,
                 Writeable,
                 ToXContentObject {
+
+            private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectFileFields.class);
 
             public static ContentObjectFileFields fromMap(Map<String, Object> map) {
                 String fileData = extractRequiredFieldOfType(map, FILE_DATA_FIELD, String.class, FILE_FIELD);
@@ -215,11 +227,22 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
                 }
                 return builder.endObject();
             }
+
+            @Override
+            public long ramBytesUsed() {
+                var fileDataRamBytesUsed = RamUsageEstimator.sizeOf(fileData());
+                var fileIdRamBytesUsed = RamUsageEstimator.sizeOf(fileId());
+                var fileNameRamBytesUsed = RamUsageEstimator.sizeOf(filename());
+
+                return SHALLOW_SIZE + fileDataRamBytesUsed + fileIdRamBytesUsed + fileNameRamBytesUsed;
+            }
         }
     }
 
     public static final class ContentObjectImage extends ContentObject {
         public static final String NAME = "content_object_image";
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectImage.class);
+
         private final ContentObjectImageUrl imageUrl;
 
         public ContentObjectImage(ContentObjectImageUrl imageUrl) {
@@ -277,7 +300,20 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
             return NAME;
         }
 
-        public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail) implements Writeable, ToXContentObject {
+        @Override
+        public long ramBytesUsed() {
+            var imageUrlRamBytesUsed = imageUrl().ramBytesUsed();
+            return SHALLOW_SIZE + imageUrlRamBytesUsed;
+        }
+
+        public record ContentObjectImageUrl(String url, @Nullable ImageUrlDetail detail)
+            implements
+                Accountable,
+                Writeable,
+                ToXContentObject {
+
+            private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectImageUrl.class);
+
             public static ContentObjectImageUrl fromMap(Map<String, Object> map) {
                 String url = extractRequiredFieldOfType(map, URL_FIELD, String.class, URL_FIELD);
                 String detailString = extractOptionalFieldOfType(map, DETAIL_FIELD, String.class, URL_FIELD);
@@ -306,6 +342,12 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
                 return builder.endObject();
             }
 
+            @Override
+            public long ramBytesUsed() {
+                var imageUrlRamBytesUsed = RamUsageEstimator.sizeOf(url());
+                return SHALLOW_SIZE + imageUrlRamBytesUsed;
+            }
+
             public enum ImageUrlDetail {
                 AUTO,
                 LOW,
@@ -329,6 +371,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
 
     public static final class ContentObjectText extends ContentObject {
         public static final String NAME = "content_object_text";
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ContentObjectText.class);
 
         private final String text;
 
@@ -386,6 +429,12 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            var textRamBytesUsed = RamUsageEstimator.sizeOf(text);
+            return SHALLOW_SIZE + textRamBytesUsed;
         }
     }
 }

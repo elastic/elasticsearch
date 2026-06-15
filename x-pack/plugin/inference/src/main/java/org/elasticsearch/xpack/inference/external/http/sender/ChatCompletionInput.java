@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.inference.TaskType;
 
 import java.util.List;
@@ -20,6 +21,9 @@ import java.util.Objects;
  * API without using the {@link TaskType#CHAT_COMPLETION} task type.
  */
 public class ChatCompletionInput extends InferenceInputs {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ChatCompletionInput.class);
+
     private final List<String> input;
 
     public ChatCompletionInput(List<String> input) {
@@ -38,5 +42,11 @@ public class ChatCompletionInput extends InferenceInputs {
     @Override
     public boolean isSingleInput() {
         return input.size() == 1;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var inputStringSize = input.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
+        return SHALLOW_SIZE + inputStringSize;
     }
 }

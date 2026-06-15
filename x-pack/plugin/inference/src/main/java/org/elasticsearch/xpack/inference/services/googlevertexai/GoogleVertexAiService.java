@@ -238,7 +238,11 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
 
         for (var request : batchedRequests) {
             var action = googleVertexAiModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -33,12 +35,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
-public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
+public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Accountable, Writeable, ToXContentObject {
     public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_audio_video_pdf_support"
     );
 
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceString.class);
 
     public static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
@@ -175,6 +178,12 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     public static String textValue(InferenceString inferenceString) {
         assert inferenceString.isText() : "Non-text input returned from InferenceString.textValue";
         return inferenceString.value();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        var stringSize = RamUsageEstimator.sizeOf(value);
+        return SHALLOW_SIZE + stringSize;
     }
 
     @Override

@@ -136,7 +136,6 @@ public class RequestExecutorServiceSettings {
         rateLimitGroupStaleDuration = toDuration(staleDuration);
     }
 
-
     private static Duration toDuration(TimeValue timeValue) {
         return Duration.of(timeValue.duration(), timeValue.timeUnit().toChronoUnit());
     }
@@ -161,5 +160,7 @@ public class RequestExecutorServiceSettings {
         return rateLimitGroupStaleDuration;
     }
 
-    int allowedConcurrentInFlightRequests(){return allowedConcurrentInFlightRequests;}
+    int allowedConcurrentInFlightRequests() {
+        return allowedConcurrentInFlightRequests;
+    }
 }

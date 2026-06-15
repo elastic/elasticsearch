@@ -199,7 +199,11 @@ public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implemen
 
         for (var request : batchedRequests) {
             var action = openShiftAiEmbeddingsModel.accept(actionCreator, taskSettings);
-            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
+            action.execute(
+                new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                timeout,
+                request.listener()
+            );
         }
     }
 

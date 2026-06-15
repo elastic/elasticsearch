@@ -91,10 +91,13 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
                 )
             );
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
-                new EmbeddingsInput(() -> List.of(new InferenceStringGroup("test input")), null),
-                model.getServiceSettings().getInputTypeTranslator()
-            );
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                var testInput = new InferenceStringGroup("test input");
+                yield EmbeddingParameters.of(
+                    new EmbeddingsInput(() -> List.of(testInput), testInput.ramBytesUsed(), null),
+                    model.getServiceSettings().getInputTypeTranslator()
+                );
+            }
             default -> throw new IllegalStateException(
                 Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
             );

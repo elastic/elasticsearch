@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
@@ -18,6 +19,8 @@ import static org.elasticsearch.inference.InferenceString.textValue;
 import static org.elasticsearch.inference.InferenceString.toStringList;
 
 public class QueryAndDocsInputs extends InferenceInputs {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(QueryAndDocsInputs.class);
 
     public static QueryAndDocsInputs fromRerankRequest(RerankRequest request) {
         return new QueryAndDocsInputs(request.query(), request.inputs(), request.returnDocuments(), request.topN(), false);
@@ -73,5 +76,13 @@ public class QueryAndDocsInputs extends InferenceInputs {
     @Override
     public boolean isSingleInput() {
         return docs.size() == 1;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long docsRamBytesUsed = docs.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
+        long queryRamBytesUsed = query.ramBytesUsed();
+
+        return SHALLOW_SIZE + docsRamBytesUsed + queryRamBytesUsed;
     }
 }

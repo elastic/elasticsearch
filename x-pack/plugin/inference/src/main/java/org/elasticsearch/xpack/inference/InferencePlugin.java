@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -29,15 +30,18 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -211,7 +215,8 @@ public class InferencePlugin extends Plugin
         SearchPlugin,
         InternalSearchPlugin,
         ClusterPlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        CircuitBreakerPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -253,8 +258,18 @@ public class InferencePlugin extends Plugin
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
+    public static final String INFERENCE_CIRCUIT_BREAKER_NAME = "inference";
 
     private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
+    // 50% of the available heap will be the upper limit for the memory
+    // the inference plugin can use for various tasks (in-flight requests to external providers for example)
+    private static final long DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo()
+        .getMem()
+        .getHeapMax()
+        .getBytes());
+    // TODO: Should probably be exposed as a setting
+    private static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
     /**
      * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
@@ -277,6 +292,11 @@ public class InferencePlugin extends Plugin
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
+    /**
+      * Used to limit the amount of memory mainly in-flight request objects
+     *  (e.g. {@link org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput} can allocate.
+      */
+    private final SetOnce<CircuitBreaker> inferenceCircuitBreaker = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -340,7 +360,9 @@ public class InferencePlugin extends Plugin
         throttlerManager.init(services.clusterService());
 
         var truncator = new Truncator(settings, services.clusterService());
-        serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
+        serviceComponents.set(
+            new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator, inferenceCircuitBreaker.get())
+        );
         threadPoolSetOnce.set(services.threadPool());
 
         var httpClientManager = HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
@@ -558,6 +580,27 @@ public class InferencePlugin extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         inferenceServiceExtensions = loader.loadExtensions(InferenceServiceExtension.class);
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settingsToUse) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                INFERENCE_CIRCUIT_BREAKER_NAME,
+                DEFAULT_INFERENCE_CIRCUIT_BREAKER_LIMIT,
+                DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settingsToUse
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        // Ensures correct circuit breaker is set for the plugin
+        assert circuitBreaker.getName().equals(INFERENCE_CIRCUIT_BREAKER_NAME);
+        this.inferenceCircuitBreaker.set(circuitBreaker);
     }
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {

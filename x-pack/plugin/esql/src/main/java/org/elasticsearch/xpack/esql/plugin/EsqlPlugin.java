@@ -181,6 +181,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    /**
+     * Controls whether LOOKUP JOIN uses the streaming lookup operator, which streams pages to the
+     * lookup node instead of performing a request per input page. Acts as an escape hatch to fall
+     * back to the non-streaming operator; even when enabled, streaming is only used if all target
+     * nodes support the streaming protocol.
+     */
+    public static final Setting<Boolean> LOOKUP_JOIN_STREAMING = Setting.boolSetting(
+        "esql.query.lookup_join_streaming",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
         "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
@@ -441,6 +454,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
+                LOOKUP_JOIN_STREAMING,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,

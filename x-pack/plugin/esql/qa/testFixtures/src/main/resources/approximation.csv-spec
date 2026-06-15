@@ -461,7 +461,7 @@ Approximate stats by with zero variance
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | MV_EXPAND mv
     | STATS avg=avg(mv), median=median(mv), one=3/(1+SUM(2.0*mv)/SUM(mv)) BY mv
@@ -469,7 +469,7 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 avg:double               | median:double | one:double | mv:integer | _approximation_confidence_interval(avg):double      | _approximation_certified(avg):boolean | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean | _approximation_confidence_interval(one):double | _approximation_certified(one):boolean
 1999.999999..2000.000001 | 2000          | 1          | 2000       | [1999.999999..2000.000001,1999.999999..2000.000001] | {any}                                 | [2000,2000]                                       | {any}                                    | [1,1]                                          | {any}
@@ -484,14 +484,14 @@ Approximate stats by on large single-valued data
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | STATS count=COUNT() BY sv
     | SORT sv DESC
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 count:long | sv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 100..2000  | 700        | [100..2000,100..2000]                          | {any}
@@ -506,7 +506,7 @@ Approximate stats by on large multi-valued data
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | MV_EXPAND mv
     | STATS count=COUNT() BY mv
@@ -514,7 +514,7 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 count:long | mv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 500..4000  | 2000       | [500..4000,500..4000]                          | {any}
@@ -570,7 +570,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 ;
 
 
-Approximate stats by on mixed data
+Approximate stats on mixed data
 required_capability: approximation_v7
 request_stored: skip
 
@@ -1398,14 +1398,14 @@ required_capability: approximation_fork
 required_capability: subquery_in_from_command
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM (FROM many_numbers | STATS count  = 100.0*COUNT() BY sv | RENAME value = count ),
      (FROM many_numbers | STATS median = MEDIAN(sv)  BY sv | RENAME value = median)
 | SORT sv DESC, value ASC
 | LIMIT 5
 ;
 
-documents_found: 16000..24000
+documents_found: 32000..48000
 
 value:double           | sv:integer | _approximation_confidence_interval(value):double | _approximation_certified(value):boolean
 699.999999..700.000001 | 700        | [699.999999..700.000001,699.999999..700.000001]  | {any}

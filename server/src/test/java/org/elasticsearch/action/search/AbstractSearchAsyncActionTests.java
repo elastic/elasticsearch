@@ -74,6 +74,11 @@ import java.util.function.BiFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -651,6 +656,41 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 numShards * perShardBytes,
                 action.getMergedDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead()
             );
+        }
+    }
+
+    public void testRecordStoreMetricsReportsMergedBytesRead() {
+        int numShards = randomIntBetween(1, 5);
+        long expectedBytesRead = 0;
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(numShards)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (int i = 0; i < numShards; i++) {
+                long shardBytes = (i + 1) * 13L;
+                expectedBytesRead += shardBytes;
+                action.accumulateDirectoryMetrics(storeMetrics(shardBytes));
+            }
+            action.recordStoreMetrics(action.getMergedDirectoryMetrics());
+            verify(action.getSearchResponseMetrics()).recordStoreBytesRead(eq(expectedBytesRead), anyMap());
+        }
+    }
+
+    public void testRecordStoreMetricsSkipsEmpty() {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            action.recordStoreMetrics(DirectoryMetrics.EMPTY);
+            verify(action.getSearchResponseMetrics(), never()).recordStoreBytesRead(anyLong(), anyMap());
         }
     }
 

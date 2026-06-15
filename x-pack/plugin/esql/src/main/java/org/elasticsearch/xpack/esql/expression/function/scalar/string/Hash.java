@@ -50,6 +50,7 @@ public class Hash extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Computes the hash of the input using a specified algorithm.",
         description = "Computes the hash of the input using various algorithms such as MD5, SHA, SHA-224, SHA-256, SHA-384, SHA-512.",
         examples = { @Example(file = "hash", tag = "hash") }
     )

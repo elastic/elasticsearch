@@ -49,6 +49,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -487,7 +488,8 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     IndexVersion.current(),
                     true,
                     true,
-                    true
+                    false,
+                    new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true)
                 );
 
                 // NOTE: "fox brown" has both terms in the index but in the wrong order. A boolean MUST

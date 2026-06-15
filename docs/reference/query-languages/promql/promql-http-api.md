@@ -148,6 +148,33 @@ The `help` field is always an empty string for now (see [Limitations](promql-lim
 The `metadata` route does not support `match[]`, `start`, or `end`.
 {{es}} discovers type and unit using the {{esql}} [`METRICS_INFO`](/reference/query-languages/esql/commands/metrics-info.md) command over [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS), with a fixed 24-hour lookback ending when the request runs.
 
+## Status endpoints [promql-http-api-status]
+
+### Build information [promql-http-api-buildinfo]
+
+{applies_to}`stack: preview 9.5.0` {applies_to}`serverless: preview`
+
+`GET /_prometheus/api/v1/status/buildinfo`\
+`GET /_prometheus/{index}/api/v1/status/buildinfo`
+
+Returns build information about the {{es}} instance in the standard Prometheus buildinfo format.
+Grafana queries this endpoint to identify the backend type and determine available features.
+The `{index}` segment is accepted for datasource configurations that use a scoped base URL, but it does not affect the response.
+
+Example response:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "application": "Elasticsearch",
+    "version": "9.5.0",
+    "revision": "af328d7d33ae419957d8e12beec76219710760fb",
+    "buildDate": "2026-05-27T22:17:45.329682193Z"
+  }
+}
+```
+
 ## Request parameter formats [promql-http-api-parameters]
 
 Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/). See the upstream [format overview](https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview).

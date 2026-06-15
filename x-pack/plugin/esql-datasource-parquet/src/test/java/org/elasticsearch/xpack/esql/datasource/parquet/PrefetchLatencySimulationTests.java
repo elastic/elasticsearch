@@ -22,10 +22,13 @@ import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -37,7 +40,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -52,11 +56,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class PrefetchLatencySimulationTests extends ESTestCase {
 
     private BlockFactory blockFactory;
+    private ExecutorService asyncIoExecutor;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        // Owned, deterministically shut down in tearDown: using ForkJoinPool.commonPool() here leaks
+        // worker threads that ESTestCase's suite-scoped ThreadLeakControl flags as a class failure.
+        asyncIoExecutor = Executors.newFixedThreadPool(4, EsExecutors.daemonThreadFactory("test", "prefetch-test-async-io"));
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        terminate(asyncIoExecutor);
+        super.tearDown();
     }
 
     /**
@@ -78,8 +92,8 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
         byte[] parquetData = createMultiRowGroupFile(schema, 5000, 4096);
 
-        CountingStorageObject baselineStorage = new CountingStorageObject(parquetData);
-        CountingStorageObject optimizedStorage = new CountingStorageObject(parquetData);
+        CountingStorageObject baselineStorage = new CountingStorageObject(parquetData, asyncIoExecutor);
+        CountingStorageObject optimizedStorage = new CountingStorageObject(parquetData, asyncIoExecutor);
 
         readAll(new ParquetFormatReader(blockFactory, false), baselineStorage);
         int baselineSyncReads = baselineStorage.syncReadCount.get();
@@ -121,7 +135,7 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         byte[] parquetData = createMultiRowGroupFile(schema, 2000, 2048);
 
         StorageObject plainStorage = createPlainStorageObject(parquetData);
-        CountingStorageObject delayedStorage = new CountingStorageObject(parquetData);
+        CountingStorageObject delayedStorage = new CountingStorageObject(parquetData, asyncIoExecutor);
 
         int baselineRows = countRows(new ParquetFormatReader(blockFactory, false), plainStorage);
         int optimizedRows = countRows(new ParquetFormatReader(blockFactory, true), delayedStorage);
@@ -150,15 +164,18 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
 
     /**
      * StorageObject that counts sync and async I/O calls. Async reads are dispatched
-     * to {@link ForkJoinPool#commonPool()} to simulate true async I/O.
+     * to a test-owned executor to simulate true async I/O. The executor is owned and shut
+     * down by the enclosing test so no worker threads leak past the suite.
      */
     static class CountingStorageObject implements StorageObject {
         private final byte[] data;
+        private final ExecutorService asyncIoExecutor;
         final AtomicInteger syncReadCount = new AtomicInteger();
         final AtomicInteger asyncReadCount = new AtomicInteger();
 
-        CountingStorageObject(byte[] data) {
+        CountingStorageObject(byte[] data, ExecutorService asyncIoExecutor) {
             this.data = data;
+            this.asyncIoExecutor = asyncIoExecutor;
         }
 
         @Override
@@ -193,16 +210,22 @@ public class PrefetchLatencySimulationTests extends ESTestCase {
         }
 
         @Override
-        public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
             asyncReadCount.incrementAndGet();
-            ForkJoinPool.commonPool().execute(() -> {
+            asyncIoExecutor.execute(() -> {
                 try {
                     int pos = (int) position;
                     int len = (int) Math.min(length, data.length - position);
                     ByteBuffer buffer = ByteBuffer.allocate(len);
                     buffer.put(data, pos, len);
                     buffer.flip();
-                    listener.onResponse(buffer);
+                    listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

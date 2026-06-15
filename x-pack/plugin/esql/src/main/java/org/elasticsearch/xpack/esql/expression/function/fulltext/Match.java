@@ -142,6 +142,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") },
+        briefSummary = "Performs a match query on the specified field.",
         description = """
             Use `MATCH` to perform a <<query-dsl-match-query,match query>> on the specified field.
             Using `MATCH` is equivalent to using the `match` query in the Elasticsearch Query DSL.""",
@@ -156,7 +157,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
             For a simplified syntax, you can use the <<esql-match-operator,match operator>> `:` operator instead of `MATCH`.
 
-            `MATCH` returns true if the provided query matches the row.""",
+            `MATCH` returns true if the provided query matches the row.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = {
             @Example(file = "match-function", tag = "match-with-field"),
             @Example(file = "match-function", tag = "match-with-named-function-params") }

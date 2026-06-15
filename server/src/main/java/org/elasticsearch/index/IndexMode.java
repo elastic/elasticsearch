@@ -228,6 +228,9 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
+            // TSDB indices may have a field which stores the metric temporality, the field is defined by the TIME_SERIES_TEMPORALITY_FIELD
+            // setting. During mapping validation we verify that the field the setting points to actually exists,
+            // so we include it in the default mapping
             String temporalityField = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(indexSettings.getSettings());
             if (temporalityField != null && temporalityField.isEmpty() == false) {
                 return createDefaultMappingWithTemporalityField(temporalityField);

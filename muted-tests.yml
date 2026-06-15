@@ -293,9 +293,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSeek
   issue: https://github.com/elastic/elasticsearch/issues/150912
-- class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
-  method: testComputeNeighbours
-  issue: https://github.com/elastic/elasticsearch/issues/151159
 
 # Examples:
 #

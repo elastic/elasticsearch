@@ -830,3 +830,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/63_enrich_int_range/Invalid age as double}
   issue: https://github.com/elastic/elasticsearch/issues/151312
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Views telemetry}
+  issue: https://github.com/elastic/elasticsearch/issues/151313

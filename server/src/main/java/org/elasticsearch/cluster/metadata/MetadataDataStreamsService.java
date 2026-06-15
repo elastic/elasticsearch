@@ -354,7 +354,7 @@ public class MetadataDataStreamsService {
                     deleteBackingIndex(updatedProjectMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore())
                 );
             } else {
-                throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
+                throw new IllegalStateException("unsupported data stream action type [" + action.getType() + "]");
             }
             updatedProjectMetadata = builder.build();
         }

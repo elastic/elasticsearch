@@ -523,6 +523,68 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         assertNull(newProject.getIndicesLookup().get(indexToDelete.getIndex().getName()));
     }
 
+    public void testDeleteFailureStoreIndex() {
+        final long epochMillis = System.currentTimeMillis();
+        final int numBackingIndices = randomIntBetween(2, 4);
+        final int numFailureIndices = randomIntBetween(2, 4);
+        final String dataStreamName = randomAlphaOfLength(5);
+        IndexMetadata[] backingIndices = new IndexMetadata[numBackingIndices];
+        IndexMetadata[] failureIndices = new IndexMetadata[numFailureIndices];
+        ProjectMetadata.Builder mb = ProjectMetadata.builder(randomProjectIdOrDefault());
+        for (int k = 0; k < numBackingIndices; k++) {
+            backingIndices[k] = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(backingIndices[k], false);
+        }
+        for (int k = 0; k < numFailureIndices; k++) {
+            failureIndices[k] = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, k + 1, epochMillis))
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(generateMapping("@timestamp"))
+                .build();
+            mb.put(failureIndices[k], false);
+        }
+
+        mb.put(
+            DataStreamTestHelper.newInstance(
+                dataStreamName,
+                Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList(),
+                Arrays.stream(failureIndices).map(IndexMetadata::getIndex).toList()
+            )
+        );
+
+        final IndexMetadata indexToDelete = failureIndices[randomIntBetween(0, numFailureIndices - 2)];
+        ProjectMetadata originalProject = mb.build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(originalProject).build();
+        ProjectMetadata newProject = MetadataDataStreamsService.modifyDataStream(
+            clusterState.projectState(originalProject.id()),
+            List.of(DataStreamAction.deleteFailureStoreIndex(dataStreamName, indexToDelete.getIndex().getName())),
+            this::getMapperService,
+            Settings.EMPTY
+        ).metadata().getProject(originalProject.id());
+
+        IndexAbstraction ds = newProject.getIndicesLookup().get(dataStreamName);
+        assertThat(ds, notNullValue());
+        assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
+        assertThat(ds.getIndices().size(), equalTo(numBackingIndices));
+        assertThat(ds.getFailureIndices(null).size(), equalTo(numFailureIndices - 1));
+
+        List<Index> expectedFailureIndices = ds.getFailureIndices(null)
+            .stream()
+            .filter(x -> x.getName().equals(indexToDelete.getIndex().getName()) == false)
+            .toList();
+        assertThat(expectedFailureIndices, containsInAnyOrder(ds.getFailureIndices(null).toArray()));
+
+        IndexMetadata removedIndex = newProject.indices().get(indexToDelete.getIndex().getName());
+        assertThat(removedIndex, nullValue());
+        assertNull(newProject.getIndicesLookup().get(indexToDelete.getIndex().getName()));
+    }
+
     public void testDeleteWriteIndexIsProhibited() {
         final long epochMillis = System.currentTimeMillis();
         final int numBackingIndices = randomIntBetween(1, 4);

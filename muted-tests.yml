@@ -752,3 +752,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/140_metadata/All fields ignored}
   issue: https://github.com/elastic/elasticsearch/issues/151286
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/pattern-single}
+  issue: https://github.com/elastic/elasticsearch/issues/151287

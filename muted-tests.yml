@@ -827,3 +827,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load four indices with multiple conversion functions TO_LONG and TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151311
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/63_enrich_int_range/Invalid age as double}
+  issue: https://github.com/elastic/elasticsearch/issues/151312

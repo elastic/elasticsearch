@@ -201,12 +201,7 @@ public class CalibrationUtilsTests extends ESTestCase {
             }
 
             @Override
-            public void search(
-                String field,
-                float[] target,
-                KnnCollector knnCollector,
-                AcceptDocs acceptDocs
-            ) {}
+            public void search(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) {}
 
             @Override
             public void search(
@@ -229,12 +224,8 @@ public class CalibrationUtilsTests extends ESTestCase {
         };
     }
 
-    private static MergeState mergeState(
-        KnnVectorsReader[] readers,
-        Bits[] liveDocsBits,
-        SegmentInfo segmentInfo,
-        FieldInfo fieldInfo
-    ) throws IOException {
+    private static MergeState mergeState(KnnVectorsReader[] readers, Bits[] liveDocsBits, SegmentInfo segmentInfo, FieldInfo fieldInfo)
+        throws IOException {
         FieldInfos[] fieldInfos = new FieldInfos[readers.length];
         for (int i = 0; i < readers.length; i++) {
             FloatVectorValues vectors = readers[i].getFloatVectorValues(fieldInfo.name);

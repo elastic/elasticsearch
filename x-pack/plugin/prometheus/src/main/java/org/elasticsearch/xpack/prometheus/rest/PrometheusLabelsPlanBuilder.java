@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
@@ -65,7 +64,7 @@ final class PrometheusLabelsPlanBuilder {
             selectors,
             start,
             end,
-            child -> new MetricsInfo(Source.EMPTY, child)
+            child -> PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, child)
         );
 
         // Expand the multivalued dimension_fields column into one row per label name

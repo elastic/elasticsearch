@@ -23,8 +23,11 @@ import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
@@ -59,12 +62,15 @@ final class PrometheusPlanBuilderUtils {
     private static final String METRICS_PREFIX_REGEX = "metrics\\.(";
 
     /**
-     * Query settings applied to every ESQL statement issued by the Prometheus plugin.
+     * Query settings applied to every ESQL statement issued by Prometheus REST handlers.
      * {@code SET unmapped_fields = "NULLIFY"} makes references to fields that are absent from an
      * index's mappings evaluate to {@code null} rather than failing with an "Unknown column" error.
-     * This is required because the plugin queries {@code TS *} across mixed data streams (both
+     * This is required because these handlers query {@code TS *} across mixed data streams (both
      * Prometheus-style streams that carry {@code labels.__name__} and OTel-style streams that do
      * not), so any label field may be absent from some indices in the pattern.
+     *
+     * <p>{@code labels.__name__} is the Prometheus reserved label that stores the metric name.
+     * OTel metrics typically omit it and expose the metric name via the field name instead.
      */
     static final List<QuerySetting> QUERY_SETTINGS = List.of(
         new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "unmapped_fields", Literal.keyword(Source.EMPTY, "NULLIFY")))
@@ -78,6 +84,14 @@ final class PrometheusPlanBuilderUtils {
     static UnresolvedRelation tsSource(String index) {
         IndexPattern pattern = new IndexPattern(Source.EMPTY, index);
         return new UnresolvedRelation(Source.EMPTY, pattern, false, List.of(), null, SourceCommand.TS);
+    }
+
+    static MetricsInfo metricsInfo(Source source, LogicalPlan child) {
+        return new MetricsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, child));
+    }
+
+    static TsInfo tsInfo(Source source, LogicalPlan child) {
+        return new TsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, child));
     }
 
     /**
@@ -107,35 +121,6 @@ final class PrometheusPlanBuilderUtils {
     }
 
     /**
-     * Builds a {@code TS -> Filter -> info node} plan. Repeated selectors are combined in one
-     * pre-info OR filter. For non-exact {@code __name__} matchers we add a nullable
-     * {@code labels.__name__} hint: metrics that carry {@code __name__} are filtered before the
-     * expensive info node, while metrics without that label can still reach the post-info
-     * {@code metric_name} filter.
-     *
-     * <p>For Prometheus data, where {@code labels.__name__} is present, the pre-info OR preserves
-     * repeated {@code match[]} grouping exactly. The post-info {@code metric_name} filter is applied
-     * only when every repeated selector has such a condition; otherwise it is skipped so selectors
-     * without {@code __name__} constraints are not filtered out.
-     *
-     * <p>For OTel data without {@code labels.__name__}, single-selector requests remain exact via
-     * the post-info {@code metric_name} filter. Repeated {@code match[]} requests that mix pre-info
-     * labels and non-exact {@code __name__} constraints are approximate because a single linear plan
-     * cannot preserve each selector's full grouping without a union.
-     */
-    static LogicalPlan buildFilteredInfoPlan(
-        String index,
-        List<InstantSelector> selectors,
-        Instant start,
-        Instant end,
-        Function<LogicalPlan, LogicalPlan> infoNode
-    ) {
-        Expression preInfoCondition = buildPreInfoCondition(selectors);
-        Expression postInfoCondition = buildPostInfoCondition(selectors);
-        return buildFilteredInfoBranch(index, start, end, preInfoCondition, postInfoCondition, infoNode);
-    }
-
-    /**
      * Builds pre-info selector conditions with a fallback for non-EQ {@code __name__} matchers,
      * for use in the regular-label values plan which has no post-{@code TsInfo} step.
      *
@@ -144,7 +129,14 @@ final class PrometheusPlanBuilderUtils {
      * @see #buildPreInfoSelectorConditionWithNameFallback(InstantSelector)
      */
     static List<Expression> buildPreInfoConditionsWithNameFallback(List<InstantSelector> selectors) {
-        return buildSelectorConditions(selectors, PrometheusPlanBuilderUtils::buildPreInfoSelectorConditionWithNameFallback);
+        List<Expression> conditions = new ArrayList<>();
+        for (InstantSelector selector : selectors) {
+            Expression cond = buildPreInfoSelectorConditionWithNameFallback(selector);
+            if (cond != null) {
+                conditions.add(cond);
+            }
+        }
+        return conditions;
     }
 
     /**
@@ -158,34 +150,36 @@ final class PrometheusPlanBuilderUtils {
      * — this is a known limitation of the current plan shape for that endpoint.
      */
     static Expression buildPreInfoSelectorConditionWithNameFallback(InstantSelector selector) {
-        List<Expression> conditions = new ArrayList<>();
-        for (LabelMatcher matcher : selector.labelMatchers().matchers()) {
+        var matchers = selector.labelMatchers().matchers();
+        List<Expression> conditions = new ArrayList<>(matchers.size());
+
+        for (var matcher : matchers) {
             if (LabelMatcher.NAME.equals(matcher.name())) {
                 if (matcher.matcher() == LabelMatcher.Matcher.EQ) {
-                    // Parser contract: EQ __name__ always carries a non-null series expression
+                    // Parser guarantees that "__name__" equality is represented by a non-null series.
                     assert selector.series() != null : "EQ __name__ matcher should always have a non-null series";
                     conditions.add(new IsNotNull(Source.EMPTY, selector.series()));
                 } else if (matcher.matchesAll() == false) {
-                    // NEQ/REG/NREG: fall back to filtering on labels.__name__.
-                    // OTel metrics that lack this label will be excluded — the regular-label
-                    // plan has no MetricsInfo/TsInfo node to provide metric_name.
+                    // Non-equality "__name__" matchers (e.g. {__name__!="foo"}, {__name__=~"bar"}) cannot use
+                    // selector.series(). Use the "__name__" label; series without it are excluded.
                     Expression nameField = new UnresolvedAttribute(Source.EMPTY, LabelMatcher.NAME);
                     Expression matcherCond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, nameField, matcher);
-                    conditions.add(combineAnd(List.of(new IsNotNull(Source.EMPTY, nameField), matcherCond)));
+                    if (matcherCond != null) {
+                        conditions.add(combineAnd(List.of(new IsNotNull(Source.EMPTY, nameField), matcherCond)));
+                    }
                 }
-                // matchesAll() == true: automaton accepts every string (e.g. =~".*") — no constraint needed
-            } else {
-                // Regular label matchers, e.g. job="myjob" in {job="myjob"}.
-                Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(
-                    Source.EMPTY,
-                    new UnresolvedAttribute(Source.EMPTY, matcher.name()),
-                    matcher
-                );
-                if (cond != null) {
-                    conditions.add(cond);
-                }
+                // A matcher that accepts every metric name adds no useful filter.
+                continue;
+            }
+
+            // Regular label matcher, e.g. job="myjob".
+            Expression labelField = new UnresolvedAttribute(Source.EMPTY, matcher.name());
+            Expression cond = TranslatePromqlToEsqlPlan.translateLabelMatcher(Source.EMPTY, labelField, matcher);
+            if (cond != null) {
+                conditions.add(cond);
             }
         }
+
         return conditions.isEmpty() ? null : combineAnd(conditions);
     }
 
@@ -292,20 +286,6 @@ final class PrometheusPlanBuilderUtils {
         return combineAnd(List.of(ge, le));
     }
 
-    private static List<Expression> buildSelectorConditions(
-        List<InstantSelector> selectors,
-        Function<InstantSelector, Expression> conditionBuilder
-    ) {
-        List<Expression> conditions = new ArrayList<>();
-        for (InstantSelector selector : selectors) {
-            Expression cond = conditionBuilder.apply(selector);
-            if (cond != null) {
-                conditions.add(cond);
-            }
-        }
-        return conditions;
-    }
-
     private static Expression buildPreInfoCondition(List<InstantSelector> selectors) {
         List<Expression> preConditions = new ArrayList<>();
         for (InstantSelector selector : selectors) {
@@ -339,14 +319,32 @@ final class PrometheusPlanBuilderUtils {
         return conditions.size() == 1 ? conditions.get(0) : combineOr(conditions);
     }
 
-    private static LogicalPlan buildFilteredInfoBranch(
+    /**
+     * Builds a {@code TS -> Filter -> info node} plan. Repeated selectors are combined in one
+     * pre-info OR filter. For non-exact {@code __name__} matchers we add a nullable
+     * {@code labels.__name__} hint: metrics that carry {@code __name__} are filtered before the
+     * expensive info node, while metrics without that label can still reach the post-info
+     * {@code metric_name} filter.
+     *
+     * <p>For Prometheus data, where {@code labels.__name__} is present, the pre-info OR preserves
+     * repeated {@code match[]} grouping exactly. The post-info {@code metric_name} filter is applied
+     * only when every repeated selector has such a condition; otherwise it is skipped so selectors
+     * without {@code __name__} constraints are not filtered out.
+     *
+     * <p>For OTel data without {@code labels.__name__}, single-selector requests remain exact via
+     * the post-info {@code metric_name} filter. Repeated {@code match[]} requests that mix pre-info
+     * labels and non-exact {@code __name__} constraints are approximate because a single linear plan
+     * cannot preserve each selector's full grouping without a union.
+     */
+    static LogicalPlan buildFilteredInfoPlan(
         String index,
+        List<InstantSelector> selectors,
         Instant start,
         Instant end,
-        Expression preInfoCondition,
-        Expression postInfoCondition,
         Function<LogicalPlan, LogicalPlan> infoNode
     ) {
+        Expression preInfoCondition = buildPreInfoCondition(selectors);
+        Expression postInfoCondition = buildPostInfoCondition(selectors);
         LogicalPlan plan = tsSource(index);
         List<Expression> preFilterParts = new ArrayList<>();
         preFilterParts.add(buildTimeCondition(start, end));

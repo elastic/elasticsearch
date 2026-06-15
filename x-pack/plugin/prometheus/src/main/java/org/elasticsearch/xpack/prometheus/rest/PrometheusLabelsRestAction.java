@@ -32,7 +32,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/labels} endpoint.
  * Returns the sorted list of label names across all matching time series.
- * The optional {@code {index}} path parameter restricts the query to a specific index pattern;
+ *
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names">Prometheus Label Names API</a>
+ *
+ * <p>The optional {@code {index}} path parameter restricts the query to a specific index pattern;
  * when omitted, the index expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN}
  * (same as PromQL query APIs).
  */

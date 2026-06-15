@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 
 import java.time.Instant;
 import java.util.List;
@@ -50,7 +49,7 @@ final class PrometheusSeriesPlanBuilder {
             selectors,
             start,
             end,
-            child -> new TsInfo(Source.EMPTY, child)
+            child -> PrometheusPlanBuilderUtils.tsInfo(Source.EMPTY, child)
         );
         // limit=0 means "unlimited" in Prometheus semantics. We still emit an explicit LIMIT so
         // that ESQL's AddImplicitLimit rule sees an existing node and does not silently inject its

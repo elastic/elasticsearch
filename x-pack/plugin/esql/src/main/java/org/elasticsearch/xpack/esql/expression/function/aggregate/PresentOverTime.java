@@ -54,6 +54,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
+        briefSummary = "Calculates the presence of a field over a time range.",
         description = "Calculates the presence of a field in the output result over time range.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

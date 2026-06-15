@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
 import java.time.Instant;
@@ -93,7 +92,7 @@ final class PrometheusLabelValuesPlanBuilder {
             selectors,
             start,
             end,
-            child -> new MetricsInfo(Source.EMPTY, child)
+            child -> PrometheusPlanBuilderUtils.metricsInfo(Source.EMPTY, child)
         );
 
         UnresolvedAttribute metricNameField = new UnresolvedAttribute(Source.EMPTY, PrometheusPlanBuilderUtils.METRIC_NAME_FIELD);

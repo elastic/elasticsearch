@@ -78,6 +78,7 @@ public class Hamming extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the Hamming distance between two dense vectors.",
         description = "Calculates the Hamming distance between two dense vectors.",
         examples = { @Example(file = "vector-hamming", tag = "vector-hamming") },
         appliesTo = {

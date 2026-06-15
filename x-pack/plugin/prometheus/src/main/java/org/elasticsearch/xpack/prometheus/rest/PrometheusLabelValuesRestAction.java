@@ -34,6 +34,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
  * Returns the sorted, deduplicated list of values for a single label name.
  * Only GET is supported, matching upstream Prometheus.
  *
+ * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values">Prometheus Label Values API</a>
+ *
  * <p>Label names may use the {@code U__} encoding defined by the OpenMetrics spec to represent
  * characters that are not valid in Prometheus label names (e.g. dots, colons). This handler
  * decodes such names before building the query plan.

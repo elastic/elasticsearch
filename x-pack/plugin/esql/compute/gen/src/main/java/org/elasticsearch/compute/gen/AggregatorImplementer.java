@@ -213,8 +213,8 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
         if (tryToUseVectors) {
-            builder.addMethod(addRawVector(false));
-            builder.addMethod(addRawVector(true));
+            addAddRawVectorMethods(builder, false);
+            addAddRawVectorMethods(builder, true);
         }
         builder.addMethod(addRawBlock(false));
         builder.addMethod(addRawBlock(true));
@@ -390,6 +390,162 @@ public class AggregatorImplementer {
 
     private String addRawName(boolean blockStyle) {
         return blockStyle ? "addRawBlock" : "addRawVector";
+    }
+
+    private static final ClassName MEMORY_SEGMENT = ClassName.get("java.lang.foreign", "MemorySegment");
+    private static final ClassName VALUE_LAYOUT = ClassName.get("java.lang.foreign", "ValueLayout");
+
+    /**
+     * Conservative rendered-source-length proxy for the JIT HugeMethodLimit (~8 KB bytecode; a method
+     * over it is never compiled). A folded vector method renders well under this for the simple
+     * aggregators we fold; anything larger falls back to the single-loop shape.
+     */
+    private static final int FOLDED_VECTOR_METHOD_MAX_RENDERED_CHARS = 6000;
+
+    /**
+     * Emits {@code addRawVector}. When the first argument's Vector type has a dispatch catalog and the
+     * aggregator has the simple loop shape, emit a single folded method that dispatches inline on the
+     * concrete type (one {@code getClass()} check per block, then a monomorphic per-type body) — the
+     * same-width Arrow arm reduces the off-heap buffer via {@code MemorySegment}. This avoids a
+     * dispatcher + one leaf method per subtype, which would bloat the class and destabilize the JIT's
+     * inlining of the unchanged block path. Otherwise the plain single-loop {@link #addRawVector} is used.
+     */
+    private void addAddRawVectorMethods(TypeSpec.Builder typeBuilder, boolean masked) {
+        if (aggParams.getFirst() instanceof BlockArgument) {
+            throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
+        }
+        // Only fold aggregators that actually benefit (the off-heap Arrow segment win): a primitive
+        // associative fold over a single primitive column. Everything else keeps main's single loop
+        // unchanged, so the diff stays tightly scoped to the aggregators this optimizes.
+        if (first == null && bulkArrowReducible() && vectorDispatchSubtypes().isEmpty() == false) {
+            MethodSpec folded = buildAddRawVectorFolded(masked, vectorDispatchSubtypes());
+            if (folded.toString().length() <= FOLDED_VECTOR_METHOD_MAX_RENDERED_CHARS) {
+                typeBuilder.addMethod(folded);
+                return;
+            }
+        }
+        typeBuilder.addMethod(addRawVector(masked));
+    }
+
+    private List<ClassName> vectorDispatchSubtypes() {
+        TypeName firstVectorType = aggParams.getFirst().dataType(false);
+        if (firstVectorType instanceof ClassName c) {
+            return Types.VECTOR_DISPATCH_SUBTYPES.getOrDefault(c, List.of());
+        }
+        return List.of();
+    }
+
+    /**
+     * Whether the same-width Arrow arm can use the bulk {@code MemorySegment} reduction: a single
+     * primitive {@code StandardArgument} folded by a primitive-returning {@code combine}, no warning-
+     * wrapped exceptions, and a known {@code ValueLayout}.
+     */
+    private boolean bulkArrowReducible() {
+        if (warnExceptions.isEmpty() == false || aggParams.size() != 1) {
+            return false;
+        }
+        Argument a = aggParams.getFirst();
+        if (a instanceof StandardArgument == false || a.scratchType() != null) {
+            return false;
+        }
+        return TypeName.get(combine.getReturnType()).isPrimitive() && valueLayoutField(a.type()) != null;
+    }
+
+    /** The fixed-width Arrow-buffer subtype storing this aggregator's element type natively, or null. */
+    private ClassName sameWidthArrowVector() {
+        if (aggParams.size() != 1) {
+            return null;
+        }
+        if (aggParams.getFirst().dataType(false) instanceof ClassName vectorType && vectorType.simpleName().endsWith("Vector")) {
+            String simpleName = vectorType.simpleName();
+            String base = simpleName.substring(0, simpleName.length() - "Vector".length());
+            return ClassName.get(vectorType.packageName() + ".arrow", base + "ArrowBufVector");
+        }
+        return null;
+    }
+
+    private static String valueLayoutField(TypeName elementType) {
+        if (elementType.equals(TypeName.INT)) {
+            return "JAVA_INT_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return "JAVA_LONG_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return "JAVA_DOUBLE_UNALIGNED";
+        }
+        if (elementType.equals(TypeName.FLOAT)) {
+            return "JAVA_FLOAT_UNALIGNED";
+        }
+        return null;
+    }
+
+    private MethodSpec buildAddRawVectorFolded(boolean masked, List<ClassName> subtypes) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawName(false)).addModifiers(Modifier.PRIVATE);
+        for (Argument a : aggParams) {
+            a.declareProcessParameter(builder, false);
+        }
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
+        String vec = aggParams.getFirst().vectorName();
+        ClassName arrowSameWidth = bulkArrowReducible() ? sameWidthArrowVector() : null;
+        for (ClassName subtype : subtypes) {
+            // Exact-class (==) so the cast pins the concrete final type and the body devirtualizes.
+            builder.beginControlFlow("if ($L.getClass() == $T.class)", vec, subtype);
+            builder.addStatement("$T specialized = ($T) $L", subtype, subtype, vec);
+            if (subtype.equals(arrowSameWidth)) {
+                emitSegmentVectorLoop(builder, masked, "specialized");
+            } else {
+                emitPerElementVectorLoop(builder, masked, "specialized");
+            }
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
+        emitPerElementVectorLoop(builder, masked, vec);
+        return builder.build();
+    }
+
+    /** Per-element vector loop over {@code accessor} (typed get + {@code combine} into state). */
+    private void emitPerElementVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor) {
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
+        builder.beginControlFlow("for (int valuesPosition = 0; valuesPosition < $L.getPositionCount(); valuesPosition++)", accessor);
+        if (masked) {
+            builder.beginControlFlow("if (mask.getBoolean(valuesPosition) == false)").addStatement("continue").endControlFlow();
+        }
+        for (Argument a : aggParams) {
+            a.read(builder, a == aggParams.getFirst() ? accessor : a.vectorName(), "valuesPosition");
+        }
+        combineRawInput(builder, false);
+        builder.endControlFlow();
+    }
+
+    /** Bulk MemorySegment reduction over {@code accessor}'s off-heap Arrow buffer, accumulating in a local. */
+    private void emitSegmentVectorLoop(MethodSpec.Builder builder, boolean masked, String accessor) {
+        Argument arg = aggParams.getFirst();
+        TypeName returnType = TypeName.get(combine.getReturnType());
+        builder.addStatement("$T bulkSegment = $L.valuesSegment()", MEMORY_SEGMENT, accessor);
+        builder.addStatement("int bulkCount = $L.getPositionCount()", accessor);
+        builder.addStatement("$T bulkAcc = state.$TValue()", returnType, returnType);
+        builder.beginControlFlow("for (int p = 0; p < bulkCount; p++)");
+        if (masked) {
+            builder.beginControlFlow("if (mask.getBoolean(p) == false)").addStatement("continue").endControlFlow();
+        }
+        builder.addStatement(
+            "$T $L = bulkSegment.getAtIndex($T.$L, p)",
+            arg.type(),
+            arg.valueName(),
+            VALUE_LAYOUT,
+            valueLayoutField(arg.type())
+        );
+        builder.addStatement("bulkAcc = $T.combine(bulkAcc, $L)", declarationType, arg.valueName());
+        builder.endControlFlow();
+        builder.addStatement("state.$TValue(bulkAcc)", returnType);
+        if (aggState.hasSeen()) {
+            builder.addStatement("state.seen(true)");
+        }
     }
 
     private MethodSpec addRawVector(boolean masked) {

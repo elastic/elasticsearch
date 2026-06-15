@@ -677,3 +677,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indices with incorrect conversion function, TO_LONG instead of TO_IP}
   issue: https://github.com/elastic/elasticsearch/issues/151261
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/180_match_operator/match with disjunctions}
+  issue: https://github.com/elastic/elasticsearch/issues/151262

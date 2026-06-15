@@ -1127,6 +1127,11 @@ public class EsqlCapabilities {
         FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
 
         /**
+         * Catch-and-rethrow determinization complexity errors as 400s rather than 500s
+         */
+        HANDLE_DETERMINIZATION_COMPLEXITY,
+
+        /**
          * Create new block when filtering OrdinalBytesRefBlock
          */
         FIX_FILTER_ORDINALS,

@@ -383,8 +383,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
             out.writeOptionalWriteable(downsamplingMethod);
         }
-        if ((DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))
-            || out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) {
+        if (out.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)
+            || (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV))) {
             out.writeOptionalTimeValue(frozenAfter);
         }
     }

@@ -40,7 +40,9 @@ public class IndexAgeEvictionPolicy implements EvictionPolicy<FileCacheKey> {
      * Returns the index creation date in milliseconds since epoch (thus the time-zone is UTC) for the given shard.
      */
     protected long indexCreationDateMillis(ShardId shardId) {
-        final ClusterService clusterService = Objects.requireNonNull(this.clusterService, "clusterService must be set");
+        if (clusterService == null) {
+            return Long.MIN_VALUE;
+        }
         IndexMetadata metadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
         return metadata != null ? metadata.getCreationDate() : Long.MIN_VALUE;
     }

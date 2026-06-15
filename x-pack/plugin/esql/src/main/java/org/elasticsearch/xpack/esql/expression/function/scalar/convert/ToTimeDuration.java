@@ -28,6 +28,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
 
     @FunctionInfo(
         returnType = "time_duration",
+        briefSummary = "Converts a value to a time_duration.",
         description = "Converts an input value into a `time_duration` value.",
         examples = @Example(file = "convert", tag = "castToTimeDuration")
     )

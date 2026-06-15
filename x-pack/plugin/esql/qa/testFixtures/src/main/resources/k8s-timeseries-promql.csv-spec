@@ -1425,3 +1425,16 @@ bytes_in:double | step:datetime            | cluster:keyword
 416.0           | 2024-05-10T00:30:00.000Z | staging
 404.0           | 2024-05-10T00:10:00.000Z | prod
 ;
+
+label_matching_on_non_string_label
+required_capability: promql_command_v0
+required_capability: time_series_translation_in_analyzer
+PROMQL index=k8s step=10m value=(sum(rate(network.total_bytes_in{network.bytes_in =~"1.."}[10m])) / sum(rate(network.total_bytes_in[10m])) * 100)
+| SORT step
+;
+
+value:double       | step:datetime
+16.279099821524305 | 2024-05-10T00:10:00.000Z
+37.69321892075542  | 2024-05-10T00:20:00.000Z
+38.29379072289092  | 2024-05-10T00:30:00.000Z
+;

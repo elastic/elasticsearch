@@ -9663,7 +9663,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            new EsPhysicalOperationProviders(
+                FoldContext.small(),
+                EmptyIndexedByShardId.instance(),
+                null,
+                PlannerSettings.DEFAULTS,
+                () -> 0L
+            ),
             null  // OperatorFactoryRegistry - not needed for these tests
         );
 

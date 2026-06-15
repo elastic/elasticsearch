@@ -289,6 +289,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup3
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -346,6 +347,7 @@ string:keyword | base:integer | to_long:long | to_integer:integer
 ;
 
 convertStringToBaseIndexGroup5
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion
@@ -412,6 +414,7 @@ string:keyword | base:integer | part1:long | part2:long | part3:integer | part4:
 ;
 
 convertStringToBaseIndexGroup7
+skip_flattened_rewrite: field_extract_multivalue_null
 required_capability: base_conversion
 
   FROM  base_conversion

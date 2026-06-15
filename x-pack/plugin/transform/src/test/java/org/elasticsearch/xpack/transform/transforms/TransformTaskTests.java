@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
+import org.elasticsearch.xpack.transform.action.TransformCloudCredentialManager;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -228,7 +229,8 @@ public class TransformTaskTests extends ESTestCase {
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
             projectId -> false,
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(TransformCloudCredentialManager.class)
         );
     }
 
@@ -869,4 +871,5 @@ public class TransformTaskTests extends ESTestCase {
     private static TransformTaskParams createTransformTaskParams(String transformId) {
         return new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, TimeValue.timeValueSeconds(10), false);
     }
+
 }

@@ -189,6 +189,13 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
+    /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
+    static final Setting.AffixSetting<Boolean> ALWAYS_SIGN_REQUESTS = Setting.affixKeySetting(
+        PREFIX,
+        "always_sign_requests",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -236,6 +243,9 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
+    /** Whether to include the request body in the V4 signature even when unnecessary because HTTPS is in use. */
+    final boolean alwaysSignRequests;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -251,7 +261,8 @@ final class S3ClientSettings {
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
-        String region
+        String region,
+        boolean alwaysSignRequests
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -268,6 +279,7 @@ final class S3ClientSettings {
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
+        this.alwaysSignRequests = alwaysSignRequests;
     }
 
     /**
@@ -311,6 +323,7 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
+        final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -323,7 +336,8 @@ final class S3ClientSettings {
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
-            && Objects.equals(region, newRegion)) {
+            && Objects.equals(region, newRegion)
+            && newAlwaysSignRequests == alwaysSignRequests) {
             return this;
         }
         return new S3ClientSettings(
@@ -341,7 +355,8 @@ final class S3ClientSettings {
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
-            newRegion
+            newRegion,
+            newAlwaysSignRequests
         );
     }
 
@@ -449,7 +464,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
-                getConfigValue(settings, clientName, REGION)
+                getConfigValue(settings, clientName, REGION),
+                getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS)
             );
         }
     }
@@ -476,7 +492,8 @@ final class S3ClientSettings {
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
-            && Objects.equals(region, that.region);
+            && Objects.equals(region, that.region)
+            && alwaysSignRequests == that.alwaysSignRequests;
     }
 
     @Override
@@ -495,7 +512,8 @@ final class S3ClientSettings {
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
-            region
+            region,
+            alwaysSignRequests
         );
     }
 

@@ -37,9 +37,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
@@ -62,7 +65,9 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         final var testConfigs = new ArrayList<TestConfig>();
         for (final boolean https : new boolean[] { false, true }) {
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
-                testConfigs.add(new TestConfig(https, chunkedEncoding));
+                for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
+                    testConfigs.add(new TestConfig(https, chunkedEncoding, alwaysSignRequests));
+                }
             }
         }
         TEST_CONFIGS = List.copyOf(testConfigs);
@@ -103,6 +108,27 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                     assertThat(
                         contentSha256Header,
                         anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(testConfig.getExpectedUploadContentSha256Header()))
+                    );
+                }
+                if (testConfig.alwaysSignRequests) {
+                    assertThat(
+                        contentSha256Header,
+                        allOf(
+                            anyOf(
+                                // We either have a SHA256 hash of the body, covered by the request signature, ...
+                                matchesPattern(S3HttpHandler.SHA256_PATTERN),
+                                // ... or there's a properly-signed footer
+                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER")
+                            ),
+
+                            // Redundant check given the above condition but this is the thing that the S3 docs tell users to forbid:
+                            // https://docs.aws.amazon.com/AmazonS3/latest/developerguide/bucket-policy-s3-sigv4-conditions.html
+                            not("UNSIGNED-PAYLOAD"),
+
+                            // Other possibilities that can also imply an unsigned body, even if not excluded by the suggested condition:
+                            not(nullValue()),
+                            not("STREAMING-UNSIGNED-PAYLOAD-TRAILER")
+                        )
                     );
                 }
                 delegate.handle(exchange);
@@ -168,20 +194,28 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     public static final class TestConfig {
         private final boolean https;
         private final boolean chunkedEncoding;
+        private final boolean alwaysSignRequests;
 
-        TestConfig(boolean https, boolean chunkedEncoding) {
+        TestConfig(boolean https, boolean chunkedEncoding, boolean alwaysSignRequests) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
+            this.alwaysSignRequests = alwaysSignRequests;
         }
 
         @Override
         public String toString() {
-            return Strings.format("{scheme=%s,chunkedEncoding=%s}", https ? "https" : "http", chunkedEncoding);
+            return Strings.format(
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s}",
+                https ? "https" : "http",
+                chunkedEncoding,
+                alwaysSignRequests
+            );
         }
 
         Settings getRepositorySettings() {
             final var builder = Settings.builder();
             addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
+            addBooleanSettingDefaultFalse(builder, "always_sign_requests", alwaysSignRequests);
             return builder.build();
         }
 
@@ -194,7 +228,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getExpectedUploadContentSha256Header() {
-            return https
+            return (https && alwaysSignRequests == false)
                 ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
@@ -212,15 +246,26 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
 
         String getClientName() {
-            return "content_integrity_client_" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return "content_integrity_client_"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_requests_"
+                + alwaysSignRequests;
         }
 
         String getRepositoryBasePath() {
-            return BASE_PATH + "/" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
+            return BASE_PATH
+                + "/"
+                + (https ? "https" : "http")
+                + "_chunked_encoding_"
+                + chunkedEncoding
+                + "_always_sign_requests_"
+                + alwaysSignRequests;
         }
 
         String getAccessKey() {
-            return ACCESS_KEY + "-" + (https ? "https" : "http") + "-" + chunkedEncoding;
+            return ACCESS_KEY + "-" + (https ? "https" : "http") + "-" + chunkedEncoding + "-" + alwaysSignRequests;
         }
 
         static TestConfig fromAuthorizationHeader(String authorizationHeader) {

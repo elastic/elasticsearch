@@ -26,6 +26,7 @@ import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.internal.plugins.S3OverrideAuthSchemePropertiesPlugin;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.utils.SdkAutoCloseable;
@@ -268,6 +269,10 @@ class S3Service extends AbstractLifecycleComponent {
                 );
             }
             s3clientBuilder.endpointOverride(URI.create(endpoint));
+        }
+
+        if (clientSettings.alwaysSignRequests) {
+            s3clientBuilder.addPlugin(S3OverrideAuthSchemePropertiesPlugin.builder().payloadSigningEnabled(true).build());
         }
 
         return s3clientBuilder;

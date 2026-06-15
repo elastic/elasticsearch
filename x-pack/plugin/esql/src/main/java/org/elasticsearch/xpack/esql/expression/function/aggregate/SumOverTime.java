@@ -61,6 +61,7 @@ public class SumOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = { "double", "long" },
+        briefSummary = "Calculates the sum over time value of a field.",
         description = "Calculates the sum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {

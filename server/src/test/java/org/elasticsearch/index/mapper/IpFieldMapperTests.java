@@ -348,14 +348,25 @@ public class IpFieldMapperTests extends MapperTestCase {
     private static class IpSyntheticSourceSupport implements SyntheticSourceSupport {
         private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
         private final boolean ignoreMalformed;
+        // Decided once per instance so that the generated mapping is stable across the throwaway and per-document examples.
+        private final boolean extendedDocValues = FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+            && randomBoolean();
+        private final String cardinality = ESTestCase.randomFrom("low", "high");
+        private final boolean enforceSingleValue = extendedDocValues && randomBoolean();
 
         private IpSyntheticSourceSupport(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxValues) {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (v.v2() instanceof InetAddress a) {
                     return new SyntheticSourceExample(v.v1(), NetworkAddress.format(a), this::mapping);
@@ -415,9 +426,12 @@ public class IpFieldMapperTests extends MapperTestCase {
             if (ignoreMalformed) {
                 b.field("ignore_malformed", true);
             }
-            if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() && randomBoolean()) {
+            if (extendedDocValues) {
                 b.startObject("doc_values");
-                b.field("cardinality", ESTestCase.randomFrom("low", "high"));
+                b.field("cardinality", cardinality);
+                if (enforceSingleValue) {
+                    b.field("multi_value", false);
+                }
                 b.endObject();
             }
         }

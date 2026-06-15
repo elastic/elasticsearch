@@ -92,6 +92,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Groups text messages into categories of similarly formatted text values.",
         description = "Groups text messages into categories of similarly formatted text values.",
         detailedDescription = """
             `CATEGORIZE` has the following limitations:

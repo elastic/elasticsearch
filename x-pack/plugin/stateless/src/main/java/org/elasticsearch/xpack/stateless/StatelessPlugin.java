@@ -83,6 +83,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -1972,6 +1973,11 @@ public class StatelessPlugin extends Plugin
                 PersistentTaskParams.class,
                 ObjectStoreGCTask.TASK_NAME,
                 ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DirectoryMetrics.PluggableMetrics.class,
+                BlobStoreCacheDirectoryMetrics.NAME,
+                BlobStoreCacheDirectoryMetrics::new
             )
         );
     }

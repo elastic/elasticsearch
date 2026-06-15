@@ -63,9 +63,8 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
     @After
-    public void tearDown() throws Exception {
+    public void resetSearchContextFailureState() throws Exception {
         try {
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -75,7 +74,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
             SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
-            super.tearDown();
         }
     }
 
@@ -93,7 +91,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(
@@ -138,7 +136,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         );
 
         String source = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
-        String dest = randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT);
+        String dest = randomValueOtherThan(source, () -> randomAlphanumericOfLength(12).toLowerCase(Locale.ROOT));
         assertAcked(prepareCreate(source));
         assertAcked(prepareCreate(dest));
         indexRandom(

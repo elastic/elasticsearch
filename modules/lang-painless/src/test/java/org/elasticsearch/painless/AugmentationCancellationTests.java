@@ -72,14 +72,16 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     private ScriptedMetricAggContexts.InitScript compileInit(String source) {
+        return compileInit(source, new HashMap<>(), new HashMap<>());
+    }
+
+    private ScriptedMetricAggContexts.InitScript compileInit(String source, Map<String, Object> params, Map<String, Object> state) {
         ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile(
             "test",
             source,
             ScriptedMetricAggContexts.InitScript.CONTEXT,
             Collections.emptyMap()
         );
-        Map<String, Object> params = new HashMap<>();
-        Map<String, Object> state = new HashMap<>();
         return factory.newInstance(params, state);
     }
 
@@ -115,6 +117,118 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         ScriptedMetricAggContexts.InitScript script = compileInit(buildPopulateThenEach(1500, "l.each(x -> x.toString())"));
         // No runnable set — _getCancellationCheck() returns null.
         script.execute();  // must not throw
+    }
+
+    /**
+     * {@code String.replace} is an opaque JDK call whose O(length) cost is invisible to the loop/cancellation
+     * budget, so a single replace over a large string can run unbounded.  The script-aware augmentation reimplements
+     * it as a scan that polls per match.  Here a single replace over a string with >
+     * {@code CANCELLATION_POLL_INTERVAL} literal matches — with no painless loop in the body — fires the runnable
+     * purely from replace()'s own internal poll, proving the augmentation (not a loop back-edge) does the polling.
+     */
+    public void testReplaceAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; s.replace('A', 'AB');",
+            params,
+            new HashMap<>()
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-replace");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-replace", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from inside replace(), was: " + callCount.get(), callCount.get() >= 1);
+    }
+
+    /**
+     * Same as {@link #testReplaceAugmentationFiresCancelRunnable} but the receiver is {@code def}-typed, so
+     * dispatch goes through {@code DefBootstrap}/{@code Def.lookupMethod} (recipe prefixed with 'S') rather than a
+     * static invokedynamic.  Verifies the def call-site threads the script into the script-aware replace overload.
+     */
+    public void testDefReplaceAugmentationFiresCancelRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        ScriptedMetricAggContexts.InitScript script = compileInit("def s = params['big']; s.replace('A', 'AB');", params, new HashMap<>());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-replace");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-replace", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from inside def-dispatched replace(), was: " + callCount.get(), callCount.get() >= 1);
+    }
+
+    /**
+     * When no cancellation runnable is set, replace takes the fast path and delegates straight to
+     * {@link String#replace(CharSequence, CharSequence)}.  Verifies the null-fast-path branch and its result.
+     */
+    public void testReplaceAugmentationNoRunnable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("big", "A".repeat(1500));
+        Map<String, Object> state = new HashMap<>();
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "String s = params['big']; state['out'] = s.replace('A', 'AB');",
+            params,
+            state
+        );
+        // No runnable set — _getCancellationCheck() returns null.
+        script.execute();
+        assertEquals("A".repeat(1500).replace("A", "AB"), state.get("out"));
+    }
+
+    /**
+     * With a non-throwing runnable set, replace takes the reimplemented poll-during path rather than delegating to
+     * the JDK.  Verify it produces byte-for-byte the same result as {@link String#replace(CharSequence, CharSequence)}
+     * across edge cases: empty target (insert around every char), empty receiver, empty replacement, no match,
+     * multi-char and overlapping-candidate targets, and the growth case from the threat model.
+     */
+    public void testReplaceCancellationAwarePathMatchesJdk() {
+        String[][] cases = {
+            { "AAAAAAA", "A", "AB" },
+            { "hello world", "o", "0" },
+            { "abc", "", "X" },
+            { "", "", "X" },
+            { "abcabcabc", "abc", "" },
+            { "xyz", "q", "Q" },
+            { "banana", "ana", "X" },
+            { "mississippi", "ss", "S" }, };
+        for (String[] testCase : cases) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("s", testCase[0]);
+            params.put("t", testCase[1]);
+            params.put("r", testCase[2]);
+            Map<String, Object> state = new HashMap<>();
+            ScriptedMetricAggContexts.InitScript script = compileInit(
+                "String s = params['s']; String t = params['t']; String r = params['r']; state['out'] = s.replace(t, r);",
+                params,
+                state
+            );
+            script._setCancellationCheck(() -> {}); // non-throwing: force the reimplemented path without aborting
+            script.execute();
+            assertEquals(
+                "replace([" + testCase[0] + "],[" + testCase[1] + "],[" + testCase[2] + "])",
+                testCase[0].replace(testCase[1], testCase[2]),
+                state.get("out")
+            );
+        }
+    }
+
+    /**
+     * In a context whose base class does not support cancellation, replace still resolves to the script-aware
+     * augmentation (the lookup always binds it), finds a {@code null} runnable, and delegates to the JDK method.
+     */
+    public void testReplaceInNonCancellationContextRunsCorrectly() {
+        Object result = exec("String s = 'AAAAAAA'; return s.replace('A', 'AB');");
+        assertEquals("ABABABABABABAB", result);
     }
 
     /**
@@ -524,5 +638,494 @@ public class AugmentationCancellationTests extends ScriptTestCase {
             ),
             "cancelled-unbound-methodref"
         );
+    }
+
+    // --- Iterable script-aware augmentations: per-method fires tests ---
+
+    /** {@code any} with an always-false predicate scans the whole iterable and must poll. */
+    public void testAnyAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.any(x -> false);"), "cancelled-any");
+    }
+
+    /** {@code every} with an always-true predicate scans the whole iterable and must poll. */
+    public void testEveryAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.every(x -> true);"), "cancelled-every");
+    }
+
+    /** {@code eachWithIndex} visits every element and must poll. */
+    public void testEachWithIndexAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.eachWithIndex((x, i) -> x.toString());"), "cancelled-eachwithindex");
+    }
+
+    /** {@code findResults} applies the function to every element and must poll. */
+    public void testFindResultsAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResults(x -> x.toString());"), "cancelled-findresults");
+    }
+
+    /** {@code groupBy} visits every element building a map keyed by the function result and must poll. */
+    public void testGroupByAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.groupBy(x -> x % 3);"), "cancelled-groupby");
+    }
+
+    /** {@code sum(ToDoubleFunction)} applies the function to every element and must poll. */
+    public void testSumWithToDoubleFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.sum(x -> 1.0d);"), "cancelled-sum-fn");
+    }
+
+    /**
+     * Each new Iterable script-aware augmentation must take the no-poll fast path when the script has
+     * no cancellation check installed.  Exercises all six new methods in one script execution.
+     */
+    public void testIterableAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.any(x -> false); "
+                + "big.every(x -> true); "
+                + "big.eachWithIndex((x, i) -> x.toString()); "
+                + "big.findResults(x -> x.toString()); "
+                + "big.groupBy(x -> x % 3); "
+                + "big.sum(x -> 1.0d);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    // --- Collection script-aware augmentations: per-method fires tests ---
+
+    /** {@code collect(Function)} maps every element and must poll. */
+    public void testCollectFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.collect(x -> x.toString());"), "cancelled-collect-fn");
+    }
+
+    /** {@code collect(Collection, Function)} maps every element into the given collection and must poll. */
+    public void testCollectCollectionFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.collect(new ArrayList(), x -> x.toString());"), "cancelled-collect-coll-fn");
+    }
+
+    /** {@code find} with an always-false predicate scans the whole collection and must poll. */
+    public void testFindAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.find(x -> false);"), "cancelled-find");
+    }
+
+    /** {@code findAll} visits every element and must poll. */
+    public void testFindAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findAll(x -> false);"), "cancelled-findall");
+    }
+
+    /** {@code findResult(Function)} with an always-null function scans the whole collection and must poll. */
+    public void testFindResultFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResult(x -> null);"), "cancelled-findresult-fn");
+    }
+
+    /** {@code findResult(default, Function)} with an always-null function scans the whole collection and must poll. */
+    public void testFindResultDefaultFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.findResult('none', x -> null);"), "cancelled-findresult-default-fn");
+    }
+
+    /** {@code split} partitions every element and must poll. */
+    public void testSplitAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.split(x -> x % 2 == 0);"), "cancelled-split");
+    }
+
+    /**
+     * Each new Collection script-aware augmentation must take the no-poll fast path when the script
+     * has no cancellation check installed.  Exercises all seven new methods in one script execution.
+     */
+    public void testCollectionAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.collect(x -> x.toString()); "
+                + "big.collect(new ArrayList(), x -> x.toString()); "
+                + "big.find(x -> false); "
+                + "big.findAll(x -> false); "
+                + "big.findResult(x -> null); "
+                + "big.findResult('none', x -> null); "
+                + "big.split(x -> x % 2 == 0);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    // --- Map script-aware augmentations: per-method fires tests ---
+
+    /**
+     * Builds a source that declares {@code fill(Map m)} plus the given user functions, populates a
+     * 1500-entry {@code big} HashMap via sequential {@code put} statements (so the script body's
+     * $cancelPoll never ticks during construction), then runs {@code stmts}.
+     */
+    private ScriptedMetricAggContexts.InitScript compileFillMapThen(String functions, String stmts) {
+        StringBuilder source = new StringBuilder("void fill(Map m) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" m.put(").append(i).append(", ").append(i).append(");");
+        }
+        source.append("} ").append(functions).append(" Map big = new HashMap(); fill(big); ").append(stmts);
+        return compileInit(source.toString());
+    }
+
+    /** Map {@code each} visits every entry and must poll. */
+    public void testMapEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.each((k, v) -> v.toString());"), "cancelled-map-each");
+    }
+
+    /** Map {@code collect(BiFunction)} maps every entry and must poll. */
+    public void testMapCollectBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.collect((k, v) -> v.toString());"), "cancelled-map-collect-fn");
+    }
+
+    /** Map {@code collect(Collection, BiFunction)} maps every entry into the given collection and must poll. */
+    public void testMapCollectCollectionBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.collect(new ArrayList(), (k, v) -> v.toString());"), "cancelled-map-collect-coll-fn");
+    }
+
+    /** Map {@code count} visits every entry and must poll. */
+    public void testMapCountAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.count((k, v) -> false);"), "cancelled-map-count");
+    }
+
+    /** Map {@code every} with an always-true predicate scans the whole map and must poll. */
+    public void testMapEveryAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.every((k, v) -> true);"), "cancelled-map-every");
+    }
+
+    /** Map {@code find} with an always-false predicate scans the whole map and must poll. */
+    public void testMapFindAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.find((k, v) -> false);"), "cancelled-map-find");
+    }
+
+    /** Map {@code findAll} visits every entry and must poll. */
+    public void testMapFindAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findAll((k, v) -> false);"), "cancelled-map-findall");
+    }
+
+    /** Map {@code findResult(BiFunction)} with an always-null function scans the whole map and must poll. */
+    public void testMapFindResultBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResult((k, v) -> null);"), "cancelled-map-findresult-fn");
+    }
+
+    /** Map {@code findResult(default, BiFunction)} with an always-null function scans the whole map and must poll. */
+    public void testMapFindResultDefaultBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResult('none', (k, v) -> null);"), "cancelled-map-findresult-default-fn");
+    }
+
+    /** Map {@code findResults} applies the function to every entry and must poll. */
+    public void testMapFindResultsAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.findResults((k, v) -> v.toString());"), "cancelled-map-findresults");
+    }
+
+    /** Map {@code groupBy} visits every entry building a map keyed by the function result and must poll. */
+    public void testMapGroupByAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.groupBy((k, v) -> k % 3);"), "cancelled-map-groupby");
+    }
+
+    /**
+     * Each new Map script-aware augmentation must take the no-poll fast path when the script has no
+     * cancellation check installed.  Exercises all eleven new methods in one script execution.
+     */
+    public void testMapAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillMapThen(
+            "",
+            "big.each((k, v) -> v.toString()); "
+                + "big.collect((k, v) -> v.toString()); "
+                + "big.collect(new ArrayList(), (k, v) -> v.toString()); "
+                + "big.count((k, v) -> false); "
+                + "big.every((k, v) -> true); "
+                + "big.find((k, v) -> false); "
+                + "big.findAll((k, v) -> false); "
+                + "big.findResult((k, v) -> null); "
+                + "big.findResult('none', (k, v) -> null); "
+                + "big.findResults((k, v) -> v.toString()); "
+                + "big.groupBy((k, v) -> k % 3);"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    // --- Native methods routed through @script_aware Augmentation wrappers ---
+
+    /** {@code Iterable.forEach} visits every element and must poll. */
+    public void testIterableForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.forEach(x -> x.toString());"), "cancelled-iterable-foreach");
+    }
+
+    /** {@code Collection.removeIf} with an always-false predicate scans the whole collection and must poll. */
+    public void testCollectionRemoveIfAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.removeIf(x -> false);"), "cancelled-removeif");
+    }
+
+    /** {@code Iterator.forEachRemaining} on a fresh iterator visits every element and must poll. */
+    public void testIteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.iterator().forEachRemaining(x -> x.toString());"), "cancelled-iterator-foreachremaining");
+    }
+
+    /** {@code List.replaceAll} with an identity operator scans the whole list and must poll. */
+    public void testListReplaceAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.replaceAll(x -> x);"), "cancelled-list-replaceall");
+    }
+
+    /** {@code Map.forEach} visits every entry and must poll. */
+    public void testMapForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.forEach((k, v) -> v.toString());"), "cancelled-map-foreach");
+    }
+
+    /** {@code Map.replaceAll} with an identity function scans the whole map and must poll. */
+    public void testMapReplaceAllAugmentationFiresCancelRunnable() {
+        assertFires(compileFillMapThen("", "big.replaceAll((k, v) -> v);"), "cancelled-map-replaceall");
+    }
+
+    /** {@code Spliterator.forEachRemaining} on a fresh spliterator visits every element and must poll. */
+    public void testSpliteratorForEachRemainingAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.spliterator().forEachRemaining(x -> x.toString());"),
+            "cancelled-spliterator-foreachremaining"
+        );
+    }
+
+    /**
+     * Each new native-wrapper script-aware augmentation must take the no-poll fast path when the
+     * script has no cancellation check installed.  Exercises all seven native wrappers (Iterable,
+     * Collection, Iterator, List, Map x2, Spliterator) in one script execution.
+     */
+    public void testNativeWrapperAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "Map newMap() { Map m = new HashMap(); m.put(1, 1); return m; }",
+            "big.forEach(x -> x.toString()); "
+                + "big.removeIf(x -> false); "
+                + "big.iterator().forEachRemaining(x -> x.toString()); "
+                + "big.replaceAll(x -> x); "
+                + "Map m = newMap(); m.forEach((k, v) -> v.toString()); "
+                + "Map m2 = newMap(); m2.replaceAll((k, v) -> v); "
+                + "big.spliterator().forEachRemaining(x -> x.toString());"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
+    }
+
+    // --- Stream<T> terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code Stream.forEach} drives the pipeline and must poll. */
+    public void testStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().forEach(x -> x.toString());"), "cancelled-stream-foreach");
+    }
+
+    /** {@code Stream.forEachOrdered} drives the pipeline and must poll. */
+    public void testStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().forEachOrdered(x -> x.toString());"), "cancelled-stream-foreachordered");
+    }
+
+    /** {@code Stream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().allMatch(x -> true);"), "cancelled-stream-allmatch");
+    }
+
+    /** {@code Stream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().anyMatch(x -> false);"), "cancelled-stream-anymatch");
+    }
+
+    /** {@code Stream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().noneMatch(x -> false);"), "cancelled-stream-nonematch");
+    }
+
+    /** {@code Stream.reduce(BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce((a, b) -> a);"), "cancelled-stream-reduce");
+    }
+
+    /** {@code Stream.reduce(identity, BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce(0, (a, b) -> a);"), "cancelled-stream-reduce-identity");
+    }
+
+    /** {@code Stream.reduce(identity, BiFunction, BinaryOperator)} scans the whole stream and must poll. */
+    public void testStreamReduceWithBiFunctionAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().reduce(0, (a, b) -> a, (a, b) -> a);"), "cancelled-stream-reduce-bifunction");
+    }
+
+    /** {@code Stream.collect(Supplier, BiConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b));"),
+            "cancelled-stream-collect"
+        );
+    }
+
+    // --- IntStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code IntStream.forEach} drives the pipeline and must poll. */
+    public void testIntStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).forEach(x -> x);"), "cancelled-intstream-foreach");
+    }
+
+    /** {@code IntStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testIntStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).forEachOrdered(x -> x);"), "cancelled-intstream-foreachordered");
+    }
+
+    /** {@code IntStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testIntStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).allMatch(x -> true);"), "cancelled-intstream-allmatch");
+    }
+
+    /** {@code IntStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testIntStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).anyMatch(x -> false);"), "cancelled-intstream-anymatch");
+    }
+
+    /** {@code IntStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testIntStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).noneMatch(x -> false);"), "cancelled-intstream-nonematch");
+    }
+
+    /** {@code IntStream.reduce(IntBinaryOperator)} scans the whole stream and must poll. */
+    public void testIntStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).reduce((a, b) -> a);"), "cancelled-intstream-reduce");
+    }
+
+    /** {@code IntStream.reduce(int, IntBinaryOperator)} scans the whole stream and must poll. */
+    public void testIntStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToInt(x -> x).reduce(0, (a, b) -> a);"), "cancelled-intstream-reduce-identity");
+    }
+
+    /** {@code IntStream.collect(Supplier, ObjIntConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testIntStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToInt(x -> x).collect(() -> new ArrayList(), (l, i) -> l.add(i), (a, b) -> a.addAll(b));"),
+            "cancelled-intstream-collect"
+        );
+    }
+
+    // --- LongStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code LongStream.forEach} drives the pipeline and must poll. */
+    public void testLongStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).forEach(x -> x);"), "cancelled-longstream-foreach");
+    }
+
+    /** {@code LongStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testLongStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).forEachOrdered(x -> x);"), "cancelled-longstream-foreachordered");
+    }
+
+    /** {@code LongStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testLongStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).allMatch(x -> true);"), "cancelled-longstream-allmatch");
+    }
+
+    /** {@code LongStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testLongStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).anyMatch(x -> false);"), "cancelled-longstream-anymatch");
+    }
+
+    /** {@code LongStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testLongStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).noneMatch(x -> false);"), "cancelled-longstream-nonematch");
+    }
+
+    /** {@code LongStream.reduce(LongBinaryOperator)} scans the whole stream and must poll. */
+    public void testLongStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).reduce((a, b) -> a);"), "cancelled-longstream-reduce");
+    }
+
+    /** {@code LongStream.reduce(long, LongBinaryOperator)} scans the whole stream and must poll. */
+    public void testLongStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToLong(x -> x).reduce(0L, (a, b) -> a);"), "cancelled-longstream-reduce-identity");
+    }
+
+    /** {@code LongStream.collect(Supplier, ObjLongConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testLongStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "",
+                "big.stream().mapToLong(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+            ),
+            "cancelled-longstream-collect"
+        );
+    }
+
+    // --- DoubleStream terminal-op script-aware augmentations: per-method fires tests ---
+
+    /** {@code DoubleStream.forEach} drives the pipeline and must poll. */
+    public void testDoubleStreamForEachAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).forEach(x -> x);"), "cancelled-doublestream-foreach");
+    }
+
+    /** {@code DoubleStream.forEachOrdered} drives the pipeline and must poll. */
+    public void testDoubleStreamForEachOrderedAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).forEachOrdered(x -> x);"),
+            "cancelled-doublestream-foreachordered"
+        );
+    }
+
+    /** {@code DoubleStream.allMatch} with an always-true predicate scans the whole stream and must poll. */
+    public void testDoubleStreamAllMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).allMatch(x -> true);"), "cancelled-doublestream-allmatch");
+    }
+
+    /** {@code DoubleStream.anyMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testDoubleStreamAnyMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).anyMatch(x -> false);"), "cancelled-doublestream-anymatch");
+    }
+
+    /** {@code DoubleStream.noneMatch} with an always-false predicate scans the whole stream and must poll. */
+    public void testDoubleStreamNoneMatchAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).noneMatch(x -> false);"), "cancelled-doublestream-nonematch");
+    }
+
+    /** {@code DoubleStream.reduce(DoubleBinaryOperator)} scans the whole stream and must poll. */
+    public void testDoubleStreamReduceAugmentationFiresCancelRunnable() {
+        assertFires(compileFillThen("", "big.stream().mapToDouble(x -> x).reduce((a, b) -> a);"), "cancelled-doublestream-reduce");
+    }
+
+    /** {@code DoubleStream.reduce(double, DoubleBinaryOperator)} scans the whole stream and must poll. */
+    public void testDoubleStreamReduceWithIdentityAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen("", "big.stream().mapToDouble(x -> x).reduce(0.0d, (a, b) -> a);"),
+            "cancelled-doublestream-reduce-identity"
+        );
+    }
+
+    /** {@code DoubleStream.collect(Supplier, ObjDoubleConsumer, BiConsumer)} scans the whole stream and must poll. */
+    public void testDoubleStreamCollectAugmentationFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "",
+                "big.stream().mapToDouble(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+            ),
+            "cancelled-doublestream-collect"
+        );
+    }
+
+    /**
+     * Each new stream-terminal script-aware augmentation must take the no-poll fast path when the
+     * script has no cancellation check installed.  Exercises representative methods across all four
+     * stream types in one script execution.
+     */
+    public void testStreamTerminalAugmentationsNoRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileFillThen(
+            "",
+            "big.stream().forEach(x -> x.toString()); "
+                + "big.stream().allMatch(x -> true); "
+                + "big.stream().reduce((a, b) -> a); "
+                + "big.stream().reduce(0, (a, b) -> a); "
+                + "big.stream().reduce(0, (a, b) -> a, (a, b) -> a); "
+                + "big.stream().collect(() -> new ArrayList(), (l, x) -> l.add(x), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToInt(x -> x).forEach(x -> x); "
+                + "big.stream().mapToInt(x -> x).allMatch(x -> true); "
+                + "big.stream().mapToInt(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToInt(x -> x).reduce(0, (a, b) -> a); "
+                + "big.stream().mapToInt(x -> x).collect(() -> new ArrayList(), (l, i) -> l.add(i), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToLong(x -> x).forEach(x -> x); "
+                + "big.stream().mapToLong(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToLong(x -> x).reduce(0L, (a, b) -> a); "
+                + "big.stream().mapToLong(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b)); "
+                + "big.stream().mapToDouble(x -> x).forEach(x -> x); "
+                + "big.stream().mapToDouble(x -> x).reduce((a, b) -> a); "
+                + "big.stream().mapToDouble(x -> x).reduce(0.0d, (a, b) -> a); "
+                + "big.stream().mapToDouble(x -> x).collect(() -> new ArrayList(), (l, v) -> l.add(v), (a, b) -> a.addAll(b));"
+        );
+        // No runnable set — _getCancellationCheck() returns null; fast paths must not throw.
+        script.execute();
     }
 }

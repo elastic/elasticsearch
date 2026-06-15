@@ -9,12 +9,17 @@
 
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetrics> {
+    public static final String NAME = "store";
+    public static final String BYTES_READ_RESPONSE_HEADER = "store_bytes_read";
     public static final PluggableDirectoryMetricsHolder<StoreMetrics> NOOP_HOLDER = PluggableDirectoryMetricsHolder.noop(
         new StoreMetrics() {
             @Override
@@ -28,8 +33,20 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
         this.bytesRead = bytesRead;
     }
 
-    public StoreMetrics() {
+    public StoreMetrics() {}
 
+    public StoreMetrics(StreamInput in) throws IOException {
+        this.bytesRead = in.readVLong();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(bytesRead);
     }
 
     public long getBytesRead() {
@@ -39,6 +56,16 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
     @Override
     public StoreMetrics copy() {
         return new StoreMetrics(bytesRead);
+    }
+
+    @Override
+    public StoreMetrics merge(StoreMetrics other) {
+        return new StoreMetrics(bytesRead + other.bytesRead);
+    }
+
+    @Override
+    public Map<String, String> entries() {
+        return Map.of(BYTES_READ_RESPONSE_HEADER, Long.toString(bytesRead));
     }
 
     @Override
@@ -60,5 +87,18 @@ public class StoreMetrics implements DirectoryMetrics.PluggableMetrics<StoreMetr
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("bytesRead", bytesRead);
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoreMetrics that = (StoreMetrics) o;
+        return bytesRead == that.bytesRead;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(bytesRead);
     }
 }

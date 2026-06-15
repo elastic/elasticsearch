@@ -23,7 +23,7 @@ import java.util.Map;
 /**
  * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled.
  * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
- * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@code Float.Nan} (no calibrated ovresample).
+ * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@code Float.Nan} (no calibrated oversample).
  */
 public class IvfAutoCalibration {
 

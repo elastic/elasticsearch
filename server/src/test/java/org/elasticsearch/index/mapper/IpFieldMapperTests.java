@@ -651,4 +651,11 @@ public class IpFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
         );
     }
+
+    @Override
+    protected IndexType expectedColumnarIndexType() {
+        // With the extended doc values options enabled, ip defaults to high-cardinality binary doc values in columnar mode, which cannot
+        // carry a skipper. Without it, ip uses SORTED_SET doc values with a skipper.
+        return FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() ? IndexType.docValuesOnly() : IndexType.skippers();
+    }
 }

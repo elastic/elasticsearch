@@ -2198,6 +2198,30 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * Verifies that mappers which support doc values skippers behave as expected by default in strict columnar mode, i.e. without the
+     * user having to set {@code index: false} or {@code use_doc_values_skipper}. In columnar mode the dense index is disabled by default
+     * and {@code index.mapping.use_doc_values_skipper} defaults to {@code true}, so a skipper-capable field should advertise
+     * {@link IndexType#skippers()}. Fields that default to binary doc values in columnar (e.g. high-cardinality strings) cannot carry a
+     * skipper and should override {@link #expectedColumnarIndexType()}.
+     */
+    public void testColumnarModeUsesDocValuesSkipperByDefault() throws IOException {
+        assumeTrue("Mapper does not support doc values skippers", supportsDocValuesSkippers());
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        assertThat(mapperService.fieldType("field").indexType(), equalTo(expectedColumnarIndexType()));
+    }
+
+    /**
+     * The {@link IndexType} a skipper-supporting field is expected to produce by default in strict columnar mode. Defaults to
+     * {@link IndexType#skippers()}; override for fields that default to binary doc values in columnar (which cannot carry a skipper).
+     */
+    protected IndexType expectedColumnarIndexType() {
+        return IndexType.skippers();
+    }
+
+    /**
      * Whether this mapper exposes the {@code doc_values.multi_value} sub-parameter. Override and return {@code true} for mappers that
      * participate in single-value enforcement; also override {@link #expectedSingleValuedDocValuesType()} to declare the Lucene doc-values
      * type produced when {@code multi_value=false}.

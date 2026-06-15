@@ -1926,4 +1926,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
     }
+
+    @Override
+    protected IndexType expectedColumnarIndexType() {
+        // With the extended doc values options enabled, keyword defaults to high-cardinality binary doc values in columnar mode, which
+        // cannot carry a skipper. Without it, keyword uses SORTED_SET doc values with a skipper.
+        return FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() ? IndexType.docValuesOnly() : IndexType.skippers();
+    }
 }

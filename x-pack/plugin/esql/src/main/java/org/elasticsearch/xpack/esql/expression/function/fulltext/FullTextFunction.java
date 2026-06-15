@@ -625,6 +625,11 @@ public abstract class FullTextFunction extends Function
         };
     }
 
+    @Override
+    public boolean requiresQueryBuilderRewrite() {
+        return false == isRuntimeSearch();
+    }
+
     /**
      * Check if the full-text function exists only in the current node (not in child nodes)
      */

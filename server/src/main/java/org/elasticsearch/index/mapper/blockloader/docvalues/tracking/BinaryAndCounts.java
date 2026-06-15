@@ -42,10 +42,9 @@ public record BinaryAndCounts(TrackingBinaryDocValues binary, @Nullable Tracking
 
             if (skipCountsIfOne) {
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                if (countsSkipper == null) {
-                    throw new IllegalStateException("couldn't find skipper for counts field [" + countsFieldName + "]");
-                }
-                if (countsSkipper.maxValue() == 1) {
+                if (countsSkipper == null || countsSkipper.maxValue() == 1) {
+                    // null - means field is configured with multi-values=false
+                    // 1 - means a multi-valued field, but all documents have at most one value.
                     result = new BinaryAndCounts(binary, null);
                     return result;
                 }

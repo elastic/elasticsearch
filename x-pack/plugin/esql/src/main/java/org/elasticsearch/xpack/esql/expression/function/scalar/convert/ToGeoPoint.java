@@ -45,6 +45,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @FunctionInfo(
         returnType = "geo_point",
+        briefSummary = "Converts a value to a geo_point.",
         description = """
             Converts an input value to a `geo_point` value.
             A string will only be successfully converted if it respects the

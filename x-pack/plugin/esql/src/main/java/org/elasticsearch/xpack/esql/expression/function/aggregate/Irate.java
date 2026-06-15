@@ -73,6 +73,7 @@ public class Irate extends TimeSeriesAggregateFunction
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
+        briefSummary = "Calculates the per-second rate of increase between the last two data points.",
         description = "Calculates the irate of a counter field. irate is the per-second rate of increase between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to rate, but is more responsive to recent changes in the rate of increase.",

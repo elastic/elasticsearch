@@ -129,7 +129,7 @@ public final class AzureStorageProvider implements StorageProvider {
             if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
                 builder.endpoint(config.endpoint());
             } else if (account != null) {
-                builder.endpoint("https://" + account + ".blob.core.windows.net");
+                builder.endpoint(blobEndpoint(account));
             } else {
                 throw new IllegalStateException(
                     "Anonymous Azure access requires an endpoint or account from the path "
@@ -146,13 +146,13 @@ public final class AzureStorageProvider implements StorageProvider {
                 StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = "https://" + config.account() + ".blob.core.windows.net";
+                    endpoint = blobEndpoint(config.account());
                 }
                 builder.endpoint(endpoint).credential(credential);
             } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
-                    endpoint = "https://" + config.account() + ".blob.core.windows.net";
+                    endpoint = blobEndpoint(config.account());
                 }
                 builder.endpoint(endpoint).sasToken(config.sasToken());
             } else {
@@ -167,9 +167,9 @@ public final class AzureStorageProvider implements StorageProvider {
             var credential = new ManagedIdentityCredentialBuilder().build();
             String endpoint = Strings.hasText(config.endpoint())
                 ? config.endpoint()
-                : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);
+                : (accountFromPath != null ? blobEndpoint(accountFromPath) : null);
             if (endpoint == null && Strings.hasText(config.account())) {
-                endpoint = "https://" + config.account() + ".blob.core.windows.net";
+                endpoint = blobEndpoint(config.account());
             }
             if (endpoint == null) {
                 throw new IllegalStateException(
@@ -191,7 +191,7 @@ public final class AzureStorageProvider implements StorageProvider {
                             + "(wasbs://account.blob.core.windows.net/...) or WITH (account = '...')"
                     );
                 }
-                endpoint = "https://" + account + ".blob.core.windows.net";
+                endpoint = blobEndpoint(account);
             }
             builder.endpoint(endpoint).credential(buildClientAssertionCredential(config, executor));
         } else {
@@ -385,6 +385,11 @@ public final class AzureStorageProvider implements StorageProvider {
         if (scheme.equals("wasbs") == false && scheme.equals("wasb") == false) {
             throw new IllegalArgumentException("AzureStorageProvider only supports wasbs:// and wasb:// schemes, got: " + scheme);
         }
+    }
+
+    /** Builds the default Blob service endpoint for an account: {@code https://<account>.blob.core.windows.net}. */
+    private static String blobEndpoint(String account) {
+        return "https://" + account + ".blob.core.windows.net";
     }
 
     private static String extractAccountFromHost(String host) {

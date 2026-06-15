@@ -17,8 +17,8 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -52,7 +52,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
-    private final Supplier<Boolean> workloadIdentityEnabled;
+    private final BooleanSupplier workloadIdentityEnabled;
 
     public FileDataSourceValidator(
         String type,
@@ -68,7 +68,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
         Set<String> compressionExtensions,
-        Supplier<Boolean> workloadIdentityEnabled
+        BooleanSupplier workloadIdentityEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
@@ -98,7 +98,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * that operator changes to {@code esql.datasource.workload_identity.enabled} take effect
      * without a node restart.
      */
-    public FileDataSourceValidator withWorkloadIdentityEnabled(Supplier<Boolean> supplier) {
+    public FileDataSourceValidator withWorkloadIdentityEnabled(BooleanSupplier supplier) {
         return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
@@ -113,11 +113,10 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
-        if (config instanceof FileDataSourceConfiguration fc && fc.isWorkloadIdentity() && workloadIdentityEnabled.get() == false) {
-            throw new ValidationException().addValidationError(
-                "auth=workload_identity requires the [esql.datasource.workload_identity.enabled] cluster setting to be enabled; "
-                    + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
-            );
+        if (config instanceof FileDataSourceConfiguration fc
+            && fc.isWorkloadIdentity()
+            && workloadIdentityEnabled.getAsBoolean() == false) {
+            throw new ValidationException().addValidationError(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
         }
         return config != null ? config.toStoredSettings() : Map.of();
     }

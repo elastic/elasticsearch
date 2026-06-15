@@ -26,8 +26,9 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>Keyless workload-identity federation via {@code role_arn} and {@code jwt_audience}
  *       (optionally {@code role_session_name} and {@code sts_endpoint})</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>{@code auth=workload_identity} to use the node's instance credential chain (env vars, EKS IRSA, EC2 instance profile).
- *       Requires the {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
+ *   <li>{@code auth=workload_identity} to use the node's instance credentials via the IMDS-family chain
+ *       (ECS task role, then EC2 instance profile). Requires the
+ *       {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class S3Configuration extends FileDataSourceConfiguration {

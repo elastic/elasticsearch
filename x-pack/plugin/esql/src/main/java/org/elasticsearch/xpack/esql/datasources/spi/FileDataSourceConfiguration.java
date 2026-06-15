@@ -28,6 +28,15 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
     private static final String AUTH_NONE = "none";
     private static final String AUTH_WORKLOAD_IDENTITY = "workload_identity";
 
+    /**
+     * Error shown when {@code auth=workload_identity} is requested while the cluster setting is disabled. Shared between
+     * the CRUD validator ({@link FileDataSourceValidator#validateDatasource}) and the inline-WITH gate in
+     * {@code StorageProviderRegistry} so both paths report the same message.
+     */
+    public static final String WORKLOAD_IDENTITY_DISABLED_MESSAGE =
+        "auth=workload_identity requires the [esql.datasource.workload_identity.enabled] cluster setting to be enabled; "
+            + "it is disabled by default — enable it only on single-cloud single-tenant deployments";
+
     protected FileDataSourceConfiguration(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         super(raw, fieldDefs);
     }
@@ -70,6 +79,15 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
 
     /** Returns true when {@code auth=workload_identity} is set, directing the provider to use the node's instance credentials. */
     public boolean isWorkloadIdentity() {
-        return AUTH_WORKLOAD_IDENTITY.equals(auth());
+        return isWorkloadIdentityAuth(auth());
+    }
+
+    /**
+     * Returns true when the raw {@code auth} value selects workload-identity. Shared so the inline-WITH gate in
+     * {@code StorageProviderRegistry} (which inspects an unparsed config map) and {@link #isWorkloadIdentity()}
+     * agree on what counts as {@code auth=workload_identity} instead of each re-implementing the comparison.
+     */
+    public static boolean isWorkloadIdentityAuth(Object authValue) {
+        return authValue instanceof String s && AUTH_WORKLOAD_IDENTITY.equalsIgnoreCase(s);
     }
 }

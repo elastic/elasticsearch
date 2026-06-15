@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -80,6 +81,12 @@ public class StorageProviderRegistry implements Closeable {
         this(settings, null);
     }
 
+    /**
+     * Test-only convenience constructor. The default {@code workloadIdentityEnabled} supplier reads the cluster
+     * setting directly and does <b>not</b> apply the stateless gate that production wiring enforces in
+     * {@code EsqlPlugin} (where the boolean is forced to {@code false} when {@code DiscoveryNode.isStateless}).
+     * Production always goes through the four-argument constructor via {@code DataSourceModule}.
+     */
     public StorageProviderRegistry(Settings settings, @Nullable DataSourceCredentials credentials) {
         this(
             settings,
@@ -178,15 +185,11 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
-        // Gate auth=workload_identity on the cluster setting before constructing the provider.
-        // This covers the inline-WITH path where no PUT-datasource validation runs.
-        Object authValue = storageConfig.get("auth");
-        if ("workload_identity".equalsIgnoreCase(authValue instanceof String s ? s : null)
+        // Gate auth=workload_identity on the cluster setting before constructing the provider. This covers the
+        // inline-WITH path where no PUT-datasource validation runs.
+        if (FileDataSourceConfiguration.isWorkloadIdentityAuth(storageConfig.get("auth"))
             && workloadIdentityEnabled.getAsBoolean() == false) {
-            throw new IllegalArgumentException(
-                "auth=workload_identity requires the [esql.datasource.workload_identity.enabled] cluster setting to be enabled; "
-                    + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
-            );
+            throw new IllegalArgumentException(FileDataSourceConfiguration.WORKLOAD_IDENTITY_DISABLED_MESSAGE);
         }
 
         // Cache providers by (scheme, storageConfig) so queries with the same configuration map

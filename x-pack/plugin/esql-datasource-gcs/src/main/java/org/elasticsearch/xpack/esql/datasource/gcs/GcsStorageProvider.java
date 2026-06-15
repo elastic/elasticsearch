@@ -149,7 +149,8 @@ public class GcsStorageProvider implements StorageProvider {
      *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
      * </ul>
      * When more than one is supplied, service account credentials take precedence, then access_token, then
-     * keyless federation. When {@code auth=workload_identity} is set, Application Default Credentials are used instead.
+     * keyless federation. When {@code auth=workload_identity} is set,
+     * the GCE/GKE metadata server is used via ComputeEngineCredentials.
      */
     Credentials credentials(GcsConfiguration config) throws IOException {
         if (config != null && Strings.hasText(config.serviceAccountCredentials())) {

@@ -20,8 +20,8 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -57,26 +57,18 @@ public class CohereRerankTaskSettings implements TaskSettings, TopNProvider {
         );
         parser.declareField(
             optionalConstructorArg(),
-            (p, ctx) -> parsePositiveInteger(p, TOP_N_DOCS_ONLY),
+            (p, ctx) -> ObjectParserUtils.parsePositiveInteger(p, TOP_N_DOCS_ONLY),
             new ParseField(TOP_N_DOCS_ONLY),
             ObjectParser.ValueType.INT
         );
         parser.declareBoolean(optionalConstructorArg(), new ParseField(RETURN_DOCUMENTS));
         parser.declareField(
             optionalConstructorArg(),
-            (p, ctx) -> parsePositiveInteger(p, MAX_CHUNKS_PER_DOC),
+            (p, ctx) -> ObjectParserUtils.parsePositiveInteger(p, MAX_CHUNKS_PER_DOC),
             new ParseField(MAX_CHUNKS_PER_DOC),
             ObjectParser.ValueType.INT
         );
         return parser;
-    }
-
-    private static int parsePositiveInteger(XContentParser parser, String field) throws IOException {
-        int value = parser.intValue();
-        if (value <= 0) {
-            throw new IllegalArgumentException("[" + field + "] must be a positive integer");
-        }
-        return value;
     }
 
     public static CohereRerankTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {

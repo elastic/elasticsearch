@@ -12,6 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.CrossProjectSearchMetrics;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -344,6 +345,7 @@ public enum SearchResponseUtils {
         BytesReference searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
+        CrossProjectSearchMetrics cpsMetrics = null;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -372,6 +374,8 @@ public enum SearchResponseUtils {
                     suggest = parseSuggest(parser);
                 } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
                     profile = parseSearchProfileResults(parser);
+                } else if (CrossProjectSearchMetrics.CPS_PROFILE_FIELD.equals(currentFieldName)) {
+                    cpsMetrics = CrossProjectSearchMetrics.fromXContent(parser);
                 } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -427,7 +431,8 @@ public enum SearchResponseUtils {
                 clusters,
                 searchContextId,
                 null,
-                null
+                null,
+                cpsMetrics
             );
         } finally {
             if (hits != null) {

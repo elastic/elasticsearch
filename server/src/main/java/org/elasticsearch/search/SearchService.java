@@ -160,6 +160,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1189,6 +1190,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
+        final long enqueueNanos = System.nanoTime();
         final Executor searchExecutor = getExecutor(readerContext.indexShard());
         searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
@@ -1199,16 +1201,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             @Override
             protected void doRun() throws Exception {
-                final long startTime;
+                final long doRunStartNanos = System.nanoTime();
+                final long queueWaitMs = TimeUnit.NANOSECONDS.toMillis(doRunStartNanos - enqueueNanos);
+                final long opsStartNanos;
                 final SearchOperationListener opsListener;
 
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
-                startTime = System.nanoTime();
+                opsStartNanos = System.nanoTime();
                 opsListener = searchContext.indexShard().getSearchOperationListener();
                 opsListener.onPreFetchPhase(searchContext);
 
                 final FetchSearchResult fetchResult = searchContext.fetchResult();
                 fetchResult.incRef();
+                fetchResult.setFetchQueueWaitMs(queueWaitMs);
 
                 try {
                     prepareFetchContext(request, readerContext, searchContext);
@@ -1222,7 +1227,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
                         searchExecutor,
-                        newFetchBuildListener(opsListener, searchContext, startTime, closeOnce),
+                        newFetchBuildListener(opsListener, searchContext, opsStartNanos, doRunStartNanos, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
                 } catch (Exception e) {
@@ -1259,16 +1264,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private static ActionListener<Void> newFetchBuildListener(
         SearchOperationListener opsListener,
         SearchContext searchContext,
-        long startTime,
+        long opsStartNanos,
+        long serviceStartNanos,
+        FetchSearchResult fetchResult,
         Releasable closeOnce
     ) {
-        return ActionListener.runAfter(
-            ActionListener.wrap(
-                ignored -> opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime),
-                e -> opsListener.onFailedFetchPhase(searchContext)
-            ),
-            closeOnce::close
-        );
+        return ActionListener.runAfter(ActionListener.wrap(ignored -> {
+            final long now = System.nanoTime();
+            opsListener.onFetchPhase(searchContext, now - opsStartNanos);
+            fetchResult.setFetchServiceMs(TimeUnit.NANOSECONDS.toMillis(now - serviceStartNanos));
+            fetchResult.setResponseBytesUncompressed(fetchResult.getSearchHitsSizeBytes());
+        }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
 
     /**

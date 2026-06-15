@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 
 public final class FetchSearchResult extends SearchPhaseResult {
+    public static final TransportVersion FETCH_RESULT_DIAGNOSTICS = TransportVersion.fromName("fetch_result_diagnostics");
 
     private SearchHits hits;
 
@@ -60,6 +62,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
+    private long fetchQueueWaitMs = -1L;
+    private long fetchServiceMs = -1L;
+    private long responseBytesUncompressed = -1L;
+
     public FetchSearchResult() {}
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
@@ -79,6 +85,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 lastChunkBytes = in.readReleasableBytesReference();
             }
         }
+        if (in.getTransportVersion().supports(FETCH_RESULT_DIAGNOSTICS)) {
+            fetchQueueWaitMs = in.readZLong();
+            fetchServiceMs = in.readZLong();
+            responseBytesUncompressed = in.readZLong();
+        }
     }
 
     @Override
@@ -94,6 +105,11 @@ public final class FetchSearchResult extends SearchPhaseResult {
             if (lastChunkHitCount > 0 && lastChunkBytes != null) {
                 out.writeBytesReference(lastChunkBytes);
             }
+        }
+        if (out.getTransportVersion().supports(FETCH_RESULT_DIAGNOSTICS)) {
+            out.writeZLong(fetchQueueWaitMs);
+            out.writeZLong(fetchServiceMs);
+            out.writeZLong(responseBytesUncompressed);
         }
     }
 
@@ -132,6 +148,30 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public long getSearchHitsSizeBytes() {
         return searchHitsSizeBytes;
+    }
+
+    public long getFetchQueueWaitMs() {
+        return fetchQueueWaitMs;
+    }
+
+    public void setFetchQueueWaitMs(long fetchQueueWaitMs) {
+        this.fetchQueueWaitMs = fetchQueueWaitMs;
+    }
+
+    public long getFetchServiceMs() {
+        return fetchServiceMs;
+    }
+
+    public void setFetchServiceMs(long fetchServiceMs) {
+        this.fetchServiceMs = fetchServiceMs;
+    }
+
+    public long getResponseBytesUncompressed() {
+        return responseBytesUncompressed;
+    }
+
+    public void setResponseBytesUncompressed(long responseBytesUncompressed) {
+        this.responseBytesUncompressed = responseBytesUncompressed;
     }
 
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {

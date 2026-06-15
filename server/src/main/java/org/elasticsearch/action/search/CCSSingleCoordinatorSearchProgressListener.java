@@ -33,6 +33,8 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
     private SearchResponse.Clusters clusters;
     private TransportSearchAction.SearchTimeProvider timeProvider;
+    private boolean fetchPhaseExpected;
+    private final Map<Integer, String> clusterAliasByShardIndex = new HashMap<>();
 
     /**
      * Executed when shards are ready to be queried (after can-match)
@@ -54,6 +56,12 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
 
         this.clusters = clusters;
         this.timeProvider = timeProvider;
+        this.fetchPhaseExpected = fetchPhase;
+        this.clusterAliasByShardIndex.clear();
+        for (int i = 0; i < shards.size(); i++) {
+            SearchShard shard = shards.get(i);
+            clusterAliasByShardIndex.put(i, Objects.requireNonNullElse(shard.clusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+        }
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -64,6 +72,10 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = entry.getKey();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
+                // v may be null if reconcileProjects removed this cluster (e.g. stale alias with no matching shards)
+                if (v == null) {
+                    return null;
+                }
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";
 
@@ -291,7 +303,9 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
      */
     @Override
-    public void onFetchResult(int shardIndex) {}
+    public void onFetchResult(int shardIndex) {
+        maybeRefreshTookAfterFetch(shardIndex);
+    }
 
     /**
      * Executed when a shard reports a fetch failure.
@@ -301,7 +315,29 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      * @param exc The cause of the failure.
      */
     @Override
-    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
+    public void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        maybeRefreshTookAfterFetch(shardIndex);
+    }
+
+    private void maybeRefreshTookAfterFetch(int shardIndex) {
+        if (fetchPhaseExpected == false || clusters.hasClusterObjects() == false) {
+            return;
+        }
+        String clusterAlias = clusterAliasByShardIndex.get(shardIndex);
+        if (clusterAlias == null) {
+            return;
+        }
+        TimeValue took = new TimeValue(timeProvider.buildTookInMillis());
+        clusters.swapCluster(clusterAlias, (k, v) -> {
+            if (v == null) {
+                return null;
+            }
+            if (v.getStatus() == SearchResponse.Cluster.Status.SUCCESSFUL || v.getStatus() == SearchResponse.Cluster.Status.PARTIAL) {
+                return new SearchResponse.Cluster.Builder(v).setTook(took).build();
+            }
+            return v;
+        });
+    }
 
     private Map<String, Integer> partitionCountsByClusterAlias(List<SearchShard> shards) {
         final Map<String, Integer> res = new HashMap<>();

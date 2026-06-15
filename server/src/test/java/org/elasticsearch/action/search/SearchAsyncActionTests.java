@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -126,7 +127,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
             Map.of(),
-            false
+            false,
+            Optional.empty()
         ) {
 
             @Override
@@ -238,7 +240,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
                 Map.of(),
-                false
+                false,
+                Optional.empty()
             ) {
 
                 @Override
@@ -359,7 +362,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
                 Map.of(),
-                false
+                false,
+                Optional.empty()
             ) {
 
                 @Override
@@ -494,7 +498,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
                 Map.of(),
-                false
+                false,
+                Optional.empty()
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -607,7 +612,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
                 Map.of(),
-                false
+                false,
+                Optional.empty()
             ) {
 
                 @Override
@@ -697,7 +703,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
             Map.of(),
-            false
+            false,
+            Optional.empty()
         ) {
 
             @Override

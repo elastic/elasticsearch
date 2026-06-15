@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -76,6 +77,8 @@ public final class SearchResponseMerger implements Releasable {
     private final SearchCoordinatorContext searchCoordinatorContext;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
+    private final Optional<CrossProjectSearchMetrics> cpsMetrics;
+
     private final Releasable releasable = LeakTracker.wrap(() -> {
         for (SearchResponse searchResponse : searchResponses) {
             searchResponse.decRef();
@@ -90,12 +93,25 @@ public final class SearchResponseMerger implements Releasable {
         AggregationReduceContext.Builder aggReduceContextBuilder,
         SearchCoordinatorContext searchCoordinatorContext
     ) {
+        this(from, size, trackTotalHitsUpTo, searchTimeProvider, aggReduceContextBuilder, searchCoordinatorContext, Optional.empty());
+    }
+
+    SearchResponseMerger(
+        int from,
+        int size,
+        int trackTotalHitsUpTo,
+        SearchTimeProvider searchTimeProvider,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchCoordinatorContext searchCoordinatorContext,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
+    ) {
         this.from = from;
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
         this.searchCoordinatorContext = searchCoordinatorContext;
+        this.cpsMetrics = cpsMetrics; // Empty if non-CPS
     }
 
     /**
@@ -126,6 +142,13 @@ public final class SearchResponseMerger implements Releasable {
         if (searchResponses.size() == 0) {
             return SearchResponse.emptyResponseBuilder().tookInMillis(searchTimeProvider.buildTookInMillis()).clusters(clusters).build();
         }
+
+        SearchTimeProvider mergingPhaseTookTimeProvider = new SearchTimeProvider(
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            System::nanoTime
+        );
+
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;
@@ -228,6 +251,8 @@ public final class SearchResponseMerger implements Releasable {
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
+            cpsMetrics.ifPresent(c -> c.trackMergingPhaseTookTime(mergingPhaseTookTimeProvider.buildTookInMillis()));
+
             return new SearchResponse(
                 mergedSearchHits,
                 reducedAggs,
@@ -245,7 +270,8 @@ public final class SearchResponseMerger implements Releasable {
                 clusters,
                 null,
                 topHitsToRelease,
-                null
+                null,
+                cpsMetrics.orElse(null)
             );
         } finally {
             mergedSearchHits.decRef();

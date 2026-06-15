@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,6 +63,10 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
     public MockSearchPhaseContext(int numShards) {
+        this(numShards, Optional.empty());
+    }
+
+    public MockSearchPhaseContext(int numShards, Optional<CrossProjectSearchMetrics> cpsMetrics) {
         super(
             "mock",
             logger,
@@ -84,7 +89,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             null,
             new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
             Map.of(),
-            false
+            false,
+            cpsMetrics
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

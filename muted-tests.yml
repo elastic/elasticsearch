@@ -776,3 +776,99 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indices and drop ambiguous field client_ip}
   issue: https://github.com/elastic/elasticsearch/issues/151294
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/Test Named Input Params}
+  issue: https://github.com/elastic/elasticsearch/issues/151295
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices with incorrect conversion function, TO_IP instead of TO_LONG}
+  issue: https://github.com/elastic/elasticsearch/issues/151296
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: "test {p0=esql/100_bug_fix/grok with duplicate names and different types #110533}"
+  issue: https://github.com/elastic/elasticsearch/issues/151297
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/sort by counter_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/151298
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/63_enrich_int_range/Invalid age as keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/151299
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/sort by counter_double}
+  issue: https://github.com/elastic/elasticsearch/issues/151300
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert, rename but not drop ambiguous field event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151301
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/Test Unnamed Input Params Also For Limit And Sample}
+  issue: https://github.com/elastic/elasticsearch/issues/151302
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/CASE}
+  issue: https://github.com/elastic/elasticsearch/issues/151303
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/took}
+  issue: https://github.com/elastic/elasticsearch/issues/151304
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/pattern-multiple}
+  issue: https://github.com/elastic/elasticsearch/issues/151305
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/180_match_operator/combined where match}
+  issue: https://github.com/elastic/elasticsearch/issues/151306
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert, rename and then drop ambiguous field client_ip}
+  issue: https://github.com/elastic/elasticsearch/issues/151307
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/64_enrich_int_match/decades}
+  issue: https://github.com/elastic/elasticsearch/issues/151308
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/Test Named Input Params For Field Names}
+  issue: https://github.com/elastic/elasticsearch/issues/151309
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indexes and group by converted client_ip}
+  issue: https://github.com/elastic/elasticsearch/issues/151310
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load four indices with multiple conversion functions TO_LONG and TO_IP}
+  issue: https://github.com/elastic/elasticsearch/issues/151311
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/63_enrich_int_range/Invalid age as double}
+  issue: https://github.com/elastic/elasticsearch/issues/151312
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_usage/Views telemetry}
+  issue: https://github.com/elastic/elasticsearch/issues/151313
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/FROM EVAL SORT LIMIT with documents_found}
+  issue: https://github.com/elastic/elasticsearch/issues/151314
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/basic join on two fields}
+  issue: https://github.com/elastic/elasticsearch/issues/151315
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/192_lookup_join_on_aliases/alias-pattern-single}
+  issue: https://github.com/elastic/elasticsearch/issues/151316
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich with brackets in policy name}
+  issue: https://github.com/elastic/elasticsearch/issues/151317
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/constant field filter matches}
+  issue: https://github.com/elastic/elasticsearch/issues/151318
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/191_lookup_join_text/text-text}
+  issue: https://github.com/elastic/elasticsearch/issues/151319
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert, rename but not drop ambiguous field client_ip}
+  issue: https://github.com/elastic/elasticsearch/issues/151320
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert, rename and then drop ambiguous field event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151321
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/80_text/reverse text}
+  issue: https://github.com/elastic/elasticsearch/issues/151322
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/161_union_types_subfields/load two indices with to_version and to_string}
+  issue: https://github.com/elastic/elasticsearch/issues/151323
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/lookup-no-key}
+  issue: https://github.com/elastic/elasticsearch/issues/151324
+- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
+  method: testCrossClusterReplicationForTSDBWithSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/151326
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors
+  issue: https://github.com/elastic/elasticsearch/issues/151327

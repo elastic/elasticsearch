@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
@@ -86,11 +87,12 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -155,6 +157,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        HistogramQuantile.class,
         PlaceholderRelation.class,
         ScalarConversionFunction.class,
         ScalarFunction.class,
@@ -190,7 +193,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Drop.class,
         InlineStats.class,
         Keep.class,
-        LeftSemiJoin.class,
+        MarkJoin.class,
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
@@ -204,6 +207,9 @@ public class ApproximationSupportTests extends ESTestCase {
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(
+        // A quantile interpolated across cumulative histogram buckets is not amenable to sampling-based approximation.
+        PromqlHistogramQuantile.class,
+
         // Counting distinct values is hard to approximate.
         // For more details, see:
         // - https://arxiv.org/pdf/2202.02800

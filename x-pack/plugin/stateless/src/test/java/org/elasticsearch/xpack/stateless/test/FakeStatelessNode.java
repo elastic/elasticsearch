@@ -444,7 +444,7 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
-        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool, meterRegistry);
+        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, clusterService);
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {

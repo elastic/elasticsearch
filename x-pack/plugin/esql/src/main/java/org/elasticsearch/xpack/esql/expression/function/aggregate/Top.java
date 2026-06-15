@@ -85,6 +85,7 @@ public class Top extends AggregateFunction
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
+        briefSummary = "Collects the top values for a field, including repeated values.",
         description = "Collects the top values for a field. Includes repeated values.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats_top", tag = "top")

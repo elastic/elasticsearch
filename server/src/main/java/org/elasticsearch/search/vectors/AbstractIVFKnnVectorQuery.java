@@ -10,10 +10,8 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
-import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -23,7 +21,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
@@ -31,7 +28,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -202,45 +198,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
-        throws IOException {
-        final LeafReader reader = ctx.reader();
-        final Bits liveDocs = reader.getLiveDocs();
-        final int maxDoc = reader.maxDoc();
-
-        if (filterWeight == null) {
-            return approximateSearch(
-                ctx,
-                liveDocs == null ? new ESAcceptDocs.ESAcceptDocsAll() : new ESAcceptDocs.BitsAcceptDocs(liveDocs, maxDoc),
-                Integer.MAX_VALUE,
-                knnCollectorManager,
-                visitRatio
-            );
-        }
-
-        ScorerSupplier supplier = filterWeight.scorerSupplier(ctx);
-        if (supplier == null) {
-            return TopDocsCollector.EMPTY_TOPDOCS;
-        }
-
-        return approximateSearch(
-            ctx,
-            new ESAcceptDocs.ScorerSupplierAcceptDocs(supplier, liveDocs, maxDoc),
-            Integer.MAX_VALUE,
-            knnCollectorManager,
-            visitRatio
-        );
-    }
+    abstract TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
+        throws IOException;
 
     abstract void preconditionQuery(LeafReaderContext context) throws IOException;
-
-    abstract TopDocs approximateSearch(
-        LeafReaderContext context,
-        AcceptDocs acceptDocs,
-        int visitedLimit,
-        IVFCollectorManager knnCollectorManager,
-        float visitRatio
-    ) throws IOException;
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);

@@ -2141,7 +2141,7 @@ public class EsqlCapabilities {
         /**
          * TS window functions use backward window semantics only.
          */
-        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+        FIX_TIME_SERIES_WINDOW_BACKWARD(true),
 
         /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.

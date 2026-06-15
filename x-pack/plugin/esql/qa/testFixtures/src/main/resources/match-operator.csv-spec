@@ -1049,3 +1049,101 @@ from all_types
 
 constant_keyword-foo:keyword | keyword:keyword
 ;
+
+matchOnRuntimeText
+
+required_capability: match_function
+required_capability: match_support_runtime_text
+
+pragma: runtime_lexical_search=true
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1463            | Realms of Tolkien: Images of Middle-earth
+2130            | The J. R. R. Tolkien Audio Collection
+2301            | Smith of Wootton Major & Farmer Giles of Ham
+;
+
+matchOnRuntimeTextAndIndexedField
+
+required_capability: match_function
+required_capability: match_support_runtime_text
+
+pragma: runtime_lexical_search=true
+
+FROM books
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE content:"Tolkien" OR title:"Brothers Karamazov"
+| SORT book_no
+| LIMIT 3
+| KEEP book_no, title
+;
+
+book_no:keyword | title:text
+1211            | The brothers Karamazov
+1463            | Realms of Tolkien: Images of Middle-earth
+1985            | Brothers Karamazov
+;
+
+
+matchOnTextWithRow
+
+required_capability: match_function
+required_capability: match_support_runtime_text
+
+pragma: runtime_lexical_search=true
+
+ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
+| MV_EXPAND content
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+This dog is really brown
+This is a brown dog
+;
+
+matchOnTextWithRowAndNullValues
+
+required_capability: match_function
+required_capability: match_support_runtime_text
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(case(content == "This is a brown dog", null, content))
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+This dog is really brown
+;
+
+matchOnTextWithRowAndMultiValues
+
+required_capability: match_function
+required_capability: match_support_runtime_text
+
+pragma: runtime_lexical_search=true
+
+ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+| MV_EXPAND content
+| EVAL content = to_text(mv_append(content, "extra"))
+| WHERE content:"dog"
+| SORT content
+;
+
+content:text
+[This dog is really brown, extra]
+[This is a brown dog, extra]
+;

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalW
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceMvCountOfValuesWithCountDistinct;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
@@ -164,6 +165,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
             // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
             new RewriteSumOfExpressionPlusConstant(),
+            // Recognize MV_COUNT(VALUES(x)) before the Replace*WithEval rules decompose it, so the
+            // produced CASE(COUNT_DISTINCT(x) == 0, ...) scalar-over-aggregate is extracted and deduplicated by them.
+            new ReplaceMvCountOfValuesWithCountDistinct(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level

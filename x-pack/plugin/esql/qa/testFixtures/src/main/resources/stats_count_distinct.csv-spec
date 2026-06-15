@@ -311,3 +311,58 @@ COUNT_DISTINCT(case1):long | COUNT_DISTINCT(case2):long | ts_month:datetime
 0                           | 0                           | 2024-01-01T00:00:00.000Z
 0                           | 3                           | 2024-02-01T00:00:00.000Z
 ;
+
+mvCountOfValuesRewrittenToCountDistinct
+required_capability: mv_count_values_as_count_distinct
+// MV_COUNT(VALUES(x)) is routed to the approximate COUNT_DISTINCT, but stays an integer (not long)
+from employees | stats c = mv_count(values(languages));
+
+c:integer
+5
+;
+
+mvCountOfValuesAllNullGroupStaysNull
+required_capability: mv_count_values_as_count_distinct
+// VALUES is null (never an empty multivalue) for an all-null group, so MV_COUNT(VALUES(x)) is null, not 0
+from employees | where languages is null | stats c = mv_count(values(languages));
+
+c:integer
+null
+;
+
+mvCountOfValuesByGroup
+required_capability: mv_count_values_as_count_distinct
+from employees | stats c = mv_count(values(languages)) by gender | sort gender;
+
+c:integer | gender:keyword
+5         | F
+5         | M
+4         | null
+;
+
+mvCountOfValuesStillEmittedKeepsExactPath
+required_capability: mv_count_values_as_count_distinct
+// VALUES is also emitted, so the materialization is needed regardless and MV_COUNT keeps the exact path
+from employees | stats vals = values(languages), c = mv_count(values(languages)) | eval sorted = mv_sort(vals) | keep c, sorted;
+
+c:integer | sorted:integer
+5         | [1, 2, 3, 4, 5]
+;
+
+mvCountOfValuesWithFilter
+required_capability: mv_count_values_as_count_distinct
+// the per-aggregate filter must be carried onto the rewritten COUNT_DISTINCT
+from employees | stats c = mv_count(values(languages)) where gender == "M";
+
+c:integer
+5
+;
+
+mvCountOfValuesFilteredToEmptyStaysNull
+required_capability: mv_count_values_as_count_distinct
+// when the filter removes every row the group has no values, so the result must be null (not 0)
+from employees | stats c = mv_count(values(languages)) where gender == "Z";
+
+c:integer
+null
+;

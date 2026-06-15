@@ -78,6 +78,15 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     private static final int DEFAULT_PRECISION = 3000;
     private final Expression precision;
 
+    /**
+     * Whether {@code COUNT_DISTINCT} can aggregate the given type. Used by planner rules that route
+     * other aggregations to {@code COUNT_DISTINCT}; {@code VALUES}, for instance, supports more types
+     * (such as {@code unsigned_long} and the spatial types) than {@code COUNT_DISTINCT} does.
+     */
+    public static boolean isSupportedType(DataType type) {
+        return SUPPLIERS.containsKey(type);
+    }
+
     @FunctionInfo(
         returnType = "long",
         briefSummary = "Returns the approximate number of distinct values.",

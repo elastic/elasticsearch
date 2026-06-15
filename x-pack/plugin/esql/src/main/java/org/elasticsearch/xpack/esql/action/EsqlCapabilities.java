@@ -3059,6 +3059,12 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
 
+        /**
+         * Rewrite {@code MV_COUNT(VALUES(x))} to the approximate, HyperLogLog++ backed {@code COUNT_DISTINCT}
+         * aggregator, avoiding the full per-group materialization that {@code VALUES} performs.
+         */
+        MV_COUNT_VALUES_AS_COUNT_DISTINCT,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

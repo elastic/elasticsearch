@@ -35,7 +35,7 @@ $$$repositories-default-repository$$$
 `repositories.default_repository` {applies_to}`stack: ga 9.4`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), string) A default repository to be used for snapshot and restore operations. Currently, this is only used for DLM Frozen Tier transitions but may be used by other features in the future. By default, this setting is unset, in which case DLM frozen tier transitions will not occur.
 
-    The repository must already be registered before it can be set as the default, and a read-only repository cannot be set as the default. A repository that is currently configured as the default cannot be deleted or marked as read-only; point this setting at a different repository (or clear it by setting it to an empty string) first.
+    The repository must already be registered before it can be set as the default, and a read-only repository cannot be set as the default. A repository that is currently configured as the default cannot be deleted or marked as read-only until you change the setting to a different repository or set it to an empty string.
 
 
 ## {{slm-init}} settings [_slm_init_settings]

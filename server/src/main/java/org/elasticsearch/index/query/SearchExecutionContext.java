@@ -348,7 +348,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                         continue;
                     }
                     var fieldType = fieldMapper.fieldType();
-                    if (fieldType.isSearchable()) {
+                    if (fieldType.indexType().hasDenseIndex()) {
                         indexedFields.add(fieldType.name());
                     }
                 }

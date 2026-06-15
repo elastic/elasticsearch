@@ -19,8 +19,8 @@ multi_match default_field resolves to indexed fields only in columnar mode:
           mappings:
             properties:
               field1:
+                # index defaults to false:
                 type: keyword
-                index: false
 
   - do:
       index:
@@ -50,6 +50,7 @@ multi_match default_field resolves to indexed fields only in columnar mode:
           properties:
             field2:
               type: keyword
+              index: true
 
   - do:
       index:

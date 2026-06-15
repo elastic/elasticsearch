@@ -206,6 +206,19 @@ pattern then you should set this setting to `true` when upgrading.
     https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Builder.html#disableChunkedEncoding--[AWS
     Java SDK documentation] for details. Defaults to `false`.
 
+`always_sign_requests`::
+
+    {es} usually uses HTTPS to protect the integrity of all network traffic to a
+    S3 repository, but if you access your repository using plain HTTP it will
+    protect the integrity of request payloads using a separate signature
+    mechanism. If `always_sign_requests` is set to `true`, {es} will use this
+    additional signature mechanism even for requests sent over HTTPS which do
+    not need it. Defaults to `false`.
+
+NOTE: The `always_sign_requests` setting is not supported by versions `9.0`,
+`9.1`, `9.2`, `9.3` or `9.4`. If you configure this setting, do not upgrade to
+any of these versions.
+
 [[repository-s3-repository]]
 ==== Repository settings
 

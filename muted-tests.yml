@@ -848,3 +848,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/190_lookup_join/constant field filter matches}
   issue: https://github.com/elastic/elasticsearch/issues/151318
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/191_lookup_join_text/text-text}
+  issue: https://github.com/elastic/elasticsearch/issues/151319

@@ -50,6 +50,7 @@ public final class EnumParser {
      * @param value the enum value to parse
      * @param constructor the constructor to use to create the enum
      * @param validValues the valid values for the enum
+     * @param excludeValuesFromErrorMessage the values to exclude from the error message
      * @return the parsed enum or null if the value is null
      * @param <E> the enum type
      */
@@ -57,7 +58,8 @@ public final class EnumParser {
     public static <E extends Enum<E>> E parseFromStringInObjectParserContext(
         @Nullable String value,
         InferenceUtils.EnumConstructor<E> constructor,
-        EnumSet<E> validValues
+        EnumSet<E> validValues,
+        EnumSet<E> excludeValuesFromErrorMessage
     ) {
         if (value == null) {
             return null;
@@ -70,7 +72,10 @@ public final class EnumParser {
             }
             return createdEnum;
         } catch (IllegalArgumentException e) {
-            var validValuesAsStrings = validValues.stream().map(v -> v.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+            var validValuesAsStrings = validValues.stream()
+                .filter(enumValue -> excludeValuesFromErrorMessage.contains(enumValue) == false)
+                .map(v -> v.toString().toLowerCase(Locale.ROOT))
+                .toArray(String[]::new);
             String msg = String.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings));
             throw new IllegalArgumentException(msg);
         }

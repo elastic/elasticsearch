@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
@@ -57,7 +58,8 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
                 InputType inputType = EnumParser.parseFromStringInObjectParserContext(
                     (String) args[0],
                     InputType::fromString,
-                    VALID_INPUT_TYPE_VALUES
+                    VALID_INPUT_TYPE_VALUES,
+                    EnumSet.of(InputType.INTERNAL_INGEST, InputType.INTERNAL_SEARCH)
                 );
                 Truncation truncation = args[1] == null ? null : Truncation.fromString((String) args[1]);
                 return new CohereEmbeddingsTaskSettings(inputType, truncation);

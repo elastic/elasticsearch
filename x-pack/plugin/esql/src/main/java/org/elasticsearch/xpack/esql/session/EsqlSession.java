@@ -1933,8 +1933,29 @@ public class EsqlSession {
         } catch (VerificationException ve) {
             LOGGER.debug("Analyzing the plan ({}) failed with {}", description, ve.getDetailedMessage());
             if (requestFilter == null) {
-                // if the initial request didn't have a filter, then just pass the exception back to the user
-                listener.onFailure(ve);
+                if (result.fieldNames.equals(IndexResolver.ALL_FIELDS) == false) {
+                    // The analysis was attempted with specific field names (a performance optimization
+                    // over requesting ALL_FIELDS). A transient race in cluster-state propagation can
+                    // cause field_caps to return incomplete data, making fields appear absent.
+                    // Retry with ALL_FIELDS so a concurrent mapping update is not silently missed.
+                    LOGGER.debug("Retrying analysis of plan ({}) with all fields", description);
+                    executionInfo.clusterInfo.clear();
+                    resolveIndicesAndAnalyze(
+                        parsed,
+                        unmappedResolution,
+                        configuration,
+                        executionInfo,
+                        "second attempt, with all fields",
+                        null,
+                        timestampBounds,
+                        preAnalysis,
+                        new PreAnalysisResult(IndexResolver.ALL_FIELDS, result.wildcardJoinIndices),
+                        listener
+                    );
+                } else {
+                    // Already used ALL_FIELDS; no further retry possible.
+                    listener.onFailure(ve);
+                }
             } else {
                 // retrying the index resolution without index filtering.
                 executionInfo.clusterInfo.clear();

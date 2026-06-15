@@ -69,7 +69,10 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, multiValue);
+            if (multiValue == false) {
+                return new SingleValuedSortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            }
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
         }
     }
 
@@ -78,7 +81,6 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
     protected final IndexType indexType;
-    private final boolean multiValue;
 
     public SortedDoublesIndexFieldData(
         String fieldName,
@@ -87,24 +89,12 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
         IndexType indexType
     ) {
-        this(fieldName, numericType, valuesSourceType, toScriptFieldFactory, indexType, true);
-    }
-
-    public SortedDoublesIndexFieldData(
-        String fieldName,
-        NumericType numericType,
-        ValuesSourceType valuesSourceType,
-        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
-        IndexType indexType,
-        boolean multiValue
-    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexType = indexType;
-        this.multiValue = multiValue;
     }
 
     @Override
@@ -120,11 +110,6 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     @Override
     protected boolean sortRequiresCustomComparator() {
         return numericType == NumericType.HALF_FLOAT;
-    }
-
-    @Override
-    protected boolean isSingleValuedDocValues() {
-        return multiValue == false;
     }
 
     @Override

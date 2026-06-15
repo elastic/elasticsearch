@@ -551,69 +551,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(0));
     }
 
-    public void testFillSlotAfterCloseDrainsQueue() {
-        final var taskQueue = new DeterministicTaskQueue();
-        final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
-        final var firstTaskCompleted = new AtomicBoolean();
-        final var secondTaskAborted = new AtomicBoolean();
-        service.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                firstTaskCompleted.set(true);
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail("should not fail");
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                fail("should not be aborted");
-            }
-        },
-            fakeRecoveryState(),
-            listener -> taskQueue.scheduleAt(
-                taskQueue.getCurrentTimeMillis() + 100,
-                () -> listener.onRecoveryDone(fakeRecoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
-            )
-        );
-
-        service.enqueue(new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {
-                fail("should not complete normally");
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail("should not fail");
-            }
-
-            @Override
-            public void onRecoveryAborted() {
-                secondTaskAborted.set(true);
-            }
-        }, fakeRecoveryState(), ignored -> fail("should not be dispatched"));
-
-        assertThat(service.currentQueueSize(), equalTo(1));
-        service.closed.set(true);
-
-        service.fillSlots();
-        assertTrue("second task should have been aborted", secondTaskAborted.get());
-        assertThat(service.currentQueueSize(), equalTo(0));
-        taskQueue.runAllTasks();
-        assertTrue("first task should have completed", firstTaskCompleted.get());
-    }
-
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
     /// alternating bursty submits and completion periods, and randomly changing the max concurrent limit.
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
@@ -637,19 +574,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange timestampMillisFieldRange,
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
 
             @Override
             public void onRecoveryAborted() {
-                running.decrementAndGet();
                 completed.incrementAndGet();
             }
         };
@@ -661,36 +595,51 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrency.get()).build()
                 );
 
+            if (iteration > 15 && randomBoolean()) {
+                taskQueue.scheduleNow(service::close);
+            }
+
             final var incomingTasks = randomIntBetween(50, 100);
             totalTaskCount.addAndGet(incomingTasks);
             for (int i = 0; i < incomingTasks; i++) {
-                taskQueue.scheduleNow(() -> service.enqueue(trackingListener, recoveryState, schedulingListener -> {
-                    assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
-                    final var currentTime = taskQueue.getCurrentTimeMillis();
-                    taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
-                        // Randomly choose completion type
-                        if (randomBoolean()) {
-                            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
-                        } else {
+                taskQueue.scheduleNow(() -> {
+                    boolean serviceIsClosed = service.isClosed();
+                    service.enqueue(trackingListener, recoveryState, schedulingListener -> {
+                        assertFalse("no more tasks should get dispatched after service closed", serviceIsClosed);
+                        assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
+                        final var currentTime = taskQueue.getCurrentTimeMillis();
+                        taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
+                            running.decrementAndGet();
+                            // Randomly choose completion type
                             if (randomBoolean()) {
-                                schedulingListener.onRecoveryAborted();
+                                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
                             } else {
-                                schedulingListener.onRecoveryFailure(
-                                    new RecoveryFailedException(
-                                        recoveryState,
-                                        null,
-                                        new RuntimeException("test recovery task injected failure")
-                                    ),
-                                    false
-                                );
+                                if (randomBoolean()) {
+                                    schedulingListener.onRecoveryAborted();
+                                } else {
+                                    schedulingListener.onRecoveryFailure(
+                                        new RecoveryFailedException(
+                                            recoveryState,
+                                            null,
+                                            new RuntimeException("test recovery task injected failure")
+                                        ),
+                                        false
+                                    );
+                                }
                             }
-                        }
+                        });
                     });
-                }));
+                });
                 taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
+                    if (service.isClosed()) {
+                        assertThat(service.currentQueueSize(), equalTo(0));
+                    }
                     taskQueue.advanceTime();
                     taskQueue.runAllRunnableTasks();
+                }
+                if (service.isClosed()) {
+                    assertThat(service.currentQueueSize(), equalTo(0));
                 }
             }
             // Execute all enqueued and scheduled tasks

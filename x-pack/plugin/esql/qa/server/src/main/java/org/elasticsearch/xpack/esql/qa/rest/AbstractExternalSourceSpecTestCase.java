@@ -314,6 +314,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     protected void doTest() throws Throwable {
         String query = testCase.query;
 
+        // ClickBench templates are resolved by ClickBenchParquetSpecIT, not by this class.
+        assumeFalse("ClickBench templates require ClickBenchParquetSpecIT", query.contains("{{clickbench}}"));
+
         if (query.contains(MULTIFILE_SUFFIX) || query.contains(HIVE_SUFFIX + "}}")) {
             // HTTP does not support directory listing, so skip multi-file/Hive-partitioned glob tests
             assumeTrue("HTTP backend does not support multi-file glob patterns", storageBackend != StorageBackend.HTTP);

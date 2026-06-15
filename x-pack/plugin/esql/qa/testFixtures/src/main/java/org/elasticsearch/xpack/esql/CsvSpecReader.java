@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -20,6 +22,7 @@ public final class CsvSpecReader {
     public static SpecReader.Parser specParser() {
         var ctx = new ParserContext();
         ctx.addOptionParser(new Capability(ctx));
+        ctx.addOptionParser(new Pragma(ctx));
         ctx.addOptionParser(new RequestStored(ctx));
         ctx.addOptionParser(new RequestTimeFilter(ctx));
         ctx.addOptionParser(new Warning(ctx));
@@ -47,6 +50,7 @@ public final class CsvSpecReader {
         private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
         private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
+        private final Map<String, String> pragmas = new HashMap<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         String requestTimeRangeGte;
         String requestTimeRangeLte;
@@ -80,6 +84,7 @@ public final class CsvSpecReader {
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
                 testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
                 testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
+                testCase.pragmas = Map.copyOf(pragmas);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
@@ -241,6 +246,26 @@ public final class CsvSpecReader {
         }
     }
 
+    record Pragma(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("pragma:")) {
+                String pragma = lower.substring("pragma:".length()).trim();
+                int separator = pragma.indexOf('=');
+                if (separator < 0) {
+                    throw new IllegalArgumentException("Invalid pragma: [" + pragma + "], it must be in the form of key=value");
+                }
+
+                String key = pragma.substring(0, separator).trim();
+                String value = pragma.substring(separator + 1).trim();
+                state.pragmas.put(key, value);
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     /**
      * Marks a test as expected to fail under the {@code keyword}-to-{@code flattened} variant
      * ({@code CsvFlattenedKeywordIT}) because it exercises a known limitation of
@@ -303,6 +328,11 @@ public final class CsvSpecReader {
          * driver ignores this field.
          */
         public String skipFlattenedRewrite;
+
+        /**
+         * Pragmas that must be sent.
+         */
+        public Map<String, String> pragmas = new HashMap<>();
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format

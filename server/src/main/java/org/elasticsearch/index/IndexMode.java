@@ -184,13 +184,11 @@ public enum IndexMode {
             }
             MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
-                        + "] field ["
-                        + temporalityFieldName
-                        + "] does not exist in the mapping"
-                );
+                // We silently ignore this case because of composable templates:
+                // composable templates are verified without being merged with the default mapping
+                // This means the temporality field might not exist during verification,
+                // but we'll add it automatically when the index is created through the default mapping
+                return;
             }
             if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
                 throw new IllegalArgumentException(

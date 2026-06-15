@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -72,14 +73,15 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
     private static final String FLATTENED_ROOT_NAME = "resource.attributes";
 
     /**
-     * A stats-backed predicate that reports flattened sub-keys as unmapped keyed sub-fields (so they stay
-     * pushable), relying on the attribute's own aggregatable flag for indexed/doc-values. The stats-less
-     * {@link LucenePushdownPredicates#DEFAULT} now conservatively treats every flattened sub-key as mapped
+     * A stats-backed predicate whose {@code SearchStats} reports the {@code field_extract} loader config as
+     * supported (i.e. the sub-key is an unmapped keyed sub-field, so it stays pushable), relying on the
+     * attribute's own aggregatable flag for indexed/doc-values. The stats-less
+     * {@link LucenePushdownPredicates#DEFAULT} now conservatively reports no loader config as supported
      * (can_match has no mapping access), so these recognition tests use this predicate to exercise the
      * pushable (unmapped) path that local physical planning sees with real {@code SearchStats}.
      */
     private static final LucenePushdownPredicates UNMAPPED_KEY_PREDICATES = LucenePushdownPredicates.from(
-        SearchStats.EMPTY,
+        new EsqlTestUtils.TestSearchStats(),
         new EsqlFlags(true)
     );
 
@@ -141,7 +143,10 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         );
         FieldExtract fn = new FieldExtract(Source.EMPTY, rootWithoutDocValues, Literal.keyword(Source.EMPTY, "host.name"));
 
-        assertThat(fn.tryAsKeyedSubfieldName(UNMAPPED_KEY_PREDICATES), equalTo(Optional.empty()));
+        // EMPTY stats report no doc values, so the decline comes from isIndexedAndHasDocValues (the
+        // attribute is also non-aggregatable) rather than the mapped/unmapped loader-config check.
+        LucenePushdownPredicates noDocValuesPredicates = LucenePushdownPredicates.from(SearchStats.EMPTY, new EsqlFlags(true));
+        assertThat(fn.tryAsKeyedSubfieldName(noDocValuesPredicates), equalTo(Optional.empty()));
     }
 
     public void testTryAsKeyedSubfieldNameReturnsEmptyWhenCapabilityDisabled() {
@@ -677,18 +682,14 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
     }
 
     /**
-     * A predicate whose {@code SearchStats} reports the requested flattened sub-key as an explicitly mapped
-     * sub-field, mirroring what local physical planning sees for a key declared under the flattened root's
-     * {@code properties}. {@code isIndexedAndHasDocValues} is still satisfied through the attribute's
-     * aggregatable flag, so the only reason pushdown declines is the mapped-sub-field check.
+     * A predicate whose {@code SearchStats} reports the {@code field_extract} loader config as unsupported,
+     * mirroring what local physical planning sees for a key declared under the flattened root's
+     * {@code properties} (the flattened field type rejects the config for mapped sub-fields).
+     * {@code isIndexedAndHasDocValues} is still satisfied through the attribute's aggregatable flag, so the
+     * only reason pushdown declines is the mapped-sub-field rejection in {@code supportsBlockLoaderConfig}.
      */
     private static LucenePushdownPredicates mappedKeyPredicates() {
-        return LucenePushdownPredicates.from(new SearchStats.UnsupportedSearchStats() {
-            @Override
-            public boolean isFlattenedMappedSubfield(FieldAttribute.FieldName root, String key) {
-                return true;
-            }
-        }, new EsqlFlags(true));
+        return LucenePushdownPredicates.from(new EsqlTestUtils.TestSearchStats(false), new EsqlFlags(true));
     }
 
     private static void assumeQueryPushdownEnabled() {

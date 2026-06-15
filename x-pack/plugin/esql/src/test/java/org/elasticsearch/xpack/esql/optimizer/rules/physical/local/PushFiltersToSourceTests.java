@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.List;
 import java.util.Map;
@@ -277,14 +277,15 @@ public class PushFiltersToSourceTests extends ESTestCase {
     private static final Source SRC = Source.EMPTY;
 
     /**
-     * A stats-backed predicate that reports flattened sub-keys as unmapped keyed sub-fields (so they stay
-     * pushable) while relying on the attribute's aggregatable flag for indexed/doc-values. The stats-less
-     * {@link LucenePushdownPredicates#DEFAULT} now conservatively treats every flattened sub-key as mapped
+     * A stats-backed predicate whose {@code SearchStats} reports the {@code field_extract} loader config as
+     * supported (i.e. the sub-key is an unmapped keyed sub-field, so it stays pushable) while relying on the
+     * attribute's aggregatable flag for indexed/doc-values. The stats-less
+     * {@link LucenePushdownPredicates#DEFAULT} now conservatively reports no loader config as supported
      * (can_match has no mapping access), so these recognition tests use this predicate to exercise the
      * pushable (unmapped) path that local physical planning sees with real {@code SearchStats}.
      */
     private static final LucenePushdownPredicates UNMAPPED_KEY_PREDICATES = LucenePushdownPredicates.from(
-        SearchStats.EMPTY,
+        new EsqlTestUtils.TestSearchStats(),
         new EsqlFlags(true)
     );
 

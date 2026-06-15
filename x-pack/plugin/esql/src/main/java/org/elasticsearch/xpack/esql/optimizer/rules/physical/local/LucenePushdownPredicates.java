@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -75,11 +77,13 @@ public interface LucenePushdownPredicates {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute attr, String value);
 
     /**
-     * Whether {@code <root>.<key>} addresses an explicitly mapped flattened sub-field (a typed column)
-     * rather than a dynamic keyed sub-field. {@code field_extract} query pushdown is skipped for mapped
-     * sub-fields so the function's result matches the per-row evaluator regardless of plan shape.
+     * Whether every field with this name supports the given block-loader configuration. This is the same hook
+     * that gates block-loader fusion ({@link MappedFieldType#supportsBlockLoaderConfig}); {@code field_extract}
+     * query pushdown reuses it so the flattened field type itself rejects pushdown for mapped sub-fields (keys
+     * declared under {@code properties}). Both pushdown paths therefore agree on which keys are pushable, keeping
+     * the function's result consistent with the per-row evaluator regardless of plan shape.
      */
-    boolean isFlattenedMappedSubfield(FieldAttribute root, String key);
+    boolean supportsLoaderConfig(FieldAttribute field, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
      * We see fields as pushable if either they are aggregatable or they are indexed.
@@ -173,11 +177,15 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
-            public boolean isFlattenedMappedSubfield(FieldAttribute root, String key) {
-                // No mapping access during can_match: be conservative and treat every flattened sub-key as
-                // mapped so field_extract query pushdown never fires without SearchStats to confirm the key
-                // is an unmapped keyed sub-field.
-                return true;
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                // No mapping access during can_match: be conservative and never report a loader config as
+                // supported, so field_extract query pushdown never fires without SearchStats to confirm the
+                // key is an unmapped keyed sub-field.
+                return false;
             }
 
             @Override
@@ -226,8 +234,12 @@ public interface LucenePushdownPredicates {
             }
 
             @Override
-            public boolean isFlattenedMappedSubfield(FieldAttribute root, String key) {
-                return stats.isFlattenedMappedSubfield(new FieldAttribute.FieldName(root.name()), key);
+            public boolean supportsLoaderConfig(
+                FieldAttribute field,
+                BlockLoaderFunctionConfig config,
+                MappedFieldType.FieldExtractPreference preference
+            ) {
+                return stats.supportsLoaderConfig(new FieldAttribute.FieldName(field.name()), config, preference);
             }
 
             @Override

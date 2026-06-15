@@ -51,18 +51,6 @@ public interface SearchStats {
     boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
 
     /**
-     * Whether {@code <root>.<key>} addresses an explicitly mapped flattened sub-field (a typed column,
-     * declared under {@code properties}) rather than a dynamic keyed sub-field stored in the keyed
-     * channel. {@code field_extract} excludes mapped sub-fields from query pushdown so its result stays
-     * consistent with the per-row evaluator regardless of plan shape. Defaults to {@code false} for stats
-     * implementations without mapping access; the stats-less {@code can_match} predicates treat every key
-     * as non-pushable instead.
-     */
-    default boolean isFlattenedMappedSubfield(FieldName root, String key) {
-        return false;
-    }
-
-    /**
      * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
      * NULL if the field is not a constant.
      */

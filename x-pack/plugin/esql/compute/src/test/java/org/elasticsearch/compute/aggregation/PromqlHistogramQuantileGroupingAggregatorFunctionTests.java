@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PromqlHistogramQuantileStates.Bucket;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -16,11 +16,10 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestWarningsSource;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class PrometheusHistogramQuantileAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class PromqlHistogramQuantileGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     private double quantile;
 
     @Before
@@ -30,22 +29,17 @@ public class PrometheusHistogramQuantileAggregatorFunctionTests extends Aggregat
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new PrometheusHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
+        return new PromqlHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "prometheus_histogram_quantile";
+        return "promql_histogram_quantile";
     }
 
     @Override
     protected int inputCount() {
         return 2;
-    }
-
-    @Override
-    protected int maximumTestRowCount() {
-        return 1_000;
     }
 
     @Override
@@ -55,22 +49,20 @@ public class PrometheusHistogramQuantileAggregatorFunctionTests extends Aggregat
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return PrometheusHistogramQuantileTestHelpers.bucketRowsSource(blockFactory, size);
+        return PromqlHistogramQuantileTestHelpers.groupedBucketRowsSource(blockFactory, size);
     }
 
     @Override
-    protected void assertSimpleOutput(List<Page> input, Block result) {
-        List<Bucket> buckets = PrometheusHistogramQuantileTestHelpers.bucketsFromPages(input, 0, 1);
-        double expected = PrometheusHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
-        assertQuantileResult((DoubleBlock) result, 0, expected);
-    }
-
-    static void assertQuantileResult(DoubleBlock result, int position, double expected) {
-        // A NaN estimate means the histogram cannot produce a quantile; the aggregator emits null rather than NaN.
-        if (Double.isNaN(expected)) {
-            assertTrue(result.isNull(position));
-        } else {
-            assertThat(result.getDouble(position), equalTo(expected));
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
+        List<Bucket> buckets = new ArrayList<>();
+        for (Page page : input) {
+            matchingGroups(page, group).forEach(p -> PromqlHistogramQuantileTestHelpers.appendBuckets(page, 1, 2, p, buckets));
         }
+        if (buckets.isEmpty()) {
+            assertTrue(result.isNull(position));
+            return;
+        }
+        double expected = PromqlHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
+        PromqlHistogramQuantileAggregatorFunctionTests.assertQuantileResult((DoubleBlock) result, position, expected);
     }
 }

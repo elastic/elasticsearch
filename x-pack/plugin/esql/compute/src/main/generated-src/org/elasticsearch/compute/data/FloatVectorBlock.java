@@ -59,8 +59,8 @@ public final class FloatVectorBlock extends AbstractVectorBlock implements Float
     }
 
     @Override
-    public FloatBlock filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public FloatBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override

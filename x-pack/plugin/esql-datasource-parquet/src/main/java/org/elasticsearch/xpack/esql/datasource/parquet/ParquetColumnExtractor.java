@@ -222,7 +222,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         // bounded by the per-query concurrency budget which sits inside readBytesAsync.
         List<BlockMetaData> blocks = ownedFooter.getBlocks();
         @SuppressWarnings("unchecked")
-        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = new CompletableFuture[buckets.size()];
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[] futures = (CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks>[]) new CompletableFuture<?>[buckets.size()];
         for (int i = 0; i < buckets.size(); i++) {
             BlockMetaData block = blocks.get(buckets.get(i).rowGroupIndex);
             futures[i] = ColumnChunkPrefetcher.prefetchAsync(storageObject, block, projection, blockFactory.arrowAllocator());
@@ -285,7 +285,7 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         int colCount = columnNames.length;
         MessageType[] perColumnSchemas = new MessageType[colCount];
         @SuppressWarnings("unchecked")
-        Set<String>[] perColumnProjections = new Set[colCount];
+        Set<String>[] perColumnProjections = (Set<String>[]) new Set<?>[colCount];
         for (int c = 0; c < colCount; c++) {
             // Use the descriptor's first path segment as the top-level field name. For flat
             // columns and LIST<primitive> this equals columnNames[c]; for dotted struct-leaf

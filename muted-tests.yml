@@ -713,3 +713,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
   issue: https://github.com/elastic/elasticsearch/issues/151273
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, showing unsupported type and null value for event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151274

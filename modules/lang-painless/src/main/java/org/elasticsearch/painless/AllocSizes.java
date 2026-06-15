@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -59,6 +60,7 @@ public final class AllocSizes {
         return SIZE_CACHE.computeIfAbsent(type, AllocSizes::computeSizeOf);
     }
 
+    @SuppressForbidden(reason = "getDeclaredFields() is required to size private fields; only field metadata is read, never accessed")
     private static long computeSizeOf(Class<?> type) {
         long sum = OBJECT_HEADER;
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {

@@ -788,3 +788,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/sort by counter_integer}
   issue: https://github.com/elastic/elasticsearch/issues/151298
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/63_enrich_int_range/Invalid age as keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/151299

@@ -1555,18 +1555,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | sort nullsum
             | limit 1
             """));
-        // nullsum = emp_no + null folds to null at plan time, so the sort key is constant.
-        // PruneConstantSortKeysFromTopN fires: no TopNExec at coordinator or data node.
-        var limit = as(optimized, LimitExec.class);
+        // nullsum = emp_no + null folds to null → constant sort dropped; PushLimitToSource pushes limit=1
+        // into EsQueryExec (Lucene stops at one doc) instead of a TopN heap.
+        var eval = as(optimized, EvalExec.class);
+        var limit = as(eval.child(), LimitExec.class);
         var exchange = asRemoteExchange(limit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extract = as(project.child(), FieldExtractExec.class);
-        // PushLimitToSource pushes limit=1 into EsQueryExec, so Lucene stops after one document.
-        // FieldExtractExec still loads all fields for that one row (estimatedRowSize reflects this),
-        // but only one row is ever processed — better than the old late-materialization path where
-        // Lucene would scan rows to feed a TopN heap before loading fields.
-        var eval = as(extract.child(), EvalExec.class);
-        var source = source(eval.child());
+        var source = source(extract.child());
         assertThat(source.limit().fold(FoldContext.small()), is(1));
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
     }
@@ -10512,15 +10508,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         branchProject = as(branchExchange.child(), ProjectExec.class);
         assertThat(names(branchProject.projections()), equalTo(List.of("x")));
 
-        // Below the exchange, x is provably the constant 1 (sitting right above the EVAL), so the constant sort key
-        // is pruned and the data-node TopN becomes a plain Limit. The coordinator TopN above keeps its sort, since
-        // there x arrives through the exchange as an opaque column reference and can't be proven constant.
-        var branchLimit = as(branchProject.child(), LimitExec.class);
-        assertThat(branchLimit.limit(), is(l(10)));
-
-        var branchEval = as(branchLimit.child(), EvalExec.class);
+        // Below the exchange x is the constant 1 → sort pruned, limit pushed to source; above it x is opaque,
+        // so the coordinator TopN keeps its sort.
+        var branchEval = as(branchProject.child(), EvalExec.class);
         var branchEsQuery = as(branchEval.child(), EsQueryExec.class);
         assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+        assertThat(branchEsQuery.limit(), is(l(10)));
     }
 
     /**

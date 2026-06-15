@@ -1343,3 +1343,17 @@ emp_no:integer
 10002
 10003
 ;
+
+// constant_keyword is read at query time, not a plan-time literal, so its sort key is not pruned.
+sortByConstantKeywordFieldIsPreserved
+FROM all_types
+| SORT `constant_keyword-foo`, keyword ASC
+| KEEP `constant_keyword-foo`, keyword
+| LIMIT 3
+;
+
+constant_keyword-foo:keyword | keyword:keyword
+foo                          | key1
+foo                          | key2
+foo                          | key3
+;

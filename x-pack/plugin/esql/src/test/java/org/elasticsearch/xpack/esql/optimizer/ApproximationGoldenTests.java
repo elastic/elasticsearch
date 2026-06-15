@@ -124,7 +124,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // Regression for local-stage pruning of _fork sort key — see PruneConstantSortKeysFromTopN.
+    // Regression for local-stage pruning of _fork sort key — see PruneConstantSortKeysFromOrderBy.
     public void testForkWithStatsInJustOneBranch() {
         assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         runGoldenTest("""

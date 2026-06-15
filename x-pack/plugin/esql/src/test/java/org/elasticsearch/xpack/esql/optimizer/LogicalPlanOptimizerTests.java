@@ -1481,8 +1481,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneConstantSortKeysFromBothNestedTopNs() {
-        // Two SORT+LIMIT pairs produce two TopN nodes. applyRecursive must simplify each one
-        // independently: the outer TopN prunes x (null), the inner TopN prunes y (null).
+        // Two stacked constant sorts (x, y = null) — each is simplified independently.
         LogicalPlan plan = optimizedPlan("""
             from test
             | eval x = null
@@ -1499,6 +1498,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var innerTopN = as(as(outerTopN.child(), Eval.class).child(), TopN.class);
         assertThat(orderNames(innerTopN), contains("emp_no"));
         assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(100));
+    }
+
+    public void testPruneConstantSortKeyFromTopNBy() {
+        // Pruning the raw OrderBy (before TopNBy forms) covers LIMIT n BY too — the old TopN rule didn't.
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | eval x = null
+            | sort x
+            | limit 10 by emp_no
+            """);
+        assertThat(plan.anyMatch(p -> p instanceof TopNBy), equalTo(false));
+        assertThat(plan.anyMatch(p -> p instanceof OrderBy), equalTo(false));
+
+        Holder<LimitBy> found = new Holder<>();
+        plan.forEachDown(LimitBy.class, found::set);
+        LimitBy limitBy = found.get();
+        assertThat(limitBy, not(equalTo(null)));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), equalTo(10));
+        assertThat(Expressions.names(limitBy.groupings()), contains("emp_no"));
     }
 
     public void testPruneSortBeforeStats() {
@@ -2226,10 +2244,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
         var project = as(mvExpand.child(), Project.class);
-        // sort on a=null is a no-op; TopN(a, 7300) replaced by Limit(7300)
-        var limit7300 = asLimit(project.child(), 7300, false);
-        var limit7300Before = asLimit(limit7300.child(), 7300, true);
-        mvExpand = as(limit7300Before.child(), MvExpand.class);
+        // a=null is a constant sort, so it is dropped and no TopN forms.
+        var limit7300 = asLimit(project.child(), 7300, true);
+        mvExpand = as(limit7300.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
@@ -2241,14 +2258,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Project[[c{r}#7 AS language_code#14, a{r}#3, language_name{f}#19]]
      * \_Limit[10000[INTEGER],true]
      *   \_Join[LEFT,[c{r}#7],[c{r}#7],[language_code{f}#18]]
-     *     |_Limit[7300[INTEGER],false]
-     *     | \_Limit[7300[INTEGER],true]
-     *     |   \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
-     *     |     |_Limit[7300[INTEGER],false]
-     *     |     | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
-     *                                                                   IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
-     *                                                                   IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
-     *     |     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
+     *     |_Limit[7300[INTEGER],true]
+     *     | \_Join[LEFT,[language_code{r}#5],[language_code{r}#5],[language_code{f}#16]]
+     *     |   |_Limit[7300[INTEGER],false]
+     *     |   | \_LocalRelation[[a{r}#3, language_code{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
+     *                                                                 IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *                                                                 IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     *     |   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      * }
      */
@@ -2266,10 +2282,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var project = as(plan, Project.class);
         var limit10kBefore = asLimit(project.child(), 10000, true);
         var join = as(limit10kBefore.child(), Join.class);
-        // sort on a=null is a no-op; TopN(a, 7300) replaced by Limit(7300)
-        var limit7300 = asLimit(join.left(), 7300, false);
-        var limit7300Before = asLimit(limit7300.child(), 7300, true);
-        join = as(limit7300Before.child(), Join.class);
+        // a=null is a constant sort, so it is dropped and no TopN forms.
+        var limit7300 = asLimit(join.left(), 7300, true);
+        join = as(limit7300.child(), Join.class);
         var limit = asLimit(join.left(), 7300, false);
         as(limit.child(), LocalRelation.class);
         // the sort was on a=null (constant), so it is removed entirely; no "SORT before LOOKUP JOIN" warning
@@ -2583,15 +2598,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * TopN[[Order[language_code{r}#3,ASC,LAST]],1[INTEGER]]
-     * \_Limit[1[INTEGER],true]
-     *   \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
-     *     |_Limit[1[INTEGER],false]
-     *     | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
-     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
+     * Limit[1[INTEGER],true]
+     * \_Join[LEFT,[language_code{r}#3],[language_code{r}#3],[language_code{f}#6]]
+     *   |_Limit[1[INTEGER],false]
+     *   | \_LocalRelation[[language_code{r}#3],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#6, language_name{f}#7]
      * }
      *
-     * Notice that the `TopN` at the very top has limit 1, not 3!
+     * Notice that the top `Limit` has limit 1, not 3: the constant SORT is dropped before it becomes a TopN,
+     * and the outer LIMIT 3 then combines with the inner LIMIT 1 down to 1.
      */
     public void testDescendantLimitLookupJoin() {
         LogicalPlan plan = optimizedPlan("""
@@ -2602,11 +2617,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LIMIT 3
             """);
 
-        // sort on a constant (language_code=1) is a no-op; TopN(3) replaced by Limit(3),
-        // which PushDownAndCombineLimits then combines with the inner Limit(1) → Limit(1)
-        var limitOuter = asLimit(plan, 1, false);
-        var limitBefore = asLimit(limitOuter.child(), 1, true);
-        var join = as(limitBefore.child(), Join.class);
+        // language_code=1 is a constant sort → dropped; LIMIT 3 then combines with the inner LIMIT 1 → 1.
+        var limitOuter = asLimit(plan, 1, true);
+        var join = as(limitOuter.child(), Join.class);
         var limitInner = asLimit(join.left(), 1, false);
         var localRelation = as(limitInner.child(), LocalRelation.class);
     }
@@ -10530,7 +10543,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Mirrors the csv-spec approximation test "Fork with stats in just one branch" structurally:
      * one Fork branch is a STATS, the other is a passthrough; the outer TopN sorts by _fork and
-     * another column. {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromTopN}
+     * another column. {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromOrderBy}
      * must NOT fire here — its stop predicate stops at Fork boundaries, so {@code _fork} and
      * {@code emp_no} should never be classified as foldable from the outer scope, and the
      * TopN's two sort orders should survive into the optimized plan unchanged.

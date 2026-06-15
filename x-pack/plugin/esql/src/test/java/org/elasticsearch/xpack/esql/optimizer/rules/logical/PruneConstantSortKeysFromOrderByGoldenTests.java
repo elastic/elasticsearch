@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
 
-public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTestCase {
+public class PruneConstantSortKeysFromOrderByGoldenTests extends UnmappedGoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
     private static final EnumSet<Stage> STAGES_LOCAL = EnumSet.of(
@@ -22,7 +22,7 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
     );
 
     public void testConstantSortKeyViaEval() {
-        // EVAL x = null makes the sort key foldable; PruneConstantSortKeysFromTopN replaces TopN with Limit.
+        // EVAL x = null makes the sort key foldable, so the sort is dropped.
         runGoldenTest("""
             FROM employees
             | EVAL x = null
@@ -32,7 +32,7 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
     }
 
     public void testPartiallyConstantSortKey() {
-        // x=1 is a non-null constant and is pruned from the sort order; TopN is rebuilt with only emp_no.
+        // x = 1 is a non-null constant, so only that key is pruned; emp_no stays.
         runGoldenTest("""
             FROM employees
             | EVAL x = 1
@@ -42,10 +42,8 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
     }
 
     public void testSortKeyFoldedToNullByArithmetic() {
-        // emp_no + null folds to null via null-propagation in arithmetic (any value + null = null).
-        // This folding happens in expression simplification before our rule runs, so by the time
-        // PruneConstantSortKeysFromTopN sees the plan, the sort key is already Literal(null) — directly
-        // foldable without needing alias resolution.
+        // emp_no + null folds to null in expression simplification before this rule runs, so the key is
+        // already Literal(null) — no alias resolution needed.
         runGoldenTest("""
             FROM employees
             | SORT emp_no + null, emp_no
@@ -54,16 +52,13 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
     }
 
     public void testUnmappedSortKeyNullifiedAndPruned() {
-        // With unmapped_fields="nullify", does_not_exist has MissingEsField type (established at analysis time
-        // via field-caps, meaning the field is absent from every shard). PruneConstantSortKeysFromTopN detects
-        // this at logical optimization time and removes it from the TopN sort keys, leaving only emp_no.
-        // With unmapped_fields="load", the field is PotentiallyUnmappedKeywordEsField (may exist on some shards),
-        // so the rule does not fire and the TopN keeps both sort keys.
+        // nullify: does_not_exist is MissingEsField (absent from every shard) → pruned.
+        // load: PotentiallyUnmappedKeywordEsField (may exist on some shards) → kept.
         runTestsNullifyAndLoad("""
             FROM employees
             | KEEP emp_no, does_not_exist
             | SORT does_not_exist, emp_no
             | LIMIT 20
-            """, STAGES_LOCAL);
+            """, STAGES_LOCAL, null);
     }
 }

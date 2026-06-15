@@ -1383,20 +1383,20 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
-        // sort key s is null (field is missing), so TopN is replaced by Limit
-        var limit = as(project.child(), Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
-
+        // s is null (missing field), so the sort is dropped.
         // Evaluates expression as null, as the field is missing
-        var eval = as(limit.child(), Eval.class);
+        var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("s"));
         var alias = as(eval.fields().getFirst(), Alias.class);
         var literal = as(alias.child(), Literal.class);
         assertThat(literal.value(), is(nullValue()));
         assertThat(literal.dataType(), is(DataType.DOUBLE));
 
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1));
+
         // EsRelation[test_all] - does not contain a FunctionEsField
-        var esRelation = as(eval.child(), EsRelation.class);
+        var esRelation = as(limit.child(), EsRelation.class);
         assertFalse(
             esRelation.output()
                 .stream()
@@ -1406,10 +1406,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Multi-index partial-presence: FROM a, b where `value` exists in `a` and is missing from `b`.
-     * Globally, `value` has a real keyword type (it's mapped in `a`), so PruneConstantSortKeysFromTopN
+     * Globally, `value` has a real keyword type (it's mapped in `a`), so PruneConstantSortKeysFromOrderBy
      * does NOT fire on the coordinator and the TopN keeps both sort keys.
      * Locally on a shard from `b`, ReplaceFieldWithConstantOrNull replaces `value` with null and
-     * PruneConstantSortKeysFromTopN then strips the now-null sort key, leaving only `id`.
+     * PruneConstantSortKeysFromOrderBy then strips the now-null sort key, leaving only `id`.
      */
     public void testTopNSortKeyOnPartiallyMappedFieldPrunedLocally() {
         var optimizer = EsqlTestUtils.optimizer().addIndex(buildPartiallyMappedIndex().get());

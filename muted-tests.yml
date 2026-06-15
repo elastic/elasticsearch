@@ -797,3 +797,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indices, convert, rename but not drop ambiguous field event_duration}
   issue: https://github.com/elastic/elasticsearch/issues/151301
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/Test Unnamed Input Params Also For Limit And Sample}
+  issue: https://github.com/elastic/elasticsearch/issues/151302

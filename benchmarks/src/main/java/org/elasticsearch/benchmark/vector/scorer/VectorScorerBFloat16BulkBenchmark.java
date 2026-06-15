@@ -24,7 +24,14 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.*;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.arrayScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.arrayScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.bfloat16VectorValues;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScoreSupplier;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.panamaScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeBFloat16VectorData;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.dotProduct;
 import static org.elasticsearch.nativeaccess.jdk.ScalarOperations.squareDistance;
 

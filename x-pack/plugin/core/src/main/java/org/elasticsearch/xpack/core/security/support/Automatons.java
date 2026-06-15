@@ -134,35 +134,28 @@ public final class Automatons {
         if (patterns.size() <= 1) {
             return buildAutomaton(patterns);
         }
-        List<BytesRef> literals = null;
-        List<String> others = null;
+        List<BytesRef> literals = new ArrayList<>();
+        List<String> others = new ArrayList<>();
         for (String pattern : patterns) {
             // makeStringUnion only accepts literals, and rejects terms whose UTF-8 length exceeds
             // Automata.MAX_STRING_UNION_TERM_LENGTH (measured in bytes, not Java chars). Longer literals, and any
             // non-literal, fall to the general path.
             final BytesRef ref = (pattern.isEmpty() == false && isLiteralPattern(pattern)) ? new BytesRef(pattern) : null;
             if (ref != null && ref.length <= Automata.MAX_STRING_UNION_TERM_LENGTH) {
-                if (literals == null) {
-                    literals = new ArrayList<>();
-                }
                 literals.add(ref);
             } else {
-                if (others == null) {
-                    others = new ArrayList<>();
-                }
                 others.add(pattern);
             }
         }
 
-        final int literalCount = literals == null ? 0 : literals.size();
         // Without at least two literals there is nothing for makeStringUnion to accelerate, so defer entirely to the general
         // path rather than pay for an extra wrapping union + minimize.
-        if (literalCount <= 1) {
+        if (literals.size() <= 1) {
             return buildAutomaton(patterns);
         }
 
         // A pure-literal set is already minimal and deterministic, so return it directly without a trailing minimize.
-        if (others == null) {
+        if (others.isEmpty()) {
             return literalStringUnion(literals);
         }
 

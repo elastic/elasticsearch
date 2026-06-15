@@ -223,15 +223,6 @@ public final class ServiceUtils {
         );
     }
 
-    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
-        Class<? extends Model> invalidModelType
-    ) {
-        throw new ElasticsearchStatusException(
-            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
-            RestStatus.BAD_REQUEST
-        );
-    }
-
     public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
         return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
     }
@@ -1010,6 +1001,13 @@ public final class ServiceUtils {
 
     private static void throwUnsupportedTaskOperation(String serviceName, String taskName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support %s", serviceName, taskName));
+    }
+
+    public static ElasticsearchStatusException createUnsupportedMultimodalRerankException(String serviceName) {
+        return new ElasticsearchStatusException(
+            Strings.format("The %s service does not support rerank with non-text inputs or queries", serviceName),
+            RestStatus.BAD_REQUEST
+        );
     }
 
     public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {

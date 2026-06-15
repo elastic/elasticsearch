@@ -45,6 +45,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
@@ -55,8 +56,6 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,6 +65,7 @@ import static org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectors
 @SuppressForbidden(reason = "Lucene classes")
 public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
+    private static final int PAGE_SIZE = 0x1000;
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES93BFloat16FlatVectorsWriter.class);
 
     private final SegmentWriteState segmentWriteState;
@@ -157,9 +157,15 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         return total;
     }
 
+    private long alignVectorData(IndexOutput out, int dims) throws IOException {
+        int vectorBytes = dims * BFloat16.BYTES;
+        int bestAlignment = (int) MathUtil.gcd(PAGE_SIZE, vectorBytes);
+        return out.alignFilePointer(bestAlignment);
+    }
+
     private void writeField(FieldWriter<?> fieldData, int maxDoc) throws IOException {
         // write vector values
-        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
+        long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
         switch (fieldData.fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeBFloat16Vectors(fieldData);
             case BYTE -> throw new IllegalStateException(
@@ -172,10 +178,10 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private void writeBFloat16Vectors(FieldWriter<?> fieldData) throws IOException {
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
         for (Object v : fieldData.vectors) {
-            BFloat16.floatToBFloat16((float[]) v, buffer.asShortBuffer());
-            vectorData.writeBytes(buffer.array(), buffer.array().length);
+            BFloat16.floatToBFloat16((float[]) v, buffer);
+            vectorData.writeBytes(buffer, buffer.length);
         }
     }
 
@@ -198,12 +204,12 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
-        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        long vectorDataOffset = alignVectorData(vectorData, fieldData.dim);
+        byte[] buffer = new byte[fieldData.dim * BFloat16.BYTES];
         for (int ordinal : ordMap) {
             float[] vector = (float[]) fieldData.vectors.get(ordinal);
-            BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-            vectorData.writeBytes(buffer.array(), buffer.array().length);
+            BFloat16.floatToBFloat16(vector, buffer);
+            vectorData.writeBytes(buffer, buffer.length);
         }
         return vectorDataOffset;
     }
@@ -212,7 +218,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         // Since we know we will not be searching for additional indexing, we can just write the
         // the vectors directly to the new segment.
-        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
+        long vectorDataOffset = alignVectorData(vectorData, fieldInfo.getVectorDimension());
         // No need to use temporary file as we don't have to re-open for reading
         DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
             case FLOAT32 -> writeVectorData(vectorData, mergeFloatVectorValues(fieldInfo, mergeState));
@@ -224,7 +230,7 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        long vectorDataOffset = vectorData.alignFilePointer(BFloat16.BYTES);
+        long vectorDataOffset = alignVectorData(vectorData, fieldInfo.getVectorDimension());
         IndexOutput tempVectorData = segmentWriteState.directory.createTempOutput(vectorData.getName(), "temp", segmentWriteState.context);
         IndexInput vectorDataInput = null;
         DocsWithFieldSet docsWithField = null;
@@ -303,12 +309,12 @@ public final class ES93BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             }
         } else {
             // use an intermediate buffer and convert
-            ByteBuffer buffer = ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] buffer = new byte[floatVectorValues.dimension() * BFloat16.BYTES];
             for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
                 // write vector
                 float[] value = floatVectorValues.vectorValue(iter.index());
-                BFloat16.floatToBFloat16(value, buffer.asShortBuffer());
-                output.writeBytes(buffer.array(), buffer.limit());
+                BFloat16.floatToBFloat16(value, buffer);
+                output.writeBytes(buffer, buffer.length);
                 docsWithField.add(docV);
             }
         }

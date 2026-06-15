@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +33,7 @@ public record SchemaCacheEntry(
     String sourceType,
     String location,
     Map<String, Object> safeMetadata,
+    Map<String, Object> connectorConfig,
     long cachedAtMillis
 ) {
     public SchemaCacheEntry {
@@ -40,9 +43,16 @@ public record SchemaCacheEntry(
             throw new IllegalArgumentException("All column arrays must have the same length");
         }
         safeMetadata = safeMetadata != null ? Map.copyOf(safeMetadata) : Map.of();
+        connectorConfig = connectorConfig != null ? Map.copyOf(connectorConfig) : Map.of();
     }
 
-    public static SchemaCacheEntry from(List<Attribute> schema, String sourceType, String location, Map<String, Object> metadata) {
+    public static SchemaCacheEntry from(
+        List<Attribute> schema,
+        String sourceType,
+        String location,
+        Map<String, Object> metadata,
+        Map<String, Object> connectorConfig
+    ) {
         int size = schema.size();
         String[] names = new String[size];
         DataType[] types = new DataType[size];
@@ -55,7 +65,17 @@ public record SchemaCacheEntry(
             nullabilities[i] = attr.nullable();
             synthetics[i] = attr.synthetic();
         }
-        return new SchemaCacheEntry(names, types, nullabilities, synthetics, sourceType, location, metadata, System.currentTimeMillis());
+        return new SchemaCacheEntry(
+            names,
+            types,
+            nullabilities,
+            synthetics,
+            sourceType,
+            location,
+            metadata,
+            connectorConfig,
+            System.currentTimeMillis()
+        );
     }
 
     /** Reconstructs fresh Attributes with fresh NameIds -- safe for concurrent queries */
@@ -77,6 +97,15 @@ public record SchemaCacheEntry(
         return result;
     }
 
+    /** Flattens a {@link SourceMetadata}'s stats into its metadata map. Replaces the
+     *  inlined flatten-and-build at the cache-loader call sites. */
+    public static SchemaCacheEntry from(SourceMetadata meta) {
+        Map<String, Object> enrichedMeta = meta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+            .orElse(meta.sourceMetadata());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+    }
+
     public long estimatedBytes() {
         // object header + reference fields
         long bytes = 64;
@@ -92,6 +121,7 @@ public record SchemaCacheEntry(
         bytes += location != null ? location.length() * (long) Character.BYTES : 0;
         // rough estimate: ~100B per metadata entry (key String + value Object)
         bytes += safeMetadata.size() * 100L;
+        bytes += connectorConfig.size() * 100L;
         return bytes;
     }
 }

@@ -197,7 +197,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.plannerSettings = plannerSettings;
         transportService.registerRequestHandler(
             actionName,
-            transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
             in -> readRequest.apply(in, blockFactory),
             new TransportHandler()
         );
@@ -552,7 +552,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             true,
             0,
             PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
-            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+            () -> 0L
         );
     }
 

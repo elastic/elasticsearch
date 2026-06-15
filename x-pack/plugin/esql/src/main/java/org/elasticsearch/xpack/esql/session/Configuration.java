@@ -409,11 +409,11 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Returns a new Configuration with the given view queries added.
+     * Returns a new Configuration with the given zone id.
      */
-    public Configuration withViewQueries(Map<String, String> viewQueries) {
+    public Configuration withZoneId(ZoneId newZoneId) {
         return new Configuration(
-            zoneId,
+            newZoneId,
             now,
             locale,
             username,
@@ -436,9 +436,9 @@ public class Configuration implements Writeable {
     }
 
     /**
-     * Returns a copy of this configuration with the supplied timezone.
+     * Returns a new Configuration with the given view queries added.
      */
-    public Configuration withZoneId(ZoneId zoneId) {
+    public Configuration withViewQueries(Map<String, String> viewQueries) {
         return new Configuration(
             zoneId,
             now,

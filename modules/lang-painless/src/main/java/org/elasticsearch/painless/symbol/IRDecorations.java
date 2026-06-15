@@ -346,11 +346,38 @@ public class IRDecorations {
         }
     }
 
+    /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
+    public static class IRCScriptAware implements IRCondition {
+
+        private IRCScriptAware() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 
         public IRDMaxLoopCounter(Integer value) {
             super(value);
+        }
+    }
+
+    /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
+    public static class IRCInstanceCancellationCheck implements IRCondition {
+
+        private IRCInstanceCancellationCheck() {
+
+        }
+    }
+
+    /**
+     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
+     * {@code #scriptThis} parameter
+     */
+    public static class IRCStaticCancellationCheck implements IRCondition {
+
+        private IRCStaticCancellationCheck() {
+
         }
     }
 

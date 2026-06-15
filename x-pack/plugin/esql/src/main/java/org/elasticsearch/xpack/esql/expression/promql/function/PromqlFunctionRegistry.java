@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -77,7 +76,6 @@ import java.util.Set;
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
-
     private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
         Delta.PROMQL_DEFINITION,
@@ -120,7 +118,7 @@ public class PromqlFunctionRegistry {
         Log.PROMQL_LOG2_DEFINITION,
         Log.PROMQL_LN_DEFINITION,
         Floor.PROMQL_DEFINITION,
-        Round.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.ROUND,
         //
         Asin.PROMQL_DEFINITION,
         Acos.PROMQL_DEFINITION,
@@ -144,6 +142,13 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.SCALAR,
         Pi.PROMQL_DEFINITION,
         PromqlBuiltinFunctionDefinitions.YEAR,
+        PromqlBuiltinFunctionDefinitions.MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_MONTH,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_WEEK,
+        PromqlBuiltinFunctionDefinitions.DAY_OF_YEAR,
+        PromqlBuiltinFunctionDefinitions.DAYS_IN_MONTH,
+        PromqlBuiltinFunctionDefinitions.HOUR,
+        PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
@@ -184,13 +189,6 @@ public class PromqlFunctionRegistry {
         "sort_desc",
 
         // Time functions
-        "day_of_month",
-        "day_of_week",
-        "day_of_year",
-        "days_in_month",
-        "hour",
-        "minute",
-        "month",
         "timestamp",
 
         // Label manipulation functions
@@ -221,6 +219,14 @@ public class PromqlFunctionRegistry {
     public PromqlFunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
         return promqlFunctions.get(normalized);
+    }
+
+    /**
+     * Returns {@code true} if the function with the given name exists in the registry but
+     * has not yet been implemented.
+     */
+    public boolean isNotImplemented(String name) {
+        return NOT_IMPLEMENTED.contains(normalize(name));
     }
 
     public void checkFunction(Source source, String name) {

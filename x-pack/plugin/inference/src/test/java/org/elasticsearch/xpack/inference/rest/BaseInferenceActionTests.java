@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestTests;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -101,73 +101,19 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
     public void testParseTimeout_ReturnsTimeout() {
         var timeout = parseTimeout(
-            RestRequestTests.contentRestRequest("{}", Map.of(InferenceAction.Request.TIMEOUT.getPreferredName(), "4s")),
-            randomFrom(TaskType.values())
+            RestRequestTests.contentRestRequest("{}", Map.of(InferenceAction.Request.TIMEOUT.getPreferredName(), "4s"))
         );
 
         assertThat(timeout, is(TimeValue.timeValueSeconds(4)));
     }
 
-    public void testParseTimeout_ReturnsDefaultTimeout_TextEmbedding() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.TEXT_EMBEDDING, 30);
+    public void testParseTimeout_TimeoutNotSpecified_ReturnsPlaceholderTimeout() {
+        var timeout = parseTimeout(RestRequestTests.contentRestRequest("{}", Map.of()));
+
+        assertThat(timeout, is(TIMEOUT_NOT_DETERMINED));
     }
 
-    public void testParseTimeout_ReturnsDefaultTimeout_SparseEmbedding() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.SPARSE_EMBEDDING, 30);
-    }
-
-    public void testParseTimeout_ReturnsDefaultTimeout_Embedding() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.EMBEDDING, 30);
-    }
-
-    public void testParseTimeout_ReturnsDefaultTimeout_Rerank() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.RERANK, 30);
-    }
-
-    public void testParseTimeout_ReturnsDefaultTimeout_Completion() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.COMPLETION, 120);
-    }
-
-    public void testParseTimeout_ReturnsDefaultTimeout_ChatCompletion() {
-        testParseTimeout_ReturnsDefaultTimeout(TaskType.CHAT_COMPLETION, 120);
-    }
-
-    private static void testParseTimeout_ReturnsDefaultTimeout(TaskType taskType, int timeoutSeconds) {
-        var timeout = parseTimeout(RestRequestTests.contentRestRequest("{}", Map.of()), taskType);
-
-        assertThat(timeout, is(TimeValue.timeValueSeconds(timeoutSeconds)));
-    }
-
-    public void testParseTimeout_ReturnsUndetermined_TaskTypeAny() {
-        var timeout = parseTimeout(RestRequestTests.contentRestRequest("{}", Map.of()), TaskType.ANY);
-
-        assertThat(timeout, is(BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED));
-    }
-
-    public void testUsesDefaultTimeout_WhenTaskTypeIsKnown() {
-        for (TaskType taskType : TaskType.values()) {
-            SetOnce<Boolean> executeCalled = new SetOnce<>();
-            verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-                assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
-
-                var request = (InferenceActionProxy.Request) actionRequest;
-                assertThat(request.getTimeout(), is(BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType)));
-
-                executeCalled.set(true);
-                return createResponse();
-            }));
-
-            RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-                .withPath(route(taskType.toString()))
-                .withContent(new BytesArray("{}"), XContentType.JSON)
-                .withParams(Map.of(INFERENCE_ID, "id"))
-                .build();
-            dispatchRequest(inferenceRequest);
-            assertThat(executeCalled.get(), equalTo(true));
-        }
-    }
-
-    public void testUsesUndeterminedTimeout_WhenTaskTypeIsNotKnown() {
+    public void testUsesUndeterminedTimeout_WhenTimeoutIsNotSpecified() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
@@ -226,7 +172,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
         // Create a request with the product use case header
         Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
+        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(productUseCase));
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
@@ -280,7 +226,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
 
         // Create a request with an empty product use case header value
         Map<String, List<String>> headers = new HashMap<>();
-        headers.put(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
+        headers.put(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, List.of(""));
 
         RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(route("test"))
@@ -303,7 +249,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     }
 
     public void testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout() {
-        var timeout = randomTimeValue();
+        var timeout = randomTimeValue(1, 1000);
         for (TaskType taskType : TaskType.values()) {
             assertThat(resolveTimeoutForTaskType(taskType, timeout), is(timeout));
         }

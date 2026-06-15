@@ -41,6 +41,37 @@ query.
 :::
 ::::
 
+When a time series aggregation function is used **directly** in `STATS` (that is, not
+wrapped in an outer aggregation such as `AVG()` or `SUM()`), results are implicitly
+grouped by every time series dimension and include a `_timeseries` column. You can
+narrow or make this grouping explicit with the
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+grouping function ({applies_to}`stack: ga 9.4`). Refer to
+[Grouping time series](/reference/query-languages/esql/commands/ts.md#grouping-time-series)
+for details and examples.
+
+## Metric type compatibility
+
+The inner function you pick depends on the field's
+[`metric_type`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric)
+mapping:
+
+- **Counters**: monotonically increasing values that reset on process restart. Use
+  [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md),
+  [`INCREASE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/increase.md),
+  and the other counter-aware functions. These detect resets per time series and compute
+  correct deltas; applying a gauge-only function such as `AVG_OVER_TIME` to a counter is
+  rarely what you want.
+- **Gauges**: point-in-time values that can move up or down. Use
+  [`LAST_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
+  (the implicit default when no inner function is given),
+  [`AVG_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md),
+  [`MAX_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/max_over_time.md),
+  and the other `*_OVER_TIME` variants. Counter functions like `RATE` reject gauge fields.
+
+For the conceptual context behind the counter/gauge split, refer to
+[When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).
+
 The following time series aggregation functions are supported:
 
 :::{include} ../_snippets/lists/time-series-aggregation-functions.md

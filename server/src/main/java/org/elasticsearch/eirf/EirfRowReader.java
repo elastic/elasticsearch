@@ -67,6 +67,15 @@ public final class EirfRowReader {
         return rowColumnCount;
     }
 
+    /**
+     * The size of the encoded row in bytes, covering the row header, type bytes, fixed section
+     * and variable section. Used as a cheap proxy for the original source size when the EIRF row
+     * has not been re-serialized to XContent bytes.
+     */
+    public int sizeInBytes() {
+        return rowData.length();
+    }
+
     public boolean isSmallRow() {
         return smallRow;
     }
@@ -77,9 +86,13 @@ public final class EirfRowReader {
 
     public byte getTypeByte(int col) {
         if (col >= rowColumnCount) {
-            return EirfType.NULL;
+            return EirfType.ABSENT;
         }
         return rowData.get(typeBytesOffset + col);
+    }
+
+    public boolean isAbsent(int col) {
+        return getTypeByte(col) == EirfType.ABSENT;
     }
 
     public boolean isNull(int col) {

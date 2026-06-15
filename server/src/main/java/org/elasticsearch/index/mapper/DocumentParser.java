@@ -17,13 +17,13 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -81,7 +81,8 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.getEirfParser() == null && source.source() != null && source.source().length() == 0) {
+        SourceToParse.Source sourceObject = source.source();
+        if (sourceObject.isEmpty()) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -93,13 +94,7 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                source.getEirfParser() != null
-                    ? source.getEirfParser()
-                    : XContentHelper.createParser(
-                        parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                        source.source(),
-                        source.getXContentType()
-                    )
+                sourceObject.parser(parserConfiguration)
             )
         ) {
             context = ctx;
@@ -124,7 +119,6 @@ public final class DocumentParser {
             context.routing(),
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
-            context.sourceToParse().getXContentType(),
             dynamicUpdate,
             source.getMeteringParserDecorator().meteredDocumentSize()
         ) {
@@ -196,10 +190,11 @@ public final class DocumentParser {
                     context.indexSettings(),
                     lookup,
                     context.mappingLookup()::sourcePaths,
+                    () -> false,
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source()),
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source().originalBytes()),
             LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
@@ -345,7 +340,7 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
-            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
+            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseArrayElements.
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -444,22 +439,30 @@ public final class DocumentParser {
         LuceneDocument nestedDoc = context.doc();
         LuceneDocument parentDoc = nestedDoc.getParent();
         IndexVersion indexVersion = context.indexSettings().getIndexVersionCreated();
+        boolean sliceEnabled = context.indexSettings().isSliceEnabled() && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled();
         if (nested.isIncludeInParent()) {
-            addFields(indexVersion, nestedDoc, parentDoc);
+            addFields(indexVersion, nestedDoc, parentDoc, sliceEnabled);
         }
         if (nested.isIncludeInRoot()) {
             LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
-                addFields(indexVersion, nestedDoc, rootDoc);
+                addFields(indexVersion, nestedDoc, rootDoc, sliceEnabled);
             }
         }
     }
 
-    private static void addFields(IndexVersion indexCreatedVersion, LuceneDocument nestedDoc, LuceneDocument rootDoc) {
+    private static void addFields(
+        IndexVersion indexCreatedVersion,
+        LuceneDocument nestedDoc,
+        LuceneDocument rootDoc,
+        boolean sliceEnabled
+    ) {
         String nestedPathFieldName = NestedPathFieldMapper.name(indexCreatedVersion);
         for (IndexableField field : nestedDoc.getFields()) {
-            if (field.name().equals(nestedPathFieldName) == false && field.name().equals(IdFieldMapper.NAME) == false) {
+            if (field.name().equals(nestedPathFieldName) == false
+                && field.name().equals(IdFieldMapper.NAME) == false
+                && (sliceEnabled == false || field.name().equals(RoutingFieldMapper.NAME) == false)) {
                 rootDoc.add(field);
             }
         }
@@ -540,13 +543,21 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        var prev = context.getImmediateXContentParent();
         context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
         } else {
-            parseObjectDynamic(context, currentFieldName);
+            final ObjectMapper parent = context.parent();
+            boolean subobjectsDisabled = parent.subobjects() == ObjectMapper.Subobjects.DISABLED;
+            if (subobjectsDisabled && parent.hasMappedFieldsWithPrefix(currentFieldName)) {
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+            } else {
+                parseObjectDynamic(context, currentFieldName);
+            }
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {
@@ -565,7 +576,8 @@ public final class DocumentParser {
         // For [subobjects:false], intermediate objects get flattened so we can't skip parsing children.
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE && context.parent().subobjects() != ObjectMapper.Subobjects.DISABLED) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -589,7 +601,13 @@ public final class DocumentParser {
                     );
                 }
             } else {
-                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
+                // When subobjects are disabled, only check for a matching dynamic template for this object field.
+                // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+                // If a template matches with an object type, or if no template matches (null), the object is
+                // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+                dynamicObjectBuilder = context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+                    ? DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName)
+                    : DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
@@ -651,7 +669,7 @@ public final class DocumentParser {
             if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
-                parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
+                parseArrayElements(context, mapper, lastFieldName, lastFieldName);
             }
         } else {
             parseArrayDynamic(context, lastFieldName);
@@ -663,7 +681,8 @@ public final class DocumentParser {
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -716,7 +735,7 @@ public final class DocumentParser {
                 return;
             }
 
-            parseNonDynamicArray(context, null, currentFieldName, currentFieldName);
+            parseArrayElements(context, null, currentFieldName, currentFieldName);
         } else {
             MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
@@ -730,7 +749,7 @@ public final class DocumentParser {
                 parseObjectOrField(context, mapper);
                 context.path().remove();
             } else {
-                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+                parseArrayElements(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
             }
         }
     }
@@ -739,7 +758,7 @@ public final class DocumentParser {
         return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
-    private static void parseNonDynamicArray(
+    private static void parseArrayElements(
         DocumentParserContext context,
         @Nullable Mapper mapper,
         final String lastFieldName,
@@ -789,6 +808,7 @@ public final class DocumentParser {
         int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
+                context.incrementAndCheckObjectArrayElementLimit();
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);
@@ -817,33 +837,39 @@ public final class DocumentParser {
      * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
-        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
-            final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
-            final String fullFieldName = builderContext.buildFullName(fieldName);
-            final List<Mapper.Builder> builders = context.getDynamicMappers(fullFieldName);
-            if (builders == null
-                || context.isFieldAppliedFromTemplate(fullFieldName)
-                || context.isCopyToDestinationField(fullFieldName)
-                || arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                || arraySize > MAX_DIMS_COUNT
-                || builders.stream()
-                    .anyMatch(
-                        b -> b instanceof NumberFieldMapper.Builder == false
-                            || ((NumberFieldMapper.Builder) b).type() != NumberFieldMapper.NumberType.FLOAT
-                    )) {
-                return;
-            }
-
-            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                fieldName,
-                context.indexSettings().getIndexVersionCreated(),
-                IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
-                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
-                context.getVectorFormatProviders()
-            );
-            builder.dimensions(arraySize);
-            context.updateDynamicMappers(fullFieldName, List.of(builder));
+        // cheap/free early return checks
+        if (arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+            || arraySize > MAX_DIMS_COUNT
+            || context.indexSettings().getIndexVersionCreated().before(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            return;
         }
+
+        final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+        final String fullFieldName = builderContext.buildFullName(fieldName);
+        final List<Mapper.Builder> builders = context.getDynamicMappers(fullFieldName);
+        // non-cheap/free early return checks
+        if (builders == null
+            || context.isFieldAppliedFromTemplate(fullFieldName)
+            || context.isCopyToDestinationField(fullFieldName)
+            || builders.stream()
+                .anyMatch(
+                    b -> b instanceof NumberFieldMapper.Builder == false
+                        || ((NumberFieldMapper.Builder) b).type() != NumberFieldMapper.NumberType.FLOAT
+                )) {
+            return;
+        }
+
+        DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+            fieldName,
+            context.indexSettings().getIndexVersionCreated(),
+            context.indexSettings().getMode(),
+            IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+            IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
+            context.getVectorFormatProviders(),
+            context.indexSettings().isIndexDisabledByDefault()
+        );
+        builder.dimensions(arraySize);
+        context.updateDynamicMappers(fullFieldName, List.of(builder));
     }
 
     private static void throwEOFOnParseArray(String arrayFieldName, DocumentParserContext context) {
@@ -896,7 +922,8 @@ public final class DocumentParser {
         ensureNotStrict(context, currentFieldName);
         if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
             failIfMatchesRoutingPath(context, currentFieldName);
-            if (context.canAddIgnoredField()) {
+            // In columnar index modes, unmapped fields under dynamic:false are dropped entirely
+            if (context.canAddIgnoredField() && context.indexSettings().getMode().isStrictColumnar() == false) {
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(
                         context,
@@ -1087,6 +1114,26 @@ public final class DocumentParser {
         };
     }
 
+    /**
+     * Returns a new list of the given documents in shard index order: each child document precedes its parent.
+     * The input list is not modified.
+     */
+    static List<LuceneDocument> shardIndexOrder(List<LuceneDocument> documents) {
+        if (documents.size() <= 1) {
+            return new ArrayList<>(documents);
+        }
+        List<LuceneDocument> result = new ArrayList<>(documents.size());
+        LinkedList<LuceneDocument> parents = new LinkedList<>();
+        for (LuceneDocument doc : documents) {
+            while (parents.peek() != doc.getParent()) {
+                result.add(parents.poll());
+            }
+            parents.add(0, doc);
+        }
+        result.addAll(parents);
+        return result;
+    }
+
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
@@ -1128,7 +1175,9 @@ public final class DocumentParser {
                 && indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource.ForIndexDimensions forIndexDimensions) {
                 // the tsid is normally set on the coordinating node during shard routing and passed to the data node via the index request
                 // but when applying a translog operation, shard routing is not happening, and we have to create the tsid from source
-                tsid = forIndexDimensions.buildTsid(source.getXContentType(), source.source());
+                SourceToParse.Source sourceObject = source.source();
+                // TODO: this can likely operate on eirf if present opposed to materlizing the originl source bytes if not present.
+                tsid = forIndexDimensions.buildTsid(sourceObject.xContentType(), sourceObject.originalBytes());
             }
             this.tsid = tsid;
             assert this.tsid == null || indexSettings.getMode() == IndexMode.TIME_SERIES
@@ -1213,20 +1262,19 @@ public final class DocumentParser {
         private List<LuceneDocument> reorderParentAndGetDocs() {
             if (documents.size() > 1 && docsReversed == false) {
                 docsReversed = true;
-                // We preserve the order of the children while ensuring that parents appear after them.
-                List<LuceneDocument> newDocs = new ArrayList<>(documents.size());
-                LinkedList<LuceneDocument> parents = new LinkedList<>();
-                for (LuceneDocument doc : documents) {
-                    while (parents.peek() != doc.getParent()) {
-                        newDocs.add(parents.poll());
-                    }
-                    parents.add(0, doc);
-                }
-                newDocs.addAll(parents);
+                List<LuceneDocument> reordered = shardIndexOrder(documents);
                 documents.clear();
-                documents.addAll(newDocs);
+                documents.addAll(reordered);
             }
             return documents;
+        }
+
+        @Override
+        public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+            if (docsReversed) {
+                return new ArrayList<>(documents);
+            }
+            return shardIndexOrder(documents);
         }
     }
 }

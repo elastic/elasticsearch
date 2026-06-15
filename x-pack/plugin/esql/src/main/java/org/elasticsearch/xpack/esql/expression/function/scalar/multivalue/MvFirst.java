@@ -39,7 +39,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  */
 public class MvFirst extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvFirst", MvFirst::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFirst.class).unary(MvFirst::new).name("mv_first");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvFirst.class)
+        .unary(MvFirst::new)
+        .capabilities("flattened")
+        .name("mv_first");
 
     @FunctionInfo(
         returnType = {
@@ -49,6 +52,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -60,6 +64,7 @@ public class MvFirst extends AbstractMultivalueFunction {
             "long",
             "unsigned_long",
             "version" },
+        briefSummary = "Returns the first value from a multi-value field.",
         description = """
             Converts a multivalued expression into a single valued column containing the
             first value. This is most useful when reading from a function that emits
@@ -83,6 +88,7 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

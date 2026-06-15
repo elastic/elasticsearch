@@ -8,20 +8,24 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
@@ -31,6 +35,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -52,6 +57,14 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
         assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testRoundToNearestMatchesPrometheusFormula() {
+        assertConstantResult("round(vector(0.0215), 0.001)", equalTo(0.022));
+        assertConstantResult("round(vector(11.298657), 0.001)", equalTo(11.299));
+        assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
+        assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
+        assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
     }
 
     public void testYearUsesStepTimestampWhenNoArgument() {
@@ -84,6 +97,52 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2024.0));
     }
 
+    public void testTimeExtractionFunctions() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2024-05-10T14:30:00Z")),
+            EsqlTestUtils.TEST_CFG
+        );
+        assertTimeExtraction(ctx, "month", 5.0);
+        assertTimeExtraction(ctx, "day_of_month", 10.0);
+        assertTimeExtraction(ctx, "day_of_week", 5.0);
+        assertTimeExtraction(ctx, "day_of_year", 131.0);
+        assertTimeExtraction(ctx, "hour", 14.0);
+        assertTimeExtraction(ctx, "minute", 30.0);
+    }
+
+    public void testDayOfWeekSunday() {
+        var ctx = new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse("2024-05-12T00:00:00Z")),
+            EsqlTestUtils.TEST_CFG
+        );
+        assertTimeExtraction(ctx, "day_of_week", 0.0);
+    }
+
+    public void testDaysInMonth() {
+        assertTimeExtraction(ctxAt("2024-05-10T14:30:00Z"), "days_in_month", 31.0);
+        assertTimeExtraction(ctxAt("2024-02-15T00:00:00Z"), "days_in_month", 29.0);
+        assertTimeExtraction(ctxAt("2023-02-15T00:00:00Z"), "days_in_month", 28.0);
+        assertTimeExtraction(ctxAt("2024-04-01T00:00:00Z"), "days_in_month", 30.0);
+    }
+
+    private PromqlFunctionRegistry.PromqlContext ctxAt(String instant) {
+        return new PromqlFunctionRegistry.PromqlContext(
+            Literal.NULL,
+            Literal.NULL,
+            Literal.dateTime(Source.EMPTY, Instant.parse(instant)),
+            EsqlTestUtils.TEST_CFG
+        );
+    }
+
+    private void assertTimeExtraction(PromqlFunctionRegistry.PromqlContext ctx, String function, double expected) {
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
+        assertThat(function, as(expression.fold(FoldContext.small()), Double.class), equalTo(expected));
+    }
+
     public void testClamp() {
         assertConstantResult("clamp(vector(5), 0, 10)", equalTo(5.0));
         assertConstantResult("clamp(vector(-5), 0, 10)", equalTo(0.0));
@@ -104,6 +163,58 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
     }
 
+    public void testCounterRequiredFunctionWrapsPlainNumericWithToCounter() {
+        // network.eth0.tx is mapped as a gauge (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.eth0.tx[5m]))");
+
+        ToCounter toCounter = as(rate.field(), ToCounter.class);
+        FieldAttribute field = as(toCounter.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.eth0.tx"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testCounterRequiredFunctionSkipsWrapForCounterInput() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(rate.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    private Rate rateFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+    }
+
+    public void testGaugeUnsupportedFunctionWrapsCounterWithToGauge() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        Avg avg = avgOverTimeFromPromql(
+            "PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (avg_over_time(network.total_bytes_in[10m])))"
+        );
+
+        ToGauge toGauge = as(avg.field(), ToGauge.class);
+        FieldAttribute field = as(toGauge.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    public void testGaugeUnsupportedFunctionSkipsWrapForPlainNumericInput() {
+        // network.cost is mapped as a plain double (k8s-mappings.json)
+        Avg avg = avgOverTimeFromPromql("PROMQL index=k8s step=5m avg_cost=(avg_over_time(network.cost[5m]))");
+
+        FieldAttribute field = as(avg.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    private Avg avgOverTimeFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Avg.class).getFirst();
+    }
+
     /**
      * Project[[result, step]]
      * \_Limit
@@ -121,12 +232,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
 
@@ -155,13 +271,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
-        as(filter.condition(), IsNotNull.class);
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
         assertThat(scalarAgg.aggregates(), hasSize(3));
@@ -170,8 +290,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
 
         var bucketEval = as(tsAgg.child(), Eval.class);
-        var bucketAlias = as(bucketEval.fields().getFirst(), Alias.class);
-        var bucket = as(bucketAlias.child(), Bucket.class);
-        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        assertThat(bucketEval.fields(), hasSize(1));
+        assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 }

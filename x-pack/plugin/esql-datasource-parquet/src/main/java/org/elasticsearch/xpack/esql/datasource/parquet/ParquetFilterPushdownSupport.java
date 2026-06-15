@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,7 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -53,8 +57,19 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  *       since parquet-mr 1.12.0)</li>
  * </ol>
  * <p>
- * All pushed filters use {@link Pushability#RECHECK} semantics: the original filter remains
- * in FilterExec for per-row correctness since predicate pushdown is a conservative approximation.
+ * <b>Pushability semantics.</b> Most pushed filters use {@link Pushability#RECHECK}: the original
+ * filter remains in {@code FilterExec} for per-row correctness because the per-row evaluator
+ * (see {@link ParquetPushedExpressions#evaluateFilter}) is two-valued — nulls and unknowns map
+ * to bit {@code 0}, which is correct for the predicate itself but not for a wrapping {@code Not}.
+ * <p>
+ * {@link WildcardLike} (and {@code Not(WildcardLike)}, and conjunctions thereof) are exceptions:
+ * they push as {@link Pushability#YES} so {@code FilterExec} can be dropped entirely. The late-mat
+ * evaluator handles {@code NOT (col LIKE p)} with three-valued logic by AND-ing out nulls before
+ * negation (see {@link ParquetPushedExpressions#evaluateExpression}'s {@code Not(WildcardLike)}
+ * special case), so removing the safety net does not change result semantics. The motivation: with
+ * {@code RECHECK}, every surviving row pays the LIKE cost twice — once in the reader's late-mat
+ * filter, once again in {@code FilterExec}. On large keyword scans (e.g. {@code URL LIKE
+ * "*google*"} on the public hits dataset) this duplicate evaluation is the dominant CPU cost.
  */
 public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
@@ -62,6 +77,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
     static final Predicate<DataType> TYPE_SUPPORTED = dt -> dt == DataType.INTEGER
         || dt == DataType.LONG
+        || dt == DataType.UNSIGNED_LONG
         || dt == DataType.DOUBLE
         || dt == DataType.KEYWORD
         || dt == DataType.BOOLEAN
@@ -70,11 +86,20 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
     @Override
     public PushdownResult pushFilters(List<Expression> filters) {
         List<Expression> pushed = new ArrayList<>();
-        List<Expression> remainder = new ArrayList<>(filters);
-
+        // Only RECHECK conjuncts need to remain in FilterExec; YES conjuncts are guaranteed
+        // TVL-correct by the late-mat evaluator and can be dropped from the plan entirely
+        // (see canPush for the per-expression rule and the class-level Javadoc for the
+        // motivation: avoiding double LIKE evaluation on every surviving row).
+        List<Expression> remainder = new ArrayList<>();
         for (Expression filter : filters) {
-            if (canConvert(filter)) {
+            Pushability p = canPush(filter);
+            if (p == Pushability.YES) {
                 pushed.add(filter);
+            } else if (p == Pushability.RECHECK) {
+                pushed.add(filter);
+                remainder.add(filter);
+            } else {
+                remainder.add(filter);
             }
         }
 
@@ -82,16 +107,98 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             return PushdownResult.none(filters);
         }
 
-        logger.debug("Parquet filter pushdown: validated {} of {} expressions for pushdown", pushed.size(), filters.size());
+        logger.debug(
+            "Parquet filter pushdown: pushed {} of {} expressions ({} need re-check in FilterExec)",
+            pushed.size(),
+            filters.size(),
+            remainder.size()
+        );
         return new PushdownResult(new ParquetPushedExpressions(pushed), pushed, remainder);
     }
 
     @Override
     public Pushability canPush(Expression expr) {
-        if (canConvert(expr)) {
+        if (canConvert(expr) == false) {
+            return Pushability.NO;
+        }
+        if (isFullyEvaluable(expr) == false) {
             return Pushability.RECHECK;
         }
-        return Pushability.NO;
+        // YES requires the late-mat evaluator to be exactly equivalent to FilterExec for this
+        // expression. If a WildcardLike inside the tree fails to determinize at runtime, the
+        // evaluator returns null ("all rows survive"), which without FilterExec means false
+        // positives. Probe every WildcardLike now so any TooComplexToDeterminize is caught at
+        // plan time and we can fall back to RECHECK before FilterExec is removed from the plan.
+        // The probe cost is negligible — it is a single per-pattern automaton build done once
+        // per query at plan time, and the result is cached for runtime via the evaluator's
+        // own per-instance cache (different cache, same cost class).
+        return canCompileAllPatterns(expr) ? Pushability.YES : Pushability.RECHECK;
+    }
+
+    private static boolean canCompileAllPatterns(Expression expr) {
+        if (expr instanceof WildcardLike wl) {
+            try {
+                wl.pattern().createAutomaton(wl.caseInsensitive());
+                return true;
+            } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+                logger.debug(
+                    "WildcardLike pattern [{}] cannot be determinized at plan time; falling back to RECHECK",
+                    wl.pattern().pattern(),
+                    e
+                );
+                return false;
+            }
+        }
+        if (expr instanceof Not not) {
+            return canCompileAllPatterns(not.field());
+        }
+        if (expr instanceof And and) {
+            return canCompileAllPatterns(and.left()) && canCompileAllPatterns(and.right());
+        }
+        return true;
+    }
+
+    /**
+     * Returns {@code true} when the late-mat evaluator produces a survivor mask that is
+     * <em>SQL three-valued-logic correct</em> for {@code expr}, i.e. equivalent to what
+     * {@code FilterExec} would compute for the same expression. Such expressions can be
+     * dropped from {@code FilterExec} (pushed as {@link Pushability#YES}); others must be
+     * re-checked downstream ({@link Pushability#RECHECK}).
+     *
+     * <p>The two-valued bitmask path is TVL-correct by construction for predicates that map
+     * nulls to bit {@code 0}. The LIKE-family — {@link WildcardLike}, {@link StartsWith},
+     * {@code EndsWith}, {@code Contains} — satisfies this on the positive side and is also
+     * routed through a TVL-aware {@code Not} branch in
+     * {@link ParquetPushedExpressions#evaluateExpression} that AND-s out the null mask before
+     * negating, so both bare and negated forms are YES.
+     *
+     * <p>Other predicate families ({@code Eq}, {@code In}, {@code Range}, {@code IsNull},
+     * {@code IsNotNull}) stay {@link Pushability#RECHECK} because the generic bitwise negate
+     * is not TVL-correct for their nulls; the {@code FilterExec} safety net applies them
+     * per-row. {@code Not(And(...))} likewise stays RECHECK — bitwise {@code ~(m1 & m2)} is
+     * not {@code NOT (a AND b)} under TVL when either arm holds null.
+     *
+     * <p>{@code AND} of YES-eligible predicates is YES (a {@code 0} on either side blocks the
+     * row regardless of provenance). {@code OR} is excluded: {@code evaluateExpression}'s
+     * {@code Or} branch returns {@code null} ("all rows survive") when an arm is unevaluable,
+     * which is fine under RECHECK but unsafe under YES.
+     */
+    static boolean isFullyEvaluable(Expression expr) {
+        if (isLikeFamily(expr)) {
+            return true;
+        }
+        if (expr instanceof Not not) {
+            // Only the LIKE-family inner predicates have a TVL-aware evaluator special case.
+            return isLikeFamily(not.field());
+        }
+        if (expr instanceof And and) {
+            return isFullyEvaluable(and.left()) && isFullyEvaluable(and.right());
+        }
+        return false;
+    }
+
+    private static boolean isLikeFamily(Expression e) {
+        return e instanceof WildcardLike || e instanceof StartsWith || e instanceof Contains || e instanceof EndsWith;
     }
 
     /**
@@ -141,6 +248,30 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof StartsWith sw) {
             return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
+        }
+        if (expr instanceof EndsWith ew) {
+            return PushdownPredicates.isEndsWith(ew, dt -> dt == DataType.KEYWORD) && literalValueOf(ew.suffix()) != null;
+        }
+        if (expr instanceof Contains c) {
+            return PushdownPredicates.isContains(c, dt -> dt == DataType.KEYWORD) && literalValueOf(c.substr()) != null;
+        }
+        if (expr instanceof WildcardLike wl) {
+            // Parquet has no native LIKE support; this pushdown evaluates the pattern during late
+            // materialization (see ParquetPushedExpressions#evaluateWildcardLike) so the reader can
+            // skip decoding projection columns for non-matching rows. Only KEYWORD-typed fields with
+            // a non-null pattern qualify; the dictionary short-circuit collapses the per-row automaton
+            // run to one run per dictionary entry. The wl.pattern() != null check is structurally
+            // unreachable today (WildcardLike's constructor takes a non-null WildcardPattern), but is
+            // kept as a cheap boundary guard so an upstream regression cannot turn into an NPE in the
+            // per-batch evaluator. Mirrors the prefix() != null guard on StartsWith above.
+            // Virtual columns (e.g. {@code _file.*}) live outside the parquet schema and the late-mat
+            // evaluator has no column block to walk for them, so accepting them as YES would drop
+            // the post-source FilterExec without ever actually evaluating the pattern - silently
+            // returning all rows (see github.com/elastic/elasticsearch/issues/149393).
+            return wl.field() instanceof NamedExpression ne
+                && PushdownPredicates.isVirtualColumn(ne) == false
+                && ne.dataType() == DataType.KEYWORD
+                && wl.pattern() != null;
         }
         return false;
     }

@@ -75,17 +75,28 @@ public class QuerySettings {
     @Param(name = "unmapped_fields", type = { "keyword" }, since = "9.3.0", description = """
         Determines how unmapped fields are treated. Possible values are:
 
-        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields, while other query types (e.g. PromQL)
-        may treat them differently.
+        - `DEFAULT` : Standard ESQL queries fail when referencing unmapped fields.
         - `NULLIFY` : Treats unmapped fields as null values.
         - `LOAD` : Loads unmapped fields from the stored [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md)
         with type `keyword`. Or nullifies them if absent from `_source`. {applies_to}`stack: preview 9.4`
 
-        An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried. When querying
-        multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some indices but not others.
+        An `unmapped field` is a field referenced in a query that does not exist in the mapping of the index being queried.
+        When querying multiple indices, a field is considered `partially unmapped` if it exists in the mapping of some
+        indices but not others.
+
+        Unmapped fields are different from
+        [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md).
+        Runtime fields are computed fields defined in the index
+        mapping that {{esql}} treats like regular mapped fields.
+        You cannot define new runtime fields at search time in
+        {{esql}}, but you can use the
+        [`EVAL`](/reference/query-languages/esql/commands/eval.md)
+        command to create computed columns instead.
+
+        [`PROMQL`](/reference/query-languages/esql/commands/promql.md) queries have their own specific semantics for unmapped fields.
 
         Special notes about the `LOAD` option:
-        - `PromQL`, `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
+        - `FORK`, `LOOKUP JOIN`, subqueries, views, and full-text search functions are not yet supported anywhere in the query.
         - Referencing subfields of `flattened` parents is not supported.
         - Referencing partially unmapped non-keyword fields must be inside a cast or a conversion function (e.g. `::TYPE` or `TO_TYPE`),
         unless referenced in a `KEEP` or `DROP`.
@@ -125,9 +136,8 @@ public class QuerySettings {
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.4.0",
-        // TODO: make "query approximation" a link to an "Advanced workflows" page when that's ready.
-        description = "Enables query approximation if possible for the query. "
-            + "A boolean value `false` (default) disables query approximation and `true` enables it with "
+        description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
+            + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings."
     )
     @MapParam(
@@ -189,10 +199,10 @@ public class QuerySettings {
             try {
                 error = def.validator().validate(setting.value(), ctx);
             } catch (Exception e) {
-                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + e.getMessage());
+                throw new ParsingException(setting.source(), "Error validating setting [" + setting.name() + "]: " + e.getMessage());
             }
             if (error != null) {
-                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
+                throw new ParsingException(setting.source(), "Error validating setting [" + setting.name() + "]: " + error);
             }
         }
     }

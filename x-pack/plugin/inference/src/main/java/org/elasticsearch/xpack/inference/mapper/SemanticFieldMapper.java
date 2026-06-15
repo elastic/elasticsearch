@@ -17,11 +17,14 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -35,8 +38,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -45,19 +50,26 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
@@ -68,9 +80,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKING_SETTINGS_FIELD;
@@ -87,6 +102,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
     public static final String CONTENT_TYPE = "semantic";
 
+    public static final FeatureFlag SEMANTIC_FIELD_FEATURE_FLAG = new FeatureFlag("semantic_field");
+
+    public static final NodeFeature SEMANTIC_FIELD_MAPPER = new NodeFeature("semantic_field.semantic_field_mapper");
+
     static final String INDEX_OPTIONS_FIELD = "index_options";
 
     private static final DenseVectorMapperConfigurator DENSE_VECTOR_MAPPER_CONFIGURATOR = new DenseVectorMapperConfigurator(
@@ -96,6 +115,31 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         (indexVersion, modelSimilarity) -> modelSimilarity != null ? modelSimilarity.vectorSimilarity() : null,
         (indexVersion, modelSettings) -> null
     );
+
+    public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
+        return new TypeParser(
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
+            List.of(notFromDynamicTemplates(CONTENT_TYPE), restrictToNewIndices())
+        );
+    }
+
+    private static BiConsumer<String, MappingParserContext> restrictToNewIndices() {
+        return (name, context) -> {
+            if (context.indexVersionCreated().before(IndexVersions.SEMANTIC_FIELD_TYPE)) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "] is not supported on indices created before version ["
+                        + IndexVersions.SEMANTIC_FIELD_TYPE
+                        + "]. Please create a new index to use ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "]"
+                );
+            }
+        };
+    }
 
     public static class Builder extends FieldMapper.Builder {
         protected final Function<Query, BitSetProducer> bitSetProducer;
@@ -318,9 +362,11 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                 CHUNKED_EMBEDDINGS_FIELD,
                 indexVersionCreated,
+                indexSettings.getMode(),
                 false,
                 experimentalFeaturesEnabled,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                false
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -724,8 +770,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
             builder.startObject();
             builder.field("field", fieldName);
-            builder.field("start", chunk.startOffset());
-            builder.field("end", chunk.endOffset());
+            if (chunk.inputIndex() != null) {
+                builder.field("input_index", chunk.inputIndex());
+            } else {
+                builder.field("start", chunk.startOffset());
+                builder.field("end", chunk.endOffset());
+            }
             builder.endObject();
             try (
                 XContentParser subParser = XContentHelper.createParserNotCompressed(
@@ -901,6 +951,122 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          */
         protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
             return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+        }
+
+        /**
+         * Build a {@link QueryBuilder} that executes a semantic search for the given inference results against this field.
+         * The query wraps a task-type-appropriate child query (KNN or sparse vector) inside a {@link NestedQueryBuilder}.
+         */
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
+            String nestedFieldPath = getChunksFieldName(name());
+            String inferenceResultsFieldName = getEmbeddingsFieldName(name());
+            QueryBuilder childQueryBuilder;
+
+            if (modelSettings == null) {
+                // No inference results have been indexed yet
+                childQueryBuilder = new MatchNoneQueryBuilder();
+            } else {
+                childQueryBuilder = switch (modelSettings.taskType()) {
+                    case SPARSE_EMBEDDING -> {
+                        if (inferenceResults instanceof TextExpansionResults == false) {
+                            throw new IllegalArgumentException(
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, TextExpansionResults.NAME)
+                            );
+                        }
+
+                        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
+                        yield new SparseVectorQueryBuilder(
+                            inferenceResultsFieldName,
+                            textExpansionResults.getWeightedTokens(),
+                            null,
+                            null,
+                            null,
+                            null
+                        );
+                    }
+                    case TEXT_EMBEDDING, EMBEDDING -> {
+                        if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
+                            throw new IllegalArgumentException(
+                                generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
+                            );
+                        }
+
+                        MlDenseEmbeddingResults textEmbeddingResults = (MlDenseEmbeddingResults) inferenceResults;
+                        float[] inference = textEmbeddingResults.getInferenceAsFloat();
+                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
+                            : inference.length;
+                        assert modelSettings.dimensions() != null
+                            : "Model settings should have dimensions set by now for text embedding models";
+                        if (dimensions != modelSettings.dimensions()) {
+                            throw new IllegalArgumentException(
+                                generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())
+                            );
+                        }
+
+                        Integer k = requestSize;
+                        if (k != null) {
+                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
+                            k = Math.max(k, DEFAULT_SIZE);
+                        }
+
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null, null, null)
+                            .setAutoPrefilteringEnabled(true);
+                    }
+                    default -> throw new IllegalStateException(
+                        "Field ["
+                            + name()
+                            + "] is configured to use an inference endpoint with an unsupported task type ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                };
+            }
+
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);
+        }
+
+        private String generateQueryInferenceResultsTypeMismatchMessage(InferenceResults inferenceResults, String expectedResultsType) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results to be of type ["
+                    + expectedResultsType
+                    + "],"
+                    + " got ["
+                    + inferenceResults.getWriteableName()
+                    + "]."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateDimensionCountMismatchMessage(int inferenceDimCount, int expectedDimCount) {
+            StringBuilder sb = new StringBuilder(
+                "Field ["
+                    + name()
+                    + "] expected query inference results with "
+                    + expectedDimCount
+                    + " dimensions, got "
+                    + inferenceDimCount
+                    + " dimensions."
+            );
+
+            return generateInvalidQueryInferenceResultsMessage(sb);
+        }
+
+        private String generateInvalidQueryInferenceResultsMessage(StringBuilder baseMessageBuilder) {
+            if (searchInferenceId != null && searchInferenceId.equals(inferenceId) == false) {
+                baseMessageBuilder.append(" Is the search inference endpoint [")
+                    .append(searchInferenceId)
+                    .append("] compatible with the inference endpoint [")
+                    .append(inferenceId)
+                    .append("]?");
+            } else {
+                baseMessageBuilder.append(" Has the configuration for inference endpoint [").append(inferenceId).append("] changed?");
+            }
+
+            return baseMessageBuilder.toString();
         }
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -89,5 +90,13 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(entraId, apiKey);
+    }
+
+    @Override
+    protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
+        if (apiKey != null) {
+            return updateOnlyField(API_KEY, apiKey, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(value, null));
+        }
+        return updateOnlyField(ENTRA_ID, entraId, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(null, value));
     }
 }

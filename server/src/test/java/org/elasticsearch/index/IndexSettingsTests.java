@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -245,6 +246,52 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
         assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    public void testSliceEnabledSettingRequiresFeatureFlag() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("unknown setting [index.slice.enabled]"));
+    }
+
+    public void testSliceEnabledSettingRequiresValidation() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta("index", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
+    }
+
+    public void testSliceEnabledSettingRejectedForTimeSeriesMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new IndexSettings(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                        .put(IndexSettings.SLICE_VALIDATED.getKey(), true)
+                        .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                        .build()
+                ),
+                Settings.EMPTY
+            )
+        );
+        assertThat(exception.getMessage(), containsString("index.slice.enabled"));
+        assertThat(exception.getMessage(), containsString("index.mode"));
+        assertThat(exception.getMessage(), containsString("time_series"));
     }
 
     @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
@@ -1094,7 +1141,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1170,7 +1217,11 @@ public class IndexSettingsTests extends ESTestCase {
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
-        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            modes.addAll(List.of(IndexMode.LOGSDB_COLUMNAR, IndexMode.COLUMNAR));
+        }
+        IndexMode mode = randomFrom(modes);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
@@ -1213,6 +1264,64 @@ public class IndexSettingsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testDisableSequenceNumbersDefaultForColumnarModes() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        // Test COLUMNAR mode
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
+        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
+        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
+
+        // Test LOGSDB_COLUMNAR mode
+        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build();
+        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
+        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be true for LOGSDB_COLUMNAR mode",
+            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
+            is(true)
+        );
+
+        // Test that STANDARD mode does not have sequence numbers disabled by default
+        Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
+        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
+        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
+        assertThat(
+            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
+            standardIndexSettings.sequenceNumbersDisabled(),
+            is(false)
+        );
+    }
+
+    public void testDynamicStringsAutoTextDefaultByIndexMode() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_text should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+
+        // All other modes default to true (text + keyword subfield)
+        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
     }
 
     public void testBloomFilterSettingsFromScopedSettings() {

@@ -31,6 +31,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -99,6 +100,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
      * enabling synthetic source natively in the index.
      */
     private final boolean forceSyntheticSource;
+    @Nullable
+    private final String sliceRouting;
 
     /**
      * Additional metadata specific to the resharding feature. See {@link org.elasticsearch.cluster.routing.SplitShardCountSummary}.
@@ -170,7 +173,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
             searchRequest.getWaitForCheckpointsTimeout(),
             searchRequest.isForceSyntheticSource(),
-            splitShardCountSummary
+            splitShardCountSummary,
+            searchRequest.searchSlice()
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -206,6 +210,17 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         String clusterAlias,
         SplitShardCountSummary splitShardCountSummary
     ) {
+        this(shardId, nowInMillis, aliasFilter, clusterAlias, splitShardCountSummary, null);
+    }
+
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting
+    ) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -225,7 +240,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SequenceNumbers.UNASSIGNED_SEQ_NO,
             SearchService.NO_TIMEOUT,
             false,
-            splitShardCountSummary
+            splitShardCountSummary,
+            sliceRouting
         );
     }
 
@@ -249,7 +265,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         long waitForCheckpoint,
         TimeValue waitForCheckpointsTimeout,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting
     ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -272,6 +289,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = waitForCheckpointsTimeout;
         this.forceSyntheticSource = forceSyntheticSource;
         this.splitShardCountSummary = splitShardCountSummary;
+        this.sliceRouting = sliceRouting;
     }
 
     @SuppressWarnings("this-escape")
@@ -298,6 +316,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         this.waitForCheckpointsTimeout = clone.waitForCheckpointsTimeout;
         this.forceSyntheticSource = clone.forceSyntheticSource;
         this.splitShardCountSummary = clone.splitShardCountSummary;
+        this.sliceRouting = clone.sliceRouting;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -323,6 +342,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         waitForCheckpoint = in.readLong();
         waitForCheckpointsTimeout = in.readTimeValue();
         forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            sliceRouting = in.readOptionalString();
+        } else {
+            sliceRouting = null;
+        }
         if (in.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary = new SplitShardCountSummary(in);
         } else {
@@ -374,6 +398,9 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         out.writeLong(waitForCheckpoint);
         out.writeTimeValue(waitForCheckpointsTimeout);
         out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeOptionalString(sliceRouting);
+        }
         if (out.getTransportVersion().supports(SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }
@@ -536,6 +563,11 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
 
     public SplitShardCountSummary getSplitShardCountSummary() {
         return splitShardCountSummary;
+    }
+
+    @Nullable
+    public String sliceRouting() {
+        return sliceRouting;
     }
 
     @Override

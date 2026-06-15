@@ -56,7 +56,10 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<ReindexRequest>
+    implements
+        CompositeIndicesRequest,
+        ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -117,11 +120,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
+        if (destination.opType() == IndexRequest.OpType.CREATE && destination.versionType() != INTERNAL) {
+            e = addValidationError("create operations only support internal versioning. use index instead", e);
+        }
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
-            if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES || getSlices() > 1) {
+            if (getSlices() == AbstractBulkByPaginatedSearchRequest.AUTO_SLICES || getSlices() > 1) {
                 e = addValidationError("reindex from remote sources doesn't support slices > 1 but was [" + getSlices() + "]", e);
             }
             if (getSearchRequest().source().slice() != null) {
@@ -292,8 +298,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
+    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices, activeSlices);
         sliced.setRemoteInfo(remoteInfo);
         sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
@@ -537,8 +543,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
-    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+    static void setMaxDocsValidateIdentical(AbstractBulkByPaginatedSearchRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
                 "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
             );

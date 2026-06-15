@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.ArrayList;
@@ -33,7 +35,7 @@ public class ApproximationGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             SET approximation=false;
             FROM many_numbers
-              | STATS SUM(sv), MEDIAN(sv)
+              | STATS COUNT(sv), MEDIAN(sv)
             """, STAGES);
     }
 
@@ -89,14 +91,36 @@ public class ApproximationGoldenTests extends GoldenTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         runGoldenTest("""
             SET approximation=true;
             FROM many_numbers
               | EVAL language_code = sv % 4 + 1
               | LOOKUP JOIN languages_lookup ON language_code
               | EVAL length = LENGTH(language_name)
-              | STATS AVG(length)
+              | STATS MEDIAN(length)
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
+    }
+
+    public void testLookupJoin_withOldDataNode() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | EVAL language_code = sv % 4 + 1
+              | LOOKUP JOIN languages_lookup ON language_code
+              | EVAL length = LENGTH(language_name)
+              | STATS MEDIAN(length)
+            """, STAGES, TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")));
+    }
+
+    public void testFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        runGoldenTest("""
+            SET approximation=true;
+            FROM many_numbers
+              | FORK (WHERE sv <= 100 | STATS count = COUNT())
+                     (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv))
             """, STAGES);
     }
 }

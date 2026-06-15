@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -263,7 +264,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             DataStreamsPlugin.class,
             LocalStateCompositeXPackPlugin.class,
             AggregateMetricMapperPlugin.class,
-            EsqlPluginWithEnterpriseOrTrialLicense.class
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
+            TestEncryptionServicePlugin.class
         );
     }
 
@@ -331,12 +333,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     && timeseries.getFirst().v2().v1().toEpochMilli() % (secondsInWindow * 1000L) == 0
                     && offset > 0) {
                     // Value at lower boundary is present, check if there's one in the previous window to use.
-                    // For INCREASE, return 0 because the increase was already accounted for in the previous bucket.
+                    addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
+                    // For INCREASE, return 0 if there is a previous bucket because
+                    // the increase was already accounted for in the previous bucket.
                     // For RATE, we still need to calculate the rate using interpolation from the previous bucket.
-                    if (deltaAgg.equals(DeltaAgg.INCREASE)) {
+                    if (timeseries.size() == 2 && deltaAgg.equals(DeltaAgg.INCREASE)) {
                         return new RateRange(0.0, 0.0);
                     }
-                    addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
                 }
                 if (timeseries.size() < 2) {
                     return null;
@@ -631,7 +634,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS count(<DELTAGG>(metrics.<METRIC>)),
@@ -744,7 +747,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         var dimensions = ESTestCase.randomSubsetOf(dataGenerationHelper.attributesForMetrics);
         var dimensionsStr = dimensions.isEmpty()
             ? ""
-            : ", " + dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+            : ", " + dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var metricName = ESTestCase.randomFrom(List.of("gaugel_hdd.bytes.used", "gauged_cpu.percent"));
         var selectedAggs = ESTestCase.randomSubsetOf(2, Agg.values());
         var aggExpression = String.format(
@@ -816,7 +819,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
      */
     public void testGroupBySubset() {
         var dimensions = ESTestCase.randomNonEmptySubsetOf(dataGenerationHelper.attributesForMetrics);
-        var dimensionsStr = dimensions.stream().map(d -> "attributes." + d).collect(Collectors.joining(", "));
+        var dimensionsStr = dimensions.stream().map(d -> "attributes.`" + d + "`").collect(Collectors.joining(", "));
         var query = String.format(Locale.ROOT, """
             TS %s
             | STATS

@@ -38,6 +38,23 @@ if (buildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
+if (buildParams.snapshotBuild == false) {
+  // The index.time_series.temporality_field setting is gated behind the time_series_temporality feature flag, which is disabled in
+  // non-snapshot (release) builds, so the 110_downsample_temporality tests cannot run there. A single substring pattern leaks because
+  // the randomized runner checks the bare method name and the parameterized name separately, so we must exclude both forms for each
+  // suite class (the same handling MutedTestsBuildService applies). Remove this block once the feature flag is lifted.
+  tasks.named("yamlRestTest").configure {
+    filter {
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleRestIT.test {p0=downsample/110_downsample_temporality/Downsample delta temporality counter}"
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleRestIT.test {p0=downsample/110_downsample_temporality/Downsample mixed temporality counters}"
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleRestIT.test"
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT.test {p0=downsample/110_downsample_temporality/Downsample delta temporality counter}"
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT.test {p0=downsample/110_downsample_temporality/Downsample mixed temporality counters}"
+      excludeTestsMatching "org.elasticsearch.xpack.downsample.DownsampleWithBasicRestIT.test"
+    }
+  }
+}
+
 configurations {
   basicRestSpecs {
     attributes {

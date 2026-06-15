@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseUtils;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertMinRetainedSeqNoAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsSeqNoDocValuesCount;
@@ -60,6 +62,10 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         return false;
     }
 
+    private static int randomBatchCount() {
+        return randomIntBetween(3, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
+    }
+
     public void testSeqNoPrunedOnLeaderAfterFollowerCatchesUp() throws Exception {
         final var leaderIndex = randomIdentifier();
         final var followerIndex = "follower-" + leaderIndex;
@@ -71,14 +77,16 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
             IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
             SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString(),
             IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
-            TimeValue.timeValueMillis(100).getStringRep()
+            TimeValue.timeValueMillis(100).getStringRep(),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+            TimeValue.MINUS_ONE.getStringRep()
         );
 
         final String leaderIndexSettings = getIndexSettings(numberOfShards, 0, additionalSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON).get());
         ensureLeaderGreen(leaderIndex);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount();
         final int docsPerBatch = randomIntBetween(20, 50);
 
         for (int batch = 0; batch < nbBatches; batch++) {
@@ -110,7 +118,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         final long maxSeqNo = getMaxSeqNo(leaderClient(), leaderIndex);
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, maxSeqNo + 1);
         persistGlobalCheckpointOnPrimaryShards(getLeaderCluster(), leaderIndex);
-        flush(leaderClient(), leaderIndex);
+        assertMinRetainedSeqNoAdvanced(getLeaderCluster(), leaderIndex, maxSeqNo + 1);
 
         var forceMerge = leaderClient().admin().indices().prepareForceMerge(leaderIndex).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -145,7 +153,9 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
             IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
             SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString(),
             IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(),
-            TimeValue.timeValueMillis(100).getStringRep()
+            TimeValue.timeValueMillis(100).getStringRep(),
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+            TimeValue.MINUS_ONE.getStringRep()
         );
 
         final String leaderIndexSettings = getIndexSettings(numberOfShards, 0, additionalSettings);
@@ -155,7 +165,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         followerClient().execute(PutFollowAction.INSTANCE, putFollow(leaderIndex, followerIndex)).get();
         ensureFollowerGreen(true, followerIndex);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount();
         final int docsPerBatch = randomIntBetween(20, 50);
 
         for (int batch = 0; batch < nbBatches; batch++) {
@@ -173,7 +183,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, leaseSeqNoBeforePause);
         pauseFollow(followerIndex);
 
-        final int nbBatches2 = randomIntBetween(5, 10);
+        final int nbBatches2 = randomBatchCount();
         final int docsPerBatch2 = randomIntBetween(20, 50);
 
         for (int batch = 0; batch < nbBatches2; batch++) {
@@ -222,7 +232,7 @@ public class CcrSeqNoPruningIT extends CcrIntegTestCase {
 
         assertRetentionLeasesAdvanced(leaderClient(), leaderIndex, newMaxSeqNo + 1);
 
-        final int nbBatches3 = randomIntBetween(5, 10);
+        final int nbBatches3 = randomBatchCount();
         final int docsPerBatch3 = randomIntBetween(20, 50);
 
         for (int batch = 0; batch < nbBatches3; batch++) {

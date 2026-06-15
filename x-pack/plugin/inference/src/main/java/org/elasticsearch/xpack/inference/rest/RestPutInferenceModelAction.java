@@ -50,7 +50,7 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY; // task type must be defined in the body
         }
 
-        var inferTimeout = parseTimeout(restRequest, taskType);
+        var inferTimeout = parseTimeout(restRequest);
         var content = restRequest.requiredContent();
         var request = new PutInferenceModelAction.Request(
             taskType,

@@ -21,23 +21,19 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -52,6 +48,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
@@ -161,15 +158,14 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
 
-        var localPhysical = new TestLocalPhysicalPlanOptimizer(
+        var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
                 PlannerSettings.DEFAULTS,
                 new EsqlFlags(true),
                 EsqlTestUtils.TEST_CFG,
                 FoldContext.small(),
                 SearchStats.EMPTY
-            ),
-            true
+            )
         );
         var localizedDataNodePlan = PlannerUtils.localPlan(deserializedDataNodePlan, localLogical, localPhysical, null);
 
@@ -197,25 +193,30 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))",
             false
         );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(
-            innerAggregate.toString(),
-            innerAggregate.groupings().stream().filter(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout).toList(),
-            hasSize(1)
-        );
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).withoutFields(), Set.of("pod"));
     }
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
         LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
-        assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(1));
+        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).withoutFields(), Set.of("pod"));
+        TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(
+            innerAggregate.aggregates()
+                .stream()
+                .filter(
+                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
+                        && values.field() instanceof FieldAttribute field
+                        && field.name().equals("cluster")
+                )
+                .toList(),
+            hasSize(1)
+        );
     }
 
     public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
@@ -268,10 +269,22 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
             false
         );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(
+            innerAggregate.aggregates()
+                .stream()
+                .filter(
+                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
+                        && values.field() instanceof FieldAttribute field
+                        && field.name().equals("cluster")
+                )
+                .toList(),
+            hasSize(1)
+        );
+        // TimeSeriesMetadataAttribute shouldn't be getting created if without has unmapped label
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(0));
     }
 
     public void testWithoutAllKnownLabelsProducesEmptyGrouping() {
@@ -292,10 +305,22 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))",
             false
         );
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
-        assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
+        TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(
+            innerAggregate.aggregates()
+                .stream()
+                .filter(
+                    aggregate -> Alias.unwrap(aggregate) instanceof DimensionValues values
+                        && values.field() instanceof FieldAttribute field
+                        && field.name().equals("cluster")
+                )
+                .toList(),
+            hasSize(1)
+        );
+        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
+        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
+        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
+        assertThat(tsmaList, hasSize(0));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

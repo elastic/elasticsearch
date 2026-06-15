@@ -53,6 +53,8 @@ class FlattenedFieldParser {
 
     private final FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays;
 
+    private final boolean writeDimensionRouting;
+
     FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
@@ -66,7 +68,8 @@ class FlattenedFieldParser {
         Map<String, FieldMapper> mappedSubFields,
         boolean storeIgnoredFieldsInBinaryDocValues,
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        boolean writeDimensionRouting
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -81,6 +84,7 @@ class FlattenedFieldParser {
         this.storeIgnoredFieldsInBinaryDocValues = storeIgnoredFieldsInBinaryDocValues;
         this.preserveLeafArrays = preserveLeafArrays;
         this.indexVersion = indexVersion;
+        this.writeDimensionRouting = writeDimensionRouting;
     }
 
     public void parse(final DocumentParserContext documentParserContext, FlattenedFieldArrayContext arrayContext) throws IOException {
@@ -176,7 +180,8 @@ class FlattenedFieldParser {
         BytesRef bytesKeyedValue = new BytesRef(keyedValue);
 
         if (value.length() > ignoreAbove) {
-            if (context.documentParserContext().mappingLookup().isSourceSynthetic()) {
+            var lookup = context.documentParserContext().mappingLookup();
+            if (lookup.isSourceSynthetic() || lookup.isSourceColumnarStored()) {
                 if (preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT) {
                     context.arrayContext.recordOffset(key, new BytesRef(value));
                 }
@@ -245,12 +250,12 @@ class FlattenedFieldParser {
                 context.arrayContext.recordOffset(key, bytesValue);
             }
 
-            if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
+            if (writeDimensionRouting == false) {
                 return;
             }
 
             final String keyedFieldName = FlattenedFieldParser.extractKey(bytesKeyedValue).utf8ToString();
-            if (fieldType.isDimension() && fieldType.dimensions().contains(keyedFieldName)) {
+            if (fieldType.dimensions().contains(keyedFieldName)) {
                 final BytesRef keyedFieldValue = FlattenedFieldParser.extractValue(bytesKeyedValue);
                 context.documentParserContext().getRoutingFields().addString(rootFieldFullPath + "." + keyedFieldName, keyedFieldValue);
             }

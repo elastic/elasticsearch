@@ -11,18 +11,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
@@ -39,18 +39,15 @@ abstract class BaseInferenceAction extends BaseRestHandler {
 
     record Params(String inferenceEntityId, TaskType taskType) {}
 
-    static TimeValue parseTimeout(RestRequest restRequest, TaskType taskType) {
-        return restRequest.paramAsTime(
-            InferenceAction.Request.TIMEOUT.getPreferredName(),
-            BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType)
-        );
+    static TimeValue parseTimeout(RestRequest restRequest) {
+        return restRequest.paramAsTime(InferenceAction.Request.TIMEOUT.getPreferredName(), TIMEOUT_NOT_DETERMINED);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         var params = parseParams(restRequest);
         var content = restRequest.requiredContent();
-        var inferTimeout = parseTimeout(restRequest, params.taskType());
+        var inferTimeout = parseTimeout(restRequest);
         var productUseCase = extractProductUseCase(restRequest);
         var context = new InferenceContext(productUseCase);
 
@@ -78,7 +75,7 @@ abstract class BaseInferenceAction extends BaseRestHandler {
             return "";
         }
 
-        var productUseCaseHeaders = headers.get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+        var productUseCaseHeaders = headers.get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
 
         if (Objects.isNull(productUseCaseHeaders) || productUseCaseHeaders.isEmpty()) {
             return "";

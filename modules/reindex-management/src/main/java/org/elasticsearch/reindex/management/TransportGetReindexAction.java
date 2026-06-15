@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -26,6 +27,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.transport.TransportService;
+
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
 /**
  * Transport action for getting a reindex task. Validates that the requested task is a reindex parent task,
@@ -41,7 +44,7 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
     @Inject
     public TransportGetReindexAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(TYPE.name(), transportService, actionFilters, GetReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
     }
 
     @Override

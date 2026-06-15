@@ -218,6 +218,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     ElementType elementType();
 
+    /**
+     * {@return the maximum byte size of any single value in this block}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 
@@ -234,6 +241,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * @return true iff the block's reference count is zero.
      * */
     boolean isReleased();
+
+    /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this block's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
 
     /**
      * @param position the position
@@ -479,7 +493,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
                     blocks[b] = builders[b].build();
                 }
             } finally {
-                if (blocks[blocks.length - 1] == null) {
+                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
                     Releasables.closeExpectNoException(blocks);
                 }
             }

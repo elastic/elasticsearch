@@ -108,7 +108,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "queue_latency_threshold",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(3),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -119,8 +119,15 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_utilization_threshold",
-        "0%",
+        "50%",
         RatioValue::parseRatioValue,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "cluster_info_write_load_forecaster.enabled",
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -172,7 +179,7 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    private volatile double allocationUtilizationThreshold;
+    private volatile float allocationUtilizationThreshold;
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
@@ -187,7 +194,9 @@ public class WriteLoadConstraintSettings {
         );
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
-            value -> allocationUtilizationThreshold = value.getAsRatio()
+            // this is a float type because it's only used in comparisons with other floats
+            // (and comparing floats with doubles can trip some tests)
+            value -> allocationUtilizationThreshold = (float) value.getAsRatio()
         );
 
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
@@ -245,7 +254,7 @@ public class WriteLoadConstraintSettings {
      * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node can accept
      * a shard in a canAllocation call during allocation balancing
      */
-    public double getAllocationUtilizationThreshold() {
+    public float getAllocationUtilizationThreshold() {
         return this.allocationUtilizationThreshold;
     }
 }

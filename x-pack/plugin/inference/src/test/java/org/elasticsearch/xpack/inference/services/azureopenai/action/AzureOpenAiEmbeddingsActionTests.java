@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -87,19 +89,16 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         );
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
-            String responseJson = """
+            // Wire-shape parity with production: Azure OpenAI returns a
+            // base64-encoded little-endian float32 string for the embedding.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -108,7 +107,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
@@ -126,9 +125,10 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(AzureOpenAiUtils.API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(InputType.isSpecified(inputType) ? 3 : 2));
+            assertThat(requestMap.size(), is(InputType.isSpecified(inputType) ? 4 : 3));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
             if (InputType.isSpecified(inputType)) {
                 assertThat(requestMap.get("input_type"), is(inputType.toString()));
             }

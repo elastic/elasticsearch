@@ -226,20 +226,23 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// use licenses from each of the bundled xpack plugins
+// Bundle x-pack modules
 Project xpack = project(':x-pack:plugin')
-xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
-  File licenses = new File(xpackModule.projectDir, 'licenses')
-  if (licenses.exists()) {
-    buildDefaultNoticeTaskProvider.configure {
-      licensesDir licenses
-      source xpackModule.file('src/main/java')
+Project esqlFunctions = project(':x-pack:plugin:esql:function')
+xpack.subprojects.findAll { it.parent == xpack || it.parent == esqlFunctions }.each { Project xpackModule ->
+  if (xpackModule.name.contains("stateless") == false) {
+    File licenses = new File(xpackModule.projectDir, 'licenses')
+    if (licenses.exists()) {
+      buildDefaultNoticeTaskProvider.configure {
+        licensesDir licenses
+        source xpackModule.file('src/main/java')
+      }
     }
-  }
-  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
-  dependencies.add('featuresMetadata', xpackModule)
-  if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+    dependencies.add('featuresMetadata', xpackModule)
+    if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
+      distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    }
   }
 }
 

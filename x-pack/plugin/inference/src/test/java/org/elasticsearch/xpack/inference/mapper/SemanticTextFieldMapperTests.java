@@ -91,6 +91,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -136,6 +137,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.I
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomMultimodalEmbedding;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -178,11 +180,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private final License.OperationMode operationMode;
 
+    private final IndexVersion testIndexVersion;
+
     private TestThreadPool threadPool;
 
     public SemanticTextFieldMapperTests(boolean useLegacyFormat, License.OperationMode operationMode) {
         this.useLegacyFormat = useLegacyFormat;
         this.operationMode = operationMode;
+        this.testIndexVersion = useLegacyFormat
+            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true)
+            : super.getVersion();
     }
 
     ModelRegistry globalModelRegistry;
@@ -296,16 +303,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true);
-        }
-        return super.getVersion();
+        return testIndexVersion;
     }
 
     @Override
     protected Settings getIndexSettings() {
         if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), testIndexVersion)
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+                .build();
         }
         return super.getIndexSettings();
     }
@@ -632,7 +639,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testInvalidTaskTypes() {
         for (var taskType : TaskType.values()) {
-            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
+            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING || taskType == TaskType.EMBEDDING) {
                 continue;
             }
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -640,13 +647,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field(INFERENCE_ID_FIELD, "test1")
                     .startObject("model_settings")
                     .field("task_type", taskType);
-                if (taskType == TaskType.EMBEDDING) {
-                    // These fields are required in order to create MinimalServiceSettings for the EMBEDDING task
-                    b.field("service", "myService").field("dimensions", 128).field("similarity", "cosine").field("element_type", "float");
-                }
                 b.endObject();
             }), useLegacyFormat));
-            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
+            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding, embedding, or sparse_embedding"));
         }
     }
 
@@ -1732,6 +1735,41 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
     }
 
+    public void testMultimodalChunksNotSupported() throws Exception {
+        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        // Exclude dot product because the randomly generated embedding may not have unit length
+        Model model = TestModel.createRandomInstance(TaskType.EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null, null, null)),
+            useLegacyFormat
+        );
+
+        EmbeddingResults.Embedding<?> embedding = randomMultimodalEmbedding(model);
+        SemanticTextField semanticTextField = new SemanticTextField(
+            useLegacyFormat,
+            "field",
+            null,
+            new SemanticTextField.InferenceResult(
+                model.getInferenceEntityId(),
+                new MinimalServiceSettings(model),
+                null,
+                Map.of("field", List.of(new SemanticTextField.Chunk(0, embedding.toBytesRef(XContentType.JSON.xContent()))))
+            ),
+            XContentType.JSON
+        );
+
+        String expectedMessage = useLegacyFormat
+            ? "[chunks] text doesn't support values of type: VALUE_NULL"
+            : "[semantic_text] field [field] does not support multimodal values";
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper()
+                .parse(semanticTextInferenceSource(useLegacyFormat, b -> b.field("field", semanticTextField)))
+        );
+        assertThat(rootCause(e).getMessage(), containsString(expectedMessage));
+    }
+
     public void testDenseVectorElementType() throws IOException {
         final String fieldName = "field";
         final String inferenceId = "test_service";
@@ -2702,5 +2740,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        Throwable cause = t;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 }

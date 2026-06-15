@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
@@ -24,6 +25,7 @@ import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -73,8 +75,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
      * and not the data node holding the search shards needed by PIT.
      */
     public void testReindexRelocatesWithSearchableSnapshotSource() throws Exception {
-        assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+        disableRepoConsistencyCheck("When the assumeTrue below fails, no node has been started");
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());
 
         internalCluster().startMasterOnlyNode();
@@ -129,11 +130,11 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -154,11 +155,21 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
-        assertTrue(((TaskRelocatedException) ExceptionsHelper.unwrapCause(error)).getRelocatedTaskId().isPresent());
+        final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
+        final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();
         assertNull(response);
 
+        // Wait until the relocated task finishes (including persisting to `.tasks` when shouldStoreResult is true)
+        // so tear-down does not race with async task-result indexing.
+        final GetTaskResponse relocatedTaskFinished = clusterAdmin().prepareGetTask(new TaskId(relocatedTaskIdString))
+            .setWaitForCompletion(true)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .get();
+        assertTrue("relocated reindex should complete", relocatedTaskFinished.getTask().isCompleted());
+
+        // Asserts that the reindexing task is relocated to another node and succeeds
         assertBusy(() -> {
             assertTrue(indexExists(DEST));
             flushAndRefresh(DEST);

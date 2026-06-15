@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -36,11 +35,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Present}, but it is used to check the presence of values over a time series in the given field.
  */
-public class PresentOverTime extends TimeSeriesAggregateFunction
-    implements
-        AggregateMetricDoubleNativeSupport,
-        SurrogateExpression,
-        ToAggregator {
+public class PresentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PresentOverTime",
@@ -59,6 +54,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
+        briefSummary = "Calculates the presence of a field over a time range.",
         description = "Calculates the presence of a field in the output result over time range.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -140,11 +136,6 @@ public class PresentOverTime extends TimeSeriesAggregateFunction
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
-    }
-
-    @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
     }
 
     @Override

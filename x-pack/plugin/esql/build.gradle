@@ -110,6 +110,10 @@ dependencies {
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
 }
 
+tasks.named('compileInternalClusterTestJava').configure {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
 tasks.named('splitPackagesAudit').configure {
   // TODO: Remove these exclusions by renaming the esql-core packages
   ignoreClasses(

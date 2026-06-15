@@ -94,7 +94,6 @@ import static org.hamcrest.Matchers.is;
  * {@code FROM <main_idx> | WHERE main_<x> IN (FROM <sub_idx> | KEEP sub_<y>) | KEEP <output>}. For valid combinations the row should
  * come back; for invalid combinations the analyzer should reject the query with a {@link VerificationException}. If no exception is
  * thrown and no row is returned, our validation rules are out of sync with the runtime behaviour.
- * <p>
  * <ul>
  *     <li>The left and right effective types must be equal, or both must be string types ({@code KEYWORD} or {@code TEXT}). Small
  *     numerics are widened on load by the analyzer ({@code BYTE} / {@code SHORT} → {@code INTEGER}; {@code FLOAT} / {@code HALF_FLOAT}

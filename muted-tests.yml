@@ -794,3 +794,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/sort by counter_double}
   issue: https://github.com/elastic/elasticsearch/issues/151300
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices, convert, rename but not drop ambiguous field event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151301

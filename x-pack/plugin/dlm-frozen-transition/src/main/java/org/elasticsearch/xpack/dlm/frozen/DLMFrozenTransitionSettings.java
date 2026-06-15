@@ -8,12 +8,26 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 
 public class DLMFrozenTransitionSettings {
 
+    /**
+     * When {@code true}, {@link DLMFrozenTransitionService} will not submit any new frozen-tier
+     * transitions to the executor. In-flight transitions that are already running will continue
+     * to completion; only the submission of new work is suppressed.
+     */
+    public static final Setting<Boolean> TRANSITION_DISABLED_SETTING = Setting.boolSetting(
+        "dlm.frozen_transition.disabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile int errorRetryInterval;
+    private volatile boolean transitionDisabled;
 
     /**
      * Sets internal settings to their initial values
@@ -21,6 +35,7 @@ public class DLMFrozenTransitionSettings {
      */
     public DLMFrozenTransitionSettings(Settings settings) {
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
+        this.transitionDisabled = TRANSITION_DISABLED_SETTING.get(settings);
     }
 
     /**
@@ -44,10 +59,15 @@ public class DLMFrozenTransitionSettings {
                 DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
                 this::updateErrorInterval
             );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_DISABLED_SETTING, this::updateTransitionDisabled);
     }
 
     private void updateErrorInterval(int newInterval) {
         this.errorRetryInterval = newInterval;
+    }
+
+    private void updateTransitionDisabled(boolean disabled) {
+        this.transitionDisabled = disabled;
     }
 
     /**
@@ -56,5 +76,14 @@ public class DLMFrozenTransitionSettings {
      */
     public int getErrorRetryInterval() {
         return errorRetryInterval;
+    }
+
+    /**
+     * @return {@code true} when the kill switch is active and no new frozen-tier transitions should
+     *         be submitted. In-flight transitions already executing are unaffected.
+     * @see #TRANSITION_DISABLED_SETTING
+     */
+    public boolean isTransitionDisabled() {
+        return transitionDisabled;
     }
 }

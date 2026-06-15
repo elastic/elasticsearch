@@ -153,11 +153,6 @@ public abstract class SearchPhaseResult extends TransportResponse {
         }
     }
 
-    @Nullable
-    public final ShardSearchRequest getShardSearchRequest() {
-        return shardSearchRequest;
-    }
-
     public final void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
         this.shardSearchRequest = shardSearchRequest;
     }

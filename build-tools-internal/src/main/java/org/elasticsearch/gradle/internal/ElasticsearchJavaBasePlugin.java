@@ -151,17 +151,29 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     private static void configureNativeLibraryPath(Project project) {
         String nativeProject = ":libs:native:native-libraries";
-        // Gradle 9.x requires explicit configuration roles. We declare this configuration as
-        // resolvable because we feed its resolved files into `es.nativelibs.path` below via `getAsPath()`.
-        // Note that `defaultDependencies(…)` is only permitted on dependency-scope configurations under
-        // 9.x role semantics, so we add the project dependency directly to this resolvable configuration
-        // instead. We intentionally request the producer's dedicated `nativeLibs` consumable variant by
-        // name rather than relying on the `default` configuration of `:libs:native:native-libraries`:
-        // if any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
+        // Skip on the producer itself: that project already declares its own (consumable) `nativeLibs`
+        // configuration, and there is no test JVM in that project that needs `es.nativelibs.path`.
+        // Without this guard the names collide ("a configuration with that name already exists").
+        if (project.getPath().equals(nativeProject)) {
+            return;
+        }
+        // Gradle 9.x enforces strict configuration roles: a single configuration cannot both declare
+        // dependencies and be resolved. We therefore use a pair:
+        //   - `nativeLibsDeclared` (dependency-scope) holds the declaration of the producer's variant.
+        //   - `resolvedNativeLibs` (resolvable) extends it and is what we resolve files from.
+        // We intentionally request the producer's dedicated `nativeLibs` consumable variant by name
+        // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
+        // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
         // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
-        Configuration nativeConfig = project.getConfigurations().resolvable("nativeLibs").get();
+        Configuration nativeLibsDeclared = project.getConfigurations().dependencyScope("nativeLibsDeclared").get();
+        Configuration nativeConfig = project.getConfigurations()
+            .resolvable("resolvedNativeLibs", c -> c.extendsFrom(nativeLibsDeclared))
+            .get();
         project.getDependencies()
-            .add("nativeLibs", project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")));
+            .add(
+                nativeLibsDeclared.getName(),
+                project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs"))
+            );
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection nativeConfigFiles = nativeConfig;
 

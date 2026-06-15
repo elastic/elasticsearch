@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -344,10 +345,13 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper,
         Object literalValue = literalValueOf(right());
         List<?> values = literalValue instanceof List ? (List<?>) literalValue : List.of(literalValue);
 
+        LinkedHashSet<Object> terms = new LinkedHashSet<>();
+        values.forEach(v -> terms.add(Foldables.literalValueAsLuceneQueryObject(v, left().dataType())));
+
         return new TermsSetQuery(
             source(),
             handler.nameOf(left()),
-            values.stream().map(obj -> Foldables.literalValueAsLuceneQueryObject(obj, left().dataType())).collect(Collectors.toSet())
+            terms
         );
     }
 }

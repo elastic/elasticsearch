@@ -115,16 +115,12 @@ public class RangeQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, lower, upper, includeLower, includeUpper, format, zoneId, relation);
+        return Objects.hash(super.hashCode(), field, lower, upper, includeLower, includeUpper, format, zoneId, relation);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
 

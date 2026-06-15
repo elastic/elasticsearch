@@ -62,16 +62,12 @@ public class TermQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(term, value, caseInsensitive, scorable);
+        return Objects.hash(super.hashCode(), term, value, caseInsensitive, scorable);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
 

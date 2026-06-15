@@ -11,6 +11,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class TermsSetQuery extends Query {
@@ -36,5 +37,19 @@ public class TermsSetQuery extends Query {
     @Override
     public boolean containsPlan() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), field, values);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+        TermsSetQuery other = (TermsSetQuery) obj;
+        return field.equals(other.field) && values.equals(other.values);
     }
 }

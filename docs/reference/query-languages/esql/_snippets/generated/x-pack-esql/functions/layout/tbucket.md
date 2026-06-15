@@ -4,6 +4,10 @@
 stack: ga 9.2.0
 ```
 
+
+:::{include} ../briefSummary/tbucket.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/tbucket.svg

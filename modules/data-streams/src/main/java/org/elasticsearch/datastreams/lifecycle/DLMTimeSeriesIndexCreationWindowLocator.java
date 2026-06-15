@@ -21,9 +21,7 @@ import java.util.function.LongSupplier;
  * Uses lifecycle logic to determine how far in the past a time series backing index can be created before it would either be deleted or set
  * read-only in some way by the DLM service.
  */
-public class DLMTimeSeriesIndexCreationWindowLocator
-    implements
-    TimeSeriesIndexCreationWindowLocator {
+public class DLMTimeSeriesIndexCreationWindowLocator implements TimeSeriesIndexCreationWindowLocator {
 
     public DLMTimeSeriesIndexCreationWindowLocator() {
         throw new IllegalStateException("Must construct this via the plugin-based constructor");

@@ -1663,19 +1663,19 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycle lifecycle = dataStream.getDataLifecycle();
         if (lifecycle == null || lifecycle.enabled() == false) {
             // PRTODO: Is this all we'd need to check? Or do we need to check the data stream's
-            //  template to see if it prefers ILM for new indices? A new index that prefers ILM
-            //  would be managed by ILM and thus the data stream lifecycle wouldn't matter for
-            //  the data stream's start time.
+            // template to see if it prefers ILM for new indices? A new index that prefers ILM
+            // would be managed by ILM and thus the data stream lifecycle wouldn't matter for
+            // the data stream's start time.
             return Instant.MIN;
         }
         var dataRetention = getEffectiveRetention(dataStream, globalRetentionSettings, false);
 
         // PRTODO: All DLM operations (retention, downsample) are based off an index's
-        //  "generation date". This is normally selected from an index's origination date
-        //  first, and if that is not present, then it is based on either rollover time
-        //  (if present) or creation date. We don't have an origination date for this
-        //  theoretical index, and the creation date will likely be very close to now, so
-        //  first determine what the max age rollover time is for an index created now
+        // "generation date". This is normally selected from an index's origination date
+        // first, and if that is not present, then it is based on either rollover time
+        // (if present) or creation date. We don't have an origination date for this
+        // theoretical index, and the creation date will likely be very close to now, so
+        // first determine what the max age rollover time is for an index created now
         long now = nowSupplier.getAsLong();
         long rolloverAge = RolloverConfiguration.evaluateMaxAgeCondition(dataRetention).getMillis();
         long oldestPossibleGenerationTime = now - rolloverAge;

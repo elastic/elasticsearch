@@ -433,7 +433,8 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * @param tsdsStartWindows any previously located tsds start windows
      * @param nowSupplier current timestamp provider
      */
-    private void maybeQueueTimeSeriesCreateIndexOperation( // PRTODO: Add however we're collecting or organizing these auto create requests
+    private void maybeQueueTimeSeriesCreateIndexOperation(
+        // PRTODO: Add however we're collecting or organizing these auto create requests
         ProjectMetadata projectMetadata,
         DataStream dataStream,
         DocWriteRequest<?> request,
@@ -453,11 +454,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             // if there are no write indices then locate how far in the past we can create a tsds index
             var windowStart = tsdsStartWindows.computeIfAbsent(
                 dataStream.getName(),
-                (dataStreamName) -> timeSeriesIndexCreationWindowLocator.locateCreateWindow(
-                    dataStream,
-                    projectMetadata,
-                    nowSupplier
-                )
+                (dataStreamName) -> timeSeriesIndexCreationWindowLocator.locateCreateWindow(dataStream, projectMetadata, nowSupplier)
             );
             // Check document timestamp against window start, and if document is before window start
             if (documentTimestamp.isBefore(windowStart)) {
@@ -465,7 +462,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 return;
             }
             // PRTODO: TBD auto create operation for the TSDS
-            //  (plus restructuring this added code as needed for tidiness)
+            // (plus restructuring this added code as needed for tidiness)
         }
     }
 

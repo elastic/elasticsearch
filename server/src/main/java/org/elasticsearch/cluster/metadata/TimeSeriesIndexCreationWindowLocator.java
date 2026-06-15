@@ -52,7 +52,8 @@ public interface TimeSeriesIndexCreationWindowLocator {
          * @return The earliest instant this data stream could create a backing index
          */
         public Instant locateCreateWindow(DataStream dataStream, ProjectMetadata projectMetadata, LongSupplier nowSupplier) {
-            assert IndexMode.TIME_SERIES == dataStream.getIndexMode() : "Only time series data streams should be checked for a starting window";
+            assert IndexMode.TIME_SERIES == dataStream.getIndexMode()
+                : "Only time series data streams should be checked for a starting window";
             Instant currentWindow = Instant.MIN;
             for (TimeSeriesIndexCreationWindowLocator locator : locators) {
                 Instant startWindow = locator.locateCreateWindow(dataStream, projectMetadata, nowSupplier);

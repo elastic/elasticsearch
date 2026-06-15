@@ -938,6 +938,11 @@ ROW a=[10, 9, 8]
 ;
 
 mvConcatFromEmployees
+// MV_CONCAT result is a single string whose content depends on input value order.
+// Doc-values (CsvIT) returns alphabetical order; stored fields return insertion order.
+// Skipping in EsqlSpecForceStoredLoadingIT to avoid a conflict that cannot be resolved
+// with a single set of expected values.
+request_stored: skip
 FROM employees
 | WHERE emp_no < 10010
 | EVAL joined = MV_CONCAT(job_positions, ", ")
@@ -958,6 +963,8 @@ emp_no:integer | joined:keyword
 ;
 
 mvConcatFieldDelimiter
+// Same ordering constraint as mvConcatFromEmployees — skip in ForceStoredLoadingIT.
+request_stored: skip
 FROM employees
 | WHERE emp_no < 10010
 | EVAL joined = MV_CONCAT(job_positions, last_name)

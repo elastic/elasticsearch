@@ -164,12 +164,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/150552
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testScriptCaching
-  issue: https://github.com/elastic/elasticsearch/issues/150752
-- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
-  method: testMixedSortFieldTypes
-  issue: https://github.com/elastic/elasticsearch/issues/150753
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150754

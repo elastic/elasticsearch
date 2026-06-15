@@ -143,6 +143,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
+import org.elasticsearch.indices.SystemIndexSettingsUpdateService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -151,6 +152,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
@@ -315,7 +317,7 @@ class NodeConstruction {
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
-            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
+            TelemetryProvider telemetryProvider = constructor.createTelemetryProvider();
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
 
             final SettingsModule settingsModule;
@@ -521,8 +523,8 @@ class NodeConstruction {
         DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
-    private TelemetryProvider createTelemetryProvider(Settings settings) {
-        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(settings)).orElse(TelemetryProvider.NOOP);
+    private TelemetryProvider createTelemetryProvider() {
+        return getSinglePlugin(TelemetryPlugin.class).map(p -> p.getTelemetryProvider(environment)).orElse(TelemetryProvider.NOOP);
     }
 
     private ThreadPool createThreadPool(Settings settings, MeterRegistry meterRegistry) throws IOException {
@@ -1176,6 +1178,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             clusterService.addListener(new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders));
+            clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
         final TransportService transportService = serviceProvider.newTransportService(
@@ -1353,19 +1356,23 @@ class NodeConstruction {
             )
         );
 
-        RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
+        final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
         modules.add(b -> {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
-            SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-            var peerRecovery = new PeerRecoverySourceService(
+            final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+            final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
                 indicesService,
                 clusterService,
                 recoverySettings,
-                recoveryPlannerService
+                recoveryPlannerService,
+                recoveryMetricsCollector
             );
             resourcesToClose.add(peerRecovery);
+
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
+            b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(
                     new PeerRecoveryTargetService(

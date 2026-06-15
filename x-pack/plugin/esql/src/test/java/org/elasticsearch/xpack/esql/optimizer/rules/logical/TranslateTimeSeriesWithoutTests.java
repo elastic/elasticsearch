@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -50,11 +49,12 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             List.of(timeSeriesGrouping),
             List.of(timeSeriesGrouping.toAttribute()),
             null,
-            null
+            null,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         TimeSeriesAggregate lowered = as(
-            new TranslateTimeSeriesWithout().apply(aggregate, unboundLogicalOptimizerContext()),
+            new TranslateTimeSeriesWithout().apply(aggregate, metricsAnalyzer().buildContext()),
             TimeSeriesAggregate.class
         );
 

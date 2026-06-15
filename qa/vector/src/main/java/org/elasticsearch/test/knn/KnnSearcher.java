@@ -768,6 +768,7 @@ public class KnnSearcher {
                     filterQuery,
                     visitRatio,
                     doPrecondition,
+                    searchParameters.overSamplingFactor(),
                     PARTITION_ID_FIELD,
                     partition
                 );
@@ -779,7 +780,8 @@ public class KnnSearcher {
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition
+                    doPrecondition,
+                    searchParameters.overSamplingFactor()
                 );
             }
         } else {

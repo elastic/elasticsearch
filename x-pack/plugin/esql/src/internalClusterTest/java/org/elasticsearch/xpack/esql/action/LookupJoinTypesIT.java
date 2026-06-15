@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
@@ -118,7 +119,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
-            SpatialPlugin.class
+            SpatialPlugin.class,
+            TestEncryptionServicePlugin.class
         );
     }
 

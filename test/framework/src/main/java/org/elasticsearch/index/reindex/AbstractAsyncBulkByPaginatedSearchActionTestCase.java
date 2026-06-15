@@ -21,7 +21,7 @@ import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByPaginatedSearchActionTestCase<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    Response extends BulkByScrollResponse> extends ESTestCase {
+    Response extends BulkByPaginatedSearchResponse> extends ESTestCase {
     protected ThreadPool threadPool;
     protected BulkByPaginatedSearchTask task;
 

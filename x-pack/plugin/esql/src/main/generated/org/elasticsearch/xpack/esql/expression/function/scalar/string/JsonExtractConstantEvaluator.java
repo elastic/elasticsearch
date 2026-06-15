@@ -4,9 +4,15 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.Class;
+import java.lang.IllegalAccessException;
 import java.lang.IllegalArgumentException;
+import java.lang.IllegalStateException;
+import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Optional;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -14,6 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.ConstantMethodResultSpecializer;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -23,25 +30,28 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link JsonExtract}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
+public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(JsonExtractConstantEvaluator.class);
 
   private final Source source;
 
   private final ExpressionEvaluator str;
 
-  private final JsonPath path;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public JsonExtractConstantEvaluator(Source source, ExpressionEvaluator str, JsonPath path,
+  public JsonExtractConstantEvaluator(Source source, ExpressionEvaluator str,
       DriverContext driverContext) {
     this.source = source;
     this.str = str;
-    this.path = path;
     this.driverContext = driverContext;
+  }
+
+  protected abstract JsonPath path();
+
+  protected String pathLabel() {
+    return "jit-folded";
   }
 
   @Override
@@ -79,7 +89,7 @@ public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         try {
-          JsonExtract.processConstant(result, str, this.path);
+          JsonExtract.processConstant(result, str, path());
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,7 +105,7 @@ public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef str = strVector.getBytesRef(p, strScratch);
         try {
-          JsonExtract.processConstant(result, str, this.path);
+          JsonExtract.processConstant(result, str, path());
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,7 +117,7 @@ public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
+    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -137,12 +147,47 @@ public final class JsonExtractConstantEvaluator implements ExpressionEvaluator {
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      return new JsonExtractConstantEvaluator(source, str.get(context), path, context);
+      Optional<Class<? extends JsonExtractConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+      if (constantSpecializedClassOpt.isPresent()) {
+        Class<? extends JsonExtractConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
+        try {
+          return (JsonExtractConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+          throw new IllegalStateException("failed to construct specialized evaluator for JsonExtractConstantEvaluator", e);
+        }
+      }
+      return new Standard(source, str.get(context), this.path, context);
     }
 
     @Override
     public String toString() {
       return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
+    }
+  }
+
+  /**
+   * Concrete non-constant-specialized subclass used when {@link ConstantMethodResultSpecializer} returns {@code Optional.empty()}
+   * (admission filter rejected the spin). The constant lives in a regular
+   * instance field — no JIT-time constant folding, but the per-row work
+   * runs correctly. The Factory chooses between this and the constant-specialized subclass.
+   */
+  public static final class Standard extends JsonExtractConstantEvaluator {
+    private final JsonPath path;
+
+    public Standard(Source source, ExpressionEvaluator str, JsonPath path,
+        DriverContext driverContext) {
+      super(source, str, driverContext);
+      this.path = path;
+    }
+
+    @Override
+    protected final JsonPath path() {
+      return path;
+    }
+
+    @Override
+    protected final String pathLabel() {
+      return "standard";
     }
   }
 }

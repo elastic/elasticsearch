@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 149668
+summary: Move encryption key management into a dedicated x-pack-encryption module
+type: enhancement

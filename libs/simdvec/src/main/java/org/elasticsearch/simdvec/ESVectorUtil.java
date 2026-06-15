@@ -493,6 +493,27 @@ public class ESVectorUtil {
     }
 
     /**
+     * Compute the SOAR distance between a byte vector and a byte centroid.
+     * SOAR distance: {@code ||x-c||^2 + lambda * ((x-c1)^T (x-c))^2 / ||x-c1||^2}
+     *
+     * @param v1 the byte vector
+     * @param centroid the byte centroid
+     * @param originalResidual the precomputed residual (x - c1) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @return the SOAR distance
+     */
+    public static float soarDistance(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
      * Optimized-scalar quantization of the provided vector to the provided destination array.
      *
      * @param vector the vector to quantize
@@ -631,6 +652,52 @@ public class ESVectorUtil {
     }
 
     /**
+     * Calculates SOAR distances between a byte query vector and 4 byte centroid vectors in bulk.
+     * SOAR distance: ||x-c||^2 + lambda * ((x-c)^T * originalResidual)^2 / rnorm
+     *
+     * @param v1 the query vector
+     * @param c0 centroid 0
+     * @param c1 centroid 1
+     * @param c2 centroid 2
+     * @param c3 centroid 3
+     * @param originalResidual the precomputed residual (x - globalCentroid) as float
+     * @param soarLambda the SOAR lambda parameter
+     * @param rnorm the squared norm of the original residual
+     * @param distances output array of length 4 for the computed distances
+     */
+    public static void soarDistanceBulk(
+        byte[] v1,
+        byte[] c0,
+        byte[] c1,
+        byte[] c2,
+        byte[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
      * Packs the provided int array populated with "0" and "1" values into a byte array.
      *
      * @param vector the int array to pack, must contain only "0" and "1" values.
@@ -648,6 +715,13 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
         IMPL.packDibit(vector, packed);
+    }
+
+    public static void packDibitQuad(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibitQuad(vector, packed);
     }
 
     /**
@@ -736,6 +810,9 @@ public class ESVectorUtil {
      * @param dest the destination vector
      */
     public static void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
         IMPL.linearCombination(scaleOther, other, scaleDest, dest);
     }
 
@@ -747,7 +824,25 @@ public class ESVectorUtil {
      * @param dest the destination vector
      */
     public static void linearCombination(float scaleOther, float[] other, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
         IMPL.linearCombination(scaleOther, other, dest);
+    }
+
+    /**
+     * Computes dest[d] = scaleSrc * src[d] + scaleDest * dest[d], widening byte src to float.
+     *
+     * @param scaleOther a multiplicative factor for src
+     * @param other the byte source vector (widened to float for computation)
+     * @param scaleDest a multiplicative factor for dest
+     * @param dest the destination float vector (modified in place)
+     */
+    public static void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+        if (other.length != dest.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
+        }
+        IMPL.linearCombination(scaleOther, other, scaleDest, dest);
     }
 
     /**

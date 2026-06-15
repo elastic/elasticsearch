@@ -357,9 +357,6 @@ tests:
 - class: org.elasticsearch.packaging.test.WindowsServiceTests
   method: test16InstallSpecialCharactersInJdkPath
   issue: https://github.com/elastic/elasticsearch/issues/151142
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/120_counter_fields/extended stats}
-  issue: https://github.com/elastic/elasticsearch/issues/151158
 
 # Examples:
 #

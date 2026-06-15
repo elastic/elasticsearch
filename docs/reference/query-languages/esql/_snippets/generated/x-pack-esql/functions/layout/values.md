@@ -4,6 +4,10 @@
 stack: preview 8.14.0, ga 9.4.0
 ```
 
+
+:::{include} ../briefSummary/values.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/values.svg

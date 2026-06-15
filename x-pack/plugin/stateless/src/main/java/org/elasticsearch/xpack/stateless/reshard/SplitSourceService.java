@@ -791,8 +791,7 @@ public class SplitSourceService {
             validateStateTransition(newState);
             this.currentState = newState;
 
-            // TODO relax logging once implementation is stable
-            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
+            logStateTransition(newState);
 
             switch (newState) {
                 case State.MonitoringTargetShards ignored -> {
@@ -846,6 +845,16 @@ public class SplitSourceService {
                         );
                 }
             }
+        }
+
+        private void logStateTransition(State newState) {
+            if (newState instanceof State.Failed && cancelled.get()) {
+                logger.info(
+                    "Stopping split source shard state machine for shard {}, shard is closed. Will retry after recovery.",
+                    indexShard.shardId()
+                );
+            }
+            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
         }
 
         private void validateStateTransition(State newState) {

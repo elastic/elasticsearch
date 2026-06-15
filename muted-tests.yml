@@ -686,3 +686,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load single index ip_long and aggregate client_ip my message}
   issue: https://github.com/elastic/elasticsearch/issues/151264
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/61_enrich_ip/Invalid IP strings}
+  issue: https://github.com/elastic/elasticsearch/issues/151265

@@ -230,7 +230,13 @@ $if(hasExtra)$
                 extraBuilder.endPositionEntry();
             }
             blocks[offset] = builder.build();
-            blocks[offset + 1] = extraBuilder.build();
+            try {
+                blocks[offset + 1] = extraBuilder.build();
+            } catch (Exception e) {
+                blocks[offset].close();
+                blocks[offset] = null;
+                throw e;
+            }
         }
     }
 

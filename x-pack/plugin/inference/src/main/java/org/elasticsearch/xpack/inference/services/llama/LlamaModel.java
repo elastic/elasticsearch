@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisito
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -51,10 +50,6 @@ public abstract class LlamaModel extends RateLimitGroupingModel {
     @Override
     public LlamaServiceSettings getServiceSettings() {
         return (LlamaServiceSettings) super.getServiceSettings();
-    }
-
-    public URI uri() {
-        return getServiceSettings().uri();
     }
 
     @Override

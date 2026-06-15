@@ -37,6 +37,7 @@ public class LTrim extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = { "keyword" },
+        briefSummary = "Removes leading whitespaces from a string.",
         description = "Removes leading whitespaces from a string.",
         examples = @Example(file = "string", tag = "ltrim")
     )

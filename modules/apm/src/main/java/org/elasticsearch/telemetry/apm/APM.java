@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMLoggingService;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
@@ -80,7 +81,10 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         logger.info("Sending apm metrics is {}", APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
         logger.info("Sending apm tracing is {}", APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings) ? "enabled" : "disabled");
 
-        return List.of(apmTracer, apmMeter);
+        final APMLoggingService loggingService = telemetryProvider.get().getLoggingService();
+        logger.info("OTel audit log export is {}", OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
+
+        return List.of(apmTracer, apmMeter, loggingService);
     }
 
     @Override
@@ -112,8 +116,15 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS,
             OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT,
-            OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES
+            OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES,
+            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED
         );
     }
 }

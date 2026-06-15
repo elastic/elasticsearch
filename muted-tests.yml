@@ -506,15 +506,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermAzureRestartIT
   method: testRestart
   issue: https://github.com/elastic/elasticsearch/issues/150691
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanBeRejectedAtPrimaryLevel
-  issue: https://github.com/elastic/elasticsearch/issues/150693
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanBeRejectedAtCoordinatingLevel
-  issue: https://github.com/elastic/elasticsearch/issues/150694
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteIndexingPressureMetricsAreIncremented
-  issue: https://github.com/elastic/elasticsearch/issues/150695
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700

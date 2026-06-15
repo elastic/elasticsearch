@@ -53,8 +53,8 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstantBooleanVector(value, positions.length);
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstantBooleanVector(value, length);
     }
 
     @Override

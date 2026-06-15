@@ -863,3 +863,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/161_union_types_subfields/load two indices with to_version and to_string}
   issue: https://github.com/elastic/elasticsearch/issues/151323
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/190_lookup_join/lookup-no-key}
+  issue: https://github.com/elastic/elasticsearch/issues/151324

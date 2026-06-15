@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -150,5 +151,10 @@ public class GoogleVertexAiRerankServiceSettings extends FilteredXContentObject
     @Override
     public int hashCode() {
         return Objects.hash(projectId, modelId, rateLimitSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

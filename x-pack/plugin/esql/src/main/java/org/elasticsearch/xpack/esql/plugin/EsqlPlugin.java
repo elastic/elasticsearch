@@ -45,6 +45,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -596,16 +597,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
     }
 
+    // visible for testing
+    static int workerQueueSize(long heapBytes, int allocatedProcessors) {
+        long heapMb = heapBytes / (1024 * 1024);
+        return (int) Math.max((heapMb + (long) allocatedProcessors * 400) / 2, 1000);
+    }
+
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
         int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
+        int queueSize = workerQueueSize(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes(), allocatedProcessors);
         return List.of(
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 poolSize,
-                1000,
+                queueSize,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )

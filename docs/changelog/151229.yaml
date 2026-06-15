@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 150849
+pr: 151229
+summary: Fix cluster-state field caps update race via `field_caps` ALL_FIELDS retry
+type: bug

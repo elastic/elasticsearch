@@ -695,3 +695,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/63_enrich_int_range/ages as keywords}
   issue: https://github.com/elastic/elasticsearch/issues/151267
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices and drop ambiguous field event_duration}
+  issue: https://github.com/elastic/elasticsearch/issues/151268

@@ -43,12 +43,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -100,7 +103,8 @@ public final class DocumentParser {
             context = ctx;
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
-            internalParseDocument(metadataFieldsMappers, context);
+            Set<FieldMapper> nonNullableMappers = nonNullableMappers(mappingLookup);
+            internalParseDocument(metadataFieldsMappers, nonNullableMappers, context);
             validateEnd(context.parser());
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
@@ -130,6 +134,16 @@ public final class DocumentParser {
         };
     }
 
+    private Set<FieldMapper> nonNullableMappers(MappingLookup mappingLookup) {
+        Set<FieldMapper> mappers = new HashSet<>();
+        for (var mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof FieldMapper fm && fm.isNonNullValueEnforced()) {
+                mappers.add(fm);
+            }
+        }
+        return mappers;
+    }
+
     private static void skipChildren(DocumentParserContext context) throws IOException {
         boolean withinLeafObject = context.path().isWithinLeafObject();
         // treat everything as leaf while skipping children, this allows parser decorators
@@ -139,7 +153,11 @@ public final class DocumentParser {
         context.path().setWithinLeafObject(withinLeafObject);
     }
 
-    private void internalParseDocument(MetadataFieldMapper[] metadataFieldsMappers, DocumentParserContext context) {
+    private void internalParseDocument(
+        MetadataFieldMapper[] metadataFieldsMappers,
+        Set<FieldMapper> nonNullableMappers,
+        DocumentParserContext context
+    ) {
         try {
             final boolean emptyDoc = isEmptyDoc(context.root(), context.parser());
 
@@ -170,6 +188,16 @@ public final class DocumentParser {
             context.processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
+            }
+            for (Mapper mapper : context.mappingLookup().fieldMappers()) {
+                mapper.postParse(context, nonNullableMappers);
+            }
+            if (nonNullableMappers.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Field(s) ["
+                        + nonNullableMappers.stream().map(FieldMapper::fullPath).collect(Collectors.joining(","))
+                        + "] are configured with [nullability=false] but were missing"
+                );
             }
         } catch (Exception e) {
             throw wrapInDocumentParsingException(context, e);

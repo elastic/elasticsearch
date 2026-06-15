@@ -1109,6 +1109,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         final var value = context.parser().optimizedTextOrNull();
         final boolean recordOffsets = FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue());

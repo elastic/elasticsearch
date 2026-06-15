@@ -1,0 +1,255 @@
+---
+"nullability=false mapping serialization roundtrip":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability doc values parameter requires this feature"
+
+  - do:
+      indices.create:
+        index: test_roundtrip
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  - do:
+      indices.get_mapping:
+        index: test_roundtrip
+
+  - match: { test_roundtrip.mappings.properties.kw.doc_values.nullability: false }
+
+---
+"nullability=false rejects a null value":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_rejects_null
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # A non-null value is accepted.
+  - do:
+      index:
+        index: test_rejects_null
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_a"
+
+  # A null value is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_rejects_null
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: null
+
+---
+"nullability=false rejects a missing field":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_rejects_missing
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # A non-null value is accepted.
+  - do:
+      index:
+        index: test_rejects_missing
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: "value_a"
+
+  # A document with the field absent entirely is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_rejects_missing
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+
+---
+"nullability=false accepts an array with at least one non-null value":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_accepts_mixed
+        body:
+          settings:
+            index.mode: logsdb
+          mappings:
+            properties:
+              kw:
+                type: keyword
+                doc_values:
+                  nullability: false
+
+  # [value, null] is accepted: the non-null element satisfies the constraint.
+  - do:
+      index:
+        index: test_accepts_mixed
+        id: "1"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: ["value_a", null]
+
+  # [null, value] is also accepted.
+  - do:
+      index:
+        index: test_accepts_mixed
+        id: "2"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: [null, "value_b"]
+
+  # [null] is not accepted.
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_accepts_mixed
+        id: "3"
+        body:
+          "@timestamp": "2024-01-01T00:00:00Z"
+          kw: [null]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_accepts_mixed
+        body:
+          query:
+            match_all: {}
+  - match: { hits.total.value: 2 }
+
+---
+"index.mapping.doc_values.nullability=false defaults all fields to non-nullable":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_index_setting_default
+        body:
+          settings:
+            index.mapping.doc_values.nullabilty: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  # A null value for a field that did not override the index setting is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_index_setting_default
+        id: "1"
+        body:
+          kw: null
+
+  # A non-null value is accepted.
+  - do:
+      index:
+        index: test_index_setting_default
+        id: "2"
+        body:
+          kw: "value_a"
+
+---
+"field-level nullability overrides index.mapping.doc_values.nullability":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_index_setting_override
+        body:
+          settings:
+            index.mapping.doc_values.nullabilty: false
+          mappings:
+            properties:
+              kw_default:
+                type: keyword
+              kw_override:
+                type: keyword
+                doc_values:
+                  nullability: true
+
+  # kw_default is subject to the index-level setting; kw_default: null is rejected.
+  - do:
+      catch: /configured with \[nullability=false\] but encountered a null value/
+      index:
+        index: test_index_setting_override
+        id: "1"
+        body:
+          kw_default: null
+          kw_override: "value"
+
+  # kw_override explicitly sets nullability=true so it accepts null. kw_default must still have a non-null value.
+  - do:
+      index:
+        index: test_index_setting_override
+        id: "2"
+        body:
+          kw_default: "value"
+          kw_override: null
+
+---
+"index.mapping.doc_values.nullability=false mapping round-trip":
+  - requires:
+      cluster_features: ["mapper.doc_values.null_value_enforcement"]
+      reason: "nullability=false enforcement on indexing"
+
+  - do:
+      indices.create:
+        index: test_index_setting_roundtrip
+        body:
+          settings:
+            index.mapping.doc_values.nullabilty: false
+          mappings:
+            properties:
+              kw:
+                type: keyword
+
+  # The mapping for kw should not emit an explicit doc_values.nullability because it was not set at the field level.
+  - do:
+      indices.get_mapping:
+        index: test_index_setting_roundtrip
+
+  - is_false: test_index_setting_roundtrip.mappings.properties.kw.doc_values

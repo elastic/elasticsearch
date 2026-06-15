@@ -310,11 +310,32 @@ public abstract class FieldMapper extends Mapper {
      */
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
 
+    @Override
+    public void postParse(DocumentParserContext context, Set<FieldMapper> nonNullableMappers) {
+        if (isNonNullValueEnforced()) {
+            nonNullableMappers.remove(this);
+            var fieldData = context.doc().getField(fullPath);
+            if (fieldData == null) {
+                throw new IllegalArgumentException(
+                    "Field [" + fullPath + "] is configured with [nullability=false] but encountered a null value"
+                );
+            }
+        }
+    }
+
     /**
      * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=false}). When {@code true}, a second value for the same
      * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
      */
     protected boolean isSingleValueEnforced() {
+        return false;
+    }
+
+    /**
+     * Whether this mapper enforces non-null semantics (ie. {@code nullability=false}). When {@code true}, a null/missing value for the
+     * document throws. Override on mappers that expose the {@code nullability} doc values mapping parameter.
+     */
+    protected boolean isNonNullValueEnforced() {
         return false;
     }
 

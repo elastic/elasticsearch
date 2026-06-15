@@ -681,6 +681,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public ScaledFloatFieldType fieldType() {
         return (ScaledFloatFieldType) super.fieldType();
     }

@@ -1840,6 +1840,11 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public boolean supportsBatchIndexing() {
         // Plain text mappers can be driven through parseCreateField by the bulk batch path.
         // index_prefixes and index_phrases add sub-field documents that the batch path does

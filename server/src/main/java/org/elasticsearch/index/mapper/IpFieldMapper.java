@@ -744,6 +744,11 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public IpFieldType fieldType() {
         return (IpFieldType) super.fieldType();
     }

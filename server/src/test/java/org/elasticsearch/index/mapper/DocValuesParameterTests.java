@@ -248,6 +248,71 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         assertThat(mapper.docValuesParameters().nullability(), equalTo(false));
     }
 
-    // TODO: add test that confirm fields are non-null when nullability = false and test that tests that confirm
-    // fields with nulls are ok when nullability = true
+    /**
+     * Index setting {@code false} causes enforcement: a document carrying a null value for a keyword field that did not override the setting
+     * is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
+     */
+    public void testIndexSettingFalseEnforcesRejectionOfNullValue() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", (Object) null)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+    }
+
+    public void testIndexSettingFalseMultiValueContainsNullDoesntReject() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword"))).documentMapper();
+        mapper.parse(source(b -> b.array("field", "asdf", (Object) null)));
+    }
+
+    /**
+     * With index setting {@code false} but the field overriding with {@code doc_values.nullability: true}, a document with null values is
+     * accepted normally.
+     */
+    public void testFieldOverrideAllowsNullValueWhenIndexSettingIsFalse() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", true).endObject())
+        ).documentMapper();
+        // must not throw
+        mapper.parse(source(b -> b.array("field", (Object) null)));
+    }
+
+    /**
+     * Index setting {@code false} causes enforcement for number fields: a document carrying a null value for a long field that did not
+     * override the setting is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
+     */
+    public void testIndexSettingFalseEnforcesRejectionOfNullValueForNumber() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder().put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false).build();
+        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "long"))).documentMapper();
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", (Object) null)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+    }
+
+    /**
+     * A field-level {@code doc_values.nullability: false} (without relying on the index setting) causes enforcement: a document carrying
+     * a null value for a keyword field is rejected with an {@link IllegalArgumentException} wrapped in {@link DocumentParsingException}.
+     */
+    public void testFieldLevelFalseEnforcesRejectionOfNullValue() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("nullability", false).endObject())
+        ).documentMapper();
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", (Object) null)))
+        );
+        assertThat(e.getCause().getMessage(), containsString("configured with [nullability=false] but encountered a null value"));
+    }
 }

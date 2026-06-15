@@ -2521,6 +2521,11 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public NumberFieldType fieldType() {
         return fieldType;
     }

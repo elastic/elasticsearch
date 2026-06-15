@@ -242,6 +242,11 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

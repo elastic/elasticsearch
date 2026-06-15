@@ -483,6 +483,11 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedSingleValuedDocValuesType() {
         return DocValuesType.SORTED;
     }

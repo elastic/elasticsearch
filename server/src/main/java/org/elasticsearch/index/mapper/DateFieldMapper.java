@@ -1225,6 +1225,11 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public DateFieldType fieldType() {
         return (DateFieldType) super.fieldType();
     }

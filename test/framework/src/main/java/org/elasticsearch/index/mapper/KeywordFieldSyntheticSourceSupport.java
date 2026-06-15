@@ -83,6 +83,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     @Override
+    public boolean enforcesNonNullValue() {
+        return docValues.nullability() == false;
+    }
+
+    @Override
     public boolean preservesExactSource() {
         // We opt in into fallback synthetic source implementation
         // if there is nothing else to use, and it preserves exact source data.
@@ -146,7 +151,7 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     private Tuple<String, String> generateValue() {
-        if (nullValue != null && ESTestCase.randomBoolean()) {
+        if (nullValue != null && enforcesNonNullValue() == false && ESTestCase.randomBoolean()) {
             return Tuple.tuple(null, nullValue);
         }
         int length = 5;

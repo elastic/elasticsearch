@@ -703,6 +703,11 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedSingleValuedDocValuesType() {
         // match_only_text defaults to HIGH cardinality, which uses binary doc values
         return DocValuesType.BINARY;

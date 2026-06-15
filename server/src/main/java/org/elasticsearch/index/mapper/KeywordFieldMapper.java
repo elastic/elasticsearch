@@ -1429,6 +1429,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public boolean supportsBatchIndexing() {
         // Plain keyword mappers can be driven through parseCreateField by the bulk batch path.
         // ignore_above is allowed — it's handled by indexValue and only needs addIgnoredField on

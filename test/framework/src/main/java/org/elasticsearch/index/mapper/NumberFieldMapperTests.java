@@ -523,6 +523,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedSingleValuedDocValuesType() {
         return DocValuesType.NUMERIC;
     }

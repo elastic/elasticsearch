@@ -122,6 +122,11 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedSingleValuedDocValuesType() {
         return DocValuesType.NUMERIC;
     }

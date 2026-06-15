@@ -141,6 +141,17 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         }
 
         @Override
+        public boolean enforcesNonNullValue() {
+            if (store) {
+                return false;
+            }
+            if (docValues.enabled()) {
+                return docValues.nullability() == false;
+            }
+            return keywordMultiFieldSyntheticSourceSupport.enforcesNonNullValue();
+        }
+
+        @Override
         public MapperTestCase.SyntheticSourceExample example(int maxValues) {
             if (store) {
                 return storedFieldExample(maxValues);

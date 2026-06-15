@@ -2732,6 +2732,11 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsNullabilityParameter() {
+        return true;
+    }
+
+    @Override
     protected DocValuesType expectedSingleValuedDocValuesType() {
         // text defaults to HIGH cardinality, which uses binary doc values
         return DocValuesType.BINARY;

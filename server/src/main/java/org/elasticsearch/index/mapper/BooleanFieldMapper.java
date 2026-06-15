@@ -600,6 +600,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isNonNullValueEnforced() {
+        return docValuesParameters.nullability() == false;
+    }
+
+    @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
     }

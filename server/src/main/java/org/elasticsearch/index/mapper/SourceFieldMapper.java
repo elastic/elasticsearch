@@ -13,6 +13,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
@@ -504,7 +506,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
         assert context.nonRootDocuments().iterator().hasNext() == false;
-        var reader = new ColumnarStoredLeafReader(context.doc());
+
+        var memoryIndex = MemoryIndex.fromDocument(context.doc(), null);
+        var reader = (LeafReader) memoryIndex.createSearcher().getIndexReader();
         var leafCtx = reader.getContext();
         int docId = 0;
         int[] docIds = new int[] { docId };

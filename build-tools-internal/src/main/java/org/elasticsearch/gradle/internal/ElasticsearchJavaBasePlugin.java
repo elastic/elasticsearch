@@ -142,7 +142,11 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         String nativeProject = ":libs:native:native-libraries";
         Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
         nativeConfig.defaultDependencies(deps -> {
-            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
+            // Request the dedicated `nativeLibs` consumable variant explicitly. We intentionally do not
+            // rely on the `default` configuration of `:libs:native:native-libraries`: if any plugin (e.g.
+            // `elasticsearch.build`) ends up applied to that project, `default` is silently rebound to the
+            // Java runtime variant, which would corrupt `es.nativelibs.path` for every test JVM.
+            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")));
         });
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection nativeConfigFiles = nativeConfig;

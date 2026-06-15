@@ -16,6 +16,20 @@ configurations {
     attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     canBeConsumed = false
   }
+  // Dedicated consumable variant carrying the extracted platform-specific native libraries
+  // (the `extractLibs` task output directory). Consumers must request this configuration
+  // explicitly via `project(path: ':libs:native:native-libraries', configuration: 'nativeLibs')`.
+  //
+  // We deliberately do NOT publish these binaries via the `default` configuration. If another
+  // plugin (e.g. `elasticsearch.build`) ends up applied to this project, its standard Java
+  // outputs would otherwise hijack `default` and silently break native library resolution for
+  // every test JVM (es.nativelibs.path) and for the distribution packaging. Keeping a named
+  // configuration here makes the contract explicit and resilient to such cross-project changes.
+  nativeLibs {
+    canBeConsumed = true
+    canBeResolved = false
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+  }
 }
 
 var zstdVersion = "1.5.7"
@@ -85,5 +99,5 @@ def extractLibs = tasks.register('extractLibs', Copy) {
 }
 
 artifacts {
-  'default' extractLibs
+  nativeLibs extractLibs
 }

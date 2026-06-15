@@ -119,7 +119,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), context.getCircuitBreaker());
+        MaxClauseCountQueryVisitor visitor = MaxClauseCountQueryVisitor.create(
+            IndexSearcher.getMaxClauseCount(),
+            context.getCircuitBreaker(),
+            context.getIndexReader()
+        );
         Query query = toQuery(context, visitor);
         if (query != null) {
             context.addCircuitBreakerMemory(visitor.getEstimatedBytes(), "query");

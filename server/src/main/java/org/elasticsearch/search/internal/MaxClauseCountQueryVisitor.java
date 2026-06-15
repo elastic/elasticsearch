@@ -9,12 +9,14 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.Accountable;
@@ -23,6 +25,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 
 import java.util.function.Supplier;
 
@@ -52,6 +55,9 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     private long estimatedBytes;
     private final int maxClauseCount;
 
+    private final int maxDoc;
+    private final int numSegments;
+
     @Nullable
     private final CircuitBreaker breaker;
     private long breakerBaseline;
@@ -61,9 +67,24 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
     }
 
     public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker) {
+        this(maxClauseCount, breaker, 0, 0);
+    }
+
+    public MaxClauseCountQueryVisitor(int maxClauseCount, @Nullable CircuitBreaker breaker, int maxDoc, int numSegments) {
         this.maxClauseCount = maxClauseCount;
         this.breaker = breaker;
         this.breakerBaseline = breaker == null ? 0L : breaker.getUsed();
+        this.maxDoc = maxDoc;
+        this.numSegments = numSegments;
+    }
+
+    /**
+     * Builds a visitor whose {@link PointRangeQuery} execution-memory model is sized from {@code reader}.
+     * */
+    public static MaxClauseCountQueryVisitor create(int maxClauseCount, @Nullable CircuitBreaker breaker, @Nullable IndexReader reader) {
+        int maxDoc = reader == null ? 0 : reader.maxDoc();
+        int numSegments = reader == null ? 0 : reader.leaves().size();
+        return new MaxClauseCountQueryVisitor(maxClauseCount, breaker, maxDoc, numSegments);
     }
 
     public int getMaxClauseCount() {
@@ -119,6 +140,8 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
         long bytes;
         if (query instanceof FuzzyQuery fq) {
             bytes = FuzzyQueries.estimateBytes(fq);
+        } else if (query instanceof PointRangeQuery prq) {
+            bytes = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim(), maxDoc, numSegments).estimate();
         } else if (query instanceof Accountable a) {
             bytes = a.ramBytesUsed();
         } else {

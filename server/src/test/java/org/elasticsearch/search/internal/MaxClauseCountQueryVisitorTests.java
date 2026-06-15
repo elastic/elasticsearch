@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -16,6 +18,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
@@ -26,12 +29,14 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.PointRangeQueryCostEstimator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MaxClauseCountQueryVisitorTests extends ESTestCase {
@@ -112,6 +117,98 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
             FuzzyQueries.estimateBytes(fq),
             visitor.getEstimatedBytes()
         );
+    }
+
+    public void testChargesBarePointRangeQueryWithExecutionAwareEstimate() {
+        int maxDoc = randomIntBetween(10_000, 5_000_000);
+        int numSegments = randomIntBetween(1, 16);
+
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, maxDoc, numSegments);
+        prq.visit(visitor);
+
+        long expected = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim(), maxDoc, numSegments).estimate();
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+        assertThat(
+            "a multi-thousand-doc index must drive the point-range estimate well past the generic per-clause floor, "
+                + "otherwise wiring the estimator buys nothing",
+            expected,
+            greaterThanOrEqualTo(MaxClauseCountQueryVisitor.LEAF_BASE_BYTES)
+        );
+    }
+
+    public void testChargesPointRangeQueryStructuralOnlyWithoutReaderInfo() {
+        PointRangeQuery prq = (PointRangeQuery) LongPoint.newRangeQuery("f", 1L, 100L);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(visitor);
+
+        long structuralOnly = new PointRangeQueryCostEstimator(prq.getNumDims(), prq.getBytesPerDim(), 0, 0).estimate();
+        assertEquals(
+            "with no reader information the visitor must charge only the structural footprint (zero execution term)",
+            structuralOnly,
+            visitor.getEstimatedBytes()
+        );
+        assertEquals(1, visitor.getNumClauses());
+    }
+
+    public void testCreateFromNullReaderDisablesExecutionTerm() {
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+
+        MaxClauseCountQueryVisitor fromNullReader = MaxClauseCountQueryVisitor.create(IndexSearcher.getMaxClauseCount(), null, null);
+        prq.visit(fromNullReader);
+
+        MaxClauseCountQueryVisitor structuralOnly = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        prq.visit(structuralOnly);
+
+        assertEquals(
+            "create(..., null) must behave like the reader-less constructors — execution term off",
+            structuralOnly.getEstimatedBytes(),
+            fromNullReader.getEstimatedBytes()
+        );
+    }
+
+    public void testPointRangeExecutionEstimateGrowsWithMaxDoc() {
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+
+        MaxClauseCountQueryVisitor smallMaxDoc = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, 1000, 1);
+        prq.visit(smallMaxDoc);
+
+        MaxClauseCountQueryVisitor largeMaxDoc = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, 10000000, 1);
+        prq.visit(largeMaxDoc);
+
+        assertThat(
+            "a larger reader must produce a larger execution-time charge",
+            largeMaxDoc.getEstimatedBytes(),
+            greaterThan(smallMaxDoc.getEstimatedBytes())
+        );
+    }
+
+    public void testPointRangeExecutionEstimateGrowsWithNumSegments() {
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+
+        MaxClauseCountQueryVisitor fewerSegments = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, 1000000, 1);
+        prq.visit(fewerSegments);
+
+        MaxClauseCountQueryVisitor moreSegments = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), null, 1000000, 32);
+        prq.visit(moreSegments);
+
+        assertThat(
+            "more segments means more per-segment FixedBitSet/BKD scratch allocations",
+            moreSegments.getEstimatedBytes(),
+            greaterThan(fewerSegments.getEstimatedBytes())
+        );
+    }
+
+    public void testPointRangeQueryTripsBreakerWhenExecutionMemoryExceedsLimit() {
+        long limit = 1000L;
+        FakeCircuitBreaker breaker = new FakeCircuitBreaker(limit, 0L);
+
+        PointRangeQuery prq = (PointRangeQuery) IntPoint.newRangeQuery("f", 1, 100);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount(), breaker, 1000000, 1);
+
+        expectThrows(CircuitBreakingException.class, () -> prq.visit(visitor));
+        assertTrue("a million-doc point-range result set must trip a 1KB breaker via the execution-aware estimate", breaker.tripped);
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

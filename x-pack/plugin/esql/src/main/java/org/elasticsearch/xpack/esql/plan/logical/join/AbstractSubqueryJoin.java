@@ -248,7 +248,7 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
                 )
             );
         }
-        // Same unsupported types as Join, except TEXT and VERSION are allowed in SemiJoin
+        // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
         if (isSubqueryJoinUnsupported(rightType)) {
             failures.add(fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType));
         }
@@ -266,8 +266,8 @@ public abstract class AbstractSubqueryJoin extends Join implements SortPreservin
     }
 
     /**
-     * Same as {@link Join#UNSUPPORTED_TYPES} but TEXT and VERSION are allowed in SemiJoin
-     * because IN/NOT IN can compare these types via equality.
+     * Same as {@link Join#UNSUPPORTED_TYPES} but TEXT and VERSION are allowed in IN/NOT IN subquery joins because IN/NOT IN can compare
+     * these types via equality.
      */
     public static boolean isSubqueryJoinUnsupported(DataType type) {
         return Arrays.asList(UNSUPPORTED_TYPES).contains(type) && type != DataType.TEXT && type != DataType.VERSION;

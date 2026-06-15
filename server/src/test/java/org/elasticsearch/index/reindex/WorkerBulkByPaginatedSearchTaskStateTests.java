@@ -248,6 +248,94 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         }
     }
 
+    public void testThrottleWaitTimeAccountsForElapsedTimeSinceLastBatchStart() {
+        workerState.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS + TimeUnit.SECONDS.toNanos(5);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 10).nanos(), equalTo(TimeUnit.SECONDS.toNanos(5)));
+    }
+
+    public void testThrottleWaitTimeIsZeroWhenElapsedTimeExceedsTargetBatchTime() {
+        workerState.rethrottle(1f);
+
+        long nowNS = System.nanoTime();
+        long lastBatchStartTimeNS = nowNS - TimeUnit.SECONDS.toNanos(30);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 10).nanos(), equalTo(0L));
+    }
+
+    public void testThrottleWaitTimeDoesNotTreatEarlierNowAsElapsedTime() {
+        workerState.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS - TimeUnit.SECONDS.toNanos(5);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 10).nanos(), equalTo(TimeUnit.SECONDS.toNanos(10)));
+    }
+
+    public void testThrottleWaitTimeIsZeroWhenThrottlingIsDisabled() {
+        workerState.rethrottle(Float.POSITIVE_INFINITY);
+
+        long nowNS = System.nanoTime();
+        long lastBatchStartTimeNS = nowNS - TimeUnit.SECONDS.toNanos(30);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, randomIntBetween(1, 1000)).nanos(), equalTo(0L));
+    }
+
+    public void testThrottleWaitTimeIsZeroForEmptyBatch() {
+        workerState.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS;
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 0).nanos(), equalTo(0L));
+    }
+
+    public void testThrottleWaitTimeUsesFractionalRequestRate() {
+        workerState.rethrottle(0.5f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS + TimeUnit.SECONDS.toNanos(1);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 3).nanos(), equalTo(TimeUnit.SECONDS.toNanos(5)));
+    }
+
+    public void testThrottleWaitTimeUsesLatestRethrottleRate() {
+        workerState.rethrottle(1f);
+        workerState.rethrottle(2f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS + TimeUnit.SECONDS.toNanos(2);
+
+        assertThat(workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, 10).nanos(), equalTo(TimeUnit.SECONDS.toNanos(3)));
+    }
+
+    public void testThrottleWaitTimeCapsLongRemainingDelayAtMaximumThrottleWait() {
+        workerState.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS;
+
+        assertThat(
+            workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, (int) TimeUnit.HOURS.toSeconds(2)).nanos(),
+            equalTo(TimeUnit.HOURS.toNanos(1))
+        );
+    }
+
+    public void testThrottleWaitTimeCapsRemainingDelayAfterElapsedTimeAtMaximumThrottleWait() {
+        workerState.rethrottle(1f);
+
+        long lastBatchStartTimeNS = System.nanoTime();
+        long nowNS = lastBatchStartTimeNS + TimeUnit.MINUTES.toNanos(30);
+
+        assertThat(
+            workerState.throttleWaitTime(lastBatchStartTimeNS, nowNS, (int) TimeUnit.HOURS.toSeconds(2)).nanos(),
+            equalTo(TimeUnit.HOURS.toNanos(1))
+        );
+    }
+
     public void testRethrottleWithRelocationGuardNonSliced() {
         final float rps = randomFloatBetween(0.1f, 1000f, true);
         workerState.rethrottleWithRelocationGuard(rps);

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -24,7 +25,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,11 +70,12 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            mock(Semaphore.class)
+            null,
+            0L
         );
 
         requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
@@ -91,11 +92,12 @@ public class RequestTaskTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
             listener,
-            mock(Semaphore.class)
+            null,
+            0L
         );
 
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
@@ -116,11 +118,12 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
             listener,
-            mock(Semaphore.class)
+            null,
+            0L
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -146,11 +149,12 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
             listener,
-            mock(Semaphore.class)
+            null,
+            0L
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -174,11 +178,12 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of(new InferenceStringGroup("abc")), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             mockThreadPool,
             listener,
-            mock(Semaphore.class)
+            null,
+            0L
         );
 
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
@@ -189,12 +194,6 @@ public class RequestTaskTests extends ESTestCase {
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
     }
-
-    // TODO: test that semaphore is released once on request success
-
-    // TODO: test that semaphore is released once on request failure
-
-    // TODO: test that semaphore is released only once, if request task times out and onFailure is called afterwards
 
     private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
         var mockThreadPool = mock(ThreadPool.class);

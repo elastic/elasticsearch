@@ -476,7 +476,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Settings.EMPTY
             )
         );
-        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found in data stream [" + dataStreamName + "]"));
     }
 
     public void testDeleteBackingIndex() {
@@ -673,7 +673,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
                 Settings.EMPTY
             )
         );
-        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+        assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found in data stream [" + dataStreamName + "]"));
     }
 
     public void testUpdateLifecycle() {

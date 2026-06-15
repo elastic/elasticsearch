@@ -31,7 +31,7 @@ public class IndexAgeEvictionPolicy implements EvictionPolicy<FileCacheKey> {
         this.clusterService = Objects.requireNonNull(clusterService);
     }
 
-    // for tests that override {@link #indexCreationDateMillis}
+    // Test subclasses must override {@link #indexCreationDateMillis} because clusterService is null.
     protected IndexAgeEvictionPolicy() {
         this.clusterService = null;
     }

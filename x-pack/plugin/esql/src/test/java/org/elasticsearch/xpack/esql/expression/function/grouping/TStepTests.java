@@ -163,18 +163,14 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(step, DataType.TIME_DURATION, "step").forceLiteral());
             args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
-            return new TestCaseSupplier.TestCase(
-                args,
-                Matchers.startsWith("FixedRoundToLong"),
-                timestampType,
-                matcher(args, step.toMillis(), now)
-            ).withConfiguration(
-                TEST_SOURCE,
-                randomConfigurationBuilder().query(TEST_SOURCE.text())
-                    .now(now)
-                    .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
-                    .build()
-            );
+            return new TestCaseSupplier.TestCase(args, Matchers.startsWith("DateTrunc"), timestampType, matcher(args, step.toMillis(), now))
+                .withConfiguration(
+                    TEST_SOURCE,
+                    randomConfigurationBuilder().query(TEST_SOURCE.text())
+                        .now(now)
+                        .zoneId(timestampType == DataType.DATE_NANOS ? ZoneOffset.ofHours(-7) : ZoneOffset.ofHours(5))
+                        .build()
+                );
         }));
     }
 
@@ -202,7 +198,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                     );
                     return new TestCaseSupplier.TestCase(
                         args,
-                        Matchers.startsWith("FixedRoundToLong"),
+                        Matchers.startsWith("DateTrunc"),
                         timestampType,
                         equalTo(encodedTimestamp(expectedMillis, timestampType))
                     ).withConfiguration(
@@ -236,7 +232,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
                         args.add(createTypedData("@timestamp", timestampType, timestamp.getAsLong()));
                         return new TestCaseSupplier.TestCase(
                             args,
-                            Matchers.startsWith("FixedRoundToLong"),
+                            Matchers.startsWith("DateTrunc"),
                             timestampType,
                             equalTo(encodedTimestamp(expectedBucket.toEpochMilli(), timestampType))
                         ).withConfiguration(

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -216,7 +217,14 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                 randomFrom(ConfigurationParseContext.values())
             )
         );
-        assertThat(thrownException.getMessage(), is("No enum constant org.elasticsearch.inference.SimilarityMeasure.BY_SIZE"));
+        assertThat(
+            thrownException.getMessage(),
+            is(Strings.format("[1:54] [%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.SIMILARITY))
+        );
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(Strings.format("Invalid value [%s]; expected one of [cosine, dot_product, l2_norm]", invalidSimilarity))
+        );
     }
 
     public void testFromMap_NoDimensions_Success() {
@@ -248,43 +256,21 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
     }
 
     public void testFromMap_ZeroDimensions_ThrowsException() {
-        int zeroDimensions = 0;
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> LlamaEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(
-                    TEST_MODEL_ID,
-                    TEST_URI.toString(),
-                    zeroDimensions,
-                    TEST_SIMILARITY_MEASURE.toString(),
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_RATE_LIMIT
-                ),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
-        assertThat(
-            thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
-                    ServiceFields.DIMENSIONS,
-                    zeroDimensions,
-                    ServiceFields.DIMENSIONS
-                )
-            )
-        );
+        assertFromMap_NonPositiveDimensions_ThrowsException(0);
     }
 
     public void testFromMap_NegativeDimensions_ThrowsException() {
-        int negativeDimensions = -10;
+        assertFromMap_NonPositiveDimensions_ThrowsException(randomNegativeInt());
+    }
+
+    private static void assertFromMap_NonPositiveDimensions_ThrowsException(int dimensions) {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
                 buildServiceSettingsMap(
                     TEST_MODEL_ID,
                     TEST_URI.toString(),
-                    negativeDimensions,
+                    dimensions,
                     TEST_SIMILARITY_MEASURE.toString(),
                     TEST_MAX_INPUT_TOKENS,
                     TEST_RATE_LIMIT
@@ -294,14 +280,11 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         );
         assertThat(
             thrownException.getMessage(),
-            is(
-                Strings.format(
-                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
-                    ServiceFields.DIMENSIONS,
-                    negativeDimensions,
-                    ServiceFields.DIMENSIONS
-                )
-            )
+            is(Strings.format("[1:157] [%s] failed to parse field [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.DIMENSIONS))
+        );
+        assertThat(
+            thrownException.getCause().getMessage(),
+            is(Strings.format("Invalid value [%d]. [%s] must be a positive integer", dimensions, ServiceFields.DIMENSIONS))
         );
     }
 
@@ -334,7 +317,14 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
     }
 
     public void testFromMap_ZeroInputTokens_ThrowsException() {
-        int zeroMaxInputTokens = 0;
+        assertFromMap_InvalidInputTokens_ThrowsException(0);
+    }
+
+    public void testFromMap_NegativeInputTokens_ThrowsException() {
+        assertFromMap_InvalidInputTokens_ThrowsException(randomNegativeInt());
+    }
+
+    private static void assertFromMap_InvalidInputTokens_ThrowsException(int nonPositiveMaxInputTokens) {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
@@ -343,7 +333,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                     TEST_URI.toString(),
                     TEST_DIMENSIONS,
                     TEST_SIMILARITY_MEASURE.toString(),
-                    zeroMaxInputTokens,
+                    nonPositiveMaxInputTokens,
                     TEST_RATE_LIMIT
                 ),
                 randomFrom(ConfigurationParseContext.values())
@@ -353,38 +343,18 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
             thrownException.getMessage(),
             is(
                 Strings.format(
-                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    zeroMaxInputTokens,
+                    "[1:111] [%s] failed to parse field [%s]",
+                    ModelConfigurations.SERVICE_SETTINGS,
                     ServiceFields.MAX_INPUT_TOKENS
                 )
             )
         );
-    }
-
-    public void testFromMap_NegativeInputTokens_ThrowsException() {
-        int negativeMaxInputTokens = -10;
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> LlamaEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(
-                    TEST_MODEL_ID,
-                    TEST_URI.toString(),
-                    TEST_DIMENSIONS,
-                    TEST_SIMILARITY_MEASURE.toString(),
-                    negativeMaxInputTokens,
-                    TEST_RATE_LIMIT
-                ),
-                randomFrom(ConfigurationParseContext.values())
-            )
-        );
         assertThat(
-            thrownException.getMessage(),
+            thrownException.getCause().getMessage(),
             is(
                 Strings.format(
-                    "[%s] Invalid value [%d]. [%s] must be a positive integer",
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    negativeMaxInputTokens,
+                    "Invalid value [%d]. [%s] must be a positive integer",
+                    nonPositiveMaxInputTokens,
                     ServiceFields.MAX_INPUT_TOKENS
                 )
             )
@@ -432,7 +402,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
-    public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {
+    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var serviceSettings = new LlamaEmbeddingsServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -454,6 +424,50 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
             );
             assertThat(e.getMessage(), is(Strings.format("[1:2] [service_settings] unknown field [%s]", immutableField)));
         }
+    }
+
+    public void testUpdateServiceSettings_ZeroInputTokens_ThrowsException() {
+        assertUpdateServiceSettings_InvalidMaxInputTokens_ThrowsException(0);
+    }
+
+    public void testUpdateServiceSettings_NegativeInputTokens_ThrowsException() {
+        assertUpdateServiceSettings_InvalidMaxInputTokens_ThrowsException(randomNegativeInt());
+    }
+
+    private static void assertUpdateServiceSettings_InvalidMaxInputTokens_ThrowsException(int nonPositiveMaxInputTokens) {
+        var serviceSettings = new LlamaEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.MAX_INPUT_TOKENS, nonPositiveMaxInputTokens)))
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                Strings.format(
+                    "[1:21] [%s] failed to parse field [%s]",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.MAX_INPUT_TOKENS
+                )
+            )
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            is(
+                Strings.format(
+                    "Invalid value [%d]. [%s] must be a positive integer",
+                    nonPositiveMaxInputTokens,
+                    ServiceFields.MAX_INPUT_TOKENS
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

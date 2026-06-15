@@ -26,9 +26,11 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.EnumParser.parseFromStringInObjectParserContext;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -225,9 +227,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
 
     private static Integer requirePositive(@Nullable Integer value, String field) {
         if (value != null && value <= 0) {
-            throw new IllegalArgumentException(
-                Strings.format("[%s] Invalid value [%d]. [%s] must be a positive integer", field, value, field)
-            );
+            throw new IllegalArgumentException(Strings.format("Invalid value [%d]. [%s] must be a positive integer", value, field));
         }
         return value;
     }
@@ -238,31 +238,31 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
      */
     public static class Builder extends LlamaServiceSettings.Builder<LlamaEmbeddingsServiceSettings> {
         private Integer dimensions;
-        private String similarity;
+        private SimilarityMeasure similarity;
         private Integer maxInputTokens;
 
         public void setDimensions(Integer dimensions) {
-            this.dimensions = dimensions;
+            this.dimensions = requirePositive(dimensions, DIMENSIONS);
         }
 
         public void setSimilarity(String similarity) {
-            this.similarity = similarity;
+            this.similarity = similarity != null
+                ? parseFromStringInObjectParserContext(
+                    similarity,
+                    SimilarityMeasure::fromString,
+                    EnumSet.allOf(SimilarityMeasure.class),
+                    EnumSet.noneOf(SimilarityMeasure.class)
+                )
+                : null;
         }
 
         public void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = maxInputTokens;
+            this.maxInputTokens = requirePositive(maxInputTokens, MAX_INPUT_TOKENS);
         }
 
         @Override
         protected LlamaEmbeddingsServiceSettings build(String modelId, URI uri, RateLimitSettings rateLimitSettings) {
-            return new LlamaEmbeddingsServiceSettings(
-                modelId,
-                uri,
-                requirePositive(dimensions, DIMENSIONS),
-                similarity != null ? SimilarityMeasure.fromString(similarity) : null,
-                requirePositive(maxInputTokens, MAX_INPUT_TOKENS),
-                rateLimitSettings
-            );
+            return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
         }
     }
 
@@ -283,13 +283,11 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         private Integer maxInputTokens;
 
         private void setMaxInputTokens(Integer maxInputTokens) {
-            this.maxInputTokens = maxInputTokens;
+            this.maxInputTokens = requirePositive(maxInputTokens, MAX_INPUT_TOKENS);
         }
 
         public LlamaEmbeddingsServiceSettings mergeInto(LlamaEmbeddingsServiceSettings existing) {
-            var updatedMaxInputTokens = this.maxInputTokens != null
-                ? requirePositive(this.maxInputTokens, MAX_INPUT_TOKENS)
-                : existing.maxInputTokens();
+            var updatedMaxInputTokens = this.maxInputTokens != null ? this.maxInputTokens : existing.maxInputTokens();
             return new LlamaEmbeddingsServiceSettings(
                 existing.modelId(),
                 existing.uri(),

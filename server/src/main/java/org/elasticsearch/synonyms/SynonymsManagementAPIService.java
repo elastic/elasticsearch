@@ -597,8 +597,13 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
+        boolean append,
         ActionListener<SynonymsReloadResult> listener
     ) {
+        if (append) {
+            addToSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
+            return;
+        }
         if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
             return;
         }
@@ -620,6 +625,7 @@ public class SynonymsManagementAPIService {
             bulkUpdateSynonymsSet(
                 synonymSetId,
                 synonymsSet,
+                0,
                 deleteByQueryResponseListener.delegateFailure((bulkInsertResponseListener, ignored) -> {
                     UpdateSynonymsResultStatus updateSynonymsResultStatus = created
                         ? UpdateSynonymsResultStatus.CREATED
@@ -637,12 +643,81 @@ public class SynonymsManagementAPIService {
         }));
     }
 
-    // Open for testing adding more synonyms set than the limit allows for
-    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<Void> listener) {
-        executeBulkChunks(synonymSetId, synonymsSet, 0, listener);
+    /**
+     * Adds synonym rules to an existing set without deleting existing rules. If the set does not
+     * exist yet it is created. Rules whose IDs match existing rules are overwritten.
+     */
+    private void addToSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        // Use GET instead of search to avoid stale results when determining CREATED vs UPDATED.
+        // IndexNotFoundException means the index doesn't exist yet — new set, zero existing rules.
+        client.prepareGet(SYNONYMS_ALIAS_NAME, synonymSetId).execute(ActionListener.wrap(getResponse -> {
+            UpdateSynonymsResultStatus status = getResponse.isExists()
+                ? UpdateSynonymsResultStatus.UPDATED
+                : UpdateSynonymsResultStatus.CREATED;
+            if (status == UpdateSynonymsResultStatus.CREATED) {
+                // Synonym set doesn't exist yet — existing count is 0, no need to search
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, status, listener);
+            } else {
+                countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
+            }
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
-    private void executeBulkChunks(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
+    private void countExistingRulesAndAdd(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        boolean refresh,
+        UpdateSynonymsResultStatus status,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        // Best-effort count, consistent with putSynonymRule. Two known limitations:
+        // stale search results can let concurrent appends exceed the limit; and rules
+        // that overwrite existing IDs are counted as new, so pure-update appends at the
+        // limit are incorrectly rejected.
+        client.prepareSearch(SYNONYMS_ALIAS_NAME)
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            )
+            .setSize(0)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
+            .execute(listener.delegateFailureAndWrap((l, searchResponse) -> {
+                long existingCount = searchResponse.getHits().getTotalHits().value();
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, l);
+            }));
+    }
+
+    private void bulkAddToSynonymsSet(
+        String synonymSetId,
+        SynonymRule[] synonymsSet,
+        long existingCount,
+        boolean refresh,
+        UpdateSynonymsResultStatus status,
+        ActionListener<SynonymsReloadResult> listener
+    ) {
+        if (checkSynonymRuleCount(existingCount + synonymsSet.length, listener) == false) {
+            return;
+        }
+        bulkUpdateSynonymsSet(synonymSetId, synonymsSet, 0, listener.delegateFailure((l, ignored) -> {
+            checkIndexSearchableAndReloadAnalyzers(synonymSetId, refresh, false, status, l);
+        }));
+    }
+
+    // Open for testing
+    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
         int end = Math.min(offset + bulkChunkSize, synonymsSet.length);
         boolean isLastChunk = end == synonymsSet.length;
         // Refresh only on the last chunk so all rules become visible on the same forced refresh.
@@ -675,7 +750,7 @@ public class SynonymsManagementAPIService {
             if (isLastChunk) {
                 l.onResponse(null);
             } else {
-                executeBulkChunks(synonymSetId, synonymsSet, end, l);
+                bulkUpdateSynonymsSet(synonymSetId, synonymsSet, end, l);
             }
         }));
     }

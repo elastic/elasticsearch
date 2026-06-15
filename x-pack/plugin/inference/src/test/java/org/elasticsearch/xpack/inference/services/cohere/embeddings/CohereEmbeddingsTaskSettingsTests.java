@@ -67,10 +67,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        MatcherAssert.assertThat(
-            CohereEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
-            is(new CohereEmbeddingsTaskSettings(null, null))
-        );
+        MatcherAssert.assertThat(CohereEmbeddingsTaskSettings.fromMap(new HashMap<>()), is(new CohereEmbeddingsTaskSettings(null, null)));
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {

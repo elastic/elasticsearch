@@ -27,6 +27,7 @@ import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
@@ -324,6 +325,68 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             }
         }
         return null;
+    }
+
+    @Override
+    public CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException {
+        NextFieldEntry entry = fields.get(fieldInfo.number);
+        if (entry == null || entry.numCentroids() == 0) {
+            return null;
+        }
+        int dimension = fieldInfo.getVectorDimension();
+        int numCentroids = entry.numCentroids();
+        FloatVectorValues vectorValues = getFloatVectorValues(fieldInfo.name);
+        int numVectors = vectorValues != null ? vectorValues.size() : 0;
+        int[] clusterSizes = new int[numCentroids];
+
+        long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
+        IndexInput centroidsSlice = null;
+        boolean success = false;
+        try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids); IndexInput postingSlice = entry.postingListSlice(ivfClusters)) {
+            long[] postingOffsets = readPostingListOffsets(centroidSlice, numVectors, numCentroids, dimension);
+
+            // First pass: read cluster sizes only (from the posting slice).
+            for (int c = 0; c < numCentroids; c++) {
+                postingSlice.seek(postingOffsets[c] + Integer.BYTES);
+                clusterSizes[c] = postingSlice.readVInt();
+            }
+
+            // The raw centroids live contiguously at the end of the centroid data; slice that
+            // region and hand it to the streaming view. The slice owns its own resources and
+            // outlives the parent centroidSlice.
+            long centroidsOffset = centroidSlice.length() - rawCentroidsSize;
+            centroidsSlice = centroidSlice.slice("centroids-raw", centroidsOffset, rawCentroidsSize);
+            KMeansFloatVectorValues centroids = KMeansFloatVectorValues.build(centroidsSlice, null, numCentroids, dimension);
+            CentroidData data = new CentroidData(centroids, clusterSizes, entry.globalCentroid(), centroidsSlice);
+            success = true;
+            return data;
+        } finally {
+            if (success == false && centroidsSlice != null) {
+                centroidsSlice.close();
+            }
+        }
+    }
+
+    private static long[] readPostingListOffsets(IndexInput centroidSlice, int numVectors, int numCentroids, int dimension)
+        throws IOException {
+        long[] offsets = new long[numCentroids];
+        int bitsRequired = DirectWriter.bitsRequired(numCentroids);
+        long sizeLookup = DirectWriter.bytesRequired(numVectors, bitsRequired);
+        centroidSlice.seek(sizeLookup);
+        int numParents = centroidSlice.readVInt();
+        long rawCentroidsSize = (long) numCentroids * dimension * Float.BYTES;
+        long offsetTableEntrySize = numParents == 0 ? 2L * Long.BYTES : 2L * Long.BYTES + Integer.BYTES;
+        long offsetTableStart = centroidSlice.length() - rawCentroidsSize - offsetTableEntrySize * numCentroids;
+
+        centroidSlice.seek(offsetTableStart);
+        for (int i = 0; i < numCentroids; i++) {
+            offsets[i] = centroidSlice.readLong();
+            centroidSlice.readLong();
+            if (numParents > 0) {
+                centroidSlice.readInt();
+            }
+        }
+        return offsets;
     }
 
     public static class NextFieldEntry extends FieldEntry {
@@ -738,7 +801,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int endDoc;
             if (acceptDocs == null) {
                 startDoc = 0;
-                endDoc = values.ordToDoc(values.size() - 1);
+                endDoc = values.ordToDoc(values.size() - 1) + 1;
             } else {
                 ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
                 startDoc = sliceAcceptDocs.startDoc();
@@ -992,7 +1055,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                quantEncoding.bits() == 4 ? ES940OSQVectorsScorer.BitEncoding.PACKED : ES940OSQVectorsScorer.BitEncoding.STRIPED
+                quantEncoding.bits() == 2 || quantEncoding.bits() == 4
+                    ? ES940OSQVectorsScorer.BitEncoding.PACKED
+                    : ES940OSQVectorsScorer.BitEncoding.STRIPED
             );
         }
 

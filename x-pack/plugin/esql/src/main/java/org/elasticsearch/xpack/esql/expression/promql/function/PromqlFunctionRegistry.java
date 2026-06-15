@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
@@ -55,7 +56,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -77,7 +77,6 @@ import java.util.Set;
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
-
     private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
         Delta.PROMQL_DEFINITION,
@@ -110,6 +109,7 @@ public class PromqlFunctionRegistry {
         Variance.PROMQL_DEFINITION,
         //
         Percentile.PROMQL_DEFINITION,
+        PromqlHistogramQuantile.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
         Abs.PROMQL_DEFINITION,
@@ -120,7 +120,7 @@ public class PromqlFunctionRegistry {
         Log.PROMQL_LOG2_DEFINITION,
         Log.PROMQL_LN_DEFINITION,
         Floor.PROMQL_DEFINITION,
-        Round.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.ROUND,
         //
         Asin.PROMQL_DEFINITION,
         Acos.PROMQL_DEFINITION,
@@ -153,9 +153,11 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
+    public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
+
     private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
-    public PromqlFunctionRegistry() {
+    private PromqlFunctionRegistry() {
         for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
             String normalized = normalize(def.name());
             promqlFunctions.put(normalized, def);
@@ -199,7 +201,6 @@ public class PromqlFunctionRegistry {
         "histogram_avg",
         "histogram_count",
         "histogram_fraction",
-        "histogram_quantile",
         "histogram_stddev",
         "histogram_stdvar",
         "histogram_sum"

@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
@@ -86,6 +87,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
     private final SourceDestValidator sourceDestValidator;
     private final Settings destIndexSettings;
     private final BooleanSupplier hasLinkedProjects;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewTransformAction(
@@ -124,6 +126,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         );
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
         this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -221,31 +224,39 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         boolean previewAsIndexRequest,
         ActionListener<Response> listener
     ) {
-        var parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        // Extract the caller credential once so we can both wrap the parent client with it and release its
+        // SecureString when the preview completes. extractCloudManagedCredential returns a fresh instance
+        // distinct from anything stored in the thread context, so we own its lifecycle.
+        final CloudCredential callerCredential = cloudCredentialManager.currentCallerCredential();
+        var parentTaskClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, callerCredential);
 
         final var mappings = new SetOnce<Map<String, String>>();
 
         final var filteredHeaders = getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterService.state());
 
-        ActionListener<List<Map<String, Object>>> responseDocsListener = listener.delegateFailureAndWrap((l, docs) -> {
-            var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                destIndexSettings,
-                mappings.get(),
-                transformId,
-                Clock.systemUTC()
-            );
-            TransformConfigLinter.getWarnings(function, source, syncConfig).forEach(HeaderWarning::addWarning);
-            if (previewAsIndexRequest) {
-                l.onResponse(new Response(docs, generatedDestIndexSettings));
-            } else {
-                l.onResponse(
-                    new Response(
-                        docs.stream().map(doc -> (Map<String, Object>) doc.get(TransformField.DOCUMENT_SOURCE_FIELD)).toList(),
-                        generatedDestIndexSettings
-                    )
+        ActionListener<List<Map<String, Object>>> responseDocsListener = ActionListener.releaseAfter(
+            listener.delegateFailureAndWrap((l, docs) -> {
+                var generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                    destIndexSettings,
+                    mappings.get(),
+                    transformId,
+                    Clock.systemUTC()
                 );
-            }
-        });
+                TransformConfigLinter.getWarnings(function, source, syncConfig).forEach(HeaderWarning::addWarning);
+                if (previewAsIndexRequest) {
+                    l.onResponse(new Response(docs, generatedDestIndexSettings));
+                } else {
+                    l.onResponse(
+                        new Response(
+                            docs.stream().map(doc -> (Map<String, Object>) doc.get(TransformField.DOCUMENT_SOURCE_FIELD)).toList(),
+                            generatedDestIndexSettings
+                        )
+                    );
+                }
+            }),
+            callerCredential
+        );
 
         ActionListener<List<Map<String, Object>>> previewListener = responseDocsListener.delegateFailureAndWrap((l, docs) -> {
             if (pipeline == null) {

@@ -1,0 +1,660 @@
+// ClickBench-derived Parquet queries. The {{clickbench}} template is resolved by ClickBenchParquetSpecIT
+// to either a single-file or a 5-file split layout; each test runs against both layouts (86 tests total).
+
+q01_countHits
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS count = COUNT(*);
+
+count:long
+1283172
+;
+
+q02_countAdvEngineIdNonzero
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE AdvEngineID != 0 | STATS count = COUNT(*);
+
+count:long
+2823
+;
+
+q03_statsAdvEngineIdResolution
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), count = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth);
+
+sum_AdvEngineID:long | count:long | avg_ResolutionWidth:double
+37554                | 1283172    | 1518.508
+;
+
+q04_statsAvgUserid
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS avg_UserID = AVG(UserID);
+
+avg_UserID:double
+2.567362511837506E18
+;
+
+q05_statsDistinctUserid
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID));
+
+u:integer
+192760
+;
+
+q06_statsDistinctSearchPhrase
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(SearchPhrase));
+
+u:integer
+40175
+;
+
+q07_statsMinMaxEventDate
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS min_EventDate = MIN(EventDate), max_EventDate = MAX(EventDate);
+
+min_EventDate:integer | max_EventDate:integer
+15888                 | 15915
+;
+
+q08_statsAdvEngineIdByAdvEngineId
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE AdvEngineID != 0 | STATS c = COUNT(*) BY AdvEngineID | SORT c DESC;
+
+c:long | AdvEngineID:integer
+1669   | 2
+563    | 13
+311    | 62
+214    | 27
+56     | 28
+5      | 3
+3      | 50
+2      | 52
+;
+
+q09_statsDistinctUseridByRegion
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS u = MV_COUNT(VALUES(UserID)) BY RegionID | SORT u DESC | LIMIT 10;
+
+u:integer | RegionID:integer
+36175     | 229
+12084     | 2
+8227      | 208
+6126      | 107
+4940      | 169
+3398      | 184
+2818      | 158
+2756      | 34
+2352      | 55
+2317      | 1
+;
+
+q10_statsRegionAggregates
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS sum_AdvEngineID = SUM(AdvEngineID), c = COUNT(*), avg_ResolutionWidth = AVG(ResolutionWidth), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY RegionID | SORT c DESC | LIMIT 10;
+
+sum_AdvEngineID:long | c:long | avg_ResolutionWidth:double | count_distinct_UserID:integer | RegionID:integer
+12215                | 285647 | 1517.272                   | 36175                         | 229
+2166                 | 90334  | 1505.143                   | 12084                         | 2
+861                  | 48296  | 1302.736                   | 8227                          | 208
+204                  | 30189  | 1042.645                   | 6126                          | 107
+425                  | 25034  | 1505.199                   | 4940                          | 169
+551                  | 21219  | 1572.075                   | 2756                          | 34
+300                  | 19141  | 1557.319                   | 3398                          | 184
+1050                 | 19104  | 1584.608                   | 2317                          | 1
+277                  | 15477  | 1577.454                   | 2069                          | 42
+333                  | 14871  | 1585.459                   | 2818                          | 158
+;
+
+q11_statsMobilePhoneModelUsers
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhoneModel | SORT u DESC, MobilePhoneModel | LIMIT 10;
+
+u:integer | MobilePhoneModel:keyword
+17692     | iPad
+550       | iPhone
+162       | A500
+76        | N8-00
+30        | iPho
+23        | 3110000
+22        | Transformer
+19        | 5250
+18        | GT-P7300B
+18        | HTC Desire
+;
+
+q12_statsMobilePhoneUsers
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE MobilePhoneModel != "" | STATS u = MV_COUNT(VALUES(UserID)) BY MobilePhone, MobilePhoneModel | SORT u DESC, MobilePhone, MobilePhoneModel | LIMIT 10;
+
+u:integer | MobilePhone:integer | MobilePhoneModel:keyword
+15595     | 1                   | iPad
+736       | 5                   | iPad
+490       | 6                   | iPad
+258       | 7                   | iPad
+201       | 6                   | iPhone
+162       | 118                 | A500
+149       | 26                  | iPhone
+145       | 32                  | iPad
+102       | 10                  | iPad
+96        | 13                  | iPad
+;
+
+q13_statsSearchPhraseCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchPhrase | SORT c DESC, SearchPhrase | LIMIT 10;
+
+c:long | SearchPhrase:keyword
+6911   | карелки
+1922   | мангу в зарабей грама
+1575   | galaxy table
+1403   | дружке помещение
+776    | 3dnewsru
+672    | детский орхиде
+501    | мангу в заработка пирай стоит iptv
+485    | липец технические
+454    | galaxy s4 mins 1200-230 супер
+427    | метрамвай
+;
+
+q14_statsSearchPhraseUsers
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS u = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT u DESC, SearchPhrase | LIMIT 10;
+
+u:integer | SearchPhrase:keyword
+2898      | карелки
+1524      | мангу в зарабей грама
+795       | galaxy table
+722       | дружке помещение
+467       | липец технические
+401       | мангу в заработка пирай стоит iptv
+365       | 3dnewsru
+292       | детский орхиде
+281       | метрамвай
+257       | комбинирование смотреть
+;
+
+q15_statsSearchEnginePhrase
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*) BY SearchEngineID, SearchPhrase | SORT c DESC, SearchEngineID, SearchPhrase | LIMIT 10;
+
+c:long | SearchEngineID:integer | SearchPhrase:keyword
+4309   | 2                      | карелки
+1894   | 2                      | мангу в зарабей грама
+1476   | 3                      | карелки
+874    | 2                      | дружке помещение
+815    | 4                      | карелки
+701    | 2                      | galaxy table
+662    | 3                      | galaxy table
+592    | 3                      | 3dnewsru
+500    | 2                      | мангу в заработка пирай стоит iptv
+475    | 2                      | липец технические
+;
+
+q16_statsUseridCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID | SORT c DESC | LIMIT 10;
+
+c:long | UserID:long
+1400   | 992473989013836791
+1270   | 3787634936610360879
+1149   | 595703372588956940
+1000   | 3670992577563583812
+959    | 1560791041773944313
+867    | 1896413589180043489
+850    | 305198828045483703
+772    | 7474153100808812742
+656    | 3833577625562359218
+650    | 3372693799634031492
+;
+
+q17_statsUseridSearchPhraseCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID ASC, SearchPhrase ASC | LIMIT 10;
+
+c:long | UserID:long         | SearchPhrase:keyword
+1400   | 992473989013836791  |
+1269   | 3787634936610360879 |
+1149   | 595703372588956940  |
+1000   | 3670992577563583812 |
+959    | 1560791041773944313 |
+867    | 1896413589180043489 |
+849    | 305198828045483703  |
+767    | 7474153100808812742 |
+656    | 3833577625562359218 |
+650    | 3372693799634031492 |
+;
+
+q18_statsUseridSearchPhraseLimit
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY UserID, SearchPhrase | SORT c DESC, UserID, SearchPhrase | LIMIT 10;
+
+c:long | UserID:long         | SearchPhrase:keyword
+1400   | 992473989013836791  |
+1269   | 3787634936610360879 |
+1149   | 595703372588956940  |
+1000   | 3670992577563583812 |
+959    | 1560791041773944313 |
+867    | 1896413589180043489 |
+849    | 305198828045483703  |
+767    | 7474153100808812742 |
+656    | 3833577625562359218 |
+650    | 3372693799634031492 |
+;
+
+q19_statsUseridMinuteSearchPhrase
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | EVAL m = EventTime / 60 % 60 | STATS c = COUNT(*) BY UserID, m, SearchPhrase | SORT c DESC, UserID, m, SearchPhrase | LIMIT 10;
+
+c:long | UserID:long         | m:long | SearchPhrase:keyword
+64     | 116609765411432275  | 11     |
+63     | 314262872525830524  | 6      |
+57     | 116609765411432275  | 13     |
+53     | 4306371518418422673 | 27     |
+52     | 116609765411432275  | 12     |
+51     | 1896413589180043489 | 43     |
+51     | 3670992577563583812 | 15     |
+50     | 595703372588956940  | 43     |
+49     | 992473989013836791  | 19     |
+49     | 2656876941537049251 | 59     |
+;
+
+q20_filterUserid435090932899640449
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE UserID == -9136168843017551521 | KEEP UserID;
+
+UserID:long
+;
+
+q21_statsGoogleUrlCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | STATS count = COUNT(*);
+
+count:long
+30
+;
+
+q22_statsGoogleUrlSearchPhrase
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*) BY SearchPhrase | SORT c DESC | LIMIT 10;
+
+min_URL:keyword | c:long | SearchPhrase:keyword
+;
+
+q23_statsGoogleTitleNotUrl
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE Title LIKE "*Google*" AND NOT URL LIKE "*.google.*" AND SearchPhrase != "" | STATS min_URL = MIN(URL), c = COUNT(*), count_distinct_UserID = MV_COUNT(VALUES(UserID)) BY SearchPhrase | SORT c DESC, SearchPhrase ASC | LIMIT 10;
+
+min_URL:keyword                                                                                        | c:long | count_distinct_UserID:integer | SearchPhrase:keyword
+http://viktori-decord.ru/a-album/login-alilinex_YOGURCY/ogurcomm                                       | 3      | 3                             | секретарь оверка все серии порт
+http://viktori-decord                                                                                  | 2      | 2                             | тех смотреть
+http://viktori-decord.ru/a-album/login-alilinex_YOGURCY/ogurcomm                                       | 1      | 1                             | aquattributiliday to the radioscarly razerbaycan bt65
+http://saint-peterbritiusers/foto.ashx/1022097015550895,939322%26nid%3DBvLcGO8gE&where=all&text=пально | 1      | 1                             | bang какие производителевской
+http://domchelove.ru/#!/search/page                                                                    | 1      | 1                             | beyoncé - romenta
+http%3A//unise.ru/carspringtau_trafkey=964113                                                          | 1      | 1                             | авторы для заданным и операта
+http://domchelovechenko-zapekanka/kulina2015-adveri                                                    | 1      | 1                             | блины трубопрово
+http://ru-en/#lingvo/#265052577818.494188                                                              | 1      | 1                             | виза в туальные новые бочему все серии
+http://bdsmpeople.ru/search&do=actum.rostova.ru/search?where                                           | 1      | 1                             | из руки чудование хантенны в мированнапайки ресивер в москва-кемпионат
+http://domchelove.ru/#!/search/page                                                                    | 1      | 1                             | кино 2009) смотреть онлайн бессмерти мк в россипед
+;
+
+q24_sortGoogleUrlByTime
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE URL LIKE "*google*" | SORT EventTime ASC | KEEP WatchID, JavaEnable, Title, GoodEvent, EventTime, EventDate, CounterID, ClientIP, RegionID, UserID, URL, Referer | LIMIT 10;
+
+WatchID:long        | JavaEnable:integer | Title:keyword                                                                                            | GoodEvent:integer | EventTime:long | EventDate:integer | CounterID:integer | ClientIP:integer | RegionID:integer | UserID:long         | URL:keyword                                                                                                                                                                                             | Referer:keyword
+7381524648140977766 | 1                  | Ploshchad' stolitsi zwy 110911923, Г официальная Прессы и Огонек                                         | 1                 | 1372712506     | 15888             | 63217             | 1638850281       | 59               | 1564939829982760596 | http://bjdleaksbrand=bpc bonprix%2F12.02&he=1024&location=pm;f=inbox;pmsg_1733/page.google                                                                                                              | http://loveplanet.ru/url?sa=t&rct
+8321258315290698018 | 1                  | Ploshchad' stolitsi zwy 110911923, Г официальная Прессы и Огонек                                         | 1                 | 1372771958     | 15888             | 63217             | -1307994732      | 40               | 1153927616062884418 | http://bjdleaksbrand=bpc bonprix%2F12.02&he=1024&location=pm;f=inbox;pmsg_1733/page.google                                                                                                              | http://loveplanet.ru/url?sa=t&rct
+5790433552767702225 | 1                  | Ploshchad' stolitsi zwy 110911923, Г официальная Прессы и Огонек                                         | 1                 | 1372793449     | 15888             | 63217             | 1582243492       | 2                | 2354204489183731735 | http://bjdleaksbrand=bpc bonprix%2F12.02&he=1024&location=pm;f=inbox;pmsg_1733/page.google                                                                                                              | http://loveplanet.ru/url?sa=t&rct
+8575139524363408490 | 0                  |                                                                                                          | 1                 | 1372799648     | 15889             | 162575            | -286062319       | 208              | 3540365117016988175 | http://sp-mamrostocks.html%3Fhtml?city/idents-saledParam=0&deletedAutoSearch?film/4064077;IC,409;IC,34571%2Fgoogle.ru/catale981f163a8.30533&site_off=1&encoding/PRODAM-yorkshops.xml?from]=&int[2160921 | http://ria.ua/search?lr=197643663&pvno=2&his=1&redirlevel-23/cash%3D240%26_opera_mb_no&channa163951062&lr=51&target=search&input_age19/num/40904&text=Маткой&clid=19796&ga_siFM9Re2JUXI&where=all&filmId
+6653302178138971135 | 0                  |                                                                                                          | 1                 | 1372804313     | 15889             | 162575            | 1111873789       | 107              | 2206548192756085064 | http://sp-mamrostova.ru/category_id=0&sale/secondary/sp/stepZero_FTN_07.html?p=177&pvno=2&evlg=VC,3;VL,277; .NET4.0E)&bL=ru-ru; BPA973F4849_349962-4-5-ploschaya-obl.irr.ru/leche.ru/googleBR%26ad      | http://ria.ua/search?clid=120&adk=302774&text=моно с акша казах приготовление нитку&clid=19554517/?_h=search?lr=10765&fromredient
+7428660243441108993 | 1                  | Прума - Свободная комантастроф                                                                           | 1                 | 1372839292     | 15889             | 226383            | 673056937        | 1                | 5038940501451048429 | http://saint-peters-total=от 40 серый - BODYFLIRT - bonprix%2F25.0.874.121491%2Fgoogle-photo                                                                                                            | http://goodar.irr.ru%2Fagroaminate/119rus.info=sw-103586/70160/sort=&st=1190/?employer&key=6c0861/16/12-17039
+9109438039871302731 | 1                  | Шарародные заказователей длины и твое омольск» в электронины, поиск знакомств - loveplanet.ru - svpressa | 1                 | 1372997104     | 15891             | 145496            | -1660756327      | 23               | 447125666157281776  | http://video.yandex.ru/secondary/detail.google,yandex.ru%2Fkategory                                                                                                                                     | http:%2F%2Fview.html?oid=3630634&u_ah=738
+7513745161809867855 | 1                  | Шарародные заказователей длины и твое омольск» в электронины, поиск знакомств - loveplanet.ru - svpressa | 1                 | 1372998822     | 15891             | 145496            | -1660756327      | 23               | 447125666157281776  | http://video.yandex.ru/secondary/detail.google,yandex.ru%2Fkategory                                                                                                                                     | http:%2F%2Fview.html?oid=3630634&u_ah=738
+7363501164702100885 | 1                  | Шарародные заказователей длины и твое омольск» в электронины, поиск знакомств - loveplanet.ru - svpressa | 1                 | 1372999319     | 15891             | 145496            | -1660756327      | 23               | 447125666157281776  | http://video.yandex.ru/secondary/detail.google,yandex.ru%2Fkategory                                                                                                                                     | http:%2F%2Fview.html?oid=3630634&u_ah=738
+8074687839454727450 | 1                  | Шарародные заказователей длины и твое омольск» в электронины, поиск знакомств - loveplanet.ru - svpressa | 1                 | 1373002824     | 15891             | 145496            | -1660756327      | 23               | 447125666157281776  | http://video.yandex.ru/secondary/detail.google,yandex.ru%2Fkategory                                                                                                                                     | http:%2F%2Fview.html?oid=3630634&u_ah=738
+;
+
+q25_sortSearchPhraseByTime
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+молочного родинокиа
+фэс симум района магнитола в хорошем качестве бушла осенье рецепты для
+водойдет?
+видео смотрек: хорошем качестве технолог
+смывал для фитнес идет
+афиша толщиной областием в вания
+афиша толщиной областием в вания
+ограммар 3 сезон 176 с кровая целев
+sven орион дозорная флешки-трое вросшего похудеемон про схема купить
+скачать в семейка бобры 2 серии льво
+;
+
+q26_sortSearchPhraseAsc
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" AND TRIM(SearchPhrase) == SearchPhrase | SORT SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+'kbnysq cgtrnjh xperia mazda test.ru/modern warplanet.ru+pony
+'kbnysq cgtrnjh xperia mazda test.ru/modern warplanet.ru+pony
+'kbnysq cgtrnjh xperia mazda trash
+'kbnysq cgtrnjh xperia mazda trash
+'kbnysq cnfdbnj d ,tkjdtrf ghb
+'kbnysq ctrcdfqafq yjxm. usb-накомсомосква
+'kbnysq ctrcfylhtq d vfrcbvev
+'kbnysq ctrcfylhtq d vfrcbvev
+'kbnysq ctrcfylhtq d vfrcbvev
+'kbnysq ctrcfylhtq d vfrcbvev
+;
+
+q27_sortSearchPhraseTimeAsc
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | SORT EventTime ASC, SearchPhrase ASC | KEEP SearchPhrase | LIMIT 10;
+
+SearchPhrase:keyword
+молочного родинокиа
+фэс симум района магнитола в хорошем качестве бушла осенье рецепты для
+водойдет?
+видео смотрек: хорошем качестве технолог
+смывал для фитнес идет
+афиша толщиной областием в вания
+афиша толщиной областием в вания
+ограммар 3 сезон 176 с кровая целев
+sven орион дозорная флешки-трое вросшего похудеемон про схема купить
+скачать в семейка бобры 2 серии льво
+;
+
+q28_statsUrlLengthByCounter
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE URL != "" | STATS l = AVG(BYTE_LENGTH(URL)), c = COUNT(*) BY CounterID | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+
+l:double | c:long | CounterID:integer
+119.7487 | 11023  | 85225
+101.627  | 13500  | 162575
+90.18134 | 62734  | 62
+89.94412 | 1378   | 176022
+86.51798 | 3643   | 174900
+75.27875 | 29471  | 174595
+70.49358 | 13870  | 117917
+67.03022 | 61724  | 226383
+64.62359 | 9564   | 109363
+64.25705 | 2766   | 85924
+62.4972  | 3039   | 176197
+62.30376 | 1037   | 175805
+59.69045 | 2074   | 175774
+59.20606 | 2014   | 136235
+59.18646 | 1802   | 175161
+57.19186 | 414268 | 225510
+55.78029 | 109638 | 145496
+55.29228 | 93244  | 244045
+54.19391 | 13006  | 1095
+53.36894 | 5505   | 136213
+52.18591 | 3179   | 175763
+51.02949 | 1119   | 86076
+50.33933 | 54805  | 99062
+47.8441  | 62372  | 4714
+47.06704 | 2148   | 175717
+;
+
+q29_statsRefererDomainAnalysis
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE Referer != "" | EVAL k = REPLACE(Referer, "^https?://(?:www\\.)?([^/]+)/.*$", "$1") | STATS l = AVG(BYTE_LENGTH(Referer)), c = COUNT(*), min_Referer = MIN(Referer) BY k | WHERE c > 1000 | SORT l DESC | LIMIT 25;
+
+l:double | c:long | min_Referer:keyword                                                                                                                                                                                                                     | k:keyword
+219.6506 | 2424   | http://saint-peters-total=меньше 80/city_id=1955451&lr=47&lr=12&ar_by=2&page2=25&order=cmarka=24&sp=-1&pla=&mob=&sort=&brand=23                                                                                                         | saint-peters-total=меньше 80
+216.3913 | 1076   | http://msuzie-showforumdisplay/749/detail.ru/yandex.ru/real-estate=USED&sort=samsung_DMM5Nw&bvm=bv.48705608,d.bGE&cad=rjt&fu=0&order.html&service_do=&currency=RU&chat=&kp_query=art&pay2rieltor.html%2F2117309144/370393738861)&vendor | msuzie-showforumdisplay
+210.105  | 9433   | http://e96.ru/844/deti74.ru%2Fview_item[1607&REtrgt=5315_2_0_na_nesov_10_luchsearch?lr=206802&p1008042 &town/pavlovskaya-obl.irr.ru/basketshop/index.php?input_bdsmpeople.ru/GameMain.aspx?lette_places/27897/page                      | e96.ru
+138.76   | 1004   | http://yandex.ua/                                                                                                                                                                                                                       | yandex.ua
+116.2199 | 3939   | http://bonprix.ru/1.35607970 цене приключей                                                                                                                                                                                             | bonprix.ru
+113.2676 | 11395  | http://google.ru/&q=антоносов видео&where=any&numphoto=1&state/apartments-sale/view.php?cated&che                                                                                                                                       | google.ru
+104.9645 | 6052   | http://ria.ua/?mode=&pay2rieltor                                                                                                                                                                                                        | ria.ua
+104.8201 | 43360  | http://state=19945206/foto-4/login%26MID%3DfwSNzQ%3DfhSMTk3MzLIAH786YJA&ved=0CCgQFjAC&url=http://olvildy_sid                                                                                                                            | state=19945206
+95.61922 | 43324  | http://go.mail/?folders/folder/search?utf8in=1&input_act[genre]/6,7,999,d.bGE                                                                                                                                                           | go.mail
+83.37279 | 3514   | http://goodasadya/rating.com.ua/search                                                                                                                                                                                                  | goodasadya
+77.70564 | 12865  | http://kirov.ru/?newwindows                                                                                                                                                                                                             | kirov.ru
+77.4588  | 6469   | http://mysw.info/1150&ei                                                                                                                                                                                                                | mysw.info
+74.52439 | 26543  | http://smeshariki.ru/                                                                                                                                                                                                                   | smeshariki.ru
+68.05677 | 1550   | http://roma.ru/GameMain.aspx?sub=&result_sort                                                                                                                                                                                           | roma.ru
+65.02129 | 1597   | http://italy/52669_rozavody.irr                                                                                                                                                                                                         | italy
+62.9548  | 3230   | http://goodanny_position=produkty/bluetootagra                                                                                                                                                                                          | goodanny_position=produkty
+61.23056 | 5786   | http://goodarsk/lpp/cas.fr.eu.crite_offset=150000&url=http://historyone                                                                                                                                                                 | goodarsk
+61.0     | 2209   | http://goodar.irr.ru/GameMain.aspx?Forumdisplay/391/&q                                                                                                                                                                                  | goodar.irr.ru
+60.02646 | 343251 | http://video.yandex.ru/1.561.540.000703/?order_Kurzarm_alia                                                                                                                                                                             | video.yandex.ru
+58.99956 | 9143   | http://direct.yandsearch/?content.ru%2F&ei                                                                                                                                                                                              | direct.yandsearch
+58.35311 | 66237  | http://yandex.ru/                                                                                                                                                                                                                       | yandex.ru
+56.44271 | 1789   | http://3dnews/2013/make=Hondary/pic/8436969,55627/bodystyle                                                                                                                                                                             | 3dnews
+55.58192 | 7288   | http://romandirov.ru/search?clid                                                                                                                                                                                                        | romandirov.ru
+55.37575 | 1163   | http://goodasa_3/23004-music/infa.ru/Web/Page4/?typ=MAIL%26text                                                                                                                                                                         | goodasa_3
+54.66751 | 1573   | http://goodarking_forum678/men.aspx?size%%2F46245                                                                                                                                                                                       | goodarking_forum678
+;
+
+q30_statsResolutionWidthSums
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS s0 = SUM(ResolutionWidth), s1 = SUM(ResolutionWidth + 1), s2 = SUM(ResolutionWidth + 2), s3 = SUM(ResolutionWidth + 3), s4 = SUM(ResolutionWidth + 4), s5 = SUM(ResolutionWidth + 5), s6 = SUM(ResolutionWidth + 6), s7 = SUM(ResolutionWidth + 7), s8 = SUM(ResolutionWidth + 8), s9 = SUM(ResolutionWidth + 9);
+
+s0:long    | s1:long    | s2:long    | s3:long    | s4:long    | s5:long    | s6:long    | s7:long    | s8:long    | s9:long
+1948507205 | 1949790377 | 1951073549 | 1952356721 | 1953639893 | 1954923065 | 1956206237 | 1957489409 | 1958772581 | 1960055753
+;
+
+q31_statsSearchEngineClientIp
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY SearchEngineID, ClientIP | SORT c DESC, SearchEngineID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | SearchEngineID:integer | ClientIP:integer
+94     | 2                  | 1368.0                     | 3                      | -1090378108
+60     | 4                  | 1638.0                     | 2                      | 1685219254
+55     | 5                  | 1368.0                     | 2                      | 1727387074
+49     | 0                  | 1368.0                     | 2                      | 1220604410
+43     | 1                  | 1638.0                     | 2                      | 1663225116
+38     | 4                  | 1368.0                     | 2                      | -963433184
+37     | 0                  | 508.0                      | 2                      | -309111919
+36     | 11                 | 772.0                      | 14                     | 1236381341
+34     | 2                  | 1395.059                   | 2                      | -465813166
+34     | 0                  | 1503.0                     | 2                      | 963524483
+;
+
+q32_statsWatchIdClientIp
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE SearchPhrase != "" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
+1      | 0                  | 1750.0                     | 4611688027162466482 | -1294239990
+1      | 0                  | 1990.0                     | 4611754534241189424 | 1449200364
+1      | 0                  | 1990.0                     | 4611806557283734938 | -628276514
+1      | 0                  | 1087.0                     | 4611852287783281757 | 964964810
+1      | 0                  | 582.0                      | 4611854451287033421 | 1740620820
+1      | 0                  | 0.0                        | 4611904432032012273 | -265917476
+1      | 0                  | 1011.0                     | 4611946985837635640 | 1737196908
+1      | 0                  | 1996.0                     | 4611953188277704372 | 1504048469
+1      | 0                  | 1638.0                     | 4612066891286576108 | 512421127
+1      | 0                  | 1996.0                     | 4612082042862259891 | -1461301147
+;
+
+q33_statsWatchIdClientIpAll
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS c = COUNT(*), sum_IsRefresh = SUM(IsRefresh), avg_ResolutionWidth = AVG(ResolutionWidth) BY WatchID, ClientIP | SORT c DESC, WatchID, ClientIP | LIMIT 10;
+
+c:long | sum_IsRefresh:long | avg_ResolutionWidth:double | WatchID:long        | ClientIP:integer
+1      | 0                  | 1638.0                     | 4611686445117788904 | -567897301
+1      | 0                  | 1750.0                     | 4611688027162466482 | -1294239990
+1      | 0                  | 1368.0                     | 4611688104116147716 | -671835934
+1      | 0                  | 1368.0                     | 4611691697481021716 | 1486968186
+1      | 0                  | 1996.0                     | 4611692013711998290 | -323576508
+1      | 1                  | 1638.0                     | 4611695540760388618 | 1700096386
+1      | 0                  | 1368.0                     | 4611696462721164718 | 1747873518
+1      | 0                  | 1368.0                     | 4611698732649888743 | 1318700080
+1      | 0                  | 1638.0                     | 4611699786227922247 | 1351486995
+1      | 0                  | 582.0                      | 4611702069835343539 | 108360017
+;
+
+q34_statsUrlCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | STATS c = COUNT(*) BY URL | SORT c DESC | LIMIT 10;
+
+c:long | URL:keyword
+322510 | http://liver.ru/belgorod/page/1006.jки/доп_приборы
+94008  | http://bdsm_po_yers=0&with_video
+35677  | http://liver.ru/place_rukodel=365115eb7bbb90
+25894  | http://liver.ru/saint-peterburg
+25419  | http://video.yandex
+12614  | http://bjdleaks.php?produkty%2Fproduct
+10857  | http://liver.ru/belgorod/page=1024&wi
+9571   | http://afisha.yandex
+9456   | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+9293   | http://ru-en/#lingvo/#!
+;
+
+q35_statsConstUrlCount
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | EVAL const1 = 1 | STATS c = COUNT(*) BY const1, URL | SORT c DESC | LIMIT 10;
+
+c:long | const1:integer | URL:keyword
+322510 | 1              | http://liver.ru/belgorod/page/1006.jки/доп_приборы
+94008  | 1              | http://bdsm_po_yers=0&with_video
+35677  | 1              | http://liver.ru/place_rukodel=365115eb7bbb90
+25894  | 1              | http://liver.ru/saint-peterburg
+25419  | 1              | http://video.yandex
+12614  | 1              | http://bjdleaks.php?produkty%2Fproduct
+10857  | 1              | http://liver.ru/belgorod/page=1024&wi
+9571   | 1              | http://afisha.yandex
+9456   | 1              | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+9293   | 1              | http://ru-en/#lingvo/#!
+;
+
+q36_statsClientIpVariations
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | EVAL ip_m1 = ClientIP - 1, ip_m2 = ClientIP - 2, ip_m3 = ClientIP - 3 | STATS c = COUNT(*) BY ClientIP, ip_m1, ip_m2, ip_m3 | SORT c DESC | LIMIT 10;
+
+c:long | ClientIP:integer | ip_m1:integer | ip_m2:integer | ip_m3:integer
+1294   | 1193428638       | 1193428637    | 1193428636    | 1193428635
+1149   | -1512632259      | -1512632260   | -1512632261   | -1512632262
+1064   | -1990910571      | -1990910572   | -1990910573   | -1990910574
+1000   | -622590793       | -622590794    | -622590795    | -622590796
+959    | -1505708063      | -1505708064   | -1505708065   | -1505708066
+867    | 1192846809       | 1192846808    | 1192846807    | 1192846806
+854    | -1370756977      | -1370756978   | -1370756979   | -1370756980
+809    | -1100928981      | -1100928982   | -1100928983   | -1100928984
+659    | 694387444        | 694387443     | 694387442     | 694387441
+656    | 1612070501       | 1612070500    | 1612070499    | 1612070498
+;
+
+q37_statsCounter62JulyUrls
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND URL != "" | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC, URL | LIMIT 10;
+
+PageViews:long | URL:keyword
+9094           | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+4638           | http://komme%2F27.0.1453.116
+1406           | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+1299           | http://irr.ru/index.php?showalbum/login-kapustic/product_name
+1011           | http://irr.ru/index.php
+897            | http://irr.ru/index.php?showalbum/login
+651            | http://komme%2F27.0.1453.116 Safari%2F5.0 (compatible; MSIE 9.0;
+376            | http://irr.ru/index.php?showalbum/login-kupalnik
+375            | http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params
+292            | http://komme%2F27.0.1453.116 Safari
+;
+
+q38_statsCounter62JulyTitles
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND DontCountHits == 0 AND IsRefresh == 0 AND Title != "" | STATS PageViews = COUNT(*) BY Title | SORT PageViews DESC | LIMIT 10;
+
+PageViews:long | Title:keyword
+10709          | Тест (Россия) - Яндекс
+7303           | Шарарай), Выбрать! - обсуждаются на голд: Шоубиз - Свободная историс
+6670           | Приморск - IRR.ru
+3382           | Брюки New Era H (Асус) 258 общая выплаток, горшечными
+1911           | Теплоску на
+1271           | Dave and Hotpoint sport – самые вещие
+1111           | Приморск (Россия) - Яндекс.Видео
+1094           | AUTO.ria.ua ™ - Аппер
+1033           | OWAProfessign), продать
+1021           | Труси - Шоубиз
+;
+
+q39_statsCounter62JulyLinks
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND IsLink != 0 AND IsDownload == 0 | STATS PageViews = COUNT(*) BY URL | SORT PageViews DESC | LIMIT 10;
+
+PageViews:long | URL:keyword
+607            | http://sslow_13507.html?aspx?naId=6r7RoWvxU9qQ=
+411            | http://aliningrad
+297            | http://ekburg.irr.ru%2Fpuloveplanet
+270            | http://video.yandex.php
+258            | http://smeshariki.ru/obucheyelants
+90             | http://kinopoisk.ru/news/2146555419/page=show_photo/70946/detail/55212.15&he
+84             | http://kinopoisk.ru/news/2146555f3530316995264from]=&int[27][]=&selection/01a54d83ce&lost.1406.07.2013
+73             | http://afisha.yandex.ru/index
+45             | http://sslow_13507.html?aspx?naId=6HS
+40             | http://wildberrior/uphold
+;
+
+q40_statsCounter62JulyTrafficSources
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 | EVAL Src = CASE(SearchEngineID == 0 AND AdvEngineID == 0, Referer, ""), Dst = URL | STATS PageViews = COUNT(*) BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst | SORT PageViews DESC | LIMIT 10;
+
+PageViews:long | TraficSourceID:integer | SearchEngineID:integer | AdvEngineID:integer | Src:keyword                                                      | Dst:keyword
+3062           | -1                     | 0                      | 0                   | http://kinopoisk.ru/?state                                       | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+2216           | 0                      | 0                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+1295           | 0                      | 0                      | 0                   |                                                                  | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+1233           | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kapusta-advert2668]=0&order_by=0
+576            | 1                      | 0                      | 0                   | https://google.com/fee=меньше                                    | http://komme%2F27.0.1453.116
+503            | 3                      | 2                      | 0                   |                                                                  | http://komme%2F27.0.1453.116
+367            | -1                     | 0                      | 0                   | http://state=199450984062                                        | http://irr.ru/index.php?showalbum/login-leniya7777294,938303130
+319            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login
+299            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kapusta-advert27256.html_params
+295            | -1                     | 0                      | 0                   | http://state=19945206/foto-4/login-2491724/?bundlers/search?text | http://irr.ru/index.php?showalbum/login-kupalnik
+;
+
+q41_statsCounter62JulyRefererHash
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND TraficSourceID IN (-1, 6) AND RefererHash == 3594120000172545465 | STATS PageViews = COUNT(*) BY URLHash, EventDate | SORT PageViews DESC, URLHash, EventDate | LIMIT 10;
+
+PageViews:long | URLHash:long         | EventDate:integer
+299            | -7370781399609543775 | 15901
+296            | 786877583695637547   | 15901
+197            | 5575639553984629836  | 15901
+87             | 7949176783462555086  | 15901
+59             | -2799183658664184391 | 15901
+54             | -9090998343276352723 | 15901
+50             | -5080405358288893038 | 15901
+50             | 4757978013311555265  | 15901
+40             | 3943190325181210656  | 15901
+28             | 4934910450188490778  | 15901
+;
+
+q42_statsCounter62JulyWindowClient
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15887 AND EventDate <= 15917 AND IsRefresh == 0 AND DontCountHits == 0 AND URLHash == 2868770270353813622 | STATS PageViews = COUNT(*) BY WindowClientWidth, WindowClientHeight | SORT PageViews DESC | LIMIT 10;
+
+PageViews:long | WindowClientWidth:integer | WindowClientHeight:integer
+347            | 1750                      | 653
+238            | 1261                      | 805
+195            | 1750                      | 580
+117            | 1509                      | 746
+93             | 1750                      | 609
+87             | 1261                      | 1017
+83             | 1750                      | 555
+82             | 1095                      | 590
+76             | 1115                      | 872
+74             | 1509                      | 770
+;
+
+q43_statsCounter62July1415Minutes
+required_capability: external_command
+EXTERNAL "{{clickbench}}" | WHERE CounterID == 62 AND EventDate >= 15900 AND EventDate <= 15901 AND IsRefresh == 0 AND DontCountHits == 0 | EVAL M = EventTime - EventTime % 60 | STATS PageViews = COUNT(*) BY M | SORT M ASC | LIMIT 10;
+
+PageViews:long | M:long
+47             | 1373832000
+46             | 1373832060
+43             | 1373832120
+29             | 1373832180
+24             | 1373832240
+43             | 1373832300
+39             | 1373832360
+50             | 1373832420
+45             | 1373832480
+42             | 1373832540
+;

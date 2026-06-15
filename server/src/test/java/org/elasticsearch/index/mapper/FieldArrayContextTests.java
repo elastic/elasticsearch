@@ -17,12 +17,15 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldArrayContext.parseOffsetArray;
+import static org.elasticsearch.index.mapper.FieldArrayContext.shouldRecordOffsets;
 
 public class FieldArrayContextTests extends ESTestCase {
 
@@ -289,5 +292,46 @@ public class FieldArrayContextTests extends ESTestCase {
 
     private static FieldMapper.Builder newTestBuilder(String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings());
+    }
+
+    public void testShouldRecordOffsetsReturnsFalseWhenOffsetsFieldNameNull() {
+        var context = new TestDocumentParserContext();
+        assertFalse(shouldRecordOffsets(context, null, true));
+        assertFalse(shouldRecordOffsets(context, null, false));
+    }
+
+    public void testShouldRecordOffsetsStrictColumnarFiresWhenMultiValue() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            var context = new TestDocumentParserContext(settings);
+            assertTrue(shouldRecordOffsets(context, "field.offsets", true));
+            // single-valued fields don't need offsets
+            assertFalse(shouldRecordOffsets(context, "field.offsets", false));
+        }
+    }
+
+    public void testShouldRecordOffsetsSyntheticSourceKeepRequiresImmediateArrayAndSyntheticSource() {
+        // Synthetic-source MappingLookup so canAddIgnoredField() returns true; index mode left as STANDARD so the strict-columnar branch
+        // does not short-circuit.
+        SourceFieldMapper syntheticSource = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(true, false));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { syntheticSource }, Map.of());
+        MappingLookup syntheticLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
+
+        // Immediate parent is an array + synthetic source -> record.
+        var arrayCtx = new TestDocumentParserContext(syntheticLookup, null);
+        arrayCtx.setImmediateXContentParent(XContentParser.Token.START_ARRAY);
+        assertTrue(shouldRecordOffsets(arrayCtx, "field.offsets", true));
+
+        // Immediate parent is not an array -> skip even when synthetic source is on.
+        var nonArrayCtx = new TestDocumentParserContext(syntheticLookup, null);
+        nonArrayCtx.setImmediateXContentParent(XContentParser.Token.START_OBJECT);
+        assertFalse(shouldRecordOffsets(nonArrayCtx, "field.offsets", true));
+
+        // Non-synthetic source -> canAddIgnoredField is false, branch skips even with immediate-array parent.
+        var storedCtx = new TestDocumentParserContext();
+        storedCtx.setImmediateXContentParent(XContentParser.Token.START_ARRAY);
+        assertFalse(shouldRecordOffsets(storedCtx, "field.offsets", true));
     }
 }

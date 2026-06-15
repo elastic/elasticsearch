@@ -1399,6 +1399,52 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         assertThat(indicesToBeRemoved, contains(project.index(firstGenIndexName).getIndex()));
     }
 
+    private static ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(ForceMergeRequestWrapper original) {
+        return new ForceMergeRequestWrapper(original);
+    }
+
+    private static ForceMergeRequestWrapper mutateForceMergeRequestWrapper(ForceMergeRequestWrapper original) {
+        switch (randomIntBetween(0, 4)) {
+            case 0 -> {
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                String[] originalIndices = original.indices();
+                int changedIndexIndex;
+                if (originalIndices.length > 0) {
+                    changedIndexIndex = randomIntBetween(0, originalIndices.length - 1);
+                } else {
+                    originalIndices = new String[1];
+                    changedIndexIndex = 0;
+                }
+                String[] newIndices = new String[originalIndices.length];
+                System.arraycopy(originalIndices, 0, newIndices, 0, originalIndices.length);
+                newIndices[changedIndexIndex] = randomAlphaOfLength(40);
+                copy.indices(newIndices);
+                return copy;
+            }
+            case 1 -> {
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                copy.onlyExpungeDeletes(original.onlyExpungeDeletes() == false);
+                return copy;
+            }
+            case 2 -> {
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                copy.flush(original.flush() == false);
+                return copy;
+            }
+            case 3 -> {
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                copy.maxNumSegments(original.maxNumSegments() + 1);
+                return copy;
+            }
+            case 4 -> {
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                copy.setRequestId(original.getRequestId() + 1);
+                return copy;
+            }
+            default -> throw new AssertionError("Can't get here");
+        }
+    }
+
     public void testFormatExecutionTimeMilliseconds() {
         assertThat(DataStreamLifecycleService.formatExecutionTime(500), equalTo("500ms/500ms"));
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -55,8 +56,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Testing the downsampling part of the data stream lifecycle, more specifically code relating to
- * [DataStreamLifecycleService#maybeExecuteDownsampling(ProjectState, DataStream, List)].
-  */
+ * {@link DataStreamLifecycleService#maybeExecuteDownsampling(ProjectState, DataStream, List)}.
+ */
 public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleServiceTestCase {
 
     public void testDownsampling() throws Exception {

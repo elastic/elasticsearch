@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.junit.Before;
 
 import java.util.EnumSet;
@@ -32,7 +35,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveInSubqueryInsideFromSubquery() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
@@ -40,7 +42,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveNotInSubqueryInsideFromSubquery() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
@@ -92,5 +93,107 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             FROM employees
             | WHERE emp_no IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no)
             """, STAGES);
+    }
+
+    // The grouping key `cluster` is a time-series dimension, so TranslateTimeSeriesAggregate rewrites it to either
+    // DIMENSIONVALUES (when the negotiated cluster version supports `dimension_values`) or VALUES (when it does not).
+    // The default golden-test builder randomizes the minimum transport version, which would make the captured plan
+    // flap between the two forms. Pin a version that supports `dimension_values` so the snapshot stays deterministic.
+    public void testTsRateWithInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    public void testTsRateWithNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
+    }
+
+    // The outer TS pipeline groups BY WITHOUT(...), so the WITHOUT-bearing TimeSeriesAggregate sits directly
+    // above the SemiJoin produced by the IN subquery. Before the TranslateTimeSeriesWithout fix the rule lowered
+    // WITHOUT into a _timeseries metadata attribute by descending into every EsRelation under the aggregate's
+    // child, without excluding the right-hand side of the SemiJoin, injecting the lowered _timeseries attribute
+    // into the subquery (RHS) relation as well. After the fix only the main (left) relation carries _timeseries;
+    // the subquery relation keeps just its own _tsid. Pinned to TransportVersion.current() (rather than a random
+    // version supporting `dimension_values`) so that the version-gated SUM long-overflow mode stays deterministic.
+    public void testTsWithoutAndRateWithInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """, STAGES, TransportVersion.current());
+    }
+
+    public void testTsWithoutAndRateWithNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """, STAGES, TransportVersion.current());
+    }
+
+    public void testMultipleTsSubqueriesInsideInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster IN (FROM
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes > 10500
+                                    | KEEP cluster),
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes < 8000
+                                    | KEEP cluster)
+                               )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """, STAGES, TransportVersion.current());
+    }
+
+    public void testMultipleTsSubqueriesInsideNotInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+
+        runGoldenTest("""
+            TS k8s
+            | WHERE cluster NOT IN (FROM
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes > 10500
+                                        | KEEP cluster),
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes < 8000
+                                        | KEEP cluster)
+                                   )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """, STAGES, TransportVersion.current());
     }
 }

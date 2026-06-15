@@ -65,5 +65,5 @@ echo "--- Running gradle tasks"
 if command -v java > /dev/null; then
   java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM "$@"
 else
-  "$GRADLEW" -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"
+  "$GRADLEW" -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM "$@"
 fi

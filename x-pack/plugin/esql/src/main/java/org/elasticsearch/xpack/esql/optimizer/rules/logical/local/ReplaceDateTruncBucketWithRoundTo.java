@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.core.Tuple;
@@ -52,31 +51,18 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext context) {
-        if (context.searchStats() == null) {
-            return plan;
-        }
-        final TransportVersion minVersion = minVersion(context);
-        return plan.transformUp(Eval.class, eval -> substitute(eval, context.searchStats(), minVersion));
+        return context.searchStats() != null ? plan.transformUp(Eval.class, eval -> substitute(eval, context.searchStats())) : plan;
     }
 
-    private static TransportVersion minVersion(LocalLogicalOptimizerContext context) {
-        try {
-            return context.minimumVersion();
-        } catch (UnsupportedOperationException e) {
-            // data nodes don't propagate the minimum cluster version; assume current
-            return TransportVersion.current();
-        }
-    }
-
-    private LogicalPlan substitute(Eval eval, SearchStats searchStats, TransportVersion minVersion) {
+    private LogicalPlan substitute(Eval eval, SearchStats searchStats) {
         // check the filter in children plans
-        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, searchStats, minVersion));
+        return eval.transformExpressionsOnly(Function.class, f -> substitute(f, eval, searchStats));
     }
 
     /**
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
-    private Expression substitute(Expression e, Eval eval, SearchStats searchStats, TransportVersion minVersion) {
+    private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
         RoundTo roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
             roundTo = maybeToRoundTo(
@@ -89,8 +75,8 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
-            Rounding.RoundingConvention convention = bucket.roundingConfiguration();
-            if (convention != Rounding.RoundingConvention.DOWN && minVersion.supports(RoundTo.ESQL_ROUND_TO_CONVENTION) == false) {
+            // TODO(sidosera): https://github.com/elastic/elasticsearch/issues/148306
+            if (bucket.roundingConfiguration() == Rounding.RoundingConvention.UP) {
                 return e;
             }
             roundTo = maybeToRoundTo(
@@ -99,7 +85,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 bucket.buckets(),
                 searchStats,
                 eval,
-                convention,
+                Rounding.RoundingConvention.DOWN,
                 (interval, minValue, maxValue) -> bucket.getDateRounding(FoldContext.small(), minValue, maxValue)
             );
         }

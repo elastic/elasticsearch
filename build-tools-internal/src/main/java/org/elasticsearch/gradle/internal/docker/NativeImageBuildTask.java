@@ -180,14 +180,14 @@ public abstract class NativeImageBuildTask extends DefaultTask {
                     path = path.replace("\\", "/");
                 }
                 args.add("-v");
-                args.add(path + ":/cp/" + i + ":ro");
+                args.add(path + ":/cp/" + i + ":ro,z");
             }
             args.add("-v");
             String outPath = outputDir.getAbsolutePath();
             if (File.separatorChar == '\\') {
                 outPath = outPath.replace("\\", "/");
             }
-            args.add(outPath + ":/output");
+            args.add(outPath + ":/output:z");
             args.add("--platform");
             args.add(platform);
             args.add(imageTag);

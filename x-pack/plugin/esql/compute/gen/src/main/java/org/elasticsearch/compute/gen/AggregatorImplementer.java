@@ -414,10 +414,11 @@ public class AggregatorImplementer {
         if (aggParams.getFirst() instanceof BlockArgument) {
             throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
-        // Only fold aggregators that actually benefit (the off-heap Arrow segment win): a primitive
-        // associative fold over a single primitive column. Everything else keeps main's single loop
-        // unchanged, so the diff stays tightly scoped to the aggregators this optimizes.
-        if (first == null && bulkArrowReducible() && vectorDispatchSubtypes().isEmpty() == false) {
+        // Fold every aggregator with a dispatch catalog and the simple loop shape: the per-block
+        // getClass() dispatch monomorphizes ALL arms (non-Arrow included, exactly like the per-type
+        // leaf approach did) without the leaf-method bloat. The same-width Arrow arm additionally uses
+        // the MemorySegment reduction. first/scratch aggregators keep main's single loop.
+        if (foldVectorDispatch() && vectorDispatchSubtypes().isEmpty() == false) {
             MethodSpec folded = buildAddRawVectorFolded(masked, vectorDispatchSubtypes());
             if (folded.toString().length() <= FOLDED_VECTOR_METHOD_MAX_RENDERED_CHARS) {
                 typeBuilder.addMethod(folded);
@@ -425,6 +426,19 @@ public class AggregatorImplementer {
             }
         }
         typeBuilder.addMethod(addRawVector(masked));
+    }
+
+    /** Fold is only safe for the simple loop shape: no {@code first}-value semantics and no scratch state. */
+    private boolean foldVectorDispatch() {
+        if (first != null) {
+            return false;
+        }
+        for (Argument a : aggParams) {
+            if (a.scratchType() != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private List<ClassName> vectorDispatchSubtypes() {

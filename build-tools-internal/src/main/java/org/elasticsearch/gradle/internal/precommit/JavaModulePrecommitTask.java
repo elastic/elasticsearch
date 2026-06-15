@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
@@ -118,7 +119,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         checkModuleNamePrefix(mod, problems);
         checkModuleServices(mod, problems);
         if (problems.isEmpty() == false) {
-            problemReporter.report(problems);
+            ProblemReporting.reportErrors(problemReporter, problems);
             throw new GradleException(
                 "Module validation failed for "
                     + mod.descriptor().name()

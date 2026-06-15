@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -158,7 +159,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                 );
         }
         if (problems.isEmpty() == false) {
-            problemReporter.report(problems);
+            ProblemReporting.reportErrors(problemReporter, problems);
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", violations));
         }
 

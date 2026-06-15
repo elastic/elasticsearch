@@ -13,6 +13,7 @@ import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ProblemReporting;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
@@ -80,7 +81,7 @@ public class PomValidationTask extends PrecommitTask {
             validateNonNull("scm", model.getScm(), () -> validateString("scm.url", model.getScm().getUrl()));
         }
         if (collectedProblems.isEmpty() == false) {
-            problemReporter.report(collectedProblems);
+            ProblemReporting.reportErrors(problemReporter, collectedProblems);
             throw new GradleException("Check failed for task '" + getPath() + "', see console log for details");
         }
     }

@@ -301,7 +301,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), newClusterService(1));
         final int total = between(10, 20);
-        final var completionOrder = new CopyOnWriteArrayList<>();
+        final var completionOrder = new CopyOnWriteArrayList<Integer>();
 
         for (int i = 0; i < total; i++) {
             final int sequence = i;

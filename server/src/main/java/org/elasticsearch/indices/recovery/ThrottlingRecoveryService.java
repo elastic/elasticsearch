@@ -42,10 +42,10 @@ public final class ThrottlingRecoveryService {
     private final Executor executor;
     // Dynamically updated through setting updates, controls max number of running "slots"
     private volatile int maxConcurrentRecoveries;
-    // Recoveries that has been dispatched to executor and not yet reached closeAndMaybeDispatch
+
     private final AtomicInteger runningRecoveries = new AtomicInteger(0);
-    // Queue of recoveries waiting to be dispatched
     private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
+
     private static final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
@@ -77,8 +77,7 @@ public final class ThrottlingRecoveryService {
     /// Drains the pending queue up to the max slot capacity
     private void fillSlots() {
         int current;
-        while (((current = runningRecoveries.get()) < maxConcurrentRecoveries || maxConcurrentRecoveries == Integer.MAX_VALUE)
-            && !pendingRecoveries.isEmpty()) {
+        while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && pendingRecoveries.isEmpty() == false) {
             if (runningRecoveries.compareAndSet(current, current + 1)) {
                 RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {

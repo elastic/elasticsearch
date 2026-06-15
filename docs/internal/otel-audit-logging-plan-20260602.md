@@ -28,7 +28,7 @@ Establishes the permanent delivery pipeline on the clean `audit-log` branch. Fil
 
 The IT asserts on `log4j.map_message.`-prefixed attribute names — intentionally, because PR 2 is what fixes the prefix. No `project.id` assertion.
 
-**Item 2 — Strip-fields on serverless** *(submit any time after PR 1)*
+**Item 2 — Strip-fields on serverless** *(submitted as [#6952](https://github.com/elastic/elasticsearch-serverless/pull/6952); approved, CI in progress)*
 
 One-line change: set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. No trigger dependency.
 
@@ -38,9 +38,13 @@ One-line change: set `emit_node_id` and `emit_cluster_uuid` to `false` in `serve
 
 Replaces the raw `OpenTelemetryAppender` with a custom appender that drops the `log4j.map_message.` prefix, applies the field mapping from the field reference doc, and puts `trace.id` in native `LogRecord.traceId`. Also adds `project.name` and `organization.id` resource attributes to the OTel SDK `Resource` (required by the field reference doc; source for these fields is TBD — see in-scope item 1b). Updates IT assertions to use unprefixed names.
 
-**PR 3 — mTLS and retry/buffer tuning** *(plan items 3 and 4)*
+**PR 3 — Retry/buffer tuning** *(plan item 3; submitted as [#151131](https://github.com/elastic/elasticsearch/pull/151131), CI in progress)*
 
-*Trigger: PR 2 merges and gateway team has confirmed retry/buffer targets.*
+*No trigger dependency — independent of PR 2.* PR #151131 wires `setRetryPolicy(...)` and `setMaxQueueSize(...)` into `OtelSdkExportLogsSupplier`, using the shared `telemetry.otel.otlp.*` export settings. The shared defaults (2 attempts, 1 s initial backoff, 5 s timeout) are well short of the ~2 min audit target; per-logs defaults need confirmation from the gateway team before this PR merges or as a follow-up.
+
+**PR 4 — mTLS to the gateway** *(plan item 4)*
+
+*Trigger: PR 2 merges.*
 
 **Item 6 — `project.id` reconciliation** *(plan item 6)*
 
@@ -102,7 +106,7 @@ Items 1, 2, and 3 can be started in parallel.
 2. **R6 strip-fields on serverless** ([§4.6](otel-audit-logging-poc.md#sec-4-6)). Set `emit_node_id` and `emit_cluster_uuid` to `false` in `serverless-default-settings.yml`. With these settings false, `EntryCommonFields` never puts `node.id` or `cluster.uuid` into the `StringMapMessage`, so both the file appender and the OTel appender path are covered at the source. No ES code change. (PR 6718 also removes these fields from the file-appender `PatternLayout` directly, but that change doesn't cover the OTel path — the settings file change is what does.)
    The field reference doc also explicitly excludes `host.ip`, `host.name`, and `origin.type` from Serverless. `origin.type` is currently emitted in the audit `StringMapMessage`; stripping it from the OTel path is handled by the custom appender (item 1), not a settings change. `host.ip` and `host.name` are not currently emitted in ES audit output and need no action unless they appear.
 
-3. **R13 retry/buffer tuning** ([§4.10](otel-audit-logging-poc.md#sec-4-10)). Wire retry and queue bounds in `OtelSdkExportLogsSupplier`. Shared OTLP retry settings (`TELEMETRY_OTEL_OTLP_RETRY_*`, `TELEMETRY_OTEL_OTLP_SEND_TIMEOUT`) already exist in `OtelSdkSettings` and are used by the metrics exporter — but the logs exporter doesn't call `setRetryPolicy(...)` at all, and the current shared defaults (2 attempts, 1 s initial backoff, 5 s send timeout) are sized for 10 s metric export intervals, far short of the ~2 min audit-log retry target. Work: (a) call `setRetryPolicy(...)` on the `OtlpGrpcLogRecordExporter` builder in `OtelSdkExportLogsSupplier`, using the shared settings or new logs-specific settings with appropriate defaults; (b) add a queue-size setting for `BatchLogRecordProcessor` to bound the ~30–50 MB buffer (must translate MB to record count — document the estimate in a comment). Targets need gateway team confirmation.
+3. **R13 retry/buffer tuning** ([§4.10](otel-audit-logging-poc.md#sec-4-10)). *(Mechanism wired in PR [#151131](https://github.com/elastic/elasticsearch/pull/151131), CI in progress.)* PR #151131 calls `setRetryPolicy(...)` on the exporter builder (reusing `OtelSdkExportMeterSupplier.buildRetryPolicy`, which draws from the shared `telemetry.otel.otlp.*` settings) and wires a new `TELEMETRY_OTEL_LOGS_BATCH_MAX_QUEUE_SIZE` setting into `BatchLogRecordProcessor`. Remaining work: the shared defaults (2 attempts, 1 s initial backoff, 5 s send timeout) are sized for metric export intervals, not the ~2 min audit-log retry target. Once the gateway team confirms the retry/buffer targets, either override the shared defaults with logs-specific values or document the chosen values. Gateway team confirmation is still needed.
 
 4. **R4 mTLS to the gateway** ([§4.5](otel-audit-logging-poc.md#sec-4-5)). Protocol is gRPC. Follow the `WorkloadIdentitySslConfig` pattern (`modules/workload-identity`): add `telemetry.logs.ssl.*` settings (certificate authorities, certificate, key, passphrase, verification mode), load via `SslConfigurationLoader`, build a combined trust store (configured CAs + JVM default roots — the fix for the gateway cert's multiple-parent chain), inject via `OtlpGrpcLogRecordExporterBuilder.setSslContext(...)`, wire `ResourceWatcherService` for hot-reload on rotation. Client cert and key path are delivered to the node by `elasticsearch-controller` alongside the `telemetry.logs.ssl.*` path-settings (coordinate with Julio Camarero — expected to follow the workload-identity cert delivery pattern). *Needs: item 1.*
 

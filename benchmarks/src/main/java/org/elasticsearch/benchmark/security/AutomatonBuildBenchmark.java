@@ -64,7 +64,9 @@ public class AutomatonBuildBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
-        selfTest();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
     }
 
     @Param({ "patterns-original", "patterns-literal-partition" })

@@ -357,9 +357,18 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
                 listenerInLower.actionGet(),
                 greaterThanOrEqualTo(thresholdInLower)
             );
-            assertThat("listener at split fires when lower completes", listenerAtSplit.actionGet(), equalTo(splitPoint));
-            // Both halves now done: onResponse fires all remaining listeners with future.end
-            assertThat("listener in upper fires via completion", listenerInUpper.actionGet(), equalTo(future.end));
+            // listenerAtSplit fires at upper.progress (>= splitPoint), caught up via onProgressAtLeast
+            assertThat(
+                "listener at split fires when lower completes, at or above splitPoint",
+                listenerAtSplit.actionGet(),
+                greaterThanOrEqualTo(splitPoint)
+            );
+            // Both halves now done: listener in upper fires via onProgressAtLeast catch-up or via onResponse(end)
+            assertThat(
+                "listener in upper fires at or above its threshold",
+                listenerInUpper.actionGet(),
+                greaterThanOrEqualTo(thresholdInUpper)
+            );
             assertThat("listener at end fires via completion", listenerAtEnd.actionGet(), equalTo(future.end));
             assertTrue(future.isDone());
         }
@@ -371,6 +380,33 @@ public class ProgressListenableActionFutureTests extends ESTestCase {
             half.onProgress(p);
         }
         half.onResponse(half.end);
+    }
+
+    public void testSplitCatchesUpToUpperProgressWhenLowerCompletes() {
+        // Range: [0, end); split at splitPoint so both halves have at least 2 bytes.
+        final long splitPoint = randomLongBetween(2L, 9L);
+        final long end = splitPoint + randomLongBetween(2L, 9L);
+        final ProgressListenableActionFuture future = new ProgressListenableActionFuture(0L, end, null);
+        final ProgressListenableActionFuture[] parts = future.split(splitPoint);
+        final ProgressListenableActionFuture lower = parts[0];
+        final ProgressListenableActionFuture upper = parts[1];
+
+        // Upper advances past splitPoint but does not complete — lower is still pending so progress is not forwarded yet
+        final long upperMid = randomLongBetween(splitPoint + 1L, end - 1L);
+        upper.onProgress(upperMid);
+
+        // A listener on the outer future at upperMid should not fire yet
+        final PlainActionFuture<Long> listener = new PlainActionFuture<>();
+        future.addListener(listener, upperMid);
+        assertFalse("listener must not fire before lower completes", listener.isDone());
+
+        // Complete lower — onProgressAtLeast must catch up to upper.progress (= upperMid), firing the listener
+        lower.onResponse(splitPoint);
+        assertTrue("listener must fire when lower completes after upper already reached its threshold", listener.isDone());
+        assertFalse("outer future must not be done until upper also completes", future.isDone());
+
+        upper.onResponse(end);
+        assertTrue(future.isDone());
     }
 
     public void testOnProgressAtLeastFiresListeners() {

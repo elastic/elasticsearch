@@ -97,7 +97,8 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * <ul>
      *   <li>Lower's byte-level progress is forwarded unconditionally to this future.</li>
      *   <li>Upper's progress is forwarded once lower has completed.</li>
-     *   <li>When lower completes, this future advances to {@code splitPoint} via {@link #onProgressAtLeast}.</li>
+     *   <li>When lower completes, this future advances to upper's current progress (at least {@code splitPoint})
+     *       via {@link #onProgressAtLeast}, catching up to any progress upper made while lower was pending.</li>
      *   <li>When both halves complete, this future completes; on failure the failure propagates.</li>
      * </ul>
      */
@@ -105,15 +106,24 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
         assert start < splitPoint : start + " >= " + splitPoint;
         assert splitPoint < end : splitPoint + " >= " + end;
 
-        final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(start, splitPoint, this::onProgress, null);
+        final LongConsumer originalProgressConsumer = this.progressConsumer;
+        final ProgressListenableActionFuture lower = new ProgressListenableActionFuture(
+            start,
+            splitPoint,
+            this::onProgress,
+            originalProgressConsumer
+        );
         final ProgressListenableActionFuture upper = new ProgressListenableActionFuture(
             splitPoint,
             end,
             p -> { if (lower.isDone()) onProgress(p); },
-            null
+            originalProgressConsumer == null ? null : p -> { if (lower.isDone()) originalProgressConsumer.accept(p); }
         );
 
-        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(splitPoint), e -> {}), splitPoint);
+        // When lower completes we catch up to wherever upper has already progressed, not just splitPoint.
+        // upper.progress is always < upper.end (onProgress(end) returns early without updating the field),
+        // so passing it to onProgressAtLeast is always within the valid [start+1, end-1] range.
+        lower.addListener(ActionListener.wrap(ignored -> onProgressAtLeast(upper.getProgress()), e -> {}), splitPoint);
         try (var bothFiredRef = new RefCountingListener(ActionListener.wrap(v -> onResponse(end), this::onFailure))) {
             lower.addListener(bothFiredRef.acquire(l -> {}), splitPoint);
             upper.addListener(bothFiredRef.acquire(l -> {}), end);
@@ -253,6 +263,10 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             listenersToExecute.forEach(listener -> executeListener(listener.listener(), this::actionResult));
         }
         assert invariant();
+    }
+
+    private synchronized long getProgress() {
+        return progress;
     }
 
     /**

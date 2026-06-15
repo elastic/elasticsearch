@@ -1060,4 +1060,101 @@ public class SparseFileTrackerTests extends ESTestCase {
         aGap.onCompletion();
         assertTrue("Listener for [0,30] must fire once A has filled through byte 30", listener30Called.get());
     }
+
+    /**
+     * When a pending range is split and a new listener is subscribed directly to the lower or upper sub-future,
+     * the {@code complete} pointer must advance when that listener fires.
+     * This requires the sub-futures created in {@link ProgressListenableActionFuture#split} to carry
+     * the outer future's {@code progressConsumer} (i.e. {@code updateCompletePointer}).
+     */
+    public void testSplitProgressConsumerAdvancesCompletePointer() {
+        final SparseFileTracker tracker = new SparseFileTracker("test", 100);
+
+        // Wait for [0, 100) — creates unclaimed gap [0, 100) with progressConsumer = updateCompletePointer
+        // because rangeStart=0 equals complete=0 at creation time.
+        final var fullGaps = tracker.waitForRange(ByteRange.of(0, 100), ByteRange.of(0, 100), ActionListener.noop());
+        assertTrue(fullGaps.isPresent());
+
+        // Waiting for [0, 50) while [0, 100) is unclaimed triggers a split at 50.
+        // The lower sub-future [0, 50) must inherit the outer future's progressConsumer.
+        final var midGaps = tracker.waitForRange(ByteRange.of(0, 50), ByteRange.of(0, 50), ActionListener.noop());
+        assertTrue(midGaps.isPresent());
+
+        // Claim the lower half so it can receive progress updates.
+        final var lowerGaps = midGaps.get().claim();
+        assertThat(lowerGaps, hasSize(1));
+        final var lowerGap = lowerGaps.get(0);
+        assertThat(lowerGap.start(), equalTo(0L));
+        assertThat(lowerGap.end(), equalTo(50L));
+
+        // Subscribe a listener at threshold 30 directly on the lower split sub-future.
+        // waitForRangeIfPending adds it to lower's completionListener at threshold min(50, 30) = 30.
+        final AtomicBoolean listener30Fired = new AtomicBoolean();
+        assertTrue(
+            tracker.waitForRangeIfPending(
+                ByteRange.of(0, 30),
+                ActionTestUtils.assertNoFailureListener(ignored -> listener30Fired.set(true))
+            )
+        );
+        assertFalse("listener at threshold 30 must not have fired", listener30Fired.get());
+
+        // Advance lower's progress to byte 30: the listener fires, and progressConsumer must call
+        // updateCompletePointer(30) so that complete advances.
+        lowerGap.onProgress(30L);
+        assertTrue("listener at threshold 30 must have fired", listener30Fired.get());
+        assertThat(
+            "complete must advance to 30 when a listener on the lower split sub-future fires at that threshold",
+            tracker.getComplete(),
+            equalTo(30L)
+        );
+
+        // Upper sub-future: the progressConsumer is gated on lower.isDone(). Subscribe a listener to upper
+        // at threshold 80 while lower is still pending, advance upper to 80, and confirm complete does NOT
+        // advance (lower is not done yet, so bytes [0, 50) are not guaranteed available).
+        final var upperGaps = fullGaps.get().claim();
+        assertThat(upperGaps, hasSize(1));
+        final var upperGap = upperGaps.get(0);
+        assertThat(upperGap.start(), equalTo(50L));
+        assertThat(upperGap.end(), equalTo(100L));
+
+        final AtomicBoolean listener80Fired = new AtomicBoolean();
+        assertTrue(
+            tracker.waitForRangeIfPending(
+                ByteRange.of(50, 80),
+                ActionTestUtils.assertNoFailureListener(ignored -> listener80Fired.set(true))
+            )
+        );
+
+        upperGap.onProgress(80L);
+        assertTrue("listener at threshold 80 must have fired", listener80Fired.get());
+        assertThat(
+            "complete must not advance past 30 when upper's listener fires while lower is still pending",
+            tracker.getComplete(),
+            equalTo(30L)
+        );
+
+        // Now complete lower: onGapSuccess advances complete to 50 via maybeUpdateCompletePointer.
+        for (long i = 30L; i < 50L; i++) {
+            lowerGap.onProgress(i + 1L);
+        }
+        lowerGap.onCompletion();
+        assertThat("complete must advance to 50 when the lower gap completes", tracker.getComplete(), equalTo(50L));
+
+        // Subscribe a second listener to upper at threshold 90, now that lower is done.
+        final AtomicBoolean listener90Fired = new AtomicBoolean();
+        assertTrue(
+            tracker.waitForRangeIfPending(
+                ByteRange.of(50, 90),
+                ActionTestUtils.assertNoFailureListener(ignored -> listener90Fired.set(true))
+            )
+        );
+
+        upperGap.onProgress(90L);
+        assertTrue("listener at threshold 90 must have fired", listener90Fired.get());
+        assertThat(
+            "complete must advance to 90 when upper's listener fires after lower is done",
+            tracker.getComplete(),
+            equalTo(90L)
+        );
+    }
 }

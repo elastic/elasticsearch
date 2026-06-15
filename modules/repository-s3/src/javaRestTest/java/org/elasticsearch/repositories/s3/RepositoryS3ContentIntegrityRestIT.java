@@ -203,7 +203,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
         void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
             final String client = getClientName();
-            builder.keystore("s3.client." + client + ".access_key", ACCESS_KEY);
+            builder.keystore("s3.client." + client + ".access_key", getAccessKey());
             builder.keystore("s3.client." + client + ".secret_key", SECRET_KEY);
             builder.setting("s3.client." + client + ".endpoint", getS3Fixture()::getAddress);
             builder.setting("s3.client." + client + ".path_style_access", () -> "true", n -> https || randomBoolean());

@@ -214,15 +214,15 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
             Request esqlRequest = new Request("POST", "/_query");
             esqlRequest.setJsonEntity("""
                 {
-                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name"
+                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
                 }
                 """);
             ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
             List<List<Object>> values = esqlResponse.evaluate("values");
             assertThat(values.size(), equalTo(2));
-            assertThat((String) values.get(0).get(0), equalTo("cumulative_counter"));
+            assertThat((String) values.get(0).get(0), equalTo("metrics.cumulative_counter"));
             assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
-            assertThat((String) values.get(1).get(0), equalTo("delta_counter"));
+            assertThat((String) values.get(1).get(0), equalTo("metrics.delta_counter"));
             assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
         } else {
             assertThat(evaluate(metrics, "delta_counter.time_series_metric"), equalTo("gauge"));
@@ -249,15 +249,15 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
             Request esqlRequest = new Request("POST", "/_query");
             esqlRequest.setJsonEntity("""
                 {
-                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name"
+                    "query": "TS metrics-generic.otel-default | TS_INFO | KEEP metric_name, dimensions | SORT metric_name | LIMIT 100"
                 }
                 """);
             ObjectPath esqlResponse = ObjectPath.createFromResponse(client().performRequest(esqlRequest));
             List<List<Object>> values = esqlResponse.evaluate("values");
             assertThat(values.size(), equalTo(2));
-            assertThat((String) values.get(0).get(0), equalTo("up_down_counter"));
+            assertThat((String) values.get(0).get(0), equalTo("metrics.up_down_counter"));
             assertThat((String) values.get(0).get(1), containsString("\"temporality\":\"cumulative\""));
-            assertThat((String) values.get(1).get(0), equalTo("up_down_counter_delta"));
+            assertThat((String) values.get(1).get(0), equalTo("metrics.up_down_counter_delta"));
             assertThat((String) values.get(1).get(1), containsString("\"temporality\":\"delta\""));
         }
     }

@@ -86,9 +86,9 @@ class RequestTask implements RejectableTask {
         long estimatedRamBytesUsed
     ) {
         // This makes sure that the estimated RAM byte usage is only "released" once
-        var semaphoreReleased = new AtomicBoolean();
+        var ramBytesReleased = new AtomicBoolean();
         return ActionListener.runAfter(listener, () -> {
-            if (semaphoreReleased.compareAndSet(false, true)) {
+            if (ramBytesReleased.compareAndSet(false, true)) {
                 circuitBreaker.addWithoutBreaking(estimatedRamBytesUsed);
             }
         });

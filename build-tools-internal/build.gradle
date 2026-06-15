@@ -154,7 +154,7 @@ gradlePlugin {
     }
     foreignLibrary {
       id = 'elasticsearch.foreign-library'
-      implementationClass = 'org.elasticsearch.gradle.internal.ForeignLibraryPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.foreign.ForeignLibraryPlugin'
     }
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'

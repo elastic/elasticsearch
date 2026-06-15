@@ -692,3 +692,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/161_union_types_subfields/load two indices with to_version and to_string nested and un-nested}
   issue: https://github.com/elastic/elasticsearch/issues/151266
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/63_enrich_int_range/ages as keywords}
+  issue: https://github.com/elastic/elasticsearch/issues/151267

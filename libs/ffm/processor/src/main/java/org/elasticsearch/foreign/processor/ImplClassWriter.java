@@ -68,6 +68,8 @@ class ImplClassWriter {
     );
     private static final ClassDesc CD_int = ClassDesc.ofDescriptor("I");
     private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
+    private static final ClassDesc CD_MethodHandles = ClassDesc.of("java.lang.invoke.MethodHandles");
+    private static final ClassDesc CD_MethodHandlesLookup = ClassDesc.of("java.lang.invoke.MethodHandles$Lookup");
     private final Filer filer;
     private final int classFileVersion;
 
@@ -875,7 +877,10 @@ class ImplClassWriter {
                 emitFunctionDescriptor(tryBlock, fp.callbackReturnType(), cbParamTypes);
                 tryBlock.astore(cbFdSlot);
 
-                // Get the upcall MethodHandle: LinkerHelper.upcallHandle(CallbackType.class, "sam", cbFd)
+                // Get the upcall MethodHandle: LinkerHelper.upcallHandle(MethodHandles.lookup(), CallbackType.class, "sam", cbFd)
+                // The caller's lookup is required so LinkerHelper (in a separate module) can resolve
+                // a callback interface that's only accessible from the consumer module.
+                tryBlock.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_MethodHandlesLookup));
                 ClassDesc callbackDesc = ClassDesc.of(fp.callbackTypeFqn());
                 tryBlock.ldc(callbackDesc);
                 tryBlock.ldc(fp.callbackMethodName());
@@ -883,7 +888,7 @@ class ImplClassWriter {
                 tryBlock.invokestatic(
                     CD_LinkerHelper,
                     "upcallHandle",
-                    MethodTypeDesc.of(CD_MethodHandle, CD_Class, CD_String, CD_FunctionDescriptor)
+                    MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandlesLookup, CD_Class, CD_String, CD_FunctionDescriptor)
                 );
 
                 // Create the stub: LinkerHelper.upcallStub(cbMh, callbackInstance, cbFd, arena)

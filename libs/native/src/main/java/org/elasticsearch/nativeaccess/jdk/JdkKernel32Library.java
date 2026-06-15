@@ -19,6 +19,7 @@ import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.function.IntConsumer;
@@ -74,6 +75,7 @@ class JdkKernel32Library implements Kernel32Library {
 
     private static final FunctionDescriptor ConsoleCtrlHandler_handle$fd = FunctionDescriptor.of(JAVA_BOOLEAN, JAVA_INT);
     private static final MethodHandle ConsoleCtrlHandler_handle$mh = upcallHandle(
+        MethodHandles.lookup(),
         ConsoleCtrlHandler.class,
         "handle",
         ConsoleCtrlHandler_handle$fd

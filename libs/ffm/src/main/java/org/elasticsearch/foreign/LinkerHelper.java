@@ -23,7 +23,6 @@ import java.lang.invoke.MethodHandles;
 public class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP;
-    private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.lookup();
 
     static {
         // We first check the loader lookup, which contains libs loaded by System.load and System.loadLibrary.
@@ -64,9 +63,14 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, allOptions);
     }
 
-    public static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {
+    public static MethodHandle upcallHandle(
+        MethodHandles.Lookup lookup,
+        Class<?> clazz,
+        String methodName,
+        FunctionDescriptor functionDescriptor
+    ) {
         try {
-            return MH_LOOKUP.findVirtual(clazz, methodName, functionDescriptor.toMethodType());
+            return lookup.findVirtual(clazz, methodName, functionDescriptor.toMethodType());
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

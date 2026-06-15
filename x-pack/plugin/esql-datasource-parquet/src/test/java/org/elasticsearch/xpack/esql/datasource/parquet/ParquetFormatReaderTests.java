@@ -3226,4 +3226,102 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    private static MessageType threeColumnSchema() {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("a")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("b")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("c")
+            .named("schema");
+    }
+
+    /**
+     * Full scan: no filter (filteringRequired == false) and no threshold must emit zero index
+     * paths. Regression guard — an earlier version keyed gating off {@code recordFilter == null},
+     * but the production record filter is {@code FilterCompat.NOOP} (never null) for an unfiltered
+     * read, which silently disabled the gating and fetched every page index.
+     */
+    public void testComputeIndexColumnPathsFullScanEmitsNothing() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            null,
+            null,
+            threeColumnSchema()
+        );
+        assertNotNull("full scan must gate (non-null sets), not fall back to unrestricted", paths.columnIndexPaths());
+        assertNotNull(paths.offsetIndexPaths());
+        assertTrue("full scan must not fetch any column index", paths.columnIndexPaths().isEmpty());
+        assertTrue("full scan must not fetch any offset index", paths.offsetIndexPaths().isEmpty());
+    }
+
+    /**
+     * Filtered read: predicate columns get both indexes; projected columns get the offset index
+     * (to skip non-surviving pages); non-predicate columns get no column index.
+     */
+    public void testComputeIndexColumnPathsFilteredQuery() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            true,
+            Set.of("a"),
+            null,
+            threeColumnSchema()
+        );
+        assertEquals("only the predicate column needs a column index", Set.of("a"), paths.columnIndexPaths());
+        assertEquals(
+            "every projected column (plus the predicate column) needs an offset index",
+            Set.of("a", "b", "c"),
+            paths.offsetIndexPaths()
+        );
+    }
+
+    /**
+     * A predicate column that is not projected must still carry both indexes so
+     * {@code ColumnIndexRowRangesComputer} can evaluate the predicate against it.
+     */
+    public void testComputeIndexColumnPathsNonProjectedPredicateColumn() {
+        MessageType projected = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("b").named("schema");
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(true, true, Set.of("a"), null, projected);
+        assertEquals(Set.of("a"), paths.columnIndexPaths());
+        assertEquals(
+            "predicate column a (not projected) and projected column b both need offset index",
+            Set.of("a", "b"),
+            paths.offsetIndexPaths()
+        );
+    }
+
+    /**
+     * Threshold-only top-N (no filter): only the sort column needs both indexes; projected columns
+     * are not added because, without a filter, reads are sequential and need no offset index.
+     */
+    public void testComputeIndexColumnPathsThresholdOnly() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            false,
+            false,
+            null,
+            "a",
+            threeColumnSchema()
+        );
+        assertEquals(Set.of("a"), paths.columnIndexPaths());
+        assertEquals(Set.of("a"), paths.offsetIndexPaths());
+    }
+
+    /**
+     * Legacy FilterPredicateCompat path: a filter is active but its predicate columns cannot be
+     * enumerated, so gating is unsafe and both sets must be null (unrestricted preload).
+     */
+    public void testComputeIndexColumnPathsLegacyFilterIsUnrestricted() {
+        ParquetFormatReader.IndexColumnPaths paths = ParquetFormatReader.computeIndexColumnPaths(
+            true,
+            false,
+            null,
+            null,
+            threeColumnSchema()
+        );
+        assertNull("legacy filter path must not gate", paths.columnIndexPaths());
+        assertNull("legacy filter path must not gate", paths.offsetIndexPaths());
+    }
+
 }

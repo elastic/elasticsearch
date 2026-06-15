@@ -28,9 +28,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -40,6 +43,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -330,6 +334,263 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Full scan (no predicate, no threshold): the caller passes empty column/offset index sets, so
+     * the preload must fetch zero page-index byte ranges and expose no column/offset indexes. This
+     * is the core optimization in esql-planning#817 — page indexes that no plan consumes are no
+     * longer fetched and decoded.
+     */
+    public void testFullScanEmitsZeroPageIndexRanges() throws IOException {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+
+        long[][] indexRanges;
+        try (
+            ParquetFileReader probe = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                options
+            )
+        ) {
+            indexRanges = collectIndexRanges(probe);
+            assertTrue("Test file must contain page indexes for the gating assertion to be meaningful", indexRanges.length > 0);
+        }
+
+        AtomicInteger indexRangeReads = new AtomicInteger();
+        StorageObject countingStorage = createRangeReadCountingStorageObject(parquetData, (pos, len) -> {
+            for (long[] r : indexRanges) {
+                if (pos < r[1] && pos + len > r[0]) {
+                    indexRangeReads.incrementAndGet();
+                    return;
+                }
+            }
+        });
+
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(countingStorage, allocator), options)) {
+            // Footer reads happen during open and never overlap the index ranges; capture the count
+            // afterwards so the assertion isolates the preload's contribution.
+            int readsBeforePreload = indexRangeReads.get();
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    countingStorage,
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    allocator
+                )
+            ) {
+                assertFalse("Full scan must not preload any column index", metadata.hasColumnIndexes());
+                assertFalse("Full scan must not preload any offset index", metadata.hasOffsetIndexes());
+                assertEquals("Full scan must not fetch any page-index byte ranges", readsBeforePreload, indexRangeReads.get());
+            }
+        }
+    }
+
+    /**
+     * End-to-end guard for the production wiring in {@code ParquetFormatReader.createOptimizedIterator}.
+     * A full-scan read through the optimized reader must fetch zero page-index bytes. The direct-API
+     * test above cannot catch a miswired call site (the original bug keyed gating off
+     * {@code recordFilter == null}, but the production record filter is {@code FilterCompat.NOOP}),
+     * so this drives the real {@code read(...)} path and counts byte ranges overlapping the indexes.
+     */
+    public void testOptimizedFullScanReadFetchesNoPageIndexBytes() throws IOException {
+        MessageType schema = threeColumnInt64Schema();
+        int rows = 65_536;
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, rows);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        long[][] indexRanges;
+        try (
+            ParquetFileReader probe = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                options
+            )
+        ) {
+            indexRanges = collectIndexRanges(probe);
+            assertTrue("Test file must contain page indexes for the gating assertion to be meaningful", indexRanges.length > 0);
+        }
+
+        AtomicInteger indexRangeReads = new AtomicInteger();
+        StorageObject countingStorage = createRangeReadCountingStorageObject(parquetData, (pos, len) -> {
+            for (long[] r : indexRanges) {
+                if (pos < r[1] && pos + len > r[0]) {
+                    indexRangeReads.incrementAndGet();
+                    return;
+                }
+            }
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        int totalRows = 0;
+        try (CloseableIterator<Page> iterator = reader.read(countingStorage, FormatReadContext.of(List.of("a", "b", "c"), 1024))) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+
+        assertEquals("Full scan must return every row", rows, totalRows);
+        assertEquals("Optimized full-scan read must not fetch any page-index byte ranges", 0, indexRangeReads.get());
+    }
+
+    /**
+     * Single-column predicate: only column "a" is requested, so its column and offset indexes must
+     * be preloaded while columns "b" and "c" carry none.
+     */
+    public void testSingleColumnPredicateGatesPageIndexToThatColumn() throws IOException {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            assertHasPageIndexReferences(reader, "a", "b", "c");
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    Set.of("a"),
+                    Set.of("a"),
+                    Set.of("a"),
+                    allocator
+                )
+            ) {
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "a", true);
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "b", false);
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "c", false);
+            }
+        }
+    }
+
+    /**
+     * Multi-column predicate: columns "a" and "c" are requested, so their indexes are preloaded
+     * while column "b" (not a predicate column) carries none.
+     */
+    public void testMultiColumnPredicateGatesPageIndexToPredicateColumns() throws IOException {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            assertHasPageIndexReferences(reader, "a", "b", "c");
+            Set<String> predicates = Set.of("a", "c");
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    predicates,
+                    predicates,
+                    predicates,
+                    allocator
+                )
+            ) {
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "a", true);
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "c", true);
+                assertColumnPreloaded(metadata, reader.getRowGroups().size(), "b", false);
+            }
+        }
+    }
+
+    /**
+     * Regression guard for the consumption-aware split between column and offset index gating: a
+     * filtered query needs the OffsetIndex of every projected column (to skip non-surviving pages)
+     * but only the ColumnIndex of the predicate column. Here the predicate is "a" while "b" and "c"
+     * are projected — so all three carry an offset index, but only "a" carries a column index.
+     */
+    public void testOffsetIndexFetchedForProjectedColumnsButColumnIndexOnlyForPredicate() throws IOException {
+        MessageType schema = threeColumnInt64Schema();
+        byte[] parquetData = writeThreeColumnInt64Parquet(schema, 65_536);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            assertHasPageIndexReferences(reader, "a", "b", "c");
+            try (
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                    reader,
+                    storage,
+                    Set.of("a"),
+                    Set.of("a"),
+                    Set.of("a", "b", "c"),
+                    allocator
+                )
+            ) {
+                int rgCount = reader.getRowGroups().size();
+                boolean anyColumnIndexForA = false;
+                boolean anyOffsetIndexForB = false;
+                boolean anyOffsetIndexForC = false;
+                for (int rg = 0; rg < rgCount; rg++) {
+                    if (metadata.getColumnIndex(rg, "a") != null) {
+                        anyColumnIndexForA = true;
+                    }
+                    assertNull("Column index for projected-only column b must not be preloaded", metadata.getColumnIndex(rg, "b"));
+                    assertNull("Column index for projected-only column c must not be preloaded", metadata.getColumnIndex(rg, "c"));
+                    if (metadata.getOffsetIndex(rg, "b") != null) {
+                        anyOffsetIndexForB = true;
+                    }
+                    if (metadata.getOffsetIndex(rg, "c") != null) {
+                        anyOffsetIndexForC = true;
+                    }
+                }
+                assertTrue("Column index for predicate column a must be preloaded", anyColumnIndexForA);
+                assertTrue("Offset index for projected column b must be preloaded", anyOffsetIndexForB);
+                assertTrue("Offset index for projected column c must be preloaded", anyOffsetIndexForC);
+            }
+        }
+    }
+
+    /**
+     * Asserts that every named column has both a column index and an offset index reference in the
+     * file, so the gating tests above are not vacuously satisfied by an absent index.
+     */
+    private static void assertHasPageIndexReferences(ParquetFileReader reader, String... columnPaths) {
+        for (org.apache.parquet.hadoop.metadata.BlockMetaData block : reader.getRowGroups()) {
+            for (org.apache.parquet.hadoop.metadata.ColumnChunkMetaData col : block.getColumns()) {
+                String path = col.getPath().toDotString();
+                for (String wanted : columnPaths) {
+                    if (path.equals(wanted)) {
+                        assertNotNull("Expected a column index reference for " + wanted, col.getColumnIndexReference());
+                        assertNotNull("Expected an offset index reference for " + wanted, col.getOffsetIndexReference());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Asserts whether a column's page indexes were preloaded across all row groups. When
+     * {@code expectPreloaded} is true at least one row group must expose both the column and offset
+     * index for the column; when false no row group may expose either.
+     */
+    private static void assertColumnPreloaded(
+        PreloadedRowGroupMetadata metadata,
+        int rowGroupCount,
+        String columnPath,
+        boolean expectPreloaded
+    ) {
+        boolean anyColumnIndex = false;
+        boolean anyOffsetIndex = false;
+        for (int rg = 0; rg < rowGroupCount; rg++) {
+            if (metadata.getColumnIndex(rg, columnPath) != null) {
+                anyColumnIndex = true;
+            }
+            if (metadata.getOffsetIndex(rg, columnPath) != null) {
+                anyOffsetIndex = true;
+            }
+        }
+        if (expectPreloaded) {
+            assertTrue("Expected a preloaded column index for " + columnPath, anyColumnIndex);
+            assertTrue("Expected a preloaded offset index for " + columnPath, anyOffsetIndex);
+        } else {
+            assertFalse("Did not expect a preloaded column index for " + columnPath, anyColumnIndex);
+            assertFalse("Did not expect a preloaded offset index for " + columnPath, anyOffsetIndex);
+        }
+    }
+
     private static byte[] writeDictionaryEncodedInt64Parquet(MessageType schema, long[] values) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(out);
@@ -357,6 +618,80 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         }
         return out.toByteArray();
+    }
+
+    /**
+     * Builds a three-column INT64 schema (a, b, c) used by the page-index gating tests.
+     */
+    private static MessageType threeColumnInt64Schema() {
+        return Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("a")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("b")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("c")
+            .named("schema");
+    }
+
+    /**
+     * Writes a three-column INT64 parquet file with small pages so the writer emits a column index
+     * and offset index per column. Used to assert that the gated preload only fetches the page
+     * indexes of the requested columns. Each column gets the same {@code rows} count of values
+     * derived from the row index.
+     */
+    private static byte[] writeThreeColumnInt64Parquet(MessageType schema, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        conf.set("parquet.enable.dictionary", "true");
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(conf)
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                // Small page size forces multiple pages per column chunk so the offset index and
+                // column index carry more than a single trivial entry.
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withRowGroupSize(256 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("a", (long) (i % 16));
+                g.add("b", (long) (i % 32));
+                g.add("c", (long) (i % 64));
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Collects the [start, end) byte ranges of every column index and offset index in the file so
+     * a counting storage harness can detect fetches that overlap them.
+     */
+    private static long[][] collectIndexRanges(ParquetFileReader reader) {
+        java.util.List<long[]> tmp = new java.util.ArrayList<>();
+        for (org.apache.parquet.hadoop.metadata.BlockMetaData block : reader.getRowGroups()) {
+            for (org.apache.parquet.hadoop.metadata.ColumnChunkMetaData col : block.getColumns()) {
+                var ci = col.getColumnIndexReference();
+                if (ci != null && ci.getLength() > 0) {
+                    tmp.add(new long[] { ci.getOffset(), ci.getOffset() + ci.getLength() });
+                }
+                var oi = col.getOffsetIndexReference();
+                if (oi != null && oi.getLength() > 0) {
+                    tmp.add(new long[] { oi.getOffset(), oi.getOffset() + oi.getLength() });
+                }
+            }
+        }
+        return tmp.toArray(new long[0][]);
     }
 
     private static OutputFile createOutputFile(ByteArrayOutputStream out) {

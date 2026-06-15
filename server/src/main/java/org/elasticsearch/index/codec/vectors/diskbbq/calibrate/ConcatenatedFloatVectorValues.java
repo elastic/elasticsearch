@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
 import java.util.Arrays;

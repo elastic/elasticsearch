@@ -85,7 +85,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         });
         safeAwait(consumerReturned);
         assertThat("recovery executed on enqueueing thread instead of generic pool", executionThread.get(), not(equalTo(callerThread)));
-
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     /// Asynchronous task: consumer returns before the scheduling listener receives a terminal callback.
@@ -123,6 +123,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             consumerReturned.countDown();
         });
         safeAwait(recoveryDone);
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testMaxConcurrencyBoundWithAsynchronousTasks() {
@@ -189,6 +190,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // Complete all
         taskQueue.runAllTasks();
         assertThat(running.get(), equalTo(0));
+        assertThat(service.currentQueueSize(), equalTo(0));
         assertThat(completed.get(), equalTo(totalEnqueuedTasks));
         assertThat(peakConcurrent.get(), equalTo(maxConcurrentRecoveries));
     }
@@ -220,6 +222,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(started.get(), equalTo(4));
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(10));
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
@@ -291,6 +294,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(started.get(), equalTo(6));
         assertThat(done.get(), equalTo(6));
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() {
@@ -333,6 +337,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         for (int i = 0; i < total; i++) {
             assertThat(completionOrder.get(i), equalTo(i));
         }
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testFailureTriggersNextQueuedRecovery() {
@@ -395,6 +400,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         taskQueue.runAllRunnableTasks();
         assertTrue(secondTaskCompleted.get());
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     public void testRecoveryAbortedTriggersNextQueuedRecovery() {
@@ -453,6 +459,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         taskQueue.runAllRunnableTasks();
         assertTrue(secondTaskCompleted.get());
+        assertThat(service.currentQueueSize(), equalTo(0));
     }
 
     /// Stress one [ThrottlingRecoveryService] by enqueueing many tasks with randomized completion times,
@@ -460,10 +467,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     /// Verify that all tasks finish and that concurrent execution never exceeds the limit applied.
     public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() {
         final var taskQueue = new DeterministicTaskQueue();
+        taskQueue.setExecutionDelayVariabilityMillis(100);
+
         final var maxConcurrency = new AtomicInteger(between(1, 20));
         final var clusterService = newClusterService(maxConcurrency.get());
         final var service = new ThrottlingRecoveryService(taskQueue.getThreadPool().generic(), clusterService);
 
+        final var recoveryState = fakeRecoveryState();
         final var running = new AtomicInteger();
         final var completed = new AtomicInteger();
         final var totalTaskCount = new AtomicInteger();
@@ -493,18 +503,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         };
 
         for (int iteration = 0; iteration < 20; iteration++) {
-            // Randomly change the limit
-            if (rarely()) {
-                maxConcurrency.set(between(1, 20));
-                clusterService.getClusterSettings()
-                    .applySettings(
-                        Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrency.get()).build()
-                    );
-            }
-            final var incomingTasks = randomIntBetween(1, 50);
+            maxConcurrency.set(randomBoolean() ? between(1, 50) : Integer.MAX_VALUE);
+            clusterService.getClusterSettings()
+                .applySettings(
+                    Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrency.get()).build()
+                );
+
+            final var incomingTasks = randomIntBetween(50, 100);
             totalTaskCount.addAndGet(incomingTasks);
             for (int i = 0; i < incomingTasks; i++) {
-                service.enqueue(trackingListener, fakeRecoveryState(), schedulingListener -> {
+                taskQueue.scheduleNow(() -> service.enqueue(trackingListener, recoveryState, schedulingListener -> {
                     assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
                     final var currentTime = taskQueue.getCurrentTimeMillis();
                     taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
@@ -517,7 +525,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             } else {
                                 schedulingListener.onRecoveryFailure(
                                     new RecoveryFailedException(
-                                        fakeRecoveryState(),
+                                        recoveryState,
                                         null,
                                         new RuntimeException("test recovery task injected failure")
                                     ),
@@ -526,17 +534,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             }
                         }
                     });
-                });
+                }));
+                taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
                     taskQueue.advanceTime();
                     taskQueue.runAllRunnableTasks();
                 }
             }
-
             // Execute all enqueued and scheduled tasks
             taskQueue.runAllTasks();
             assertThat(completed.get(), equalTo(totalTaskCount.get()));
             assertThat(running.get(), equalTo(0));
+            assertThat(service.currentQueueSize(), equalTo(0));
         }
     }
 

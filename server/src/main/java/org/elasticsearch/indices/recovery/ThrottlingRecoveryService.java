@@ -103,6 +103,11 @@ public final class ThrottlingRecoveryService {
         }
     }
 
+    // visible for testing
+    int currentQueueSize() {
+        return pendingRecoveries.size();
+    }
+
     private static class RecoveryTask extends AbstractRunnable {
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;

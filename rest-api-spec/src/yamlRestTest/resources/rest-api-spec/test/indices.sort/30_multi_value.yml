@@ -2,8 +2,8 @@
 "Index Sort with doc_values multi_value false":
 
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "doc_values.multi_value is gated behind the extended_doc_values_options feature flag"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
+      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes"
 
   - do:
       indices.create:

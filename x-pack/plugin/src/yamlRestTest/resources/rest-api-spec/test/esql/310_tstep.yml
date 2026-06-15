@@ -1,0 +1,87 @@
+---
+"TSTEP duration mode with non-constant from/to returns 400":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tstep, tstep_explicit_bounds, fn_tstep_implicit_timestamp]
+      reason: "Tests TSTEP; non-constant bounds in duration mode are rejected with a clear error"
+
+  - do:
+      indices.delete:
+        index: test_tstep_duration_bounds
+        ignore_unavailable: true
+
+  - do:
+      indices.create:
+        index: test_tstep_duration_bounds
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              from_bound:
+                type: keyword
+              to_bound:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_tstep_duration_bounds" } }
+          - { "@timestamp": "2023-10-23T12:00:00Z", "from_bound": "2023-10-23T12:00:00Z", "to_bound": "2023-10-23T14:00:00Z" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: "FROM test_tstep_duration_bounds | STATS c = COUNT(*) BY b = TSTEP(1 hour, from_bound, to_bound) | SORT b"
+  - match: { status: 400 }
+  - match: { error.reason: '/(?s).*must\ be\ constants.*/' }
+
+---
+"TSTEP bucket count mode with non-constant from/to returns 400":
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [tstep, tstep_explicit_bounds, tstep_bucket_count, fn_tstep_implicit_timestamp]
+      reason: "Tests TSTEP; non-constant bounds in bucket count mode are caught in resolveType() with a clear error"
+
+  - do:
+      indices.delete:
+        index: test_tstep_count_bounds
+        ignore_unavailable: true
+
+  - do:
+      indices.create:
+        index: test_tstep_count_bounds
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              from_bound:
+                type: keyword
+              to_bound:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_tstep_count_bounds" } }
+          - { "@timestamp": "2023-10-23T12:00:00Z", "from_bound": "2023-10-23T12:00:00Z", "to_bound": "2023-10-23T14:00:00Z" }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: "FROM test_tstep_count_bounds | STATS c = COUNT(*) BY b = TSTEP(2, from_bound, to_bound) | SORT b"
+  - match: { status: 400 }
+  - match: { error.reason: '/(?s).*must\ be\ constant\ when\ using\ a\ target\ bucket\ count.*/' }

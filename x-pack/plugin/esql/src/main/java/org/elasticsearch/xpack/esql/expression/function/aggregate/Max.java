@@ -71,6 +71,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the maximum value of a field.",
         description = "The maximum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {

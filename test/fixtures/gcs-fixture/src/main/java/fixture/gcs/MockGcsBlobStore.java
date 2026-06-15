@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -41,7 +42,7 @@ public class MockGcsBlobStore {
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Rewrite> ongoingRewrites = new ConcurrentHashMap<>();
 
-    record BlobVersion(String path, long generation, BytesReference contents) {}
+    record BlobVersion(String path, long generation, BytesReference contents, Instant lastModified) {}
 
     record ResumableUpload(
         String uploadId,
@@ -136,7 +137,7 @@ public class MockGcsBlobStore {
                         );
                     }
                 }
-                return new BlobVersion(path, existing.generation + 1, contents);
+                return new BlobVersion(path, existing.generation + 1, contents, Instant.now());
             } else {
                 if (ifGenerationMatch != null && ifGenerationMatch != 0) {
                     throw new GcsRestException(
@@ -144,7 +145,7 @@ public class MockGcsBlobStore {
                         "Blob does not exist, expected generation " + ifGenerationMatch
                     );
                 }
-                return new BlobVersion(path, 1, contents);
+                return new BlobVersion(path, 1, contents, Instant.now());
             }
         });
     }

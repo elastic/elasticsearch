@@ -617,8 +617,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             assertThat(handler.isCancelled(), is(true));
             handler.close();
 
-            // Test case 2: Cancel immediately after the first client bulk but before transportWriteAction submit to WRITE_THREAD_POOL
-            // Subsequent handler.addItems() comes from writer coordination.
+            // Test case 2: Cancel immediately after the first client bulk has successfully completed.
             // Subsequent handler.addItems() should short circuit.
             ensureGreen(index);
 

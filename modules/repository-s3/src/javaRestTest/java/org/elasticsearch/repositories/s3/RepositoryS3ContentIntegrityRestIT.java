@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.AwsCredentialsUtils;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
@@ -37,7 +38,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -57,45 +57,6 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     private static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
 
-    private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
-        ContentIntegrityS3HttpFixture(TestTlsCertificate tlsCertificate) {
-            super(
-                true,
-                tlsCertificate,
-                BUCKET,
-                BASE_PATH,
-                S3ConsistencyModel::randomConsistencyModel,
-                fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-            );
-        }
-
-        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
-        @Override
-        protected HttpHandler createHandler() {
-            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
-            return exchange -> {
-                final var request = delegate.parseRequest(exchange);
-                if ((request.isUploadPartRequest() || request.isPutObjectRequest())
-                    && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
-                        .orElse(List.of())
-                        .isEmpty()) {
-                    assertThat(
-                        exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                        anyOf(
-                            matchesPattern(S3HttpHandler.SHA256_PATTERN),
-                            equalTo(TestConfig.fromPath(request.path()).getExpectedContentSha256Header())
-                        )
-                    );
-                }
-                delegate.handle(exchange);
-            };
-        }
-    }
-
-    private static final S3HttpFixture httpS3Fixture = new ContentIntegrityS3HttpFixture(null);
-
-    private static final S3HttpFixture httpsS3Fixture = new ContentIntegrityS3HttpFixture(testTlsCertificate);
-
     private static final List<TestConfig> TEST_CONFIGS;
 
     static {
@@ -107,6 +68,53 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         }
         TEST_CONFIGS = List.copyOf(testConfigs);
     }
+
+    private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
+        ContentIntegrityS3HttpFixture(TestTlsCertificate tlsCertificate) {
+            super(
+                true,
+                tlsCertificate,
+                BUCKET,
+                BASE_PATH,
+                S3ConsistencyModel::randomConsistencyModel,
+                (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
+                    && TEST_CONFIGS.stream()
+                        .anyMatch(
+                            testConfig -> AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader(
+                                testConfig.getAccessKey(),
+                                regionSupplier.get(),
+                                "s3",
+                                authorizationHeader
+                            )
+                        )
+            );
+        }
+
+        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
+        @Override
+        protected HttpHandler createHandler() {
+            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
+            return exchange -> {
+                final var request = delegate.parseRequest(exchange);
+                final var testConfig = TestConfig.fromAuthorizationHeader(exchange.getRequestHeaders().getFirst("Authorization"));
+                final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+                if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+                    && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
+                        .orElse(List.of())
+                        .isEmpty()) {
+                    assertThat(
+                        contentSha256Header,
+                        anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(testConfig.getExpectedUploadContentSha256Header()))
+                    );
+                }
+                delegate.handle(exchange);
+            };
+        }
+    }
+
+    private static final S3HttpFixture httpS3Fixture = new ContentIntegrityS3HttpFixture(null);
+
+    private static final S3HttpFixture httpsS3Fixture = new ContentIntegrityS3HttpFixture(testTlsCertificate);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
@@ -160,8 +168,6 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     /// Test suite is parametric in this config.
     public static final class TestConfig {
-        private static final String DISABLE_CHUNKED_ENCODING = "disable_chunked_encoding";
-
         private final boolean https;
         private final boolean chunkedEncoding;
 
@@ -177,19 +183,19 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
         Settings getRepositorySettings() {
             final var builder = Settings.builder();
-            if (chunkedEncoding) {
-                if (randomBoolean()) {
-                    builder.put(DISABLE_CHUNKED_ENCODING, false);
-                } else {
-                    builder.putNull(DISABLE_CHUNKED_ENCODING);
-                }
-            } else {
-                builder.put(DISABLE_CHUNKED_ENCODING, true);
-            }
+            addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
             return builder.build();
         }
 
-        String getExpectedContentSha256Header() {
+        private void addBooleanSettingDefaultFalse(Settings.Builder builder, String key, boolean value) {
+            if (value == false && randomBoolean()) {
+                builder.putNull(key);
+            } else {
+                builder.put(key, value);
+            }
+        }
+
+        String getExpectedUploadContentSha256Header() {
             return https
                 ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
@@ -215,13 +221,19 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             return BASE_PATH + "/" + (https ? "https" : "http") + "_chunked_encoding_" + chunkedEncoding;
         }
 
-        static TestConfig fromPath(String path) {
-            for (final var testConfig : TEST_CONFIGS) {
-                if (path.contains(testConfig.getRepositoryBasePath())) {
-                    return testConfig;
+        String getAccessKey() {
+            return ACCESS_KEY + "-" + (https ? "https" : "http") + "-" + chunkedEncoding;
+        }
+
+        static TestConfig fromAuthorizationHeader(String authorizationHeader) {
+            if (authorizationHeader != null) {
+                for (final var testConfig : TEST_CONFIGS) {
+                    if (authorizationHeader.contains(testConfig.getAccessKey())) {
+                        return testConfig;
+                    }
                 }
             }
-            throw new AssertionError("no case matches request URI [" + path + "]");
+            throw new AssertionError("no case matches authorization header [" + authorizationHeader + "]");
         }
     }
 }

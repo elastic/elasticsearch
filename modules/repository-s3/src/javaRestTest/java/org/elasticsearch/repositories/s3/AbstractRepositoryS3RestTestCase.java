@@ -59,7 +59,9 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                                 .put("client", clientName())
                                 .put("canned_acl", "private")
                                 .put("storage_class", "standard")
-                                .put("disable_chunked_encoding", randomBoolean())
+                                .put(
+                                    randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build())
+                                )
                                 .put(
                                     randomFrom(
                                         Settings.EMPTY,

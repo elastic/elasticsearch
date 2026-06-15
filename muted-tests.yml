@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
   method: testWriteLoadForecastGetsPopulatedDuringRollovers
   issue: https://github.com/elastic/elasticsearch/issues/151173
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/140_metadata/Aggregate ignored field}
+  issue: https://github.com/elastic/elasticsearch/issues/151216

@@ -659,3 +659,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
   method: testWaitUntilShouldNotWaitForUpload
   issue: https://github.com/elastic/elasticsearch/issues/151168
+- class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
+  method: testWriteLoadForecastGetsPopulatedDuringRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/151173

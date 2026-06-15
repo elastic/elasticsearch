@@ -1,0 +1,5 @@
+Project[[c{r}#0]]
+\_Eval[[MVCOUNT($$VALUES$MV_COUNT(VALUES>$0{r$}#1) AS c#0]]
+  \_Limit[1000[INTEGER],false,false]
+    \_Aggregate[[],[VALUES(location{f}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$VALUES$MV_COUNT(VALUES>$0#1]]
+      \_EsRelation[airports][abbrev{f}#3, city{f}#4, city_location{f}#5, country{f}#6, location{f}#2, name{f}#7, scalerank{f}#8, type{f}#9]

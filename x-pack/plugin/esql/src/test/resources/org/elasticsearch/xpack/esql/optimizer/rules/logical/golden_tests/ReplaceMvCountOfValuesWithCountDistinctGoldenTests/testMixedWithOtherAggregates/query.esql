@@ -1,0 +1,2 @@
+FROM employees
+| STATS c = MV_COUNT(VALUES(salary)), m = MAX(salary), n = COUNT(*) BY gender

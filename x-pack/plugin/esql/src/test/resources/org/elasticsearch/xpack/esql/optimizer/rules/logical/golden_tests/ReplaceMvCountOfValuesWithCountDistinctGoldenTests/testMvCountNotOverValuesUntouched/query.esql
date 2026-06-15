@@ -1,0 +1,2 @@
+FROM employees
+| STATS c = MV_COUNT(TOP(salary, 3, "asc"))

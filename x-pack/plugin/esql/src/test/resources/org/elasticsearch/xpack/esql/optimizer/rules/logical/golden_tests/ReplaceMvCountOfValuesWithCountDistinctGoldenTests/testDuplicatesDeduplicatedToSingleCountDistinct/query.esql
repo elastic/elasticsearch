@@ -1,0 +1,2 @@
+FROM employees
+| STATS a = MV_COUNT(VALUES(salary)), b = MV_COUNT(VALUES(salary))

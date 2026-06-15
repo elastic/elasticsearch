@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[],[MVCOUNT(VALUES(location{f}#0,true[BOOLEAN],PT0S[TIME_DURATION])) AS c#1]]
+  \_EsRelation[airports][abbrev{f}#2, city{f}#3, city_location{f}#4, country{f}#5, location{f}#0, name{f}#6, scalerank{f}#7, type{f}#8]

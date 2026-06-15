@@ -1,0 +1,2 @@
+FROM airports
+| STATS c = MV_COUNT(VALUES(location))

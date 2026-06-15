@@ -1,0 +1,5 @@
+Project[[c{r}#0, m{r}#1, n{r}#2, gender{f}#3]]
+\_Eval[[CASE($$COUNTDISTINCT$VALUES(salary)$0{r$}#4 == 0[LONG],null[INTEGER],TOINTEGER($$COUNTDISTINCT$VALUES(salary)$0{r$}#4)) AS c#0]]
+  \_Limit[1000[INTEGER],false,false]
+    \_Aggregate[[gender{f}#3],[COUNTDISTINCT(salary{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$COUNTDISTINCT$VALUES(salary)$0#4, MAX(salary{f}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS n#2, gender{f}#3]]
+      \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#9, gender{f}#3, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#17, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#21, salary{f}#5, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26]

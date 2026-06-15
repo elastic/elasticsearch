@@ -21,6 +21,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
 
@@ -134,13 +135,24 @@ public record SageMakerServiceSettings(
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return this;
+        return (builder, params) -> {
+            builder.startObject();
+            writeCommonFields(builder);
+            // Render the api-specific settings' exposed view so internal-only fields (e.g. dimensions_set_by_user) are not returned.
+            apiServiceSettings.getFilteredXContentObject().toXContent(builder, params);
+            return builder.endObject();
+        };
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        writeCommonFields(builder);
+        apiServiceSettings.toXContent(builder, params);
+        return builder.endObject();
+    }
 
+    private void writeCommonFields(XContentBuilder builder) throws IOException {
         builder.field(ENDPOINT_NAME, endpointName());
         builder.field(REGION, region());
         builder.field(API, api());
@@ -148,9 +160,6 @@ public record SageMakerServiceSettings(
         optionalField(TARGET_CONTAINER_HOSTNAME, targetContainerHostname(), builder);
         optionalField(INFERENCE_COMPONENT_NAME, inferenceComponentName(), builder);
         optionalField(BATCH_SIZE, batchSize(), builder);
-        apiServiceSettings.toXContent(builder, params);
-
-        return builder.endObject();
     }
 
     private static <T> void optionalField(String name, T value, XContentBuilder builder) throws IOException {
@@ -159,7 +168,12 @@ public record SageMakerServiceSettings(
         }
     }
 
-    static SageMakerServiceSettings fromMap(SageMakerSchemas schemas, TaskType taskType, Map<String, Object> serviceSettingsMap) {
+    static SageMakerServiceSettings fromMap(
+        SageMakerSchemas schemas,
+        TaskType taskType,
+        Map<String, Object> serviceSettingsMap,
+        ConfigurationParseContext context
+    ) {
         var validationException = new ValidationException();
 
         var endpointName = extractRequiredString(
@@ -198,7 +212,7 @@ public record SageMakerServiceSettings(
         validationException.throwIfValidationErrorsExist();
 
         var schema = schemas.schemaFor(taskType, api);
-        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, validationException);
+        var apiServiceSettings = schema.apiServiceSettings(serviceSettingsMap, context, validationException);
 
         validationException.throwIfValidationErrorsExist();
 

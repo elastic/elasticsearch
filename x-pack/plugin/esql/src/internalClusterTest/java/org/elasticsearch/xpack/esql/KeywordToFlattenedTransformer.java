@@ -50,12 +50,6 @@ import java.util.Set;
  * are rewritten elsewhere in the pipeline. The denylist is exposed via
  * {@link #PARAMS_INCOMPATIBLE_WITH_FLATTENED}.
  * <ul>
- *   <li>{@code time_series_dimension} &mdash; a TSDB dimension marker that exists on
- *       {@code keyword} but not on {@code flattened} (the flattened equivalent is the
- *       {@code time_series_dimensions} plural list with sub-paths, which is incompatible with the
- *       wrapping convention used here). Without this exclusion, every TSDB dataset's index
- *       creation fails with
- *       {@code unknown parameter [time_series_dimension] on mapper [...] of type [flattened]}.</li>
  *   <li>{@code time_series_metric} &mdash; a TSDB metric marker. Defensive: in practice only set
  *       on numeric fields, but a stray entry on a keyword would also fail mapper parsing.</li>
  *   <li>{@code fields} &mdash; multi-field declarations. The sub-fields under {@code fields}
@@ -72,6 +66,15 @@ import java.util.Set;
  * Anything else that flattened still rejects can be added to the denylist; the failure mode is
  * always the same {@code MapperParsingException} at index creation time, so new entries are easy
  * to locate from the test failure log.
+ *
+ * <h2>TSDB dimension keyword fields</h2>
+ * {@code keyword} fields that declare {@code time_series_dimension: true} are handled specially
+ * rather than being left as {@code keyword}: they are converted to {@code flattened} with
+ * {@code time_series_dimensions: ["v"]}. This makes the dimension value reachable via
+ * {@code field_extract(field, "v")} just like any other converted field. Callers that also create
+ * the index must update {@code index.routing_path} accordingly &mdash; bare paths such as
+ * {@code "pod"} must become {@code "pod.v"} &mdash; because TSDB resolves routing through the
+ * flattened sub-key, not the parent field name.
  *
  * <h2>Caller-supplied path exclusions</h2>
  * The overload {@link #transformMapping(String, Set)} accepts a set of dotted field paths that the
@@ -93,13 +96,7 @@ public final class KeywordToFlattenedTransformer {
      * keyword&rarr;flattened rewrite unsafe. Encountering any of these causes the field to be
      * left untouched. See class-level Javadoc for the per-parameter rationale.
      */
-    public static final Set<String> PARAMS_INCOMPATIBLE_WITH_FLATTENED = Set.of(
-        "time_series_dimension",
-        "time_series_metric",
-        "fields",
-        "copy_to",
-        "script"
-    );
+    public static final Set<String> PARAMS_INCOMPATIBLE_WITH_FLATTENED = Set.of("time_series_metric", "fields", "copy_to", "script");
 
     private static final String KEYWORD_TYPE = "keyword";
     private static final String FLATTENED_TYPE = "flattened";
@@ -296,14 +293,24 @@ public final class KeywordToFlattenedTransformer {
 
             JsonNode typeNode = fieldObj.get("type");
             if (typeNode != null && typeNode.isTextual() && KEYWORD_TYPE.equals(typeNode.asText())) {
-                String incompatibleParam = findIncompatibleParameter(fieldObj);
-                if (incompatibleParam != null) {
-                    skipped.add(new SkippedField(fullPath, SkipReason.INCOMPATIBLE_PARAMETER, incompatibleParam));
-                } else if (excludedPaths.contains(fullPath)) {
+                if (excludedPaths.contains(fullPath)) {
                     skipped.add(new SkippedField(fullPath, SkipReason.CALLER_EXCLUDED_PATH, null));
-                } else {
+                } else if (fieldObj.has("time_series_dimension")) {
+                    // TSDB dimension: convert to flattened with the wrapper sub-key as the dimension.
+                    // The caller must also rewrite index.routing_path entries for this field from
+                    // "field" to "field.v" so TSDB resolves routing through the flattened sub-key.
                     fieldObj.put("type", FLATTENED_TYPE);
+                    fieldObj.remove("time_series_dimension");
+                    fieldObj.putArray("time_series_dimensions").add(WRAPPER_SUBKEY);
                     paths.add(fullPath);
+                } else {
+                    String incompatibleParam = findIncompatibleParameter(fieldObj);
+                    if (incompatibleParam != null) {
+                        skipped.add(new SkippedField(fullPath, SkipReason.INCOMPATIBLE_PARAMETER, incompatibleParam));
+                    } else {
+                        fieldObj.put("type", FLATTENED_TYPE);
+                        paths.add(fullPath);
+                    }
                 }
             }
             JsonNode nested = fieldObj.path("properties");

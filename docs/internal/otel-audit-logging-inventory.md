@@ -41,7 +41,7 @@ for the *why* behind any item, follow it into the PoC doc.
 26. R6 strip cluster/node fields on serverless (per #9).
 27. R7 stdout fallback on exhausted retries.
 28. R8 per-project filter — appender-path filter + config source from the `elasticsearch-controller`.
-29. R12 dynamic config without restart — `telemetry.otel.logs.enabled` + per-project state.
+29. R12 dynamic config without restart — `telemetry.logs.enabled` + per-project state.
 30. R13 retry/buffer tuning (~2 min retry, ~30–50 MB buffer).
 31. Integration test against the real `otel-delivery-gateway` (alongside the in-process recording IT).
 32. Add a gRPC endpoint to the recording test server; remove HTTP once the APM agent is gone.

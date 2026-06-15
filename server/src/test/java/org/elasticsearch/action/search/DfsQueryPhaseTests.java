@@ -48,9 +48,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class DfsQueryPhaseTests extends ESTestCase {
 
     private static DfsSearchResult newSearchResult(int shardIndex, ShardSearchContextId contextId, SearchShardTarget target) {
-        DfsSearchResult result = new DfsSearchResult(contextId, target, null);
+        DfsSearchResult result = new DfsSearchResult(
+            contextId,
+            target,
+            new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY)
+        );
         result.setShardIndex(shardIndex);
-        result.setShardSearchRequest(new ShardSearchRequest(target.getShardId(), System.currentTimeMillis(), AliasFilter.EMPTY));
         return result;
     }
 

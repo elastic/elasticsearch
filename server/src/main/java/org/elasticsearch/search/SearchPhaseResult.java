@@ -153,7 +153,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
         }
     }
 
-    public final void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
+    protected final void setShardSearchRequest(ShardSearchRequest shardSearchRequest) {
         this.shardSearchRequest = shardSearchRequest;
     }
 

@@ -174,7 +174,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         private final ByteVectorValues vectors;
         private final byte[][] scratch;
 
-        NativeByteScorer(ByteVectorValues vectors) throws IOException {
+        NativeByteScorer(ByteVectorValues vectors) {
             super(vectors);
             this.vectors = vectors;
 
@@ -193,7 +193,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         private final ByteVectorValues targetVectors;
         private final byte[] vector;
 
-        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException {
+        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
             super(vectors);
             this.targetVectors = targetVectors;
             vector = new byte[targetVectors.dimension()];

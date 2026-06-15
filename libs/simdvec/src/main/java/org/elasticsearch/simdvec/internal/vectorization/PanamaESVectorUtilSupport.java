@@ -1380,6 +1380,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
                 Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, part);
                 bNorm = bNorm.add(iq.mul(iq));
+
                 Vector<Integer> ia0 = bv0.castShape(INTEGER_SPECIES, part);
                 Vector<Integer> ia1 = bv1.castShape(INTEGER_SPECIES, part);
                 Vector<Integer> ia2 = bv2.castShape(INTEGER_SPECIES, part);
@@ -1396,16 +1397,30 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
 
         int bNormScalar = bNorm.reduceLanes(VectorOperators.ADD);
-        distances[distancesOffset] = cosineFromAccumulators(dot0, aNorm0, bNormScalar);
-        distances[distancesOffset + 1] = cosineFromAccumulators(dot1, aNorm1, bNormScalar);
-        distances[distancesOffset + 2] = cosineFromAccumulators(dot2, aNorm2, bNormScalar);
-        distances[distancesOffset + 3] = cosineFromAccumulators(dot3, aNorm3, bNormScalar);
+        distances[distancesOffset] = cosineResult(
+            dot0.reduceLanes(VectorOperators.ADD),
+            aNorm0.reduceLanes(VectorOperators.ADD),
+            bNormScalar
+        );
+        distances[distancesOffset + 1] = cosineResult(
+            dot1.reduceLanes(VectorOperators.ADD),
+            aNorm1.reduceLanes(VectorOperators.ADD),
+            bNormScalar
+        );
+        distances[distancesOffset + 2] = cosineResult(
+            dot2.reduceLanes(VectorOperators.ADD),
+            aNorm2.reduceLanes(VectorOperators.ADD),
+            bNormScalar
+        );
+        distances[distancesOffset + 3] = cosineResult(
+            dot3.reduceLanes(VectorOperators.ADD),
+            aNorm3.reduceLanes(VectorOperators.ADD),
+            bNormScalar
+        );
     }
 
-    private static float cosineFromAccumulators(IntVector dot, IntVector aNorm, int bNorm) {
-        int dotScalar = dot.reduceLanes(VectorOperators.ADD);
-        int aNormScalar = aNorm.reduceLanes(VectorOperators.ADD);
-        return (float) (dotScalar / Math.sqrt((double) aNormScalar * bNorm));
+    private static float cosineResult(int dot, int aNorm, int bNorm) {
+        return (float) (dot / Math.sqrt((double) aNorm * bNorm));
     }
 
     @Override

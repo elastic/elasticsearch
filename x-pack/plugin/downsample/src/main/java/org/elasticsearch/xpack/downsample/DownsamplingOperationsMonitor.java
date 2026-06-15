@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.action.downsample.DownsamplingOperations;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.datastreams.DownsamplingOperations;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;

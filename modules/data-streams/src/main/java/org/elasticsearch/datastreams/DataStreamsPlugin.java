@@ -149,9 +149,19 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private DownsamplingOperations downsamplingOperations = DownsamplingOperations.noop();
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        List<DownsamplingOperations> extensions = loader.loadExtensions(DownsamplingOperations.class);
+        assert extensions.size() <= 1 : "Expected at most one DownsamplingOperations implementation, found: " + extensions.size();
+        if (extensions.isEmpty() == false) {
+            downsamplingOperations = extensions.get(0);
+        }
     }
 
     protected Clock getClock() {
@@ -219,7 +229,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
                 services.dataStreamGlobalRetentionSettings(),
-                services.downsamplingOperations()
+                downsamplingOperations
             )
         );
         dataLifecycleInitialisationService.get().init();

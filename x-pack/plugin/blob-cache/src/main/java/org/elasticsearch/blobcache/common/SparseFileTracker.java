@@ -285,7 +285,7 @@ public class SparseFileTracker {
      * Populate `pendingRanges` with a prior range overlapping into `range` (if pending), update targetRange.start to allow
      * searching for further ranges. Return whether an unclaimed range was added to pendingRanges, i.e., a gap still needs
      * an owner. Split unclaimed ranges if necessary to ensure that gaps returned from waitForRange do not go outside the
-     * originl range.
+     * original range.
      * @param range the range that is to be filled, where we want to find the first existing range for.
      * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
      * @param targetRange the targetRange to populate the start value of.

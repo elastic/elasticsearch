@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnspecified;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereEmbeddingsTaskSettings> {
@@ -106,7 +107,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializi
             )
         );
 
-        assertThat(exception.getCause().getMessage(), containsString("ABC"));
+        assertThat(
+            exception.getCause().getMessage(),
+            equalTo("Invalid value [abc]; expected one of [ingest, search, classification, clustering]")
+        );
     }
 
     public void testFromMap_ReturnsFailure_WhenInputTypeIsUnspecified() {

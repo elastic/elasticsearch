@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
+import org.elasticsearch.xpack.inference.common.parser.EnumParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
@@ -53,13 +54,11 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             ModelConfigurations.TASK_SETTINGS,
             ignoreUnknownFields,
             args -> {
-                InputType inputType = null;
-                if (args[0] != null) {
-                    inputType = InputType.fromString((String) args[0]);
-                    if (VALID_INPUT_TYPE_VALUES.contains(inputType) == false) {
-                        throw new IllegalArgumentException(invalidInputTypeMessage(inputType));
-                    }
-                }
+                InputType inputType = EnumParser.parseFromStringInObjectParserContext(
+                    (String) args[0],
+                    InputType::fromString,
+                    VALID_INPUT_TYPE_VALUES
+                );
                 Truncation truncation = args[1] == null ? null : Truncation.fromString((String) args[1]);
                 return new CohereEmbeddingsTaskSettings(inputType, truncation);
             }

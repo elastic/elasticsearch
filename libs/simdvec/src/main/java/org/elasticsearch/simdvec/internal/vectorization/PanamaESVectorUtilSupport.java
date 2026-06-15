@@ -1247,34 +1247,35 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         return sumQuery;
     }
 
-    private static <T> VectorMask<T> calculateMask(VectorSpecies<T> species, int remaining) {
-        return remaining >= species.length() ? null : VectorMask.fromLong(species, (1L << remaining) - 1);
-    }
-
-    private static FloatVector fromArray(float[] array, int offset, VectorMask<Float> mask) {
-        return mask == null
-            ? FloatVector.fromArray(FLOAT_SPECIES, array, offset)
-            : FloatVector.fromArray(FLOAT_SPECIES, array, offset, mask);
-    }
-
-    private static ByteVector fromArray(byte[] array, int offset, VectorMask<Byte> mask) {
-        return mask == null ? ByteVector.fromArray(BYTE_SPECIES, array, offset) : ByteVector.fromArray(BYTE_SPECIES, array, offset, mask);
-    }
-
     @Override
     public void dotProductBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv1 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
+        final int vectorEnd = FLOAT_SPECIES.loopBound(query.length);
+        int i = 0;
 
-        for (int i = 0; i < query.length; i += FLOAT_SPECIES.length()) {
-            VectorMask<Float> mask = calculateMask(FLOAT_SPECIES, query.length - i);
-            FloatVector qv = fromArray(query, i, mask);
-            FloatVector dv0 = fromArray(v0, i, mask);
-            FloatVector dv1 = fromArray(v1, i, mask);
-            FloatVector dv2 = fromArray(v2, i, mask);
-            FloatVector dv3 = fromArray(v3, i, mask);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
+            sv0 = fma(qv, dv0, sv0);
+            sv1 = fma(qv, dv1, sv1);
+            sv2 = fma(qv, dv2, sv2);
+            sv3 = fma(qv, dv3, sv3);
+        }
+
+        int remaining = query.length - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
             sv0 = fma(qv, dv0, sv0);
             sv1 = fma(qv, dv1, sv1);
             sv2 = fma(qv, dv2, sv2);
@@ -1304,14 +1305,33 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         FloatVector sv2 = FloatVector.zero(FLOAT_SPECIES);
         FloatVector sv3 = FloatVector.zero(FLOAT_SPECIES);
         final int end = queryOffset + length;
+        final int vectorEnd = queryOffset + FLOAT_SPECIES.loopBound(length);
+        int i = queryOffset;
 
-        for (int i = queryOffset; i < end; i += FLOAT_SPECIES.length()) {
-            VectorMask<Float> mask = calculateMask(FLOAT_SPECIES, end - i);
-            FloatVector qv = fromArray(query, i, mask);
-            FloatVector dv0 = fromArray(v0, i, mask);
-            FloatVector dv1 = fromArray(v1, i, mask);
-            FloatVector dv2 = fromArray(v2, i, mask);
-            FloatVector dv3 = fromArray(v3, i, mask);
+        for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i);
+            FloatVector diff0 = qv.sub(dv0);
+            FloatVector diff1 = qv.sub(dv1);
+            FloatVector diff2 = qv.sub(dv2);
+            FloatVector diff3 = qv.sub(dv3);
+            sv0 = fma(diff0, diff0, sv0);
+            sv1 = fma(diff1, diff1, sv1);
+            sv2 = fma(diff2, diff2, sv2);
+            sv3 = fma(diff3, diff3, sv3);
+        }
+
+        int remaining = end - i;
+        if (remaining > 0) {
+            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
+            FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
+            FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
+            FloatVector dv2 = FloatVector.fromArray(FLOAT_SPECIES, v2, i, mask);
+            FloatVector dv3 = FloatVector.fromArray(FLOAT_SPECIES, v3, i, mask);
             FloatVector diff0 = qv.sub(dv0);
             FloatVector diff1 = qv.sub(dv1);
             FloatVector diff2 = qv.sub(dv2);
@@ -1330,24 +1350,46 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void dotProductBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        int stride = BYTE_SPECIES.length();
+        int blk = BYTE_SPECIES.loopBound(query.length);
+        int c = 0;
+
         IntVector sv0 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv1 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv2 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv3 = IntVector.zero(INTEGER_SPECIES);
-
-        for (int c = 0; c < query.length; c += BYTE_SPECIES.length()) {
-            VectorMask<Byte> mask = calculateMask(BYTE_SPECIES, query.length - c);
-            ByteVector qv = fromArray(query, c, mask);
-            ByteVector bv0 = fromArray(v0, c, mask);
-            ByteVector bv1 = fromArray(v1, c, mask);
-            ByteVector bv2 = fromArray(v2, c, mask);
-            ByteVector bv3 = fromArray(v3, c, mask);
+        for (; c < blk; c += stride) {
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, c);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, c);
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
                 Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, part);
                 sv0 = sv0.add(iq.mul(bv0.castShape(INTEGER_SPECIES, part)));
                 sv1 = sv1.add(iq.mul(bv1.castShape(INTEGER_SPECIES, part)));
                 sv2 = sv2.add(iq.mul(bv2.castShape(INTEGER_SPECIES, part)));
                 sv3 = sv3.add(iq.mul(bv3.castShape(INTEGER_SPECIES, part)));
+            }
+        }
+
+        int remaining = query.length - c;
+        if (remaining > 0) {
+            // masked tail, at most a single ByteVector left
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c, mask);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c, mask);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c, mask);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, c, mask);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, c, mask);
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS;
+                Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, maskedPart);
+                sv0 = sv0.add(iq.mul(bv0.castShape(INTEGER_SPECIES, maskedPart)));
+                sv1 = sv1.add(iq.mul(bv1.castShape(INTEGER_SPECIES, maskedPart)));
+                sv2 = sv2.add(iq.mul(bv2.castShape(INTEGER_SPECIES, maskedPart)));
+                sv3 = sv3.add(iq.mul(bv3.castShape(INTEGER_SPECIES, maskedPart)));
+                remaining -= INTEGER_SPECIES.length();
             }
         }
 
@@ -1359,6 +1401,10 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void cosineBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        int stride = BYTE_SPECIES.length();
+        int blk = BYTE_SPECIES.loopBound(query.length);
+        int c = 0;
+
         // query norm is shared across all four candidates; compute it once
         IntVector bNorm = IntVector.zero(INTEGER_SPECIES);
         IntVector dot0 = IntVector.zero(INTEGER_SPECIES);
@@ -1370,13 +1416,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         IntVector aNorm2 = IntVector.zero(INTEGER_SPECIES);
         IntVector aNorm3 = IntVector.zero(INTEGER_SPECIES);
 
-        for (int c = 0; c < query.length; c += BYTE_SPECIES.length()) {
-            VectorMask<Byte> mask = calculateMask(BYTE_SPECIES, query.length - c);
-            ByteVector qv = fromArray(query, c, mask);
-            ByteVector bv0 = fromArray(v0, c, mask);
-            ByteVector bv1 = fromArray(v1, c, mask);
-            ByteVector bv2 = fromArray(v2, c, mask);
-            ByteVector bv3 = fromArray(v3, c, mask);
+        for (; c < blk; c += stride) {
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, c);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, c);
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
                 Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, part);
                 bNorm = bNorm.add(iq.mul(iq));
@@ -1393,6 +1438,35 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                 aNorm1 = aNorm1.add(ia1.mul(ia1));
                 aNorm2 = aNorm2.add(ia2.mul(ia2));
                 aNorm3 = aNorm3.add(ia3.mul(ia3));
+            }
+        }
+
+        int remaining = query.length - c;
+        if (remaining > 0) {
+            // masked tail, at most a single ByteVector left
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c, mask);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c, mask);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c, mask);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, c, mask);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, c, mask);
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS;
+                Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, maskedPart);
+                bNorm = bNorm.add(iq.mul(iq));
+                Vector<Integer> ia0 = bv0.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ia1 = bv1.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ia2 = bv2.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> ia3 = bv3.castShape(INTEGER_SPECIES, maskedPart);
+                dot0 = dot0.add(iq.mul(ia0));
+                dot1 = dot1.add(iq.mul(ia1));
+                dot2 = dot2.add(iq.mul(ia2));
+                dot3 = dot3.add(iq.mul(ia3));
+                aNorm0 = aNorm0.add(ia0.mul(ia0));
+                aNorm1 = aNorm1.add(ia1.mul(ia1));
+                aNorm2 = aNorm2.add(ia2.mul(ia2));
+                aNorm3 = aNorm3.add(ia3.mul(ia3));
+                remaining -= INTEGER_SPECIES.length();
             }
         }
 
@@ -1436,18 +1510,20 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int length
     ) {
 
+        int stride = BYTE_SPECIES.length();
+        int blk = BYTE_SPECIES.loopBound(length);
+        int c = 0;
+
         IntVector sv0 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv1 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv2 = IntVector.zero(INTEGER_SPECIES);
         IntVector sv3 = IntVector.zero(INTEGER_SPECIES);
-
-        for (int c = 0; c < length; c += BYTE_SPECIES.length()) {
-            VectorMask<Byte> mask = calculateMask(BYTE_SPECIES, length - c);
-            ByteVector qv = fromArray(query, queryOffset + c, mask);
-            ByteVector bv0 = fromArray(v0, queryOffset + c, mask);
-            ByteVector bv1 = fromArray(v1, queryOffset + c, mask);
-            ByteVector bv2 = fromArray(v2, queryOffset + c, mask);
-            ByteVector bv3 = fromArray(v3, queryOffset + c, mask);
+        for (; c < blk; c += stride) {
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, queryOffset + c);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, queryOffset + c);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, queryOffset + c);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, queryOffset + c);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, queryOffset + c);
             for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
                 Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, part);
                 Vector<Integer> diff0 = iq.sub(bv0.castShape(INTEGER_SPECIES, part));
@@ -1458,6 +1534,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                 sv1 = sv1.add(diff1.mul(diff1));
                 sv2 = sv2.add(diff2.mul(diff2));
                 sv3 = sv3.add(diff3.mul(diff3));
+            }
+        }
+
+        int remaining = length - c;
+        if (remaining > 0) {
+            // masked tail, at most a single ByteVector left
+            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, queryOffset + c, mask);
+            ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, queryOffset + c, mask);
+            ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, queryOffset + c, mask);
+            ByteVector bv2 = ByteVector.fromArray(BYTE_SPECIES, v2, queryOffset + c, mask);
+            ByteVector bv3 = ByteVector.fromArray(BYTE_SPECIES, v3, queryOffset + c, mask);
+
+            for (int maskedPart = 0; remaining > 0; maskedPart++) {
+                assert maskedPart < BYTE_TO_FLOAT_PARTS; // should always be less than byte vector length remaining
+                Vector<Integer> iq = qv.castShape(INTEGER_SPECIES, maskedPart);
+                Vector<Integer> diff0 = iq.sub(bv0.castShape(INTEGER_SPECIES, maskedPart));
+                Vector<Integer> diff1 = iq.sub(bv1.castShape(INTEGER_SPECIES, maskedPart));
+                Vector<Integer> diff2 = iq.sub(bv2.castShape(INTEGER_SPECIES, maskedPart));
+                Vector<Integer> diff3 = iq.sub(bv3.castShape(INTEGER_SPECIES, maskedPart));
+                sv0 = sv0.add(diff0.mul(diff0));
+                sv1 = sv1.add(diff1.mul(diff1));
+                sv2 = sv2.add(diff2.mul(diff2));
+                sv3 = sv3.add(diff3.mul(diff3));
+                remaining -= INTEGER_SPECIES.length();
             }
         }
 

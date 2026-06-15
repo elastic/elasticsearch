@@ -516,7 +516,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             @Override
-            public int docValueCount() throws IOException {
+            public int docValueCount() {
                 return 1; // no multivalue support, so always 1
             }
 
@@ -529,6 +529,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return lazyDelegate().histogramValue();
             }
 
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return delegate.docIdIterator();
+            }
         };
     }
 

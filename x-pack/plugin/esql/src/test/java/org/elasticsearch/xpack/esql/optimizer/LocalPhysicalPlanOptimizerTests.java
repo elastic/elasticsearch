@@ -127,6 +127,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests.metricsAnalyzer;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -2459,7 +2460,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = plannerOptimizerTimeSeries.plan(query);
+        var plan = plannerOptimizerTimeSeries.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, metricsAnalyzer().buildAnalyzer());
         var project = as(plan, ProjectExec.class);
         var unpack = as(project.child(), EvalExec.class);
         var limit = as(unpack.child(), LimitExec.class);

@@ -136,6 +136,9 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
+        if (cluster().size() == 0) {
+            return;
+        }
         // Clear the default repository setting before teardown so that the repository can be deleted
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));

@@ -62,6 +62,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
 public class TransportUpdateInferenceModelAction extends TransportMasterNodeAction<
@@ -134,6 +135,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                validateEndpointIsNotDefault(inferenceEntityId);
+
                 if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
                     listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
                     return;
@@ -148,15 +151,22 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 
+                var serviceName = service.get().name();
+                var newServiceSettingsMap = request.getServiceSettings();
+                var newTaskSettingsMap = request.getTaskSettings();
+                var newChunkingSettingsMap = request.getChunkingSettings();
+
                 ModelConfigurations mergedModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
                     existingParsedModel,
-                    request.getServiceSettings(),
-                    request.getTaskSettings(),
-                    request.getChunkingSettings(),
-                    service.get().name()
+                    newServiceSettingsMap,
+                    newTaskSettingsMap,
+                    newChunkingSettingsMap,
+                    serviceName
                 );
 
-                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, request.getServiceSettings());
+                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, newServiceSettingsMap);
+
+                validateConsumedUpdateSettings(service.get(), serviceName, newServiceSettingsMap, newTaskSettingsMap);
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
                 if (mergedParsedModel.equals(existingParsedModel)) {
@@ -165,7 +175,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
-                if (isInClusterService(service.get().name())) {
+                if (isInClusterService(serviceName)) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
                     ActionListener<Model> updateModelListener = listener.delegateFailureAndWrap(
@@ -205,9 +215,36 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .addListener(masterListener);
     }
 
+    private static void validateEndpointIsNotDefault(String inferenceEntityId) {
+        if (inferenceEntityId.startsWith(".")) {
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] cannot be updated", inferenceEntityId);
+        }
+    }
+
     protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {
         if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
             throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Verifies update parsers consumed all keys from the request maps.
+     * @param inferenceService the inference service
+     * @param serviceName the name of the service
+     * @param serviceSettingsMap the map containing service settings
+     * @param taskSettingsMap the map containing task settings
+     */
+    static void validateConsumedUpdateSettings(
+        InferenceService inferenceService,
+        String serviceName,
+        @Nullable Map<String, Object> serviceSettingsMap,
+        @Nullable Map<String, Object> taskSettingsMap
+    ) {
+        if (inferenceService.usesParserForServiceSettings() == false) {
+            throwIfNotEmptyMap(serviceSettingsMap, serviceName);
+        }
+        if (inferenceService.usesParserForTaskSettings() == false) {
+            throwIfNotEmptyMap(taskSettingsMap, serviceName);
         }
     }
 

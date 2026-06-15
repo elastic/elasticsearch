@@ -2124,8 +2124,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
             // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.
-            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand)
-                .isEmpty() == false;
+            // TimeSeriesCollapse is included because const-folded PromQL plans (e.g. literals on empty indices)
+            // replace PromqlCommand with a LocalRelation but retain the TimeSeriesCollapse wrapper.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(
+                lp -> lp instanceof TimeSeriesAggregate || lp instanceof PromqlCommand || lp instanceof TimeSeriesCollapse
+            ).isEmpty() == false;
 
             int limit;
             if (limits.isEmpty()) {

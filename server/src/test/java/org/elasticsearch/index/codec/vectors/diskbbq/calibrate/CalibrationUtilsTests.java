@@ -9,23 +9,37 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.VectorUtil;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CalibrationUtilsTests extends ESTestCase {
+
+    private static final int DIM = 4;
 
     public void testSampleDataDisjointAndRespectsCaps() throws IOException {
         float[][] data = new float[200][];
@@ -42,6 +56,91 @@ public class CalibrationUtilsTests extends ESTestCase {
         }
         for (int o : sampled.corpusOrdinals()) {
             assertTrue(all.add(o));
+        }
+    }
+
+    public void testSampleDataOnConcatenatedView() throws IOException {
+        FloatVectorValues seg0 = KMeansFloatVectorValues.build(
+            List.of(new float[] { 1f, 0f, 0f, 0f }, new float[] { 2f, 0f, 0f, 0f }),
+            null,
+            DIM
+        );
+        FloatVectorValues seg1 = KMeansFloatVectorValues.build(
+            List.of(new float[] { 3f, 0f, 0f, 0f }, new float[] { 4f, 0f, 0f, 0f }, new float[] { 5f, 0f, 0f, 0f }),
+            null,
+            DIM
+        );
+        FloatVectorValues concatenated = new ConcatenatedFloatVectorValues(new FloatVectorValues[] { seg0, seg1 });
+        assertEquals(5, concatenated.size());
+
+        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(concatenated, 1, 2);
+        assertEquals(1, sampled.queryOrdinals().length);
+        assertEquals(2, sampled.corpusOrdinals().length);
+        HashSet<Integer> all = new HashSet<>();
+        for (int o : sampled.queryOrdinals()) {
+            assertTrue(all.add(o));
+        }
+        for (int o : sampled.corpusOrdinals()) {
+            assertTrue(all.add(o));
+        }
+        assertTrue(sampled.queryOrdinals()[0] >= 0 && sampled.queryOrdinals()[0] < 5);
+        assertTrue(sampled.corpusOrdinals()[0] >= 0 && sampled.corpusOrdinals()[0] < 5);
+        assertTrue(sampled.corpusOrdinals()[1] >= 0 && sampled.corpusOrdinals()[1] < 5);
+    }
+
+    public void testConcatenatedFloatVectorValuesDispatchesByGlobalOrdinal() throws IOException {
+        FloatVectorValues seg0 = KMeansFloatVectorValues.build(List.of(new float[] { 1f, 2f, 3f, 4f }), null, DIM);
+        FloatVectorValues seg1 = KMeansFloatVectorValues.build(
+            List.of(new float[] { 5f, 6f, 7f, 8f }, new float[] { 9f, 10f, 11f, 12f }),
+            null,
+            DIM
+        );
+        ConcatenatedFloatVectorValues concatenated = new ConcatenatedFloatVectorValues(new FloatVectorValues[] { seg0, seg1 });
+
+        assertEquals(3, concatenated.size());
+        assertArrayEquals(new float[] { 1f, 2f, 3f, 4f }, concatenated.vectorValue(0), 0f);
+        assertArrayEquals(new float[] { 5f, 6f, 7f, 8f }, concatenated.vectorValue(1), 0f);
+        assertArrayEquals(new float[] { 9f, 10f, 11f, 12f }, concatenated.vectorValue(2), 0f);
+    }
+
+    public void testBuildFromSegmentReadersNoHeapCopy() throws IOException {
+        FloatVectorValues seg0 = KMeansFloatVectorValues.build(List.of(new float[] { 1f, 0f, 0f, 0f }), null, DIM);
+        FloatVectorValues seg1 = KMeansFloatVectorValues.build(
+            List.of(new float[] { 2f, 0f, 0f, 0f }, new float[] { 3f, 0f, 0f, 0f }),
+            null,
+            DIM
+        );
+        FieldInfo fieldInfo = vectorFieldInfo("vec");
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0), heapVectorReader(fieldInfo, seg1) },
+                new Bits[] { liveDocs(1), liveDocs(2) },
+                backgroundSegmentInfo(dir),
+                fieldInfo
+            );
+
+            FloatVectorValues built = CalibrationUtils.build(fieldInfo, mergeState);
+            assertThat(built, instanceOf(ConcatenatedFloatVectorValues.class));
+            assertEquals(3, built.size());
+            assertArrayEquals(new float[] { 1f, 0f, 0f, 0f }, built.vectorValue(0), 0f);
+            assertArrayEquals(new float[] { 2f, 0f, 0f, 0f }, built.vectorValue(1), 0f);
+            assertArrayEquals(new float[] { 3f, 0f, 0f, 0f }, built.vectorValue(2), 0f);
+        }
+    }
+
+    public void testBuildSingleSegmentReturnsDelegate() throws IOException {
+        FloatVectorValues seg0 = KMeansFloatVectorValues.build(List.of(new float[] { 1f, 2f, 3f, 4f }), null, DIM);
+        FieldInfo fieldInfo = vectorFieldInfo("vec");
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { heapVectorReader(fieldInfo, seg0) },
+                new Bits[] { liveDocs(1) },
+                backgroundSegmentInfo(dir),
+                fieldInfo
+            );
+            assertSame(seg0, CalibrationUtils.build(fieldInfo, mergeState));
         }
     }
 
@@ -67,133 +166,130 @@ public class CalibrationUtilsTests extends ESTestCase {
         assertThat(secondLift, greaterThan(firstLift));
     }
 
-    public void testToHeapDenseEmpty() throws IOException {
-        FloatVectorValues empty = new FloatVectorValues() {
+    private static KnnVectorsReader heapVectorReader(FieldInfo fieldInfo, FloatVectorValues vectors) {
+        return new KnnVectorsReader() {
             @Override
-            public FloatVectorValues copy() {
-                throw new UnsupportedOperationException();
+            public FloatVectorValues getFloatVectorValues(String field) {
+                return field.equals(fieldInfo.name) ? vectors : null;
             }
 
             @Override
-            public int dimension() {
-                return 2;
+            public org.apache.lucene.index.ByteVectorValues getByteVectorValues(String field) {
+                return null;
             }
 
             @Override
-            public int size() {
-                return 0;
+            public void search(
+                String field,
+                float[] target,
+                org.apache.lucene.search.KnnCollector knnCollector,
+                org.apache.lucene.search.AcceptDocs acceptDocs
+            ) {}
+
+            @Override
+            public void search(
+                String field,
+                byte[] target,
+                org.apache.lucene.search.KnnCollector knnCollector,
+                org.apache.lucene.search.AcceptDocs acceptDocs
+            ) {}
+
+            @Override
+            public Map<String, Long> getOffHeapByteSize(FieldInfo info) {
+                return Map.of();
             }
 
             @Override
-            public DocIndexIterator iterator() {
-                return new DocIndexIterator() {
-                    @Override
-                    public int docID() {
-                        return NO_MORE_DOCS;
-                    }
-
-                    @Override
-                    public int nextDoc() {
-                        return NO_MORE_DOCS;
-                    }
-
-                    @Override
-                    public int advance(int target) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public long cost() {
-                        return 0;
-                    }
-
-                    @Override
-                    public int index() {
-                        return -1;
-                    }
-                };
-            }
+            public void checkIntegrity() {}
 
             @Override
-            public float[] vectorValue(int ord) {
-                throw new UnsupportedOperationException();
-            }
+            public void close() {}
         };
-        FloatVectorValues heap = CalibrationUtils.toHeapDenseFloatVectorValues(empty);
-        assertEquals(0, heap.size());
-        assertEquals(2, heap.dimension());
     }
 
-    /**
-     * Mimics Lucene merged float vectors: {@code vectorValue(ord)} is only legal for the ordinal
-     * most recently returned by {@link DocIndexIterator#index()} after {@link DocIndexIterator#nextDoc()}.
-     */
-    private static FloatVectorValues sequentialOnlyFloatVectorValues(float[][] vecs) {
-        return new FloatVectorValues() {
-            private int lastOrd = -1;
+    private static MergeState mergeState(
+        Directory dir,
+        KnnVectorsReader[] readers,
+        Bits[] liveDocsBits,
+        SegmentInfo segmentInfo,
+        FieldInfo fieldInfo
+    ) throws IOException {
+        FieldInfos[] fieldInfos = new FieldInfos[readers.length];
+        for (int i = 0; i < readers.length; i++) {
+            FloatVectorValues vectors = readers[i].getFloatVectorValues(fieldInfo.name);
+            fieldInfos[i] = vectors != null ? new FieldInfos(new FieldInfo[] { fieldInfo }) : new FieldInfos(new FieldInfo[0]);
+        }
+        return new MergeState(
+            null,
+            segmentInfo,
+            null,
+            null,
+            null,
+            null,
+            null,
+            fieldInfos,
+            liveDocsBits,
+            null,
+            null,
+            readers,
+            null,
+            null,
+            null,
+            false
+        );
+    }
 
+    private static Bits liveDocs(int length) {
+        return new Bits() {
             @Override
-            public FloatVectorValues copy() {
-                throw new UnsupportedOperationException();
+            public boolean get(int index) {
+                return true;
             }
 
             @Override
-            public int dimension() {
-                return vecs[0].length;
-            }
-
-            @Override
-            public int size() {
-                return vecs.length;
-            }
-
-            @Override
-            public DocIndexIterator iterator() {
-                return new DocIndexIterator() {
-                    private int nextOrd = 0;
-                    private int docId = -1;
-
-                    @Override
-                    public int docID() {
-                        return docId;
-                    }
-
-                    @Override
-                    public int nextDoc() {
-                        if (nextOrd >= vecs.length) {
-                            docId = NO_MORE_DOCS;
-                            return NO_MORE_DOCS;
-                        }
-                        lastOrd = nextOrd;
-                        docId = nextOrd;
-                        nextOrd++;
-                        return docId;
-                    }
-
-                    @Override
-                    public int advance(int target) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public long cost() {
-                        return vecs.length;
-                    }
-
-                    @Override
-                    public int index() {
-                        return lastOrd;
-                    }
-                };
-            }
-
-            @Override
-            public float[] vectorValue(int ord) {
-                if (ord != lastOrd) {
-                    throw new IllegalStateException("only sequential: ord=" + ord + " lastOrd=" + lastOrd);
-                }
-                return vecs[ord];
+            public int length() {
+                return length;
             }
         };
+    }
+
+    private static SegmentInfo backgroundSegmentInfo(Directory dir) throws IOException {
+        return new SegmentInfo(
+            dir,
+            Version.LATEST,
+            Version.LATEST,
+            "bg",
+            1000,
+            false,
+            false,
+            Codec.getDefault(),
+            Collections.emptyMap(),
+            StringHelper.randomId(),
+            new HashMap<>(),
+            null
+        );
+    }
+
+    private static FieldInfo vectorFieldInfo(String name) {
+        return new FieldInfo(
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.NONE,
+            org.apache.lucene.index.DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(),
+            0,
+            0,
+            0,
+            DIM,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
     }
 }

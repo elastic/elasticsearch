@@ -17,6 +17,7 @@
  * access.
  *
  * <p>{@link CalibrationUtils} provides vector sampling and math helpers used by later calibration
- * models.
+ * models. {@link ConcatenatedFloatVectorValues} exposes merge input segments as a single
+ * reader-backed view without heap materialization.
  */
 package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;

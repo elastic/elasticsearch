@@ -29,9 +29,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.BlockLoaderTestCase.buildSpecification;
-import static org.elasticsearch.index.mapper.BlockLoaderTestCase.hasDocValues;
 
-public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
+/**
+ * Exercises the strict-columnar dedup path: a text parent that carries a keyword multi-field. When that keyword sub-field is a complete,
+ * byte-identical copy of the raw values the parent skips its own doc values and loads through the delegate; otherwise it keeps its own.
+ */
+public class TextFieldWithKeywordSubfieldBlockLoaderTests extends MapperServiceTestCase {
     private final BlockLoaderTestCase.Params params;
     private final BlockLoaderTestRunner runner;
 
@@ -40,7 +43,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         return BlockLoaderTestCase.args();
     }
 
-    public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
+    public TextFieldWithKeywordSubfieldBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
         this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
         if (randomBoolean()) {
@@ -48,12 +51,17 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         }
     }
 
-    // This is similar to BlockLoaderTestCase#testBlockLoaderOfMultiField but has customizations required to properly test the case
-    // of text multi field in a keyword field.
-    public void testBlockLoaderOfParentField() throws IOException {
-        var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.KEYWORD.toString())));
+    public void testBlockLoaderOfTextFieldWithKeywordSubfield() throws IOException {
+        // The dedup this exercises - skipping the text field's own doc values in favour of a plain keyword delegate - only happens in
+        // strict-columnar mode. In other modes the text field has no own doc values anyway, so there is nothing new to assert here.
+        assumeTrue(
+            "dedup of text doc values against a keyword sub-field only applies in strict-columnar mode",
+            params.indexMode().isStrictColumnar()
+        );
+
+        var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.TEXT.toString())));
         var specification = buildSpecification(
-            List.of(new MultifieldAddonHandler(Map.of(FieldType.KEYWORD, List.of(FieldType.TEXT)), 1f)),
+            List.of(new MultifieldAddonHandler(Map.of(FieldType.TEXT, List.of(FieldType.KEYWORD)), 1f)),
             params.indexMode()
         );
 
@@ -63,46 +71,25 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         runner.document(new DocumentGenerator(specification).generate(template, mapping));
         var fieldValue = runner.mapDoc().get("parent");
 
-        Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
+        Object expected = TextFieldBlockLoaderTests.expectedValue(
+            fieldMapping,
+            fieldValue,
+            params,
+            new BlockLoaderTestCase.TestContext(false, false),
+            false
+        );
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
         runner.mapperService(mapperServiceForParams(mappingXContent));
-        runner.fieldName("parent.subfield_text");
+        runner.fieldName("parent");
         runner.run(expected);
     }
 
     private MapperService mapperServiceForParams(XContentBuilder mappingXContent) throws IOException {
-        // Columnar index modes preserve array order via offsets recorded on the keyword parent. The text subfield delegates its block
-        // loader to that parent, so the index must actually be built in columnar mode for the offsets to exist - otherwise the delegate
-        // falls back to sorted ordinal order and no longer matches the arrival-order expectation.
+        // Columnar index modes preserve array order via offsets recorded on the field's own doc values, so the index must actually be built
+        // in columnar mode for those offsets to exist - otherwise the source-order expectation no longer holds.
         if (params.indexMode().isColumnar()) {
             return createMapperService(BlockLoaderTestCase.getSettingsForParams(params).build(), mappingXContent);
         }
         return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Object expected(Map<String, Object> fieldMapping, Object value, BlockLoaderTestCase.TestContext testContext) {
-        assert fieldMapping.containsKey("fields");
-
-        var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
-
-        // In strict-columnar mode the text subfield enables doc values by default, and the text loader reads its own doc values before
-        // ever delegating to the keyword parent, so the value comes from the subfield's own (source-ordered) doc values rather than the
-        // parent field's loader.
-        if (params.indexMode().isStrictColumnar()) {
-            return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
-        }
-
-        Object normalizer = fieldMapping.get("normalizer");
-        boolean docValues = hasDocValues(fieldMapping, true);
-        boolean store = fieldMapping.getOrDefault("store", false).equals(true);
-
-        if (normalizer == null && (docValues || store)) {
-            // we are using block loader of the parent field
-            return KeywordFieldBlockLoaderTests.expectedValue(fieldMapping, value, params, testContext);
-        }
-
-        // we are using block loader of the text field itself
-        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
     }
 }

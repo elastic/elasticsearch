@@ -27,8 +27,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -150,7 +152,8 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
-        if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
+        boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
+        if (noViews && InSubqueryResolver.hasInSubqueryInFilter(plan) == false) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries));
             return;
         }
@@ -215,6 +218,28 @@ public class ViewResolver {
                         l.onResponse(result);
                     })
                 );
+                case Filter filter -> {
+                    LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                    if (resolved == filter) {
+                        // No InSubquery in this filter — let transformDown process its children normally.
+                        planListener.onResponse(filter);
+                    } else {
+                        // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — now resolve any view
+                        // references introduced in the subquery plans.
+                        replaceViews(
+                            resolved,
+                            projectRouting,
+                            parser,
+                            seenInner,
+                            viewQueries,
+                            depth,
+                            planListener.delegateFailureAndWrap((l, result) -> {
+                                result.forEachDown(resolvedPlans::add);
+                                l.onResponse(result);
+                            })
+                        );
+                    }
+                }
                 case SemiJoin semiJoin -> replaceViewsSemiJoin(
                     semiJoin,
                     projectRouting,

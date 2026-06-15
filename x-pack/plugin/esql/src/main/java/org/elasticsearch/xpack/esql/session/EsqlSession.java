@@ -317,11 +317,10 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        // Collect IN_SUBQUERY telemetry from the plan produced by each view-resolution pass, before the resolver rewrites the originating
-        // InSubquery expressions into SemiJoin/AntiJoin/MarkJoin — mirroring how view telemetry is collected before view resolution
-        // discards the view-specific plan nodes. Inspecting every pass also catches IN subqueries revealed only after a view nested in an
-        // IN subquery is expanded; this flag keeps the counter to once per query. The WHERE counter is set by the analyzer/verifier plan
-        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
+        // Collect IN_SUBQUERY telemetry from the original plan before view+subquery resolution begins. The listener receives the
+        // pre-resolution plan so InSubquery expressions are still visible. Mirroring how view telemetry is collected before view resolution
+        // discards view-specific nodes. The WHERE counter is set by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
+        // SemiJoin/AntiJoin/MarkJoin too.
         AtomicBoolean inSubqueryMetricCounted = new AtomicBoolean();
         viewAndSubqueryResolver.resolve(
             statement.plan(),
@@ -1078,18 +1077,15 @@ public class EsqlSession {
     }
 
     /**
-     * Increments the {@code IN_SUBQUERY} counter at most once per query when a view-resolved plan
+     * Increments the {@code IN_SUBQUERY} counter at most once per query when the original (pre-resolution) plan
      * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
      * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}.
      * <p>
-     * {@link ViewAndSubqueryResolver} calls this after every view-resolution pass (each pass sees the originating
-     * {@code InSubquery} expressions still in place, before they are rewritten into
-     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}), so we also catch IN subqueries that only surface once a
-     * view referenced from inside another IN subquery is expanded in a later iteration. {@code alreadyCounted} keeps
-     * the increment to once per query no matter how many passes (or how many expressions) match; it is an
-     * {@link AtomicBoolean} because successive passes may run on different threads. Mirrors {@link #gatherViewMetrics}:
-     * direct increment, once per query. The {@code WHERE} counter is handled by the analyzer/verifier plan walk via
-     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin (which only originate from a {@code WHERE x IN (sub)}).
+     * {@link ViewAndSubqueryResolver} calls this with the original plan before view and subquery resolution begins,
+     * so the originating {@code InSubquery} expressions are still in place. {@code alreadyCounted} keeps the increment
+     * to once per query; it is an {@link AtomicBoolean} for consistency with concurrent callers. Mirrors
+     * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter is handled by the
+     * analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin.
      */
     private void gatherInSubqueryMetrics(LogicalPlan plan, AtomicBoolean alreadyCounted) {
         if (metrics == null) {

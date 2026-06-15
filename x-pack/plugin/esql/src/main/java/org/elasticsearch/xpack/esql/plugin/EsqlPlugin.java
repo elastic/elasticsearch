@@ -413,7 +413,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider,
             dataSourceModule,
             dataSourceCredentials,
-            new ViewAndSubqueryResolver(services.clusterService(), viewResolver),
+            new ViewAndSubqueryResolver(viewResolver),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators),
             new DatasetService(services.clusterService(), crudValidators)
@@ -456,8 +456,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
                 DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING,
-                DatasetService.MAX_DATASETS_COUNT_SETTING,
-                ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING
+                DatasetService.MAX_DATASETS_COUNT_SETTING
             )
         );
         settings.addAll(PlannerSettings.settings());

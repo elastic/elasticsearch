@@ -140,11 +140,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     // ---- IN_SUBQUERY telemetry ----
 
     /**
-     * IN_SUBQUERY telemetry must be counted exactly once per query even when the originating IN subquery is only revealed across several
-     * resolution iterations. Here {@code in_layer_3} -> {@code in_layer_2} -> {@code in_layer_1} each wrap an
-     * {@code IN (FROM <previous_view>)}, so an InSubquery surfaces on more than one view-resolution pass. This exercises the same
-     * collection {@code EsqlSession.gatherInSubqueryMetrics} performs: the resolver reports every pass, while an {@link AtomicBoolean}
-     * keeps the counter at one.
+     * IN_SUBQUERY telemetry must be counted exactly once per query. The listener is invoked with the original (pre-resolution) plan, so
+     * the top-level {@code IN (FROM in_layer_3 ...)} expression is visible there and triggers exactly one count.
      */
     public void testInSubqueryMetricCountedOncePerQueryAcrossIterations() {
         addView("in_layer_1", "FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) | KEEP emp_no");
@@ -154,17 +151,13 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         AtomicInteger passesWithInSubquery = new AtomicInteger();
         long inSubqueryCount = inSubqueryMetric("FROM employees | WHERE emp_no IN (FROM in_layer_3 | KEEP emp_no)", passesWithInSubquery);
 
-        assertThat(
-            "the IN subquery should be visible on more than one view-resolution pass",
-            passesWithInSubquery.get(),
-            greaterThanOrEqualTo(2)
-        );
+        // The listener is called once with the original plan, which contains the top-level InSubquery directly.
+        assertThat(passesWithInSubquery.get(), equalTo(1));
         assertEquals("IN_SUBQUERY must be counted once per query", 1L, inSubqueryCount);
     }
 
     /**
-     * Control for {@link #testInSubqueryMetricCountedOncePerQueryAcrossIterations}: a single top-level IN subquery with no views is
-     * visible on exactly one pass and is still counted once.
+     * Control: a single top-level IN subquery with no views is visible on the original plan and is counted once.
      */
     public void testInSubqueryMetricCountedOnceForSingleSubquery() {
         AtomicInteger passesWithInSubquery = new AtomicInteger();
@@ -181,7 +174,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     private ViewResolver.ViewResolutionResult resolve(String query, Consumer<LogicalPlan> viewResolvedListener) {
-        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewService.getClusterService(), viewResolver);
+        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewResolver);
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
         resolver.resolve(query(query), null, this::parse, viewResolvedListener, future);
         return future.actionGet();

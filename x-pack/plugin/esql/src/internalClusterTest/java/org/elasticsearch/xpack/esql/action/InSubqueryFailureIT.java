@@ -11,7 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.Before;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -154,16 +154,15 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    // ---- view / IN subquery resolution iteration cap ----
-    public void testMaxViewSubqueryResolutionIterationsClusterSetting() {
+    // ---- view depth cap ----
+    public void testMaxViewDepthClusterSettingWithInSubquery() {
         assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
         assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
 
-        final int maxIterations = 2;
-        // The cap allows iterations 0..maxIterations; the next pass (maxIterations + 1) fails before doing any work.
-        final int failingIteration = maxIterations + 1;
-        final String settingKey = ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING.getKey();
-        updateClusterSettings(Settings.builder().put(settingKey, maxIterations));
+        // Three nested views (in_layer_3 -> in_layer_2 -> in_layer_1) exceed maxDepth=2.
+        final int maxDepth = 2;
+        final String settingKey = ViewResolver.MAX_VIEW_DEPTH_SETTING.getKey();
+        updateClusterSettings(Settings.builder().put(settingKey, maxDepth));
         try {
             installView("in_layer_1", "FROM test | WHERE id IN (FROM test | KEEP id) | KEEP id");
             installView("in_layer_2", "FROM test | WHERE id IN (FROM in_layer_1 | KEEP id) | KEEP id");
@@ -171,18 +170,7 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
             String query = "FROM test | WHERE id IN (FROM in_layer_3 | KEEP id)";
             VerificationException e = expectThrows(VerificationException.class, () -> run(query));
-            assertThat(
-                e.getMessage(),
-                containsString(
-                    "Too many view/subquery resolution iterations: "
-                        + failingIteration
-                        + " (exceeds "
-                        + settingKey
-                        + "="
-                        + maxIterations
-                        + ")"
-                )
-            );
+            assertThat(e.getMessage(), containsString("The maximum allowed view depth of " + maxDepth + " has been exceeded"));
         } finally {
             deleteViews("in_layer_1", "in_layer_2", "in_layer_3");
             updateClusterSettings(Settings.builder().putNull(settingKey));

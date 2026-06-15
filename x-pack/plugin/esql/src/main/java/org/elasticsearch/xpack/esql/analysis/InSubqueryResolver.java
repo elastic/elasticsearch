@@ -120,7 +120,7 @@ public class InSubqueryResolver {
      */
     private record MarkJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
 
-    private static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
+    public static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
         Expression condition = filter.condition();
 
         List<Expression> conjuncts = Predicates.splitAnd(condition);

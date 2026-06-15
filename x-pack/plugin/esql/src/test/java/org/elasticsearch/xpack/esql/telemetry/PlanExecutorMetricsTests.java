@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
-import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.mockito.stubbing.Answer;
 
@@ -125,7 +124,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(InferenceSettings.getSettings());
         settings.addAll(PlannerSettings.settings());
-        settings.add(ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING);
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
         return service;

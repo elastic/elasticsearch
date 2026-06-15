@@ -42,7 +42,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING;
 import static org.elasticsearch.xpack.esql.view.ViewResolver.MAX_VIEW_DEPTH_SETTING;
 
 /**
@@ -61,7 +60,6 @@ public class InMemoryViewService extends ViewService implements Closeable {
         settings.add(MAX_VIEWS_COUNT_SETTING);
         settings.add(MAX_VIEW_LENGTH_SETTING);
         settings.add(MAX_VIEW_DEPTH_SETTING);
-        settings.add(MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING);
         ALL_SETTINGS = settings;
     }
 
@@ -183,7 +181,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public ViewAndSubqueryResolver getViewAndSubqueryResolver() {
-        return new ViewAndSubqueryResolver(clusterService, getViewResolver());
+        return new ViewAndSubqueryResolver(getViewResolver());
     }
 
     public ClusterService getClusterService() {

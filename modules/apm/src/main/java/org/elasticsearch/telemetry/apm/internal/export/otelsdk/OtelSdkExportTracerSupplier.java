@@ -20,6 +20,7 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -48,6 +49,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         }
 
         TimeValue interval = OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.get(settings);
+        double sampleRate = OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE.get(settings);
+        int maxQueueSize = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_QUEUE_SIZE.get(settings);
+        int maxExportBatchSize = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_MAX_EXPORT_BATCH_SIZE.get(settings);
+        TimeValue exportTimeout = OtelSdkSettings.TELEMETRY_OTEL_TRACES_BATCH_EXPORT_TIMEOUT.get(settings);
 
         // InternalTelemetryVersion is @Internal but is the only way to opt into stable SemConv names in 1.62.0.
         OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder()
@@ -64,9 +69,20 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
             .setMeterProvider(meterProvider)
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)
+            .setMaxQueueSize(maxQueueSize)
+            .setMaxExportBatchSize(maxExportBatchSize)
+            .setExporterTimeout(exportTimeout.millis(), TimeUnit.MILLISECONDS)
             .build();
 
-        this.tracerProvider = SdkTracerProvider.builder().setResource(OtelSdkResource.get(settings)).addSpanProcessor(processor).build();
+        // ParentBased honors a sampled upstream traceparent regardless of sampleRate; only locally-started
+        // traces are subject to the ratio.
+        Sampler sampler = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
+
+        this.tracerProvider = SdkTracerProvider.builder()
+            .setResource(OtelSdkResource.get(settings))
+            .setSampler(sampler)
+            .addSpanProcessor(processor)
+            .build();
 
         this.openTelemetrySdk = OpenTelemetrySdk.builder()
             .setTracerProvider(tracerProvider)

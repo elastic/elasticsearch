@@ -9,12 +9,32 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
+
 import java.io.IOException;
 
-public interface FormattedDocValues extends ProcessedDocValues {
+public interface FormattedDocValues {
+    /**
+     * Advance the doc values reader to the provided doc.
+     *
+     * @return false if there are no values for this document, true otherwise
+     */
+    boolean advanceExact(int docId) throws IOException;
+
+    /**
+     * A count of the number of values at this document.
+     */
+    int docValueCount() throws IOException;
 
     /**
      * Load and format the next value.
      */
     Object nextValue() throws IOException;
+
+    /**
+     * @return an iterator over the doc ids when available, otherwise null.
+     */
+    default DocIdSetIterator docIdIterator() {
+        return null;
+    }
 }

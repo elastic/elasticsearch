@@ -131,9 +131,6 @@ public final class Automatons {
     }
 
     private static Automaton buildAutomatonWithLiteralPartition(Collection<String> patterns) {
-        if (patterns.size() <= 1) {
-            return buildAutomaton(patterns);
-        }
         List<BytesRef> literals = new ArrayList<>();
         List<String> others = new ArrayList<>();
         for (String pattern : patterns) {

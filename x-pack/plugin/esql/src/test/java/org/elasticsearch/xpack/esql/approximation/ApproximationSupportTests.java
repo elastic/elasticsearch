@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -187,6 +188,7 @@ public class ApproximationSupportTests extends ESTestCase {
         BinaryPlan.class,
         InferencePlan.class,
         CompoundOutputEval.class,
+        AbstractSubqueryJoin.class,
 
         // These plans don't occur in a correct analyzed query.
         AntiJoin.class,

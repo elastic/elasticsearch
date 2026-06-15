@@ -16,7 +16,9 @@ import java.lang.classfile.attribute.ModuleAttribute;
 import java.lang.classfile.attribute.ModuleProvideInfo;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.ModuleDesc;
+import java.lang.constant.PackageDesc;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests that {@link ModuleInfoAugmenter#augment(byte[], List)} injects {@code provides
@@ -110,6 +112,79 @@ public class ModuleInfoAugmenterTests extends TestCase {
             List.of(ClassDesc.of("test.MyLib$Provider")),
             libraryProvides.get(0).providesWith().stream().map(e -> e.asSymbol()).toList()
         );
+    }
+
+    /**
+     * A richly-populated module-info (requires, exports, opens, uses, provides, version) must
+     * survive augmentation with only the {@code provides} directive modified.
+     */
+    public void testAugmentPreservesAllNonProvidesAttributes() {
+        ClassDesc otherService = ClassDesc.of("test.OtherService");
+        byte[] original = buildModuleInfo("test.mod", builder -> {
+            builder.requires(ModuleDesc.of("java.logging"), 0, null);
+            builder.exports(PackageDesc.of("test.api"), 0);
+            builder.opens(PackageDesc.of("test.internal"), 0);
+            builder.uses(otherService);
+            builder.provides(ModuleProvideInfo.of(otherService, ClassDesc.of("test.OtherImpl")));
+        });
+
+        ModuleAttribute originalAttr = readModuleAttribute(original);
+        byte[] augmented = ModuleInfoAugmenter.augment(original, List.of("test.MyLib$Provider"));
+        ModuleAttribute augmentedAttr = readModuleAttribute(augmented);
+
+        assertModuleAttributesEqual(originalAttr, augmentedAttr, Set.of("provides"));
+
+        List<ModuleProvideInfo> libraryProvides = augmentedAttr.provides()
+            .stream()
+            .filter(p -> p.provides().asSymbol().equals(LIBRARY_PROVIDER))
+            .toList();
+        assertEquals(1, libraryProvides.size());
+        assertEquals(
+            List.of(ClassDesc.of("test.MyLib$Provider")),
+            libraryProvides.get(0).providesWith().stream().map(e -> e.asSymbol()).toList()
+        );
+    }
+
+    private static void assertModuleAttributesEqual(ModuleAttribute expected, ModuleAttribute actual, Set<String> suppress) {
+        if (suppress.contains("moduleName") == false) {
+            assertEquals(expected.moduleName(), actual.moduleName());
+        }
+        if (suppress.contains("moduleFlags") == false) {
+            assertEquals(expected.moduleFlagsMask(), actual.moduleFlagsMask());
+        }
+        if (suppress.contains("moduleVersion") == false) {
+            assertEquals(expected.moduleVersion(), actual.moduleVersion());
+        }
+        if (suppress.contains("requires") == false) {
+            assertEquals(
+                expected.requires().stream().map(r -> r.requires().asSymbol()).toList(),
+                actual.requires().stream().map(r -> r.requires().asSymbol()).toList()
+            );
+        }
+        if (suppress.contains("exports") == false) {
+            assertEquals(
+                expected.exports().stream().map(e -> e.exportedPackage().asSymbol()).toList(),
+                actual.exports().stream().map(e -> e.exportedPackage().asSymbol()).toList()
+            );
+        }
+        if (suppress.contains("opens") == false) {
+            assertEquals(
+                expected.opens().stream().map(o -> o.openedPackage().asSymbol()).toList(),
+                actual.opens().stream().map(o -> o.openedPackage().asSymbol()).toList()
+            );
+        }
+        if (suppress.contains("uses") == false) {
+            assertEquals(
+                expected.uses().stream().map(u -> u.asSymbol()).toList(),
+                actual.uses().stream().map(u -> u.asSymbol()).toList()
+            );
+        }
+        if (suppress.contains("provides") == false) {
+            assertEquals(
+                expected.provides().stream().map(p -> p.provides().asSymbol()).toList(),
+                actual.provides().stream().map(p -> p.provides().asSymbol()).toList()
+            );
+        }
     }
 
     private static byte[] buildModuleInfo(

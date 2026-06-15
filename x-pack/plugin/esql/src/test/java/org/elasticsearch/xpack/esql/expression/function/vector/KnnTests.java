@@ -14,11 +14,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunctionTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -90,6 +92,11 @@ public class KnnTests extends SingleFieldFullTextFunctionTestCase {
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "k"), Literal.integer(Source.EMPTY, randomIntBetween(1, 50)))
         );
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 
     @Override

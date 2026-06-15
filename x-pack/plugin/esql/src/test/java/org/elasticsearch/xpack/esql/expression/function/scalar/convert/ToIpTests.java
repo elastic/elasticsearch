@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -209,6 +210,11 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
             case DECIMAL -> "ParseIpLeadingZerosAreDecimalEvaluator";
             case OCTAL -> "ParseIpLeadingZerosAreOctalEvaluator";
         } + "[string=" + readEvaluator() + "]";
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 
     @Override

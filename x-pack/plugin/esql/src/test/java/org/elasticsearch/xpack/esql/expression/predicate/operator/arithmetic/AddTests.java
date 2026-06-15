@@ -454,6 +454,45 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
         return new Add(source, args.get(0), args.get(1), configuration);
     }
 
+    @Override
+    protected void assertCoAndContraVarianceOutputType(
+        List<DataType> originalTypes,
+        List<DataType> narrowedTypes,
+        DataType originalOutputType,
+        DataType narrowedOutputType
+    ) {
+        assertArithmeticCoAndContraVarianceOutputType(originalTypes, narrowedTypes, originalOutputType, narrowedOutputType);
+    }
+
+    static void assertArithmeticCoAndContraVarianceOutputType(
+        List<DataType> originalTypes,
+        List<DataType> narrowedTypes,
+        DataType originalOutputType,
+        DataType narrowedOutputType
+    ) {
+        List<DataType> nonNullNarrowed = narrowedTypes.stream().filter(t -> t != DataType.NULL).toList();
+        if (nonNullNarrowed.size() < narrowedTypes.size() && nonNullNarrowed.size() == 1) {
+            assertEquals(
+                "narrowing " + originalTypes + " to " + narrowedTypes + ": output type should match the remaining non-NULL argument type",
+                nonNullNarrowed.get(0),
+                narrowedOutputType
+            );
+        } else {
+            assertTrue(
+                "narrowing "
+                    + originalTypes
+                    + " to "
+                    + narrowedTypes
+                    + ": output type ["
+                    + narrowedOutputType
+                    + "] should be the same as or widen to ["
+                    + originalOutputType
+                    + "]",
+                narrowedOutputType.canWidenTo(originalOutputType)
+            );
+        }
+    }
+
     private static List<Float> addVectors(List<Float> left, List<Float> right) {
         List<Float> result = new ArrayList<>();
         for (int i = 0; i < left.size(); i++) {

@@ -493,4 +493,19 @@ public class TRangeTests extends AbstractConfigurationFunctionTestCase {
     protected boolean canSerialize() {
         return false;
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("TRange only uses constant arguments", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNull() {
+        assumeTrue("TRange only uses constant arguments", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("TRange only uses constant arguments", false);
+    }
 }

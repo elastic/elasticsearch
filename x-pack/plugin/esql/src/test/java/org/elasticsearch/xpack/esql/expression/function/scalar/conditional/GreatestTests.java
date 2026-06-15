@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBui
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
@@ -138,5 +140,18 @@ public class GreatestTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Greatest build(Source source, List<Expression> args) {
         return new Greatest(source, args.get(0), args.subList(1, args.size()));
+    }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Greatest requires all arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 }

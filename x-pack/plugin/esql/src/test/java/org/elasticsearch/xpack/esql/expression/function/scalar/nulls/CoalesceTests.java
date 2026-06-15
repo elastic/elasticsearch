@@ -50,7 +50,9 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -318,6 +320,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Coalesce build(Source source, List<Expression> args) {
         return new Coalesce(Source.EMPTY, args.get(0), args.subList(1, args.size()));
+    }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Coalesce requires all arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 
     public void testCoalesceIsLazy() {

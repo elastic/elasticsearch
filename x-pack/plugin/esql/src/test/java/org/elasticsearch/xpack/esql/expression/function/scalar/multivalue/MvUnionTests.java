@@ -26,7 +26,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -328,5 +330,18 @@ public class MvUnionTests extends AbstractScalarFunctionTestCase {
                 );
             }));
         }
+    }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvUnion requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 }

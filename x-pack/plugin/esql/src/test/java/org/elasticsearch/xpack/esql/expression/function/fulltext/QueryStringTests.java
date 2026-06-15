@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 @FunctionName("qstr")
@@ -37,6 +38,11 @@ public class QueryStringTests extends NoFieldFullTextFunctionTestCase {
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "default_field"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
         );
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 
     @Override

@@ -197,9 +197,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             spec.getParameters().getBranch().set(branch);
             spec.getParameters().getRootProjectDir().set(project.getRootProject().getLayout().getProjectDirectory().getAsFile());
             spec.getParameters().getRemote().set(remote);
-            spec.getParameters()
-                .getMode()
-                .set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
+            spec.getParameters().getMode().set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
             // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
             // allowing the DRA fast path on stale or absent refs.
             spec.getParameters()
@@ -672,9 +670,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
      */
     static void validateBwcMode(String mode) {
         if (Set.of("gradle", "dra", "auto").contains(mode) == false) {
-            throw new InvalidUserDataException(
-                "Invalid tests.bwc.mode value [" + mode + "]. Must be one of: gradle, dra, auto"
-            );
+            throw new InvalidUserDataException("Invalid tests.bwc.mode value [" + mode + "]. Must be one of: gradle, dra, auto");
         }
     }
 
@@ -692,9 +688,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         if (isDistributionArchive) {
             return switch (bwcMode) {
                 case "dra" -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source" + draUnavailable;
-                case "auto" -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source"
+                case "auto" -> "BWC ["
+                    + bwcVersion
+                    + "]: building distribution ["
+                    + projectName
+                    + "] from source"
                     + " — DRA snapshot commit did not match local remote-tracking ref (or was unreachable)";
-                default -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source"
+                default -> "BWC ["
+                    + bwcVersion
+                    + "]: building distribution ["
+                    + projectName
+                    + "] from source"
                     + " — set -Dtests.bwc.mode=auto to use a pre-built DRA snapshot when the commit matches";
             };
         } else {

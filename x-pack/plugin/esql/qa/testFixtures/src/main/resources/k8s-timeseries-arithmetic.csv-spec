@@ -13,6 +13,7 @@ addition_scalar_scalar_promql_expanded
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" sum=(1+1)
 | SORT step;
 
@@ -27,6 +28,7 @@ required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_scalar_constant_results
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" sum=(1+1)
 | TS_COLLAPSE;
 

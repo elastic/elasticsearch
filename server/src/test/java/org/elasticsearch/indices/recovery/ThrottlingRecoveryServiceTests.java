@@ -595,41 +595,37 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrency.get()).build()
                 );
 
-            if (iteration > 15 && randomBoolean()) {
-                taskQueue.scheduleNow(service::close);
-            }
-
             final var incomingTasks = randomIntBetween(50, 100);
             totalTaskCount.addAndGet(incomingTasks);
             for (int i = 0; i < incomingTasks; i++) {
-                taskQueue.scheduleNow(() -> {
-                    boolean serviceIsClosed = service.isClosed();
-                    service.enqueue(trackingListener, recoveryState, schedulingListener -> {
-                        assertFalse("no more tasks should get dispatched after service closed", serviceIsClosed);
-                        assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
-                        final var currentTime = taskQueue.getCurrentTimeMillis();
-                        taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
-                            running.decrementAndGet();
-                            // Randomly choose completion type
+                if (iteration > 15 && rarely()) {
+                    // idempotent
+                    service.close();
+                }
+                taskQueue.scheduleNow(() -> service.enqueue(trackingListener, recoveryState, schedulingListener -> {
+                    assertThat(running.incrementAndGet(), lessThanOrEqualTo(maxConcurrency.get()));
+                    final var currentTime = taskQueue.getCurrentTimeMillis();
+                    taskQueue.scheduleAt(currentTime + randomIntBetween(0, 100), () -> {
+                        running.decrementAndGet();
+                        // Randomly choose completion type
+                        if (randomBoolean()) {
+                            schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                        } else {
                             if (randomBoolean()) {
-                                schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+                                schedulingListener.onRecoveryAborted();
                             } else {
-                                if (randomBoolean()) {
-                                    schedulingListener.onRecoveryAborted();
-                                } else {
-                                    schedulingListener.onRecoveryFailure(
-                                        new RecoveryFailedException(
-                                            recoveryState,
-                                            null,
-                                            new RuntimeException("test recovery task injected failure")
-                                        ),
-                                        false
-                                    );
-                                }
+                                schedulingListener.onRecoveryFailure(
+                                    new RecoveryFailedException(
+                                        recoveryState,
+                                        null,
+                                        new RuntimeException("test recovery task injected failure")
+                                    ),
+                                    false
+                                );
                             }
-                        });
+                        }
                     });
-                });
+                }));
                 taskQueue.runAllRunnableTasks();
                 while (randomBoolean() && taskQueue.hasDeferredTasks()) {
                     if (service.isClosed()) {

@@ -656,3 +656,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/load two indices, convert and then drop ambiguous field client_ip}
   issue: https://github.com/elastic/elasticsearch/issues/151254
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load two indices with single conversion function TO_LONG}
+  issue: https://github.com/elastic/elasticsearch/issues/151255

@@ -1187,41 +1187,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                         @Override
                         protected void doRun() {
-                            try (dispatchRef) {
-                                final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
-                                if (gaps.isEmpty()) {
-                                    listener.onResponse(false);
-                                    return;
-                                }
-                                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                                logger.trace(
-                                    () -> Strings.format(
-                                        "fill gaps %s %s shared input stream factory",
-                                        gaps,
-                                        streamFactory == null ? "without" : "with"
-                                    )
-                                );
-                                final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                    ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                    : listener.map(unused -> true);
-                                try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
-                                    // Use current thread to fill the gaps in order
-                                    for (SparseFileTracker.Gap gap : gaps) {
-                                        fillGapRunnable(
-                                            gap,
-                                            writer,
-                                            streamFactory,
-                                            ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
-                                        ).run();
-                                    }
+                            final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
+                            if (gaps.isEmpty()) {
+                                listener.onResponse(false);
+                                return;
+                            }
+                            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                            logger.trace(
+                                () -> Strings.format(
+                                    "fill gaps %s %s shared input stream factory",
+                                    gaps,
+                                    streamFactory == null ? "without" : "with"
+                                )
+                            );
+                            final ActionListener<Void> gapsDoneListener = streamFactory != null
+                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
+                                : listener.map(unused -> true);
+                            try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+                                // Use current thread to fill the gaps in order
+                                for (SparseFileTracker.Gap gap : gaps) {
+                                    fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        streamFactory,
+                                        ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
+                                    ).run();
                                 }
                             }
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            dispatchRef.close();
                             listener.onFailure(e);
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            dispatchRef.close();
                         }
                     });
                 }

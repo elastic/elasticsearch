@@ -19,8 +19,11 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateProm
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
@@ -38,7 +41,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  */
 final class PrometheusPlanBuilderUtils {
 
-    /** Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} that lists the dimension field names. */
+    /**
+     * Column produced by {@link org.elasticsearch.xpack.esql.plan.logical.MetricsInfo} and
+     * {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} that lists the dimension field names.
+     */
     static final String DIMENSION_FIELDS = "dimension_fields";
 
     private PrometheusPlanBuilderUtils() {}
@@ -49,6 +55,14 @@ final class PrometheusPlanBuilderUtils {
     static UnresolvedRelation tsSource(String index) {
         IndexPattern pattern = new IndexPattern(Source.EMPTY, index);
         return new UnresolvedRelation(Source.EMPTY, pattern, false, List.of(), null, SourceCommand.TS);
+    }
+
+    static MetricsInfo metricsInfo(Source source, LogicalPlan child) {
+        return new MetricsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, child));
+    }
+
+    static TsInfo tsInfo(Source source, LogicalPlan child) {
+        return new TsInfo(source, InfoCommandPlanUtils.injectDocAttribute(source, child));
     }
 
     /**

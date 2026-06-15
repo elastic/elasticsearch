@@ -497,6 +497,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             pragmaBuilder.put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
         }
         addRandomPragma(pragmaBuilder);
+        testCase.pragmas.forEach(pragmaBuilder::put);
 
         Settings pragma = pragmaBuilder.build();
         if (pragma.isEmpty() == false) {

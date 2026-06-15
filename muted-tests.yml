@@ -761,3 +761,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/63_enrich_int_range/ages}
   issue: https://github.com/elastic/elasticsearch/issues/151289
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/64_enrich_int_match/Invalid decade as keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/151290

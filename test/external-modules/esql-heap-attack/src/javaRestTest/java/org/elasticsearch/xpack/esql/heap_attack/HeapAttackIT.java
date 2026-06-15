@@ -556,7 +556,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testAggGiantTextField() throws IOException {
         int docs = 100;
-        initGiantTextField(docs, false, 5);
+        initGiantTextField(docs, false, 5, false);
         Map<?, ?> response = aggGiantTextField();
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -740,9 +740,15 @@ public class HeapAttackIT extends HeapAttackTestCase {
         };
     }
 
-    void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {
+    void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb, boolean distinct) throws IOException {
         int docsPerBulk = isServerless() ? 3 : 10;
-        logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
+        logger.info(
+            "loading {} documents with one {} {}MB text field - docs per bulk {}",
+            docs,
+            distinct ? "distinct" : "big",
+            fieldSizeInMb,
+            docsPerBulk
+        );
 
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(fieldSizeInMb).getBytes());
 
@@ -770,7 +776,12 @@ public class HeapAttackIT extends HeapAttackTestCase {
             } else {
                 bulk.append("{\"f\":\"");
             }
-            bulk.append(Integer.toString(d % 10).repeat(fieldSize));
+            if (distinct) {
+                String prefix = String.format(Locale.ROOT, "%010d", d);
+                bulk.append(prefix).append("0".repeat(fieldSize - prefix.length()));
+            } else {
+                bulk.append(Integer.toString(d % 10).repeat(fieldSize));
+            }
             bulk.append("\"}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
                 bulk("bigtext", bulk.toString());
@@ -808,7 +819,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(50, true, 3, false);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
     }
 
@@ -818,7 +829,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(50, true, 3, false);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 

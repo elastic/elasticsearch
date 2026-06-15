@@ -253,13 +253,13 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
         int docs = 20;
-        heapAttackIT.initGiantTextField(docs, false, 5);
+        heapAttackIT.initGiantTextField(docs, false, 5, false);
         assertCircuitBreaks(attempt -> buildSubqueries(subqueries(false), "bigtext", serverlessExecuteBranchSequentially()));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
         int docs = 10;
-        heapAttackIT.initGiantTextField(docs, false, 5);
+        heapAttackIT.initGiantTextField(docs, false, 5, false);
         try {
             Map<?, ?> response = buildSubqueriesWithSort(subqueries(true), "bigtext", " substring(f, 5) ");
             assertTrue(response.get("columns") instanceof List<?> l && l.size() == 1);
@@ -270,7 +270,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
         int docs = 100;
-        heapAttackIT.initGiantTextField(docs, false, 5);
+        heapAttackIT.initGiantTextField(docs, false, 5, false);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "bigtext", "sum = SUM(LENGTH(f))", null);
         ListMatcher values = matchesList();

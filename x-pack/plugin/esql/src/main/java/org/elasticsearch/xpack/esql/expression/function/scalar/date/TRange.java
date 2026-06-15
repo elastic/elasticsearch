@@ -91,6 +91,7 @@ public class TRange extends EsqlConfigurationFunction
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Filters data for a given time range using the @timestamp attribute.",
         description = "Filters data for the given time range using the @timestamp attribute.",
         examples = {
             @Example(file = "trange", tag = "docsTRangeOffsetFromNow"),

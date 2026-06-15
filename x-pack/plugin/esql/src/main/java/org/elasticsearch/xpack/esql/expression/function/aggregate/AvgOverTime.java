@@ -60,6 +60,7 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the average over time of a numeric field.",
         description = "Calculates the average over time of a numeric field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {

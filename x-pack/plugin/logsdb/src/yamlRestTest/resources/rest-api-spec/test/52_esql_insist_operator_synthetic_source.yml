@@ -12,6 +12,7 @@ setup:
           data_stream: {}
           template:
             settings:
+              mode: "logsdb"
               index:
                 sort.field: [ "@timestamp" ]
                 sort.order: [ "desc" ]

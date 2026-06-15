@@ -67,6 +67,12 @@ public class DirectIOIT extends ESIntegTestCase {
         enableLicensing();
     }
 
+    @Override
+    protected boolean enableIndexSlice() {
+        // DiskBBQ validates and enables the setting directly, overriding so that the test plugin doesn't conflict
+        return false;
+    }
+
     static DirectIODirectory open(Path path) throws IOException {
         return new DirectIODirectory(FSDirectory.open(path)) {
             @Override

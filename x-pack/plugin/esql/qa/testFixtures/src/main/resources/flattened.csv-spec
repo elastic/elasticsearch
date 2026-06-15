@@ -1003,3 +1003,24 @@ n:long | _timeseries:keyword
 2      | "{""host"":""host-a""}"
 3      | "{""host"":""host-b""}"
 ;
+
+lookupJoinBringsInFlattenedField
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: join_lookup_v12
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL host_name = FIELD_EXTRACT(resource.attributes, "host.name")
+| LOOKUP JOIN host_info_lookup ON host_name
+| WHERE info IS NOT NULL
+| SORT @timestamp
+| LIMIT 3
+| KEEP @timestamp, host_name, info
+;
+
+@timestamp:date          | host_name:keyword                                | info:flattened
+2020-01-01T00:00:00.000Z | equal-host                                       | "{""team"":""dev"",""tier"":""dev""}"
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr                             | "{""team"":""infra"",""tier"":""prod""}"
+2020-01-01T00:07:43.000Z | devops-ci-master-blue.c.elastic-ci-prod.internal | "{""team"":""devops"",""tier"":""prod""}"
+;

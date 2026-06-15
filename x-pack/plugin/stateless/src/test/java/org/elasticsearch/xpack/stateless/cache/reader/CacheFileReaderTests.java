@@ -59,6 +59,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchFetches() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -94,6 +95,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchRecordsFailure() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -132,6 +134,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchWithOversizedFileLength() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -166,6 +169,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchPastEOF() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -197,6 +201,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchNonPositiveLength() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -228,6 +233,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchOversizedLengthIsLimited() throws Exception {
+        assumeTrue("object store prefetch feature is disabled", CacheFileReader.OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled());
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);

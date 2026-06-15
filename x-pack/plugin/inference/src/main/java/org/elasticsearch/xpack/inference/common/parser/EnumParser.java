@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 
@@ -76,7 +77,7 @@ public final class EnumParser {
                 .filter(enumValue -> excludeValuesFromErrorMessage.contains(enumValue) == false)
                 .map(v -> v.toString().toLowerCase(Locale.ROOT))
                 .toArray(String[]::new);
-            String msg = String.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings));
+            String msg = Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings));
             throw new IllegalArgumentException(msg);
         }
     }

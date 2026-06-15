@@ -10,14 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -44,10 +38,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.buildLayout;
+import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.driverContext;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.evaluator;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.row;
@@ -300,7 +294,6 @@ public class TopSnippetsStaticTests extends ESTestCase {
         assertFalse(expr.foldable());
     }
 
-
     public void testHighlightPreservesWholeChunk() {
         // A long chunk with many matching terms — highlighting must return the entire chunk as-is
         // (with markup), not split it into smaller passages.
@@ -329,6 +322,8 @@ public class TopSnippetsStaticTests extends ESTestCase {
     private List<String> processMultivalueChunks(List<String> chunks, String query, int numSnippets, String order) {
         return processWithHighlight(chunks, query, numSnippets, 0, null, null, null, null, order, null);
     }
+
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     private List<String> processWithHighlight(
         Object fieldInput,
@@ -371,7 +366,7 @@ public class TopSnippetsStaticTests extends ESTestCase {
             factory = evaluator(expression);
         }
 
-        try (ExpressionEvaluator eval = factory.get(driverContext()); Block block = eval.eval(row(List.of(fieldValue)))) {
+        try (ExpressionEvaluator eval = factory.get(driverContext(breakers)); Block block = eval.eval(row(List.of(fieldValue)))) {
             if (block.isNull(0)) {
                 return null;
             }
@@ -384,13 +379,5 @@ public class TopSnippetsStaticTests extends ESTestCase {
                 return list.stream().map(BytesRef::utf8ToString).toList();
             }
         }
-    }
-
-    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    private DriverContext driverContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
-        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 }

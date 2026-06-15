@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>Connection string (full connection string)</li>
  *   <li>Account + key (SharedKey auth)</li>
  *   <li>SAS token</li>
+ *   <li>Workload identity federation via {@code tenant_id}, {@code client_id}, and {@code jwt_audience}</li>
  *   <li>{@code auth=none} for anonymous access to public containers</li>
  *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
  * </ul>
@@ -36,6 +38,9 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
     private static final DataSourceConfigDefinition KEY = secret("key");
     private static final DataSourceConfigDefinition SAS_TOKEN = secret("sas_token");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
+    private static final DataSourceConfigDefinition TENANT_ID = plaintext("tenant_id").asKeylessAuth();
+    private static final DataSourceConfigDefinition CLIENT_ID = plaintext("client_id").asKeylessAuth();
+    private static final DataSourceConfigDefinition JWT_AUDIENCE = plaintext("jwt_audience").asKeylessAuth();
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CONNECTION_STRING,
@@ -43,11 +48,29 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         KEY,
         SAS_TOKEN,
         ENDPOINT,
+        TENANT_ID,
+        CLIENT_ID,
+        JWT_AUDIENCE,
         AUTH
     );
 
     private AzureConfiguration(Map<String, Object> raw) {
         super(raw, FIELDS);
+    }
+
+    @Override
+    protected void validateCredentials(ValidationException errors) {
+        if (hasKeylessAuth()) {
+            if (tenantId() == null) {
+                errors.addValidationError("tenant_id is required when keyless authentication settings are configured");
+            }
+            if (clientId() == null) {
+                errors.addValidationError("client_id is required when keyless authentication settings are configured");
+            }
+            if (jwtAudience() == null) {
+                errors.addValidationError("jwt_audience is required when keyless authentication settings are configured");
+            }
+        }
     }
 
     public static AzureConfiguration fromMap(Map<String, Object> raw) {
@@ -110,6 +133,30 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
 
     public String endpoint() {
         return get(ENDPOINT.name());
+    }
+
+    /**
+     * Azure AD tenant ID configured on {@code com.azure.identity.ClientAssertionCredential} for keyless
+     * workload-identity federation.
+     */
+    public String tenantId() {
+        return get(TENANT_ID.name());
+    }
+
+    /**
+     * Client ID of the Azure AD application (or user-assigned managed identity) whose federated identity
+     * credential trusts the workload-identity issuer; configured on {@code ClientAssertionCredential}.
+     */
+    public String clientId() {
+        return get(CLIENT_ID.name());
+    }
+
+    /**
+     * Audience passed to the workload-identity issuer {@code IssueTokenRequest} when minting the JWT that
+     * is presented to Azure AD as a client assertion (typically {@code api://AzureADTokenExchange}).
+     */
+    public String jwtAudience() {
+        return get(JWT_AUDIENCE.name());
     }
 
     public boolean hasCredentials() {

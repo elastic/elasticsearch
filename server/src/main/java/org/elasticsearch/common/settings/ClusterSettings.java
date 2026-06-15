@@ -107,6 +107,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -701,6 +702,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         QueryLogger.QUERY_LOGGER_LEVEL,
         QueryLogger.QUERY_LOGGER_INCLUDE_USER,
         QueryLogger.QUERY_LOGGER_LOG_SYSTEM,
-        SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING
+        SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING,
+        SystemIndices.NUMBER_OF_REPLICAS_SETTING,
+        SystemIndices.AUTO_EXPAND_REPLICAS_SETTING
     );
 }

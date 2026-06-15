@@ -31,6 +31,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -485,7 +486,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = new TextFieldType("field", true, false);
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -565,6 +566,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.indexSettings()).thenReturn(indexSettings);
         when(context.fieldNames()).thenReturn(FieldNamesFieldMapper.FieldNamesFieldType.get(false));
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
 
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -607,6 +609,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -648,6 +651,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.parentField("field")).thenReturn(null);
         when(context.indexSettings()).thenReturn(indexSettings);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -717,6 +721,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
     private static MappedFieldType.BlockLoaderContext mockContext() {
         MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
         when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        doReturn(MappingLookup.EMPTY).when(context).mappingLookup();
         return context;
     }
 
@@ -760,6 +765,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             null,
             false
         );
+    }
+
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
     }
 
     public void testPrefixQueryDocValuesOnly() {
@@ -867,6 +876,19 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             ee.getMessage(),
             equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
         );
+    }
+
+    public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        TextFieldType ft = sortedSetDocValuesOnly();
+        Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        TextFieldType binaryFt = binaryDocValuesOnly();
+        q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
     }
 
 }

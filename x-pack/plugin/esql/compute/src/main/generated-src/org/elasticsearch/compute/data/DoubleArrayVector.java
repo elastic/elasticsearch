@@ -98,9 +98,10 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
-    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
-        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendDouble(values[pos]);
             }
             return builder.build();

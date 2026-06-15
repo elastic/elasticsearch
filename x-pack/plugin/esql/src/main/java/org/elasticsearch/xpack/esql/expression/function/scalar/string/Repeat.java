@@ -46,6 +46,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string repeated a specified number of times.",
         description = "Returns a string constructed by concatenating `string` with itself the specified `number` of times.",
         examples = @Example(file = "string", tag = "repeat")
     )

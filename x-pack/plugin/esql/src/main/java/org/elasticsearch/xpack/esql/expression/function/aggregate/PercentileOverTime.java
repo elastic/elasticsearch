@@ -42,6 +42,7 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction implements S
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Calculates the percentile over time of a field.",
         description = "Calculates the percentile over time of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {

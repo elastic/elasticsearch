@@ -495,7 +495,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             boolean success = false;
             try {
                 if (initialSize < HALF_PAGE_SIZE) {
-                    final int bytesLength = Math.max(1, (int) initialSize);
+                    final int bytesLength = (int) initialSize;
                     bigArrays.adjustBreaker(bytesLength, false);
                     pages[0] = currentPage = new byte[bytesLength];
                     pageCount = 1;

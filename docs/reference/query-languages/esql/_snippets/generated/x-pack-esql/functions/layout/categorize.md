@@ -4,6 +4,10 @@
 stack: preview 9.0, ga 9.1
 ```
 
+
+:::{include} ../briefSummary/categorize.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/categorize.svg

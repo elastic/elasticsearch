@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -722,6 +723,7 @@ public class ObjectMapper extends Mapper {
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
+    private final String[] sortedFieldNames;
 
     ObjectMapper(
         String name,
@@ -742,8 +744,12 @@ public class ObjectMapper extends Mapper {
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
+            this.sortedFieldNames = Strings.EMPTY_ARRAY;
         } else {
             this.mappers = Map.copyOf(mappers);
+            String[] names = mappers.keySet().toArray(String[]::new);
+            Arrays.sort(names);
+            sortedFieldNames = names;
         }
         assert subobjects.value() != Subobjects.DISABLED || this.mappers.values().stream().noneMatch(m -> m instanceof ObjectMapper)
             : "When subobjects is false, mappers must not contain an ObjectMapper";
@@ -792,6 +798,21 @@ public class ObjectMapper extends Mapper {
 
     public Map<String, Mapper> getMappers() {
         return mappers;
+    }
+
+    /**
+     * Returns true if any mapped child field has {@code prefix} as a dotted-path prefix,
+     * i.e. any key in this mapper's children starts with {@code prefix + "."}.
+     * Used to detect intermediate object segments when {@code subobjects} is disabled.
+     */
+    public boolean hasMappedFieldsWithPrefix(String prefix) {
+        String searchKey = prefix + ".";
+        int idx = Arrays.binarySearch(sortedFieldNames, searchKey);
+        if (idx >= 0) {
+            return true;
+        }
+        int insertionPoint = ~idx;
+        return insertionPoint < sortedFieldNames.length && sortedFieldNames[insertionPoint].startsWith(searchKey);
     }
 
     @Override
@@ -960,17 +981,22 @@ public class ObjectMapper extends Mapper {
         };
     }
 
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> innerSyntheticFieldLoader(filter, m))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
-        return new SyntheticSourceFieldLoader(filter, fields, isFragment);
+        return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
     final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        return syntheticFieldLoader(filter, mappers.values(), false);
+        return syntheticFieldLoader(filter, mappers.values(), false, false);
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
@@ -984,6 +1010,8 @@ public class ObjectMapper extends Mapper {
         }
 
         if (mapper instanceof ObjectMapper objectMapper) {
+            // columnarStored is not propagated: the single-blob shortcut in write() is guarded by isRoot(),
+            // which is only true for RootObjectMapper, never for child object mappers.
             return objectMapper.syntheticFieldLoader(filter);
         }
 
@@ -1011,10 +1039,18 @@ public class ObjectMapper extends Mapper {
         // Use an ordered map between field names and writers to order writing by field name.
         private TreeMap<String, FieldWriter> currentWriters;
 
-        private SyntheticSourceFieldLoader(SourceFilter filter, List<SourceLoader.SyntheticFieldLoader> fields, boolean isFragment) {
+        private final boolean columnarStored;
+
+        private SyntheticSourceFieldLoader(
+            SourceFilter filter,
+            List<SourceLoader.SyntheticFieldLoader> fields,
+            boolean isFragment,
+            boolean columnarStored
+        ) {
             this.fields = fields;
             this.isFragment = isFragment;
             this.filter = filter;
+            this.columnarStored = columnarStored;
             String fullPath = ObjectMapper.this.isRoot() ? null : fullPath();
             this.parserConfig = filter == null
                 ? XContentParserConfiguration.EMPTY
@@ -1127,9 +1163,9 @@ public class ObjectMapper extends Mapper {
                 return;
             }
 
-            if (isRoot() && isEnabled() == false) {
-                // If the root object mapper is disabled, it is expected to contain
-                // the source encapsulated within a single ignored source value.
+            if (isRoot() && (isEnabled() == false || columnarStored)) {
+                // If the root object mapper is disabled, or this is a columnar_stored index, the source is
+                // encapsulated within a single ignored source value pre-computed at index time.
                 assert ignoredValues.size() == 1 : ignoredValues.size();
                 var value = ignoredValues.get(0).value();
                 var type = XContentDataHelper.decodeType(value);

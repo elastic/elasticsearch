@@ -136,6 +136,9 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
+        if (cluster().size() == 0) {
+            return;
+        }
         // Clear the default repository setting before teardown so that the repository can be deleted
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
@@ -175,8 +178,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
      * </ol>
      */
     public void testEndToEndFrozenTransition() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         // --- Setup: start nodes, register repo, configure default repo ---
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);

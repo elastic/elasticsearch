@@ -170,6 +170,7 @@ emp_no:integer | first_name:keyword
 ;
 
 mainFromInSubqueryTsWithWithoutAndRateInNestedInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -279,6 +280,7 @@ emp_no:integer | first_name:keyword
 ;
 
 mainFromInSubqueryTsWithSumOverTimeWithoutGroupingInInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -770,6 +772,7 @@ max_rate:double | cluster:keyword
 ;
 
 mainTsInSubqueryTsWithWithoutInMainRateInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -790,6 +793,7 @@ total_cost:double | _timeseries:keyword
 ;
 
 mainTsInSubqueryTsWithWithoutInMainRateInNotInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -811,6 +815,7 @@ total_cost:double | _timeseries:keyword
 ;
 
 mainTsInSubqueryTsWithWithoutInMainAndSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -832,6 +837,7 @@ total_cost:double | _timeseries:keyword
 ;
 
 mainTsNotInSubqueryTsWithWithoutInMainAndNotInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1117,6 +1123,7 @@ max_bytes:long | pod:keyword
 ;
 
 mainTsInSubqueryTsRateInMainWithoutInInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1226,6 +1233,7 @@ max_rate:double | cluster:keyword
 ;
 
 mainTsNotInSubqueryTsWithoutInBothMainAndInSubquery
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1607,6 +1615,7 @@ top:double | cluster:keyword
 ;
 
 mainTsWithWithoutInSubqueryRow
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_row
 required_capability: ts_command_v0
@@ -1623,6 +1632,7 @@ total_cost:double | _timeseries:keyword
 ;
 
 mainTsWithWithoutInSubqueryFrom
+skip_flattened_rewrite: without_unsupported
 required_capability: where_in_subquery_without_view
 required_capability: ts_command_v0
 required_capability: esql_without_grouping
@@ -1643,6 +1653,7 @@ total_cost:double | _timeseries:keyword
 
 // main query row command, subquery ts command
 rowMainInSubqueryTs
+skip_flattened_rewrite: subquery_bleed
 required_capability: where_in_subquery_without_view
 required_capability: subquery_with_ts
 required_capability: ts_command_v0

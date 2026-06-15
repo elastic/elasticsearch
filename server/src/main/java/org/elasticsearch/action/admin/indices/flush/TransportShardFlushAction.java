@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -76,6 +77,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         ShardFlushRequest shardRequest,
         IndexShard primary,
         ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener

@@ -26,7 +26,7 @@ import java.util.function.Function;
  * The former contains the unique values in sorted order and the latter the offsets for each instance of the values. This allows
  * synthesizing array elements in order as was specified at index time. Note that this works only for leaf arrays.
  */
-final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private final String offsetsFieldName;
@@ -37,7 +37,7 @@ final class BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Compo
      * @param name              The name of the field to synthesize
      * @param offsetsFieldName  The related offset field used to correctly synthesize the field if it is a leaf array
      */
-    BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
+    public BinaryWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this(name, offsetsFieldName, Function.identity());
     }
 

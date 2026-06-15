@@ -102,7 +102,11 @@ import static org.junit.Assert.assertTrue;
  * and partially re-written to satisfy the above requirements.
  */
 public abstract class DocsV3Support {
-    public record Param(DataType dataType, List<FunctionAppliesTo> appliesTo) {}
+    public record Param(DataType dataType, List<FunctionAppliesTo> appliesTo, boolean preview) {
+        public Param(DataType dataType, List<FunctionAppliesTo> appliesTo) {
+            this(dataType, appliesTo, false);
+        }
+    }
 
     public record TypeSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {}
 
@@ -590,7 +594,7 @@ public abstract class DocsV3Support {
             case "match" -> "search-functions";
 
             // Grouping
-            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+            case "bucket", "tbucket", "categorize", "without" -> "grouping-functions";
 
             // Time series
             case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
@@ -757,6 +761,7 @@ public abstract class DocsV3Support {
             assert info != null;
             boolean hasTypes = renderTypes(name, description.args());
             renderParametersList(description.args());
+            renderBriefSummary(info.briefSummary());
             renderDescription(description.description(), info.detailedDescription(), info.note());
             Optional<EsqlFunctionRegistry.ArgSignature> mapArgSignature = description.args()
                 .stream()
@@ -917,6 +922,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder(
                 docsWarning() + """
                     $APPLIES_TO$
+                    $BRIEF_SUMMARY$
                     ## Syntax
 
                     :::{image} /reference/query-languages/esql/images/generated/$PLUGIN_NAME$/$CATEGORY$/$NAME$.svg
@@ -928,6 +934,7 @@ public abstract class DocsV3Support {
                     .replace("$CATEGORY$", category)
                     .replace("$PLUGIN_NAME$", pluginName)
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
+                    .replace("$BRIEF_SUMMARY$", addInclude("briefSummary"))
             );
             for (String section : new String[] { "parameters", "description" }) {
                 rendered.append(addInclude(section));
@@ -1058,6 +1065,11 @@ public abstract class DocsV3Support {
                 }
 
                 @Override
+                public boolean tsdbCompatible() {
+                    return orig.tsdbCompatible();
+                }
+
+                @Override
                 public FunctionAppliesTo[] appliesTo() {
                     return orig.appliesTo();
                 }
@@ -1065,6 +1077,11 @@ public abstract class DocsV3Support {
                 @Override
                 public String description() {
                     return description.apply(orig.description().replace(baseName, name));
+                }
+
+                @Override
+                public String briefSummary() {
+                    return orig.briefSummary();
                 }
 
                 @Override
@@ -1129,6 +1146,7 @@ public abstract class DocsV3Support {
                 }
             }
             renderKibanaFunctionDefinition(name, titleName, info, args, variadic, observabilityTier);
+            renderBriefSummary(info.briefSummary());
             renderDetailedDescription(info.detailedDescription(), info.note());
             renderTypes(name, args);
             renderExamples(info);
@@ -1616,7 +1634,7 @@ public abstract class DocsV3Support {
             } else {
                 b.append(param.dataType().esNameIfPossible());
                 if (param.appliesTo() != null) {
-                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), false, true));
+                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), param.preview(), true));
                 }
             }
             b.append(" | ");
@@ -1649,6 +1667,16 @@ public abstract class DocsV3Support {
         logger.info("Writing description for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("description", rendered);
+    }
+
+    void renderBriefSummary(String briefSummary) throws IOException {
+        if (Strings.isNullOrEmpty(briefSummary)) {
+            return;
+        }
+        String rendered = docsWarning() + briefSummary.trim() + "\n";
+        logger.info("Writing brief summary for [{}]", name);
+        logger.debug("{}", rendered);
+        writeToTempSnippetsDir("briefSummary", rendered);
     }
 
     protected boolean renderExamples(FunctionInfo info) throws IOException {
@@ -1859,6 +1887,9 @@ public abstract class DocsV3Support {
             }
             builder.field("preview", info.preview());
             builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
+            if (info.tsdbCompatible() == false) {
+                builder.field("tsdb_compatible", false);
+            }
 
             String rendered = Strings.toString(builder.endObject());
             logger.info("Writing kibana function definition for [{}]", name);

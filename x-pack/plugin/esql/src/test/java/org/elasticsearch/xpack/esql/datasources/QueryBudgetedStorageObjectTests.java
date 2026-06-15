@@ -7,9 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -29,7 +36,23 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * The metrics-delegation test uses the {@link TestStorageObjects} real-class fixture per AGENTS.md.
+ * The remaining tests retain Mockito because they simulate stream lifecycle, async listener callbacks
+ * (via {@code doAnswer}), and exception-throwing I/O — a real-class subclass would have to reimplement
+ * each, which is what AGENTS.md calls out as "the real class is complex". Tracked as follow-up to
+ * incrementally extend {@code TestStorageObjects} with builders for those shapes.
+ */
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
@@ -83,18 +106,18 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     public void testAsyncReadReleasesBudgetOnSuccess() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
-        ByteBuffer result = ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8));
+        DirectReadBuffer result = new DirectReadBuffer(ByteBuffer.wrap("data".getBytes(StandardCharsets.UTF_8)), () -> {});
         doAnswer(inv -> {
-            ActionListener<ByteBuffer> listener = inv.getArgument(3);
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onResponse(result);
             return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(ActionListener.class));
+        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> response = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> response = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 4, Runnable::run, ActionListener.wrap(r -> {
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> {
             response.set(r);
             latch.countDown();
         }, e -> latch.countDown()));
@@ -109,18 +132,27 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
         doAnswer(inv -> {
-            ActionListener<ByteBuffer> listener = inv.getArgument(3);
+            ActionListener<DirectReadBuffer> listener = inv.getArgument(4);
             listener.onFailure(new IOException("async error"));
             return null;
-        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(ActionListener.class));
+        }).when(delegate).readBytesAsync(anyLong(), anyLong(), any(), any(), any(ActionListener.class));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
 
-        obj.readBytesAsync(0, 4, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, budget.inFlight());
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(5, 999, 2048, 1);
+        StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        assertSame(snapshot, obj.metrics());
     }
 
     public void testNewStreamReleasesOnDelegateException() throws Exception {

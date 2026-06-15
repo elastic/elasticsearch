@@ -47,11 +47,12 @@ public class KMeansResultTests extends ESTestCase {
         System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
         System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
 
-        KMeansResult merged = KMeansResult.merge(
+        KMeansResult<float[]> merged = KMeansResult.merge(
             List.of(
-                new KMeansResult(centroids1, assignments1, soarAssignments1),
-                new KMeansResult(centroids2, assignments2, soarAssignments2)
-            )
+                new KMeansResult<>(centroids1, assignments1, soarAssignments1),
+                new KMeansResult<>(centroids2, assignments2, soarAssignments2)
+            ),
+            CentroidOps.FLOAT
         );
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());
@@ -88,8 +89,12 @@ public class KMeansResultTests extends ESTestCase {
         System.arraycopy(centroids1, 0, expectedCentroids, 0, centroidCount1);
         System.arraycopy(centroids2, 0, expectedCentroids, centroidCount1, centroidCount2);
 
-        KMeansResult merged = KMeansResult.merge(
-            List.of(new KMeansResult(centroids1, assignments1, soarAssignments1), new KMeansResult(centroids2, assignments2, new int[0]))
+        KMeansResult<float[]> merged = KMeansResult.merge(
+            List.of(
+                new KMeansResult<>(centroids1, assignments1, soarAssignments1),
+                new KMeansResult<>(centroids2, assignments2, new int[0])
+            ),
+            CentroidOps.FLOAT
         );
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());

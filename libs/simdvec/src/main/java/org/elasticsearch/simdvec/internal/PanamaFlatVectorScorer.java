@@ -131,82 +131,76 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
     }
 
     private abstract static class NativeFloatScorer extends AbstractNativeScorer<float[]> {
-        private final FloatVectorValues vectors;
-        private final float[][] scratch;
+        private final FloatVectorValues[] vectors = new FloatVectorValues[BULK_SIZE];
 
-        NativeFloatScorer(FloatVectorValues vectors) {
+        NativeFloatScorer(FloatVectorValues vectors) throws IOException{
             super(vectors);
-            this.vectors = vectors;
 
-            this.scratch = new float[BULK_SIZE][dims];
+            for (int i=0; i<BULK_SIZE; i++) {
+                this.vectors[i] = vectors.copy();
+            }
         }
 
         @Override
         float[] vectorValue(int ord, int bulkIndex) throws IOException {
-            float[] value = vectors.vectorValue(ord);
-            System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
-            return scratch[bulkIndex];
+            return vectors[bulkIndex].vectorValue(ord);
         }
     }
 
     private abstract static class NativeUpdateableFloatScorer extends NativeFloatScorer implements UpdateableRandomVectorScorer {
         private final FloatVectorValues targetVectors;
-        private final float[] vector;
+        private float[] target;
 
-        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) {
+        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
-            vector = new float[targetVectors.dimension()];
         }
 
         @Override
         float[] queryVector() {
-            return vector;
+            return target;
         }
 
         @Override
         public void setScoringOrdinal(int node) throws IOException {
-            System.arraycopy(targetVectors.vectorValue(node), 0, vector, 0, vector.length);
+            target = targetVectors.vectorValue(node);
         }
     }
 
     private abstract static class NativeByteScorer extends AbstractNativeScorer<byte[]> {
-        private final ByteVectorValues vectors;
-        private final byte[][] scratch;
+        private final ByteVectorValues[] vectors = new ByteVectorValues[BULK_SIZE];
 
-        NativeByteScorer(ByteVectorValues vectors) {
+        NativeByteScorer(ByteVectorValues vectors) throws IOException {
             super(vectors);
-            this.vectors = vectors;
 
-            this.scratch = new byte[BULK_SIZE][dims];
+            for (int i=0; i<BULK_SIZE; i++) {
+                this.vectors[i] = vectors.copy();
+            }
         }
 
         @Override
         byte[] vectorValue(int ord, int bulkIndex) throws IOException {
-            byte[] value = vectors.vectorValue(ord);
-            System.arraycopy(value, 0, scratch[bulkIndex], 0, value.length);
-            return scratch[bulkIndex];
+            return vectors[bulkIndex].vectorValue(ord);
         }
     }
 
     private abstract static class NativeUpdateableByteScorer extends NativeByteScorer implements UpdateableRandomVectorScorer {
         private final ByteVectorValues targetVectors;
-        private final byte[] vector;
+        private byte[] target;
 
-        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) {
+        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException{
             super(vectors);
             this.targetVectors = targetVectors;
-            vector = new byte[targetVectors.dimension()];
         }
 
         @Override
         byte[] queryVector() {
-            return vector;
+            return target;
         }
 
         @Override
         public void setScoringOrdinal(int node) throws IOException {
-            System.arraycopy(targetVectors.vectorValue(node), 0, vector, 0, vector.length);
+            target = targetVectors.vectorValue(node);
         }
     }
 

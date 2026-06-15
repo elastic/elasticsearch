@@ -32,8 +32,7 @@ import java.util.Random;
  * <p>Merge-time vector access for calibration reads raw vectors from per-segment
  * {@link KnnVectorsReader}s via {@link #build(FieldInfo, MergeState)} without materializing
  * corpus vectors on the heap. Ordinal subsets from {@link #sampleData(FloatVectorValues)} are
- * the only large allocations. Merge clustering preconditioning on the temp spill path is handled
- * separately (see follow-up merge I/O PR).
+ * the only large allocations.
  */
 public final class CalibrationUtils {
 
@@ -179,7 +178,7 @@ public final class CalibrationUtils {
             return KMeansFloatVectorValues.build(List.of(), null, fieldInfo.getVectorDimension());
         }
         if (parts.size() == 1) {
-            return parts.get(0);
+            return parts.getFirst();
         }
         return new ConcatenatedFloatVectorValues(parts.toArray(FloatVectorValues[]::new));
     }

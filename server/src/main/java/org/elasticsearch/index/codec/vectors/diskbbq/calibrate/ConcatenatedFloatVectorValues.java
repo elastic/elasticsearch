@@ -28,6 +28,7 @@ import java.util.Arrays;
 public final class ConcatenatedFloatVectorValues extends FloatVectorValues {
 
     private final FloatVectorValues[] parts;
+
     // offsets[p] = global ord at which part p starts; offsets[parts.length] = total size.
     private final int[] offsets;
     private final int totalSize;

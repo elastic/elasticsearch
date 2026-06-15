@@ -1063,100 +1063,92 @@ public class Augmentation {
         }
     }
 
+    // Wrap a primitive consumer so it polls _pollCancellation() once per element before delegating, or return it
+    // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
+    // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
+
+    private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return i -> {
+            script._pollCancellation();
+            action.accept(i);
+        };
+    }
+
+    private static LongConsumer wrap(PainlessScript script, LongConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return l -> {
+            script._pollCancellation();
+            action.accept(l);
+        };
+    }
+
+    private static DoubleConsumer wrap(PainlessScript script, DoubleConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return d -> {
+            script._pollCancellation();
+            action.accept(d);
+        };
+    }
+
     /**
-     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfInt#forEachRemaining(IntConsumer)}.  Delegates
-     * to the JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.
-     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfInt receiver, IntConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((int i) -> {
-            script._pollCancellation();
-            action.accept(i);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     /**
-     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfLong#forEachRemaining(LongConsumer)}.  Delegates
-     * to the JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.
-     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfLong receiver, LongConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((long l) -> {
-            script._pollCancellation();
-            action.accept(l);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     /**
-     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Delegates
-     * to the JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.
-     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfDouble receiver, DoubleConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((double d) -> {
-            script._pollCancellation();
-            action.accept(d);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     /**
-     * Cancellation-aware wrapper around {@link Spliterator.OfInt#forEachRemaining(IntConsumer)}.  Delegates to the
-     * JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.  Fast
-     * path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link Spliterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, Spliterator.OfInt receiver, IntConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((int i) -> {
-            script._pollCancellation();
-            action.accept(i);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     /**
-     * Cancellation-aware wrapper around {@link Spliterator.OfLong#forEachRemaining(LongConsumer)}.  Delegates to the
-     * JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.  Fast
-     * path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link Spliterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, Spliterator.OfLong receiver, LongConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((long l) -> {
-            script._pollCancellation();
-            action.accept(l);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     /**
-     * Cancellation-aware wrapper around {@link Spliterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Delegates to
-     * the JDK, wrapping {@code action} so it polls {@link PainlessScript#_pollCancellation()} once per element.  Fast
-     * path delegates straight to the JDK when the script has no cancellation check installed.
+     * Cancellation-aware wrapper around {@link Spliterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
      */
     public static void forEachRemaining(PainlessScript script, Spliterator.OfDouble receiver, DoubleConsumer action) {
-        if (script._getCancellationCheck() == null) {
-            receiver.forEachRemaining(action);
-            return;
-        }
-        receiver.forEachRemaining((double d) -> {
-            script._pollCancellation();
-            action.accept(d);
-        });
+        receiver.forEachRemaining(wrap(script, action));
     }
 
     // stream terminal wrappers for cancellation-aware iteration

@@ -7,11 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.downsample;
+package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.plugins.PluginsService;
 
 import java.util.Set;
 
@@ -22,17 +21,6 @@ public interface DownsamplingOperations {
      * downsampling persistent tasks in the cluster state.
      */
     Set<Index> getActivelyDownsampledIndexNames(ProjectMetadata project);
-
-    /**
-     * Loads a single instance of a DownsamplingOperations from the {@link PluginsService}.
-     */
-    static DownsamplingOperations load(PluginsService pluginsService) {
-        DownsamplingOperations downsamplingOperations = pluginsService.loadSingletonServiceProvider(
-            DownsamplingOperations.class,
-            DownsamplingOperations::noop
-        );
-        return downsamplingOperations;
-    }
 
     /**
      * Returns empty downsampling operations instance.

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.action.downsample.DownsamplingOperations;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -72,6 +71,5 @@ public record PluginServiceInstances(
     RemoteTransportClient remoteTransportClient,
     CrossProjectModeDecider crossProjectModeDecider,
     PersistentTaskLifecycleManager taskLifecycleManager,
-    DataStreamLifecycleErrorStore dlmErrorStore,
-    DownsamplingOperations downsamplingOperations
+    DataStreamLifecycleErrorStore dlmErrorStore
 ) implements Plugin.PluginServices {}

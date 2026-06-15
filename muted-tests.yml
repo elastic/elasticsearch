@@ -833,3 +833,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_usage/Views telemetry}
   issue: https://github.com/elastic/elasticsearch/issues/151313
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/10_basic/FROM EVAL SORT LIMIT with documents_found}
+  issue: https://github.com/elastic/elasticsearch/issues/151314

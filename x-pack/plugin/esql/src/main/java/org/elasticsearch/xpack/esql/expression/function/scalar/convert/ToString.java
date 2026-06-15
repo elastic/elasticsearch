@@ -114,6 +114,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Converts a value to a string.",
         description = "Converts an input value into a string.",
         examples = {
             @Example(file = "string", tag = "to_string"),

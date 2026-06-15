@@ -75,6 +75,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
+        briefSummary = "Creates timestamp-based buckets aligned to calendar boundaries.",
         description = """
             Creates groups of values - buckets - out of a `@timestamp` attribute.
             The size of the buckets can be provided directly as a duration or period.

@@ -258,15 +258,15 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
                 IndexSearcher searcher = new IndexSearcher(reader);
                 BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
                 Query query = getDiversifyingChildrenKnnQuery("field", new float[] { 2, 2 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f, 1f / 51f }, new String[] { "2", "7" }, 2, 0.0001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, null, 3, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 20, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 2, 0.0001f);
 
                 query = getDiversifyingChildrenKnnQuery("field", new float[] { 6, 6 }, Queries.ALL_DOCS_INSTANCE, 1, parentFilter);
-                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1);
+                assertScorerResults(searcher, query, new float[] { 1f / 3f, 1f / 3f }, new String[] { "5", "7" }, 1, 0.0001f);
             }
         }
     }
@@ -352,7 +352,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
         assertEquals(expectedId, actualId);
     }
 
-    void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count)
+    void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count, float delta)
         throws IOException {
         IndexReader reader = searcher.getIndexReader();
         Query rewritten = query.rewrite(searcher);
@@ -370,7 +370,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
             assertNotEquals(NO_MORE_DOCS, docId);
             String actualId = reader.storedFields().document(docId).get("id");
             assertTrue(idToScore.containsKey(actualId));
-            assertEquals(idToScore.get(actualId), scorer.score(), 0.0001);
+            assertEquals(idToScore.get(actualId), scorer.score(), delta);
         }
     }
 

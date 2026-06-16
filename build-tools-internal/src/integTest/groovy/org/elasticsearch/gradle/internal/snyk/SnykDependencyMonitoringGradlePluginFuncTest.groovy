@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.snyk
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
@@ -200,7 +201,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
 
         when:
         def result = gradleRunner("generateSnykDependencyGraph").build()
-        def json = new JsonSlurper().parse(file("build/snyk/dependencies.json"))
+        def json = new ObjectMapper().readValue(file("build/snyk/dependencies.json"), Map)
         def graph = json.depGraphJSON.graph
         def nodes = graph.nodes
         def nodesById = nodes.collectEntries { [it.nodeId, it] }

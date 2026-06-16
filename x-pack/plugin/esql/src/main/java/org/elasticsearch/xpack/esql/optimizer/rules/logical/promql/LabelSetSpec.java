@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class LabelSetSpec {
+    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
+
     /** Labels known to be visible so far. */
     private final List<Attribute> declaredLabels;
 
@@ -178,12 +180,23 @@ public final class LabelSetSpec {
     /**
      * Canonical name used by label algebra.
      * FieldAttribute uses fieldName(); everything else falls back to name().
+     * PromQL refers to labels by bare names like {@code le} and {@code job}, while
+     * TSDB dimensions that store Prometheus labels can be exposed as {@code labels.le}
+     * and {@code labels.job}. Keep that storage convention scoped to PromQL label
+     * algebra so {@code by}, {@code without}, intersection, and difference compare
+     * PromQL label keys rather than backing field names.
      */
     static String fieldName(Attribute attr) {
+        String name;
         if (attr instanceof FieldAttribute fieldAttr) {
-            return fieldAttr.fieldName().string();
+            name = fieldAttr.fieldName().string();
+        } else {
+            name = attr.name();
         }
-        return attr.name();
+        if (name.startsWith(PROMETHEUS_LABELS_PREFIX)) {
+            return name.substring(PROMETHEUS_LABELS_PREFIX.length());
+        }
+        return name;
     }
 
     /**

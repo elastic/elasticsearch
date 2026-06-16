@@ -264,10 +264,10 @@ public final class IndexLifecycleTransition {
         // If it's an ElasticsearchException, try to truncate any long metadata
         if (error instanceof ElasticsearchException ee) {
             for (String key : ee.getMetadataKeys()) {
-                if (newError.getMetadata(key) != null) {
+                if (ee.getMetadata(key) != null) {
                     newError.addMetadata(
                         key,
-                        newError.getMetadata(key).stream().map(IndexLifecycleTransition::truncateWithExplanation).toList()
+                        ee.getMetadata(key).stream().map(IndexLifecycleTransition::truncateWithExplanation).toList()
                     );
                 }
             }

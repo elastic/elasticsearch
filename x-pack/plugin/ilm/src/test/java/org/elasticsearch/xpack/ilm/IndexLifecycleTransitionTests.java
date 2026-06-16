@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -65,6 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleTransitionTests extends ESTestCase {
 
@@ -326,7 +327,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         Step.StepKey currentStep = new Step.StepKey("current_phase", "current_action", "current_step");
         Step.StepKey nextStepKey = new Step.StepKey("next_phase", "next_action", "next_step");
         long now = randomNonNegativeLong();
-        Exception cause = new IndexCreationException(
+        ElasticsearchException cause = new ResourceNotFoundException(
             "this is an error with a long list of suppressed errors "
                 + randomAlphaOfLengthBetween(1, IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH * 2),
             new IllegalArgumentException(
@@ -335,6 +336,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                     "this message will be truncated " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
                 )
             )
+        );
+        cause.addMetadata(
+            "es.mykey",
+            "long metadata " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
         );
         // We add 10 suppressed exceptions, and only 3 will remain in the step_info
         for (int i = 0; i < 10; i++) {
@@ -399,9 +404,18 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         if (reason instanceof String r) {
             assertThat(r, containsString("this message will be truncated"));
             assertThat(r, containsString("... (~31 chars truncated)"));
+        } else {
+            fail("expected reason to be a string but it was not");
+        }
+        Object meta = error.get("mykey");
+        if (meta instanceof String m) {
+            assertThat(m, startsWith("long metadata "));
+            assertThat(m, containsString("... (~14 chars truncated"));
+        } else {
+            fail("expected metadata to be a string but it was not");
         }
         // Validate that the type passthrough works
-        assertThat(error.get("type"), equalTo("index_creation_exception"));
+        assertThat(error.get("type"), equalTo("resource_not_found_exception"));
     }
 
     public void testAddStepInfoToProject() throws IOException {

@@ -15,11 +15,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
-import org.elasticsearch.core.Tuple;
-
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;

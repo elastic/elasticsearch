@@ -258,8 +258,35 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T17:39:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0),
                 new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:05:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0),
                 new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:15:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0),
-                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:32:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0),
-                new HistogramDocSpec("pod-cumulative", "cumulative", "2021-04-29T18:45:00.000Z", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0),
+                new HistogramDocSpec(
+                    "pod-cumulative",
+                    "cumulative",
+                    "2021-04-29T18:32:00.000Z",
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    8.0,
+                    9.0
+                ),
+                new HistogramDocSpec(
+                    "pod-cumulative",
+                    "cumulative",
+                    "2021-04-29T18:45:00.000Z",
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    7.0,
+                    8.0,
+                    9.0,
+                    10.0
+                ),
                 // delta TSID: per-interval histograms
                 new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:01:00.000Z", 1.0, 2.0),
                 new HistogramDocSpec("pod-delta", "delta", "2021-04-29T17:05:00.000Z", 3.0),
@@ -542,7 +569,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
 
     private List<CountResult> queryHistogramCount(String indexName) {
         String command = "TS " + indexName + " | STATS c=COUNT(latency) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
-        try (var response = client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS)) {
+        try (
+            var response = client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS)
+        ) {
             var rows = new ArrayList<CountResult>((int) response.getRowCount());
             for (Iterable<Object> objects : response.rows()) {
                 var row = objects.iterator();

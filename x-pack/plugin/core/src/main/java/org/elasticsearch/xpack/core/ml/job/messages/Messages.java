@@ -30,6 +30,21 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
     public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_QUERY =
+        "[query] cannot be used in combination with [esql_query]; express filtering inside the ESQL query using WHERE";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_AGGS =
+        "[aggregations] cannot be used in combination with [esql_query]; express aggregation inside the ESQL query using STATS";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCRIPT_FIELDS =
+        "[script_fields] cannot be used in combination with [esql_query]; express computed fields inside the ESQL query using EVAL";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_RUNTIME_MAPPINGS =
+        "[runtime_mappings] cannot be used in combination with [esql_query]; express computed fields inside the ESQL query using EVAL";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_SCROLL_SIZE =
+        "[scroll_size] cannot be used in combination with [esql_query]; ESQL datafeeds do not use the scroll API";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS =
+        "[indices_options] cannot be used in combination with [esql_query]; ESQL does not accept indices options";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF =
+        "[chunking_config] mode [off] cannot be used in combination with [esql_query]; "
+            + "ES|QL responses are size-capped so chunking is required to retrieve all results";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";

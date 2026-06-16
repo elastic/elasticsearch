@@ -512,7 +512,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             chunkSpan,
             ChunkedDataExtractorFactory.newIdentityTimeAligner(),
             hasAggregations,
-            histogramInterval
+            histogramInterval,
+            false
         );
     }
 

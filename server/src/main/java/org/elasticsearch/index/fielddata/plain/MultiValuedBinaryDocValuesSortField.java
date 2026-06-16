@@ -31,16 +31,19 @@ import java.io.IOException;
  *
  * <p>For single-valued documents the binary payload is the raw term bytes and no decoding is
  * needed. For multi-valued documents the payload is a VInt-length-prefixed concatenation of the
- * sorted values; this class extracts only the first (minimum) value as the sort key so that
- * documents are ordered by their minimum term, consistent with how {@code SortedSetSortField}
- * behaves with a {@code MIN} selector.
+ * sorted values; this class extracts either the first (minimum) or last (maximum) value as the
+ * sort key, consistent with how {@code SortedSetSortField} behaves with a {@code MIN} or
+ * {@code MAX} selector.
  */
 public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
     public static final String PROVIDER_NAME = "MultiValuedBinaryDocValuesSortField";
 
-    public MultiValuedBinaryDocValuesSortField(String field, boolean reverse, Object missingValue) {
+    private final boolean maxMode;
+
+    public MultiValuedBinaryDocValuesSortField(String field, boolean reverse, Object missingValue, boolean maxMode) {
         super(field, reverse, missingValue, PROVIDER_NAME);
+        this.maxMode = maxMode;
     }
 
     @Override
@@ -51,21 +54,23 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
             // PlainBinary (single-valued field): raw bytes are the sort key.
             return values;
         }
-        return new FirstValueBinaryDocValues(values, counts);
+        return new MinMaxBinaryDocValues(values, counts, maxMode);
     }
 
     /**
-     * Wraps binary doc values in the {@code SeparateCounts} format, returning only the first
-     * (minimum, since values are stored sorted) value as the sort key.
+     * Wraps binary doc values in the {@code SeparateCounts} format, returning either the first
+     * (minimum) or last (maximum) value — since values are stored sorted — as the sort key.
      */
-    private static final class FirstValueBinaryDocValues extends FilterBinaryDocValues {
+    private static final class MinMaxBinaryDocValues extends FilterBinaryDocValues {
         private final NumericDocValues counts;
+        private final boolean maxMode;
         private final ByteArrayStreamInput stream = new ByteArrayStreamInput();
-        private final BytesRef firstValue = new BytesRef();
+        private final BytesRef selectedValue = new BytesRef();
 
-        FirstValueBinaryDocValues(BinaryDocValues values, NumericDocValues counts) {
+        MinMaxBinaryDocValues(BinaryDocValues values, NumericDocValues counts, boolean maxMode) {
             super(values);
             this.counts = counts;
+            this.maxMode = maxMode;
         }
 
         @Override
@@ -102,12 +107,24 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
                 // count=1: raw bytes are the sort key, no decoding needed.
                 return raw;
             }
-            // count>1: VInt(len_1)+bytes_1+VInt(len_2)+bytes_2+... — extract first value.
+            // count>1: VInt(len_1)+bytes_1+VInt(len_2)+bytes_2+... (values stored sorted)
             stream.reset(raw.bytes, raw.offset, raw.length);
-            firstValue.length = stream.readVInt();
-            firstValue.bytes = raw.bytes;
-            firstValue.offset = stream.getPosition();
-            return firstValue;
+            if (maxMode == false) {
+                // First value = minimum.
+                selectedValue.length = stream.readVInt();
+                selectedValue.bytes = raw.bytes;
+                selectedValue.offset = stream.getPosition();
+            } else {
+                // Last value = maximum: iterate through all entries.
+                int endPos = raw.offset + raw.length;
+                selectedValue.bytes = raw.bytes;
+                while (stream.getPosition() < endPos) {
+                    selectedValue.length = stream.readVInt();
+                    selectedValue.offset = stream.getPosition();
+                    stream.setPosition(selectedValue.offset + selectedValue.length);
+                }
+            }
+            return selectedValue;
         }
     }
 
@@ -131,12 +148,14 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
                 case 2 -> SortField.STRING_LAST;
                 default -> null;
             };
-            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue);
+            boolean maxMode = in.readInt() == 1;
+            return new MultiValuedBinaryDocValuesSortField(field, reverse, missingValue, maxMode);
         }
 
         @Override
         public void writeSortField(SortField sf, DataOutput out) throws IOException {
             assert sf instanceof MultiValuedBinaryDocValuesSortField;
+            MultiValuedBinaryDocValuesSortField msf = (MultiValuedBinaryDocValuesSortField) sf;
             out.writeString(sf.getField());
             out.writeInt(sf.getReverse() ? 1 : 0);
             Object mv = sf.getMissingValue();
@@ -147,6 +166,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
             } else {
                 out.writeInt(0);
             }
+            out.writeInt(msf.maxMode ? 1 : 0);
         }
     }
 }

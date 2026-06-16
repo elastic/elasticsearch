@@ -73,7 +73,8 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
             ? SortField.STRING_LAST
             : SortField.STRING_FIRST;
-        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue);
+        boolean maxMode = sortMode == MultiValueMode.MAX;
+        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue, maxMode);
     }
 
     @Override

@@ -298,9 +298,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:BASELINE}
-  issue: https://github.com/elastic/elasticsearch/issues/149746
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
@@ -388,9 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
-  method: testParquetFile {bad_ARROW-GH-41321}
-  issue: https://github.com/elastic/elasticsearch/issues/150300
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
@@ -434,15 +428,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testRegisterUnpromotableRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150514
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test {feature:SUBQUERIES}
-  issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test {feature:BASELINE}
-  issue: https://github.com/elastic/elasticsearch/issues/149746
 - class: org.elasticsearch.xpack.stateless.StatelessSearchIT
   method: testSearchTriggeredDownloadsTelemetry
   issue: https://github.com/elastic/elasticsearch/issues/150540
@@ -602,9 +587,6 @@ tests:
 - class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
   method: testStoredIgnoredSource
   issue: https://github.com/elastic/elasticsearch/issues/151167
-- class: org.elasticsearch.xpack.stateless.StatelessConcurrentRefreshIT
-  method: testWaitUntilShouldNotWaitForUpload
-  issue: https://github.com/elastic/elasticsearch/issues/151168
 - class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
   method: testWriteLoadForecastGetsPopulatedDuringRollovers
   issue: https://github.com/elastic/elasticsearch/issues/151173
@@ -632,3 +614,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
   method: testAliasFilters
   issue: https://github.com/elastic/elasticsearch/issues/151367
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testMultipleIndicesAccumulateBytesRead
+  issue: https://github.com/elastic/elasticsearch/issues/151380
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testCreateAndRestoreSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/151388
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testSnapshotCreatedInOldVersionCanBeDeletedInNew
+  issue: https://github.com/elastic/elasticsearch/issues/151389
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testReadOnlyRepo
+  issue: https://github.com/elastic/elasticsearch/issues/151390
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testUpgradeMovesRepoToNewMetaVersion
+  issue: https://github.com/elastic/elasticsearch/issues/151391
+- class: org.elasticsearch.index.store.BytesReadRankFeatureIT
+  method: testRankFeaturePhaseEmptyDocIdsStillReportsDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/151392
+- class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
+  method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
+  issue: https://github.com/elastic/elasticsearch/issues/151402

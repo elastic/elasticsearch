@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1139,14 +1138,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     static class LazyModelDefinition implements ToXContentObject, Writeable {
 
-        /**
-         * Preserves whether a definition was submitted as compressed bytes vs parsed XContent on transport.
-         * Without this, {@link #writeTo} always compresses parsed definitions and master-side validation misclassifies them.
-         */
-        static final TransportVersion PRESERVE_DEFINITION_FORM_ON_TRANSPORT = TransportVersion.fromName(
-            "lazy_model_definition_preserve_form"
-        );
-
         private BytesReference compressedRepresentation;
         private TrainedModelDefinition parsedDefinition;
 
@@ -1164,13 +1155,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getTransportVersion().supports(PRESERVE_DEFINITION_FORM_ON_TRANSPORT)) {
-                if (input.readBoolean()) {
-                    return fromCompressedData(input.readBytesReference());
-                }
-                return fromParsedDefinition(new TrainedModelDefinition(input));
-            }
-            return fromCompressedData(input.readBytesReference());
+            return new LazyModelDefinition(input.readBytesReference(), null);
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -1230,17 +1215,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(PRESERVE_DEFINITION_FORM_ON_TRANSPORT)) {
-                if (compressedRepresentation != null) {
-                    out.writeBoolean(true);
-                    out.writeBytesReference(compressedRepresentation);
-                } else {
-                    out.writeBoolean(false);
-                    parsedDefinition.writeTo(out);
-                }
-            } else {
-                out.writeBytesReference(getCompressedDefinition());
-            }
+            out.writeBytesReference(getCompressedDefinition());
         }
 
         @Override

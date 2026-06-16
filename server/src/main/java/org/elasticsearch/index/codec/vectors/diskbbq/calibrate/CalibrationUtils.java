@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.vectors.diskbbq.calibrate;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -57,7 +56,7 @@ public final class CalibrationUtils {
      * Maximum squared L2 norm over the sampled corpus vectors (same statistic as reference
      * {@code neyshaburSrebroTransform} over the calibration corpus subset).
      */
-    public static double maxSquaredNormOverCorpusSample(FloatVectorValues vectorValues, int[] corpusOrdinals, int dim) throws IOException {
+    public static double maxSquaredNormOverCorpusSample(FloatVectorValues vectorValues, int[] corpusOrdinals) throws IOException {
         double maxNormSq = 0;
         for (int ord : corpusOrdinals) {
             float[] v = vectorValues.vectorValue(ord);

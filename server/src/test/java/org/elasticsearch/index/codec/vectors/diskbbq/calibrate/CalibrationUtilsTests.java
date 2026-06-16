@@ -176,7 +176,7 @@ public class CalibrationUtilsTests extends ESTestCase {
     public void testNeyshaburCorpusFloatVectorValuesAddsLiftDimension() throws IOException {
         float[][] data = { { 1f, 0f }, { 0.5f, 0f } };
         FloatVectorValues base = KMeansFloatVectorValues.build(List.of(data), null, 2);
-        double maxNormSq = CalibrationUtils.maxSquaredNormOverCorpusSample(base, new int[] { 0, 1 }, 2);
+        double maxNormSq = CalibrationUtils.maxSquaredNormOverCorpusSample(base, new int[] { 0, 1 });
         CalibrationUtils.NeyshaburCorpusFloatVectorValues lifted = new CalibrationUtils.NeyshaburCorpusFloatVectorValues(
             base,
             2,

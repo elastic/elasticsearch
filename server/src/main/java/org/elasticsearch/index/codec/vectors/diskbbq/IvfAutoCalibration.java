@@ -48,4 +48,5 @@ public class IvfAutoCalibration {
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
         return codecDefault;
     }
+
 }

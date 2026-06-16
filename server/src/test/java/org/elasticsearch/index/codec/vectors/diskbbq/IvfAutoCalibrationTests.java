@@ -164,12 +164,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
     private MergeState mergeStateWithVectorCount(Directory dir, FieldInfo fieldInfo, int vectorCount) throws IOException {
         KnnVectorsReader reader = heapVectorReader(fieldInfo, randomHeapVectors(vectorCount, DIM));
-        return mergeState(
-            new KnnVectorsReader[] { reader },
-            new Bits[] { liveDocs(vectorCount) },
-            backgroundSegmentInfo(dir),
-            fieldInfo
-        );
+        return mergeState(new KnnVectorsReader[] { reader }, new Bits[] { liveDocs(vectorCount) }, backgroundSegmentInfo(dir), fieldInfo);
     }
 
     private static KnnVectorsReader heapVectorReader(FieldInfo fieldInfo, FloatVectorValues vectors) {
@@ -302,4 +297,5 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
         return KMeansFloatVectorValues.build(vecs, null, dim);
     }
+
 }

@@ -6,11 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-<<<<<<< HEAD
-=======
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
->>>>>>> 7d5a19531ba ([ML] Add extra validation in trained_model creation (#150227))
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;

@@ -1063,7 +1063,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
-            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP;
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP : timestampMillis;
             this.timestampMillis = timestampMillis;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space
@@ -1173,10 +1173,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return regionKey.file();
         }
 
-        /**
-         * Representative timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
-         */
-        long timestampMillis() {
+        @Override
+        public long timestampMillis() {
             return timestampMillis;
         }
 

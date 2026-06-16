@@ -128,8 +128,33 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         if (expression != null) {
             return expression;
         }
-        int sep = indexName.indexOf(':');
-        return sep >= 0 || sep < indexName.length() - 1 ? indexToConversionExpressions.get(indexName.substring(sep + 1)) : null;
+
+        String bareIndexName = bareIndexName(indexName);
+        if (bareIndexName.equals(indexName) == false) {
+            expression = indexToConversionExpressions.get(bareIndexName);
+            if (expression != null) {
+                return expression;
+            }
+        }
+
+        Expression suffixMatchedExpression = null;
+        for (Map.Entry<String, Expression> entry : indexToConversionExpressions.entrySet()) {
+            if (bareIndexName.equals(bareIndexName(entry.getKey()))) {
+                if (suffixMatchedExpression != null) {
+                    return null;
+                }
+                suffixMatchedExpression = entry.getValue();
+            }
+        }
+        return suffixMatchedExpression;
+    }
+
+    private static String bareIndexName(String indexName) {
+        int separator = indexName.indexOf(':');
+        if (separator < 0 || separator == indexName.length() - 1) {
+            return indexName;
+        }
+        return indexName.substring(separator + 1);
     }
 
     @Override

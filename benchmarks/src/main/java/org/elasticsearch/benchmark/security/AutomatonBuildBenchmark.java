@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.security;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -63,7 +63,7 @@ public class AutomatonBuildBenchmark {
     private static final List<String> ALL_LITERALS = generateActions();
 
     static {
-        Utils.configureBenchmarkLogging();
+        LogConfigurator.configureESLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();
         }
@@ -196,9 +196,9 @@ public class AutomatonBuildBenchmark {
         // None of these equals a generated literal or has one as a prefix, so no "literal" or "literal*" pattern can accept
         // them at any wildcards fraction.
         final List<String> negatives = List.of("", "definitely-not-an-action", "ZZZ:no/such/action");
-        for (String wildcardsParam : Utils.possibleValues(AutomatonBuildBenchmark.class, "wildcards")) {
+        for (String wildcardsParam : List.of("0.0", "0.01", "0.5", "1.0")) {
             final List<String> patterns = patterns(Double.parseDouble(wildcardsParam));
-            for (String implParam : Utils.possibleValues(AutomatonBuildBenchmark.class, "impl")) {
+            for (String implParam : List.of("patterns-original", "patterns-literal-partition")) {
                 final CharacterRunAutomaton run = new CharacterRunAutomaton(buildAutomaton(implParam, patterns));
                 final String label = implParam + "/wildcards=" + wildcardsParam;
                 // A converted literal ("literal*", detectable by the trailing '*' since literals contain none) must accept

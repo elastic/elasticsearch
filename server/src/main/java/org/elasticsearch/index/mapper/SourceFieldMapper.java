@@ -13,6 +13,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
@@ -46,6 +47,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -389,13 +391,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
-
-    /**
-     * Cached {@link SourceLoader.Synthetic} for the {@code columnar_stored} index-time source
-     * reconstruction path. Built lazily on the first {@code postParse} call and reused for all
-     * subsequent documents under this mapping version.
-     */
-    private volatile SourceLoader.Synthetic cachedColumnarSourceLoader;
+    private final ColumnarSourceWriter columnarSourceWriter;
 
     private SourceFieldMapper(
         Mode mode,
@@ -414,6 +410,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.complete = stored() && sourceFilter == null;
         this.serializeMode = serializeMode;
         this.sourceModeIsNoop = sourceModeIsNoop;
+        this.columnarSourceWriter = mode == Mode.COLUMNAR_STORED ? new ColumnarSourceWriter(sourceFilter) : null;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -504,34 +501,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
         // Columnar mode disables nested objects, so there is exactly one root document (docId 0).
         assert context.nonRootDocuments().iterator().hasNext() == false;
-        var reader = new ColumnarStoredLeafReader(context.doc());
-        var leafCtx = reader.getContext();
-        int docId = 0;
-        int[] docIds = new int[] { docId };
-        // Lazily initialize the cached SourceLoader.Synthetic for this mapping version.
-        // The mapping is stable for the lifetime of this SourceFieldMapper instance, so capturing
-        // it here is safe. The supplier uses a ThreadLocal so each write thread builds the
-        // SyntheticFieldLoader tree once and reuses it (with a reset() between documents), avoiding
-        // the per-document recursive tree construction that was the dominant indexing cost.
-        SourceLoader.Synthetic sourceLoader = cachedColumnarSourceLoader;
-        if (sourceLoader == null) {
-            final Mapping mapping = context.mappingLookup().getMapping();
-            final ThreadLocal<SourceLoader.SyntheticFieldLoader> perThreadLoader = ThreadLocal.withInitial(
-                () -> mapping.syntheticFieldLoader(sourceFilter)
-            );
-            sourceLoader = new SourceLoader.Synthetic(sourceFilter, () -> {
-                SourceLoader.SyntheticFieldLoader loader = perThreadLoader.get();
-                loader.reset();
-                return loader;
-            }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
-            cachedColumnarSourceLoader = sourceLoader;
-        }
-        // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
-        var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
-        storedFieldLoader.advanceTo(docId);
-        try (var b = XContentFactory.jsonBuilder()) {
-            sourceLoader.leaf(reader, docIds).write(storedFieldLoader, docId, b);
-            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
+        try (var builder = XContentFactory.jsonBuilder()) {
+            columnarSourceWriter.write(context, builder);
+            BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(builder);
             // Remove per-field fallback entries collected during parsing — their contents are
             // subsumed by the whole-document entry written below, and binary doc values only allow
             // one field instance per document. Entries kept here (e.g. .offsets, _ignored) are

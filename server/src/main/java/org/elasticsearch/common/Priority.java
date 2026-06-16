@@ -9,11 +9,8 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 
 import java.io.IOException;
 

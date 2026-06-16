@@ -135,9 +135,13 @@ public class ExchangeServiceTests extends ESTestCase {
         // sink buffer is full
         assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
-        assertEquals(pages[0], source.pollPage());
+        try (Page p = source.pollPage()) {
+            assertEquals(pages[0], p);
+        }
         assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
-        assertEquals(pages[1], source.pollPage());
+        try (Page p = source.pollPage()) {
+            assertEquals(pages[1], p);
+        }
         assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(5)));
         // sink can write again
         assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
@@ -151,7 +155,10 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink1.isFinished());
         for (int i = 0; i < 5; i++) {
             assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
-            assertEquals(pages[2 + i], source.pollPage());
+            final int idx = i;
+            try (Page p = source.pollPage()) {
+                assertEquals(pages[2 + idx], p);
+            }
         }
         assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(7)));
         // source buffer is empty
@@ -162,9 +169,6 @@ public class ExchangeServiceTests extends ESTestCase {
         assertBusy(() -> assertTrue(source.isFinished()));
         source.finish();
         ESTestCase.terminate(threadPool);
-        for (Page page : pages) {
-            page.releaseBlocks();
-        }
         safeGet(remoteSinkFuture);
     }
 
@@ -527,9 +531,11 @@ public class ExchangeServiceTests extends ESTestCase {
         sinkCompleted.actionGet();
         Page p;
         while ((p = exchangeSource.pollPage()) != null) {
-            assertSame(p, pages.poll());
+            assertEquals(p, pages.poll());
             p.releaseBlocks();
         }
+        // pages that were not consumed by the exchange (early finish) are released here;
+        // pages that were consumed have already had their blocks released by the fetcher.
         while ((p = pages.poll()) != null) {
             p.releaseBlocks();
         }

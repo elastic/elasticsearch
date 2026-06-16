@@ -28,7 +28,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Downsampled doc: 1
      */
     public void testAggregateCounter() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
@@ -57,7 +57,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 16 at 50, 5 at 60
      */
     public void testAggregateCounterWithReset() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
@@ -69,10 +69,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 5.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 16.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(16.0)))));
             }
         });
         producer.reset();
@@ -95,7 +95,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 0 at 20
      */
     public void testAggregateCounterDoesNotDuplicateFirstValue() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
         long[] timeValues = new long[] { 30, 20, 10 };
@@ -106,7 +106,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 0.0))));
+            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -129,7 +129,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 8 at 40, 5 at 60, 2 at 70
      */
     public void testAggregateCounterWithMultipleResetsLastBeforeResetLarger() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(7, 6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 80, 70, 60, 50, 40, 30, 20, 10 };
@@ -141,13 +141,13 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(40L), equalTo(60L), equalTo(70L)));
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 8.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 5.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
             }
             if (timestamp == 70L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 2.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
             }
         });
         producer.reset();
@@ -171,7 +171,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 4 at 30, 3 at 40, 5 at 50, 2 at 60
      */
     public void testAggregateCounterWithMultipleResetsLastBeforeResetSmaller() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
@@ -183,16 +183,16 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(30L), equalTo(40L), equalTo(50L), equalTo(60L)));
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 4.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(4.0)))));
             }
             if (timestamp == 40L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 3.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(3.0)))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 5.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(5.0)))));
             }
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 2.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(2.0)))));
             }
         });
         producer.reset();
@@ -216,7 +216,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 8 at 20, 0 at 30
      */
     public void testAggregateCounterDoesNotAddNotRedundantValue() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         // Bucket #2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
@@ -233,13 +233,13 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(7.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 8.0))));
+            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
         });
         producer.reset();
         assertThat(producer.downsampledValue(), equalTo(Double.NaN));
@@ -262,7 +262,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * Reset docs: 8 at 20, 0 at 30
      */
     public void testAggregateCounterResetsWhenTsidChanges() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         // Bucket tsid_2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
@@ -279,17 +279,17 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(7.0));
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(20L), equalTo(30L)));
             if (timestamp == 20L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 8.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(8.0)))));
             }
             if (timestamp == 30L) {
-                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 0.0))));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", new ResetDataPoints.CounterResetValue(0.0)))));
             }
         });
         producer.reset();
@@ -309,7 +309,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      * No reset data points are produced regardless of value patterns.
      */
     public void testDeltaCounterSumsValues() throws IOException {
-        CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
+        ResetDataPoints resetDataPoints = new ResetDataPoints();
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
@@ -328,7 +328,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         timeValues = new long[] { 100, 90, 80 };
         counterValues = createNumericValuesInstance(docIdBuffer, 3, 7, 10);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue(), equalTo(20.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
@@ -339,7 +339,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
      */
     public void testDeltaCounterWithTsidChange() throws IOException {
         NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
-        CounterResetDataPoints resetDataPoints;
+        ResetDataPoints resetDataPoints;
 
         // tsid_1: delta — values are summed
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
@@ -347,7 +347,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 5, 3, 2);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.downsampledValue(), equalTo(10.0));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
@@ -361,7 +361,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));
         assertThat(producer.downsampledValue(), equalTo(600.0));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.tsidReset();
@@ -373,7 +373,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer, randomFrom(Temporality.DEFAULT, Temporality.CUMULATIVE));
         assertThat(producer.downsampledValue(), equalTo(7.0));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.CumulativeCollector.class));
@@ -386,7 +386,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         counterValues = createNumericValuesInstance(docIdBuffer, 7, 3, 1);
         producer.collect(counterValues, timeValues, docIdBuffer, Temporality.DELTA);
         assertThat(producer.downsampledValue(), equalTo(11.0));
-        resetDataPoints = new CounterResetDataPoints();
+        resetDataPoints = new ResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         assertThat(producer.delegateCollector(), instanceOf(NumericMetricFieldDownsampler.AggregateCounter.DeltaCollector.class));

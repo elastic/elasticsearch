@@ -271,13 +271,13 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Update {@link CounterResetDataPoints} which contains all reset counter values,
+         * Update {@link ResetDataPoints} which contains all reset counter values,
          * with the latest reset points of this counter field.
-         * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+         * @param resetDataPoints the extra reset data values for every counter for this bucket
          */
-        public void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+        public void updateResetDataPoints(ResetDataPoints resetDataPoints) {
             if (temporalityCollector == cumulativeCollector) {
-                cumulativeCollector.updateResetDataPoints(counterResetDataPoints);
+                cumulativeCollector.updateResetDataPoints(resetDataPoints);
             }
         }
 
@@ -324,7 +324,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         static class CumulativeCollector implements TemporalityAwareCollector {
 
             private final String name;
-            private final Deque<CounterResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
+            private final Deque<ResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
             private double downsampledValue = Double.NaN;
 
             // Visible for testing
@@ -359,18 +359,18 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                         // reset or not.
                         double lastPersisted = Double.NaN;
                         if (resetStack.isEmpty() == false) {
-                            lastPersisted = resetStack.peek().value();
+                            lastPersisted = ((ResetDataPoints.CounterResetValue) resetStack.peek().value()).value();
                         } else if (Double.isNaN(previousBucketValue) == false) {
                             lastPersisted = previousBucketValue;
                         }
                         // If there is no known last persisted value or the last persisted is larger than the current value,
                         // we need to store the previous document to capture the reset.
                         if (Double.isNaN(lastPersisted) || Double.compare(counterValue, lastPersisted) < 0) {
-                            resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                            resetStack.push(new ResetDataPoints.ResetPoint(lastTimestamp, previousValue));
                         }
                     }
                     // This is the last value before reset, which we always need to persist
-                    resetStack.push(new CounterResetDataPoints.ResetPoint(timestamp, counterValue));
+                    resetStack.push(new ResetDataPoints.ResetPoint(timestamp, counterValue));
                 }
                 downsampledValue = counterValue;
                 previousValue = counterValue;
@@ -394,22 +394,22 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             }
 
             /**
-             * Update {@link CounterResetDataPoints} which contains all reset counter values,
+             * Update {@link ResetDataPoints} which contains all reset counter values,
              * with the latest reset points of this counter field.
-             * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+             * @param resetDataPoints the extra reset data values for every counter for this bucket
              */
-            void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+            void updateResetDataPoints(ResetDataPoints resetDataPoints) {
                 if (resetStack.isEmpty()) {
                     return;
                 }
                 // It is possible that the first reset data point is the same with the first data point
                 // we skip this if this is the case
                 var firstResetPoint = resetStack.pop();
-                if (firstResetPoint.value() != downsampledValue) {
-                    counterResetDataPoints.addDataPoint(name, firstResetPoint);
+                if (((ResetDataPoints.CounterResetValue) firstResetPoint.value()).value() != downsampledValue) {
+                    resetDataPoints.addDataPoint(name, firstResetPoint);
                 }
                 while (resetStack.isEmpty() == false) {
-                    counterResetDataPoints.addDataPoint(name, resetStack.pop());
+                    resetDataPoints.addDataPoint(name, resetStack.pop());
                 }
             }
 

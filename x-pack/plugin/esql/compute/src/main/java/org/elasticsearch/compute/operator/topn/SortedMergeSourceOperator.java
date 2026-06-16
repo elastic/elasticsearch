@@ -36,14 +36,22 @@ import java.util.PriorityQueue;
 import java.util.Set;
 
 /**
- * Streaming K-way sorted merge on the coordinator. Reads pages arriving from K data-node sinks
- * (tagged with their sink ID by {@link ExchangeSourceHandler}), routes them to per-source deques,
- * and merges them element-by-element using a min-heap so that output is globally sorted.
+ * Streaming K-way sorted merge. Reads pages arriving from K upstream sinks (tagged with their
+ * sink ID by {@link ExchangeSourceHandler}), routes them to per-source deques, and merges them
+ * element-by-element using a min-heap so that output is globally sorted.
+ *
+ * <p>This operator is used at two levels in the unbounded-sort execution pipeline:
+ * <ul>
+ *   <li><em>Data-node reduce</em>: K = number of shards on this node; merges per-shard sorted
+ *       streams into a single sorted stream sent to the coordinator.</li>
+ *   <li><em>Coordinator</em>: K = number of data nodes; merges per-node sorted streams into the
+ *       final globally sorted output.</li>
+ * </ul>
  *
  * <p>Unlike {@link TopNOperator}, this operator emits output while still receiving input: it
  * starts merging as soon as it has heard from every registered sink (either received at least one
  * page or the sink is recorded in {@link ExchangeSourceHandler#completedSinks()}). This enables a
- * downstream {@code LIMIT} to terminate the pipeline early — the data nodes receive the
+ * downstream {@code LIMIT} to terminate the pipeline early — upstream sources receive the
  * cancellation signal and stop sending pages, keeping memory bounded to O(K × pageSize)
  * regardless of the total index size.
  *

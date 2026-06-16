@@ -6198,9 +6198,10 @@ message:keyword | type:keyword
 ###############################################
 
 // SORT before LOOKUP JOIN (no LIMIT before join) exercises the sorted-merge execution path:
-// AddMaxLimitToUnboundedSort inserts TopN(MAX_VALUE) so the sort is pushed to data nodes as
-// LuceneSearchAfterSortedSourceOperator, and SortedMergeSourceOperator K-way merges on the
-// coordinator without pre-allocating a MAX_VALUE priority queue.
+// MarkUnboundedSort converts the bare OrderBy into TopN(MAX_VALUE, unboundedSort=true) so the
+// sort is pushed to data nodes as LuceneSearchAfterSortedSourceOperator, and
+// SortedMergeSourceOperator K-way merges the sorted streams without pre-allocating a
+// MAX_VALUE priority queue.
 
 sortBeforeLookupJoinAscending
 required_capability: join_lookup_v12

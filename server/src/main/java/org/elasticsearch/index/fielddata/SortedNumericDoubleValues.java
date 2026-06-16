@@ -15,13 +15,14 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
  */
-public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
+public abstract class SortedNumericDoubleValues {
 
     private final boolean isSingleton;
     private final DocIdSetIterator docIdSetIterator;
@@ -35,6 +36,21 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
         this.isSingleton = isSingleton;
         this.docIdSetIterator = docIdSetIterator;
     }
+
+    /** Advance the iterator to exactly {@code target} and return whether
+     *  {@code target} has a value.
+     *  {@code target} must be greater than or equal to the current
+     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  &lt; {@code maxDoc}.*/
+    public abstract boolean advanceExact(int target) throws IOException;
+
+    /**
+     * Retrieves the number of values for the current document.  This must always
+     * be greater than zero.
+     * It is illegal to call this method after {@link #advanceExact(int)}
+     * returned {@code false}.
+     */
+    public abstract int docValueCount();
 
     /**
      * Iterates to the next value in the current document. Do not call this more than
@@ -72,7 +88,7 @@ public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
      * @return an iterator over doc ids working togerther with {@link #advanceExact(int)} and {@link #nextValue()}
      *         or null if not supported.
      */
-    @Override
+    @Nullable
     public DocIdSetIterator docIdIterator() {
         return docIdSetIterator;
     }

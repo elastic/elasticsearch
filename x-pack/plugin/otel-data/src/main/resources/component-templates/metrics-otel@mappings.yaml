@@ -22,6 +22,9 @@ template:
         type: keyword
         time_series_dimension: true
         ignore_above: 1024
+      temporality:
+        type: keyword
+        time_series_dimension: true
       attributes:
         type: passthrough
         dynamic: true

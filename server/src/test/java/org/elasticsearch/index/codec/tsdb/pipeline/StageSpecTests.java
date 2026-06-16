@@ -17,6 +17,7 @@ public class StageSpecTests extends ESTestCase {
         assertNotNull(new StageSpec.DeltaStage().stageId());
         assertNotNull(new StageSpec.OffsetStage().stageId());
         assertNotNull(new StageSpec.GcdStage().stageId());
+        assertNotNull(new StageSpec.AlpDoubleStage().stageId());
         assertNotNull(new StageSpec.BitPackPayload().stageId());
     }
 }

@@ -28,6 +28,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +37,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -54,9 +57,11 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,6 +69,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -217,6 +223,21 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testPrefixQueryHighCardinality() {
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        MappedFieldType ft = new KeywordFieldType(
+            "field",
+            IndexType.docValuesOnly(),
+            TextSearchInfo.SIMPLE_MATCH_ONLY,
+            null,
+            builder,
+            true
+        );
+        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", false), ft.prefixQuery("foo", null, false, MOCK_CONTEXT));
+        assertEquals(new SlowCustomBinaryDocValuesPrefixQuery("field", "foo", true), ft.prefixQuery("foo", null, true, MOCK_CONTEXT));
+    }
+
     public void testWildcardQueryHighCardinality() {
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
         builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
@@ -247,6 +268,19 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             () -> ft.regexpQuery("foo.*", randomInt(10), 0, randomInt(10) + 1, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals("[regexp] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", ee.getMessage());
+    }
+
+    public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
+        Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
+        q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
     }
 
     public void testFuzzyQuery() {

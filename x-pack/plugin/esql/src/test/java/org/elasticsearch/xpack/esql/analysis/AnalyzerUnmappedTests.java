@@ -1674,9 +1674,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         // EVAL introduces first_name which is the same name as a mapped field.
         // Eval.unmappedFieldsToKeep() adds it to excludes first; then esr.output() names are merged
         // (first_name deduplicated to stay at front via LinkedHashSet).
-        LogicalPlan plan = test().statement(setUnmappedLoadAll(
-            "FROM test | KEEP first* | EVAL first_name = to_upper(first_name)"
-        ));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first* | EVAL first_name = to_upper(first_name)"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first*"), excl("first_name")));
     }
 
@@ -1686,10 +1684,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         // ResolveUnmapped resolves _unmapped_fields as an ordinary unmapped keyword field,
         // then DetermineUnmappedFieldsToKeep adds a second _unmapped_fields attribute —
         // resulting in a "duplicate output attribute" verifier error instead.
-        test().statementError(
-            setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"),
-            containsString("_unmapped_fields")
-        );
+        test().statementError(setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"), containsString("_unmapped_fields"));
     }
 
     /** Finds the single non-LOOKUP EsRelation in the plan and asserts its unmapped-fields pattern. */

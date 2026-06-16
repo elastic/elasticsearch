@@ -11,6 +11,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
@@ -43,6 +44,8 @@ import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -73,6 +76,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -86,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -324,6 +329,127 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
 
         assertThat(finalException.get(), is(nullValue()));
         assertThat("Response was: " + finalResponse.get(), finalResponse.get().getCheckpoints().keySet(), is(equalTo(expectedIndices)));
+    }
+
+    /**
+     * Verifies that GetCheckpointAction honours {@code skip_unavailable} when a remote cluster leg fails.
+     * <ul>
+     *   <li>{@code skip_unavailable=false} (non-default) — checkpoint must fail so the transform retries
+     *       rather than producing a checkpoint over partial data (regression guard for #84090 fix).</li>
+     *   <li>{@code skip_unavailable=true} (default) — checkpoint must succeed with local indices only;
+     *       the failed remote cluster is omitted.</li>
+     * </ul>
+     */
+    public void testGetCheckpointAction_RemoteClusterUnavailable() throws Exception {
+        final ThreadContext threadContext = client().threadPool().getThreadContext();
+        final String[] sourceIndices = new String[] { REMOTE_CLUSTER + ":remote_*", "local_*" };
+
+        // Inject a transport-level failure for GetCheckpoint requests on all remote-cluster nodes.
+        List<MockTransportService> remoteMockServices = new ArrayList<>();
+        for (TransportService ts : cluster(REMOTE_CLUSTER).getInstances(TransportService.class)) {
+            MockTransportService mts = (MockTransportService) ts;
+            mts.addRequestHandlingBehavior(
+                GetCheckpointAction.NAME,
+                (handler, request, channel, task) -> channel.sendResponse(
+                    new ElasticsearchException("simulated remote checkpoint failure")
+                )
+            );
+            remoteMockServices.add(mts);
+        }
+        try {
+            // skip_unavailable=false: the failed remote leg must propagate — checkpoint fails.
+            setRemoteClusterSkipUnavailable(false);
+            {
+                final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+                    sourceIndices,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    null,
+                    null,
+                    TIMEOUT,
+                    null,
+                    false
+                );
+                CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Exception> exRef = new SetOnce<>();
+                SetOnce<GetCheckpointAction.Response> respRef = new SetOnce<>();
+                ClientHelper.executeAsyncWithOrigin(
+                    threadContext,
+                    TRANSFORM_ORIGIN,
+                    request,
+                    ActionListener.<GetCheckpointAction.Response>wrap(r -> {
+                        respRef.set(r);
+                        latch.countDown();
+                    }, e -> {
+                        exRef.set(e);
+                        latch.countDown();
+                    }),
+                    (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+                );
+                assertTrue("timed out waiting for checkpoint response", latch.await(10, TimeUnit.SECONDS));
+                assertThat(
+                    "checkpoint over unavailable skip_unavailable=false remote must fail (see #84090)",
+                    exRef.get(),
+                    is(notNullValue())
+                );
+                assertThat(respRef.get(), is(nullValue()));
+            }
+
+            // skip_unavailable=true (default): the failed remote leg is tolerated; local checkpoint succeeds.
+            setRemoteClusterSkipUnavailable(true);
+            {
+                final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+                    sourceIndices,
+                    IndicesOptions.LENIENT_EXPAND_OPEN,
+                    null,
+                    null,
+                    TIMEOUT,
+                    null,
+                    false
+                );
+                CountDownLatch latch = new CountDownLatch(1);
+                SetOnce<Exception> exRef = new SetOnce<>();
+                SetOnce<GetCheckpointAction.Response> respRef = new SetOnce<>();
+                ClientHelper.executeAsyncWithOrigin(
+                    threadContext,
+                    TRANSFORM_ORIGIN,
+                    request,
+                    ActionListener.<GetCheckpointAction.Response>wrap(r -> {
+                        respRef.set(r);
+                        latch.countDown();
+                    }, e -> {
+                        exRef.set(e);
+                        latch.countDown();
+                    }),
+                    (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
+                );
+                assertTrue("timed out waiting for checkpoint response", latch.await(10, TimeUnit.SECONDS));
+                assertThat(
+                    "checkpoint over unavailable skip_unavailable=true remote must succeed",
+                    exRef.get(),
+                    is(nullValue())
+                );
+                assertThat(respRef.get(), is(notNullValue()));
+                // Failed remote cluster is omitted; only local index keys may appear.
+                assertThat(
+                    respRef.get().getCheckpoints().keySet().stream().filter(k -> k.startsWith(REMOTE_CLUSTER + ":")).toList(),
+                    is(empty())
+                );
+            }
+        } finally {
+            remoteMockServices.forEach(MockTransportService::clearAllRules);
+            setRemoteClusterSkipUnavailable(null); // restore default
+        }
+    }
+
+    private void setRemoteClusterSkipUnavailable(Boolean skipUnavailable) {
+        Settings.Builder settings = skipUnavailable != null
+            ? Settings.builder().put("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable", skipUnavailable)
+            : Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable");
+        client(LOCAL_CLUSTER).admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(settings)
+            .get();
     }
 
     public void testTransformLifecycle_MatchAllQuery() throws Exception {

@@ -13,14 +13,20 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportGetCheckpointActionTests extends ESTestCase {
 
@@ -130,6 +136,42 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
             Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0, SHARD_B_1)
         );
         assertThat(filteredNodesAndShards, is(equalTo(expectedFilteredNodesAndShards)));
+    }
+
+    public void testFirstNonSkippableRemoteFailure_EmptyMap() {
+        assertThat(TransportGetCheckpointAction.firstNonSkippableRemoteFailure(Map.of(), cluster -> false), is(nullValue()));
+    }
+
+    public void testFirstNonSkippableRemoteFailure_AllSkippable() {
+        Map<String, Exception> exceptions = Map.of("cluster_a", new IOException("down"), "cluster_b", new IOException("down"));
+        assertThat(TransportGetCheckpointAction.firstNonSkippableRemoteFailure(exceptions, cluster -> true), is(nullValue()));
+    }
+
+    public void testFirstNonSkippableRemoteFailure_OneNonSkippable() {
+        var cause = new IOException("connection refused");
+        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(
+            Map.of("cluster_a", cause),
+            cluster -> false
+        );
+        assertThat(fatal, instanceOf(RemoteTransportException.class));
+        assertThat(fatal.getMessage(), containsString("cluster_a"));
+        assertThat(fatal.getCause(), is(cause));
+        assertThat(fatal.getSuppressed(), arrayWithSize(0));
+    }
+
+    public void testFirstNonSkippableRemoteFailure_MixedSkippableAndNonSkippable() {
+        var causeA = new IOException("cluster_a down");
+        var causeB = new IOException("cluster_b down");
+        var exceptions = Map.of("cluster_a", (Exception) causeA, "cluster_b", causeB, "cluster_skip", new IOException("skipped"));
+        // cluster_skip is skip_unavailable=true and must be tolerated; cluster_a and cluster_b are not
+        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(
+            exceptions,
+            cluster -> cluster.equals("cluster_skip")
+        );
+        assertThat(fatal, instanceOf(RemoteTransportException.class));
+        // both non-skippable failures must be accounted for (one primary + one suppressed)
+        assertThat(fatal.getSuppressed(), arrayWithSize(1));
+        assertThat(fatal.getSuppressed()[0], instanceOf(RemoteTransportException.class));
     }
 
     // When every shard on every node is flagged as skipped, the result is empty.

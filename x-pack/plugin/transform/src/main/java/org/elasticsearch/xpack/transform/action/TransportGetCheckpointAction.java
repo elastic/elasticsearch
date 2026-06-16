@@ -49,6 +49,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -69,6 +70,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout;
@@ -327,9 +329,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                 .filter(entry -> RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(entry.getKey()) == false)
                 .filter(entry -> entry.getValue().resolvedIndexExpressions() != null)
                 .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().resolvedIndexExpressions()));
-            // remoteExceptions carries per-cluster failures (e.g. connection errors for non-skip_unavailable projects).
+            // remoteExceptions carries per-cluster failures (e.g. connection errors from linked projects).
             // The validator decides whether these surface as 404/403 or are tolerated based on project routing and
-            // allow_no_indices. skip_unavailable clusters are excluded earlier by groupIndices and never appear here.
+            // allow_no_indices. Checkpoints use LENIENT_EXPAND_OPEN, so the validator short-circuits in lenient mode
+            // (allowNoIndices && ignoreUnavailable) and tolerates connection failures by design on the CPS path.
             var crossProjectException = CrossProjectIndexResolutionValidator.validate(
                 request.indicesOptions(),
                 request.getProjectRouting(),
@@ -339,6 +342,20 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             );
             if (crossProjectException != null) {
                 mergedResponseListener.onFailure(crossProjectException);
+                return;
+            }
+        } else if (remoteExceptions.isEmpty() == false) {
+            // Classic CCS: honor skip_unavailable. A skip_unavailable=false remote that is unreachable must fail
+            // the checkpoint so the transform retries rather than producing a checkpoint over partial data.
+            // skip_unavailable=true clusters are tolerated and omitted from the result. This matches
+            // TransportSearchAction's shouldSkipOnFailure and the RECONNECT_UNLESS_SKIP_UNAVAILABLE dispatch above.
+            // See https://github.com/elastic/elasticsearch/issues/84090.
+            var fatal = firstNonSkippableRemoteFailure(
+                remoteExceptions,
+                cluster -> remoteClusterService.shouldSkipOnFailure(cluster, null)
+            );
+            if (fatal != null) {
+                mergedResponseListener.onFailure(fatal);
                 return;
             }
         }
@@ -524,6 +541,36 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
         }
         return filteredNodesAndShards;
+    }
+
+    /**
+     * Returns the first exception that should cause the checkpoint to fail given a map of per-cluster
+     * remote failures, or {@code null} if every failed cluster is tolerated by {@code shouldSkip}.
+     * Non-skippable failures are wrapped in a {@link RemoteTransportException} and additional ones
+     * are attached as suppressed exceptions.
+     * <p>
+     * For classic CCS, {@code shouldSkip} is {@link RemoteClusterService#shouldSkipOnFailure} which
+     * returns {@code true} when {@code skip_unavailable=true}: those clusters are omitted from the
+     * checkpoint. {@code skip_unavailable=false} clusters (including the default) surface as failures
+     * so the transform retries rather than checkpointing over partial data. See
+     * https://github.com/elastic/elasticsearch/issues/84090.
+     */
+    static Exception firstNonSkippableRemoteFailure(Map<String, Exception> remoteExceptions, Predicate<String> shouldSkip) {
+        Exception fatal = null;
+        for (var entry : remoteExceptions.entrySet()) {
+            if (shouldSkip.test(entry.getKey()) == false) {
+                var wrapped = new RemoteTransportException(
+                    "error while communicating with remote cluster [" + entry.getKey() + "]",
+                    entry.getValue()
+                );
+                if (fatal == null) {
+                    fatal = wrapped;
+                } else {
+                    fatal.addSuppressed(wrapped);
+                }
+            }
+        }
+        return fatal;
     }
 
     private void getCheckpointsFromNodes(

@@ -109,7 +109,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires external dataset in from command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
-    private static void requireInSubquery(){
+    private static void requireInSubquery() {
         assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
 
     }
@@ -117,6 +117,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     private static void requireWhereInSubqueryWithTS() {
         assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
     }
+
     @Before
     public void writeFixture() throws IOException {
         // Five-column schema gives downstream tests something to group by (department), aggregate (salary), and join on

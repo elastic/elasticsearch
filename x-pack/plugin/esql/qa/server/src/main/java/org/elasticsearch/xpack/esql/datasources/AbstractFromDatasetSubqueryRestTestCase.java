@@ -59,15 +59,6 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
         assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
     }
 
-    @Before
-    public void requireDatasetInFromCommandCapability() throws IOException {
-        String capability = EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName();
-        assumeTrue(
-            "requires the [" + capability + "] ESQL capability",
-            clusterHasCapability("POST", "/_query", List.of(), List.of(capability)).orElse(false)
-        );
-    }
-
     /**
      * {@code PUT /_query/data_source/<name>} with {@code type} and (optional) {@code settings}.
      * Used by every backend wrapper to register an {@code s3}/{@code gcs}/{@code azure} data source

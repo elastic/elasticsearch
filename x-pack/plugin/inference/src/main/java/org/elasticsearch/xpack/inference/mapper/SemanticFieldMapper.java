@@ -945,7 +945,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
         protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {
             return new OriginalValuesSemanticFieldValueFetcher(
-                name(),
                 blContext.sourcePaths(name()),
                 blContext.indexSettings().getIgnoredSourceFormat()
             );

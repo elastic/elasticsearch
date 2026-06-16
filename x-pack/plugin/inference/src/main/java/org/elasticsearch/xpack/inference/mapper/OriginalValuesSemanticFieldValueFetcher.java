@@ -11,28 +11,24 @@ import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Map;
 import java.util.Set;
 
 class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher {
-    private final String fieldName;
-
     OriginalValuesSemanticFieldValueFetcher(String fieldName, SearchExecutionContext context) {
         super(fieldName, context);
-        this.fieldName = fieldName;
     }
 
-    OriginalValuesSemanticFieldValueFetcher(
-        String fieldName,
-        Set<String> sourcePaths,
-        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
-    ) {
+    OriginalValuesSemanticFieldValueFetcher(Set<String> sourcePaths, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
         super(sourcePaths, null, ignoredSourceFormat);
-        this.fieldName = fieldName;
     }
 
     @Override
     protected Object parseSourceValue(Object value) {
-        // TODO: Can we simplify this?
-        return SemanticTextUtils.nodeObjectValue(fieldName, value, true, false);
+        if (value instanceof Map<?, ?> map) {
+            return map;
+        } else {
+            return value.toString();
+        }
     }
 }

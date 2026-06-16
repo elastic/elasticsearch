@@ -137,6 +137,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         builder(esqlQuery).stages(stages).nestedPath(nestedPath).run();
     }
 
+    /**
+     * Run a golden test where the query references views. {@code views} maps a view name to its definition query; the views are
+     * registered on the analyzer and expanded (together with IN subqueries) before pre-analysis, mirroring
+     * {@code EsqlSession#execute}.
+     */
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, Map<String, String> views, String... nestedPath) {
+        builder(esqlQuery).stages(stages).views(views).nestedPath(nestedPath).run();
+    }
+
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String... nestedPath) {
         builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
     }
@@ -164,7 +173,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             null,
             null,
             null,
-            ExternalSourceResolution.EMPTY
+            ExternalSourceResolution.EMPTY,
+            Map.of()
         ).doTest();
     }
 
@@ -182,6 +192,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private AliasFilter aliasFilter;
         private ProjectMetadata datasetMetadata;
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
+        private Map<String, String> views = Map.of();
 
         private TestBuilder(
             String esqlQuery,
@@ -254,10 +265,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         /**
-         * Registers external datasets (a {@link ProjectMetadata} carrying the data-source / dataset definitions)
-         * so that {@code FROM <dataset>} references in the query are rewritten into external relations by
-         * {@link DatasetRewriter}, mirroring {@code EsqlSession}. Must be paired with
-         * {@link #externalSourceResolution} so the analyzer can resolve those relations' schemas.
+         * Registers external datasets (a {@link ProjectMetadata} carrying the data-source / dataset definitions) so that
+         * {@code FROM <dataset>} references in the query are rewritten into external relations by @link DatasetRewriter}, mirroring
+         * {@code EsqlSession}. Must be paired with {@link #externalSourceResolution} so the analyzer can resolve those relations' schemas.
          */
         public TestBuilder datasetMetadata(ProjectMetadata datasetMetadata) {
             this.datasetMetadata = datasetMetadata;
@@ -274,6 +284,11 @@ public abstract class GoldenTestCase extends ESTestCase {
             return externalSourceResolution;
         }
 
+        public TestBuilder views(Map<String, String> views) {
+            this.views = views;
+            return this;
+        }
+
         public void run() {
             String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
             new Test(
@@ -287,7 +302,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 optimizerFactory,
                 aliasFilter,
                 datasetMetadata,
-                externalSourceResolution
+                externalSourceResolution,
+                views
             ).doTest();
         }
 
@@ -312,7 +328,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
         AliasFilter aliasFilter,
         ProjectMetadata datasetMetadata,
-        ExternalSourceResolution externalSourceResolution
+        ExternalSourceResolution externalSourceResolution,
+        Map<String, String> views
     ) {
 
         private void doTest() {
@@ -329,10 +346,18 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
-            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier
-            // checks (e.g. unbounded SORT inside an IN subquery) fire.
-            LogicalPlan parsedPlan = InSubqueryResolver.resolve(statement.plan());
+            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/MarkJoin before
+            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
+            // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
+            // view/IN-subquery resolution; otherwise resolve IN subqueries only.
+            LogicalPlan parsedPlan;
+            if (views.isEmpty()) {
+                parsedPlan = InSubqueryResolver.resolve(statement.plan());
+            } else {
+                TestAnalyzer viewAnalyzer = analyzer();
+                views.forEach(viewAnalyzer::addView);
+                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+            }
             // Then turn FROM <dataset> targets into UnresolvedExternalRelation, exactly as EsqlSession does. A
             // null datasetMetadata (the default) makes this a no-op, so plain golden tests are unaffected; when a
             // test registers datasets, external relations are excluded from CSV index discovery below.

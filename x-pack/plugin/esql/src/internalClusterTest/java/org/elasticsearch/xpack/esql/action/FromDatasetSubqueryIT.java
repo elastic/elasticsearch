@@ -105,10 +105,18 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     @Before
-    public void requireFeatureFlag() {
-        assumeTrue("requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
+    public void requireCapability() {
+        assumeTrue("requires external dataset in from command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
     }
 
+    private static void requireInSubquery(){
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+
+    }
+
+    private static void requireWhereInSubqueryWithTS() {
+        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+    }
     @Before
     public void writeFixture() throws IOException {
         // Five-column schema gives downstream tests something to group by (department), aggregate (salary), and join on
@@ -947,7 +955,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // WHERE ... IN / NOT IN (subquery) crossed with external datasets
 
     public void testInSubqueryMainDatasetSubqueryIndex() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -965,7 +973,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryIndex() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -982,7 +990,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainIndexSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1000,7 +1008,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainIndexSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createRealEmployees();
 
@@ -1019,7 +1027,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainDatasetSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1037,7 +1045,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         registerEmployeesAlt();
 
@@ -1059,7 +1067,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // WHERE ... IN / NOT IN (subquery) crossing a time-series index with an external dataset
 
     public void testInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1076,7 +1084,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainTimeSeriesIndexSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1093,7 +1101,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1111,7 +1119,7 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesIndex() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        requireInSubquery();
         registerEmployees();
         createTimeSeriesMetrics();
 
@@ -1135,8 +1143,8 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // testInSubqueryMainTimeSeriesIndexSubqueryDataset, exercising the IN/NOT IN join below a lowered TS aggregation.
 
     public void testInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        requireInSubquery();
+        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1156,8 +1164,8 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainTimeSeriesRateSubqueryDataset() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        requireInSubquery();
+        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1179,8 +1187,8 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     // index via TS with a rate(...) aggregate (instead of plain FROM). Mirrors testInSubqueryMainDatasetSubqueryTimeSeriesIndex.
 
     public void testInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        requireInSubquery();
+        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 
@@ -1200,8 +1208,8 @@ public class FromDatasetSubqueryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testNotInSubqueryMainDatasetSubqueryTimeSeriesRate() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        assumeTrue("Requires IN subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        requireInSubquery();
+        requireWhereInSubqueryWithTS();
         registerEmployees();
         createTimeSeriesCounters();
 

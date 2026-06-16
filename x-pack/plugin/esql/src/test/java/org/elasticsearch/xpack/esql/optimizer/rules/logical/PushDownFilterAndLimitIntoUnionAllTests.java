@@ -83,6 +83,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
+    private static void checkExternalDatasetSupport() {
+        assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+    }
+
     /*
      *Limit[1000[INTEGER],false,false]
      * \_UnionAll[[_meta_field{r}#45, emp_no{r}#46, first_name{r}#47, gender{r}#48, hire_date{r}#49, job{r}#50, job.raw{r}#51,
@@ -1979,6 +1983,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *             \_ExternalRelation[s3://bucket/external_employees.parquet]
      */
     public void testPushDownFilterIntoExternalDatasetSubquery() {
+        checkExternalDatasetSupport();
         var plan = planExternalDatasetSubquery("""
             FROM test, (FROM external_employees | WHERE salary > 50000)
             | WHERE emp_no > 10000
@@ -2035,6 +2040,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *               \_ExternalRelation[s3://bucket/external_employees.parquet]
      */
     public void testPushDownFilterAndLimitIntoExternalDatasetSubqueryWithSort() {
+        checkExternalDatasetSupport();
         var plan = planExternalDatasetSubquery("""
             FROM test, (FROM external_employees | WHERE salary > 50000 | SORT emp_no)
             | WHERE emp_no > 10000
@@ -2073,7 +2079,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     public void testFullTextFunctionOnExternalDatasetFieldIsRejected() {
-        assumeTrue("requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
+        checkExternalDatasetSupport();
         VerificationException e = expectThrows(VerificationException.class, () -> planExternalDatasetSubquery("""
             FROM test, (FROM external_employees | WHERE salary > 50000)
             | WHERE first_name:"first"
@@ -2100,7 +2106,6 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * dataset branch with nulls via an {@code Eval}.
      */
     private LogicalPlan planExternalDatasetSubquery(String query) {
-        assumeTrue("requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset dataset = new Dataset(EXTERNAL_DATASET, new DataSourceReference("external_ds"), EXTERNAL_DATASET_RESOURCE, null, Map.of());
         ProjectMetadata projectMetadata = ProjectMetadata.builder(ProjectId.DEFAULT)

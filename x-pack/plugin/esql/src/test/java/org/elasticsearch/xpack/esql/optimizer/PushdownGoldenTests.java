@@ -203,7 +203,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
 
     public void testFromUnionOfIndexTimeSeriesAndExternalDatasetSubqueries() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assumeTrue("Requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
+        assumeTrue("Requires external data source subquery support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM (FROM employees | EVAL name = first_name | KEEP name),
                  (FROM k8s | EVAL name = cluster | KEEP name),
@@ -221,7 +221,7 @@ public class PushdownGoldenTests extends UnmappedGoldenTestCase {
     public void testFromUnionOfIndexTimeSeriesRateAndExternalDatasetSubqueries() {
         assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Requires TS source inside a FROM subquery", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
-        assumeTrue("Requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
+        assumeTrue("Requires external data source subquery support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         String query = """
             FROM (FROM employees | EVAL name = first_name | KEEP name),
                  (TS k8s

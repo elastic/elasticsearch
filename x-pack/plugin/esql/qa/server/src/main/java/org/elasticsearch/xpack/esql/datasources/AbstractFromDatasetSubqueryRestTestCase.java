@@ -15,6 +15,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -55,6 +57,15 @@ public abstract class AbstractFromDatasetSubqueryRestTestCase extends ESRestTest
     @BeforeClass
     public static void requireSnapshotBuild() {
         assumeTrue("datasources not available in release builds yet", Build.current().isSnapshot());
+    }
+
+    @Before
+    public void requireDatasetInFromCommandCapability() throws IOException {
+        String capability = EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.capabilityName();
+        assumeTrue(
+            "requires the [" + capability + "] ESQL capability",
+            clusterHasCapability("POST", "/_query", List.of(), List.of(capability)).orElse(false)
+        );
     }
 
     /**

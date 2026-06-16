@@ -102,6 +102,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
+    private static void requireExternalDatasetSupport() {
+        assumeTrue("Requires external dataset in FROM command support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[emp_no{r}#675,ASC,LAST], Order[language_code{r}#685,ASC,LAST]]]
@@ -1603,6 +1607,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *           \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#6, name{r}#7, salary{r}#8]
      */
     public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueries() {
+        requireExternalDatasetSupport();
         LogicalPlan plan = analyzeExternalDatasetSubquery("""
             FROM (FROM salaries_int), (FROM salaries_long)
             | KEEP salary
@@ -1637,6 +1642,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *         \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#5, name{r}#6, salary{r}#7]
      */
     public void testUnionAllWithConflictingTypesFromExternalDatasetSubqueriesWithoutUsage() {
+        requireExternalDatasetSupport();
         LogicalPlan plan = analyzeExternalDatasetSubquery("""
             FROM (FROM salaries_int), (FROM salaries_long)
             """);
@@ -1664,6 +1670,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *         \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#9, name{r}#10, salary{r}#11]
      */
     public void testExternalDatasetSubqueryConflictResolvedByCastInSubqueries() {
+        requireExternalDatasetSupport();
         LogicalPlan plan = analyzeExternalDatasetSubquery("""
             FROM (FROM salaries_int | EVAL salary = salary::long), (FROM salaries_long)
             | KEEP salary
@@ -1699,6 +1706,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *                 \_ExternalRelation[s3://bucket/salaries_long.parquet][parquet][emp_no{r}#9, name{r}#10, salary{r}#11]
      */
     public void testExternalDatasetSubqueryConflictResolvedByCastInMainQuery() {
+        requireExternalDatasetSupport();
         LogicalPlan plan = analyzeExternalDatasetSubquery("""
             FROM (FROM salaries_int), (FROM salaries_long)
             | EVAL salary = salary::long
@@ -4926,6 +4934,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      */
     public void testSubqueryUnionOfIndexTimeSeriesRateAndExternalDataset() {
         assumeTrue("Requires TS source inside a FROM subquery", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        requireExternalDatasetSupport();
         LogicalPlan plan = analyzeExternalDatasetSubquery("""
             FROM (FROM sample_data | EVAL name = message | KEEP name),
                  (TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | EVAL name = cluster | KEEP name),
@@ -6022,7 +6031,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      * {@link EsqlCapabilities.Cap#SUBQUERY_WITH_TS}.
      */
     private static LogicalPlan analyzeExternalDatasetSubquery(String query) {
-        assumeTrue("requires external data source subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_EXTERNAL_DATASET.isEnabled());
         DataSource dataSource = new DataSource("external_ds", "test", null, Map.of());
         Dataset intDataset = new Dataset("salaries_int", new DataSourceReference("external_ds"), SALARIES_INT_RESOURCE, null, Map.of());
         Dataset longDataset = new Dataset("salaries_long", new DataSourceReference("external_ds"), SALARIES_LONG_RESOURCE, null, Map.of());

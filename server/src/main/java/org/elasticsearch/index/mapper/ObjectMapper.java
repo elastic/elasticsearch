@@ -991,7 +991,7 @@ public class ObjectMapper extends Mapper {
             .sorted(Comparator.comparing(Mapper::fullPath))
             .map(m -> innerSyntheticFieldLoader(filter, m))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
-            .toList();
+            .toArray(SourceLoader.SyntheticFieldLoader[]::new);
         return new SyntheticSourceFieldLoader(filter, fields, isFragment, columnarStored);
     }
 
@@ -1024,7 +1024,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final SourceFilter filter;
         private final XContentParserConfiguration parserConfig;
-        private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final SourceLoader.SyntheticFieldLoader[] fields;
         private final boolean isFragment;
 
         // Cached result of storedFieldLoadersMap(). Built once on first use and reused for the
@@ -1048,7 +1048,7 @@ public class ObjectMapper extends Mapper {
 
         private SyntheticSourceFieldLoader(
             SourceFilter filter,
-            List<SourceLoader.SyntheticFieldLoader> fields,
+            SourceLoader.SyntheticFieldLoader[] fields,
             boolean isFragment,
             boolean columnarStored
         ) {
@@ -1069,7 +1069,7 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-            return fields.stream()
+            return Arrays.stream(fields)
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders)
                 .map(e -> Map.entry(e.getKey(), newValues -> {
                     storedFieldLoadersHaveValues = true;
@@ -1222,7 +1222,9 @@ public class ObjectMapper extends Mapper {
         @Override
         public void reset() {
             softReset();
-            fields.forEach(SourceLoader.SyntheticFieldLoader::reset);
+            for (var loader : fields) {
+                loader.reset();
+            }
         }
 
         @Override

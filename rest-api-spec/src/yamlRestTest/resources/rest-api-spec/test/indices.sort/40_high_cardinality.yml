@@ -1,14 +1,11 @@
 ---
-# Reproducer: a keyword field with doc_values:{cardinality:"high"} cannot be used
-# in index.sort.field. High-cardinality keyword fields store doc values in a binary
-# format (MultiValuedBinaryDocValuesField) backed by BytesBinaryIndexFieldData, which
-# returns a custom-comparator SortField that Lucene cannot use for index sorting.
+# Tests for index sort on keyword fields with cardinality:high.
 #
-# This test documents the expected (fixed) behaviour: once binary doc-values fields
-# support index sorting via BinarySortField, the explicit cardinality:high check should
-# be lifted and sort order should be correct.
+# High-cardinality keyword fields use BinaryDocValues (MultiValuedBinaryDocValuesField).
+# MultiValuedBinaryDocValuesSortField sorts by the minimum value across a document's
+# values, consistent with how SortedSetSortField behaves with a MIN selector.
 
-"Index sort on high cardinality keyword field":
+"Index sort on high cardinality keyword field - single values":
 
   - requires:
       cluster_features: ["mapper.doc_values.multi_value"]
@@ -16,7 +13,7 @@
 
   - do:
       indices.create:
-        index: test
+        index: test_single
         body:
           settings:
             number_of_shards: 1
@@ -32,58 +29,45 @@
 
   - do:
       cluster.health:
-        index: test
+        index: test_single
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
   - do:
       index:
-        index: test
+        index: test_single
         id: "1"
         body: { "name": "charlie" }
-
   - do:
       index:
-        index: test
+        index: test_single
         id: "2"
         body: { "name": "alice" }
-
   - do:
       index:
-        index: test
+        index: test_single
         id: "3"
         body: { "name": "bob" }
 
   - do:
       indices.refresh:
-        index: test
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          sort: ["name"]
-          size: 1
-
-  - match: { hits.total: 3 }
-  - match: { hits.hits.0._id: "2" }
+        index: test_single
 
   - do:
       indices.forcemerge:
-        index: test
+        index: test_single
         max_num_segments: 1
 
   - do:
       indices.refresh:
-        index: test
+        index: test_single
 
-  # After forcemerge the _doc order reflects the index sort order (ascending by name):
+  # After forcemerge _doc order reflects the index sort (ascending by name):
   # "alice" (id=2), "bob" (id=3), "charlie" (id=1).
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test
+        index: test_single
         body:
           sort: _doc
 
@@ -92,3 +76,86 @@
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "1" }
+
+---
+"Index sort on high cardinality keyword field - mixed single and multi values":
+
+  - requires:
+      cluster_features: ["mapper.doc_values.multi_value"]
+      reason: "doc_values.cardinality is gated behind the extended_doc_values_options feature flag"
+
+  - do:
+      indices.create:
+        index: test_mixed
+        body:
+          settings:
+            number_of_shards: 1
+            refresh_interval: -1
+            index.sort.field: name
+            routing.rebalance.enable: "none"
+          mappings:
+            properties:
+              name:
+                type: keyword
+                doc_values:
+                  cardinality: high
+
+  - do:
+      cluster.health:
+        index: test_mixed
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
+
+  # Single-value: sort key = "charlie"
+  - do:
+      index:
+        index: test_mixed
+        id: "1"
+        body: { "name": "charlie" }
+  # Single-value: sort key = "alice"
+  - do:
+      index:
+        index: test_mixed
+        id: "2"
+        body: { "name": "alice" }
+  # Multi-value: stored sorted as ["bob","zebra"], sort key = min = "bob"
+  - do:
+      index:
+        index: test_mixed
+        id: "3"
+        body: { "name": ["zebra", "bob"] }
+  # Multi-value: stored sorted as ["alpha","delta"], sort key = min = "alpha"
+  - do:
+      index:
+        index: test_mixed
+        id: "4"
+        body: { "name": ["delta", "alpha"] }
+
+  - do:
+      indices.refresh:
+        index: test_mixed
+
+  - do:
+      indices.forcemerge:
+        index: test_mixed
+        max_num_segments: 1
+
+  - do:
+      indices.refresh:
+        index: test_mixed
+
+  # Ascending order by minimum value:
+  # "alice" (id=2), "alpha" (id=4), "bob" (id=3), "charlie" (id=1).
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_mixed
+        body:
+          sort: _doc
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "1" }

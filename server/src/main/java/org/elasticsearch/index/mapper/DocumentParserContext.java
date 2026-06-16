@@ -123,6 +123,11 @@ public abstract class DocumentParserContext {
         }
 
         @Override
+        public InlineBinaryArrayOrderContext getInlineBinaryArrayOrderContext() {
+            return in.getInlineBinaryArrayOrderContext();
+        }
+
+        @Override
         public void setImmediateXContentParent(XContentParser.Token token) {
             in.setImmediateXContentParent(token);
         }
@@ -215,6 +220,7 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
+    private InlineBinaryArrayOrderContext inlineBinaryArrayOrderContext;
 
     private final ObjectArrayElementCounter objectArrayElementCounter;
 
@@ -594,6 +600,9 @@ public abstract class DocumentParserContext {
         if (fieldArrayContext != null) {
             fieldArrayContext.addToLuceneDocument(context);
         }
+        if (inlineBinaryArrayOrderContext != null) {
+            inlineBinaryArrayOrderContext.addToLuceneDocument(context);
+        }
     }
 
     public FieldArrayContext getOffSetContext() {
@@ -601,6 +610,13 @@ public abstract class DocumentParserContext {
             fieldArrayContext = new FieldArrayContext();
         }
         return fieldArrayContext;
+    }
+
+    public InlineBinaryArrayOrderContext getInlineBinaryArrayOrderContext() {
+        if (inlineBinaryArrayOrderContext == null) {
+            inlineBinaryArrayOrderContext = new InlineBinaryArrayOrderContext();
+        }
+        return inlineBinaryArrayOrderContext;
     }
 
     private XContentParser.Token lastSetToken;

@@ -266,4 +266,98 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             return name() + COUNT_FIELD_SUFFIX;
         }
     }
+
+    /**
+     * Format used by high-cardinality fields in strictly columnar index mode that store their values in DOCUMENT ORDER (keeping
+     * duplicates) so that array order can be reconstructed without a sidecar {@code .offsets} field. Nulls are encoded inline.
+     * <p>
+     * The companion {@code .counts} numeric doc values field (suffix {@link SeparateCount#COUNT_FIELD_SUFFIX}) stores the total number of
+     * slots, INCLUDING null slots. Encoding:
+     * <ul>
+     *   <li>a single non-null value &rarr; {@code [val]} (raw bytes, no length prefix), exactly like {@link SeparateCount}</li>
+     *   <li>two or more slots &rarr; {@code [len1+1][val1][len2+1][val2]...}. A real value of length {@code L} is stored with a
+     *       {@code L+1} length prefix, so a stored length of {@code 0} is never produced by a real value and is reserved to mean
+     *       {@code null} (zero following bytes). This is what distinguishes an inline {@code null} (prefix {@code 0}) from an empty
+     *       string {@code ""} (prefix {@code 1}, zero bytes).</li>
+     *   <li>zero non-null values (all-null array, lone {@code null}, or empty array) &rarr; no binary field is written at all; the
+     *       {@code .counts} field alone carries the shape ({@code k>=1} null slots, or {@code 0} for an empty array)</li>
+     * </ul>
+     * Because a document with no non-null values writes no binary blob, the matching reader must advance on the {@code .counts} field
+     * (binary-absent-while-counts-present denotes an all-null / empty-array document).
+     */
+    public static class ArrayOrderInlineNull extends MultiValuedBinaryDocValuesField {
+
+        private boolean hasNonNullValue;
+
+        public ArrayOrderInlineNull(String name) {
+            super(name, ValueOrdering.UNSORTED);
+        }
+
+        public String countFieldName() {
+            return name() + SeparateCount.COUNT_FIELD_SUFFIX;
+        }
+
+        @Override
+        public void add(BytesRef value) {
+            hasNonNullValue = true;
+            super.add(value);
+        }
+
+        /**
+         * Appends a {@code null} slot, preserving its position relative to the surrounding values. Null slots are counted towards
+         * {@link #count()} but not towards {@code docValuesByteCount}.
+         */
+        public void addNull() {
+            // The UNSORTED ordering backs values with an ArrayList, which permits null elements.
+            values.add(null);
+        }
+
+        /**
+         * Whether at least one non-null value has been accumulated. When {@code false} the binary field must NOT be added to the
+         * document; the {@code .counts} field alone represents the all-null / empty-array shape.
+         */
+        public boolean hasNonNullValue() {
+            return hasNonNullValue;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return encode(values);
+        }
+
+        /**
+         * Encodes the given document-order slots (a {@code null} element denotes a {@code null} slot) into the format described on
+         * {@link ArrayOrderInlineNull}. Must only be called when at least one non-null value is present; the all-null and empty-array
+         * cases write no binary field.
+         */
+        public static BytesRef encode(Collection<BytesRef> slots) {
+            int slotCount = slots.size();
+            assert slotCount >= 1 : "in-order binary doc values must not be written for an empty document";
+            if (slotCount == 1) {
+                BytesRef only = slots.iterator().next();
+                assert only != null : "a lone null slot must not write a binary value";
+                return only;
+            }
+            int byteCount = 0;
+            for (BytesRef slot : slots) {
+                if (slot != null) {
+                    byteCount += slot.length;
+                }
+            }
+            int streamSize = byteCount + slotCount * VINT_MAX_BYTES;
+            try (BytesStreamOutput out = new BytesStreamOutput(streamSize)) {
+                for (BytesRef slot : slots) {
+                    if (slot == null) {
+                        out.writeVInt(0);
+                    } else {
+                        out.writeVInt(slot.length + 1);
+                        out.writeBytes(slot.bytes, slot.offset, slot.length);
+                    }
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to get binary value", e);
+            }
+        }
+    }
 }

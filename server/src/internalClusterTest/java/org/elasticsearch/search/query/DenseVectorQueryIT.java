@@ -228,6 +228,59 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         runAndCompare(index, query, params, VECTOR_SCORE_SCRIPT, DELTA);
     }
 
+    /**
+     * An l2_norm override on a cosine-normalized field must score against the original vectors, not
+     * the unit-normalized ones stored in the KNN index. Script doc-values read originals via
+     * {@code DenormalizedCosineFloatVectorValues}, so they are the correct ground truth.
+     */
+    public void testSimilarityOverrideOnCosineNormalizedField() throws IOException {
+        String index = "dense_vector_query_it_cosine_override";
+        int numDims = randomIntBetween(32, 128) * 2;
+        int numDocs = randomIntBetween(10, 50);
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("element_type", "float")
+            .field("similarity", "cosine")
+            .startObject("index_options")
+            .field("type", selectedIndexType.name().toLowerCase(Locale.ROOT))
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .build();
+        prepareCreate(index).setMapping(mapping).setSettings(settings).get();
+        ensureGreen(index);
+
+        // Scale vectors above unit length so euclidean on unit-normalized != euclidean on originals.
+        float[] queryVector = randomVector(numDims);
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            float scale = 2.0f + randomFloat() * 8.0f;
+            float[] v = randomVector(numDims);
+            for (int d = 0; d < numDims; d++) {
+                v[d] *= scale;
+            }
+            docs[i] = prepareIndex(index).setId(String.valueOf(i)).setSource(VECTOR_FIELD, v);
+        }
+        indexRandom(true, docs);
+
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(
+            VECTOR_FIELD,
+            queryVector,
+            DenseVectorFieldMapper.VectorSimilarity.L2_NORM,
+            false
+        );
+        runAndCompare(index, query, new TestParams(numDocs, numDims, queryVector), VECTOR_SCORE_SCRIPT, DELTA);
+    }
+
     /** Loose per-codec budget for codec-path vs raw script-score distance. */
     private static double quantizedTolerance(VectorIndexType type) {
         return switch (type) {

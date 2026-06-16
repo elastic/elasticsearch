@@ -1977,24 +1977,8 @@ public abstract class FieldMapper extends Mapper {
             IndexSortConfig sortConfig,
             DocValuesParameter docValuesParameters
         ) {
-            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
+            // BinarySortField makes binary doc values index-sortable, so cardinality: high is compatible
+            // with index sort fields regardless of whether it was explicitly set or defaulted.
         }
     }
 

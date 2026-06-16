@@ -610,6 +610,23 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        // cardinality: high is now valid for index sort fields.
+        MapperService ms = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        }));
+        assertNotNull(ms.fieldType("field"));
+    }
+
+
     public void testColumnarArrayOrderRoundTrip() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();

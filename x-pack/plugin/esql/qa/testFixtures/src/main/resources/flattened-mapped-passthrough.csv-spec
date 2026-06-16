@@ -207,12 +207,7 @@ id:integer | labels.message:text
 5          | service unavailable
 ;
 
-// Loading the flattened root with `labels` renders every leaf as a string, including the mapped
-// non-text sub-fields. `status_code` is mapped as a `long`, yet it reads back as the string "200",
-// matching the keyed channel and the _source-based fetcher. Because all leaves are strings, the
-// flattened root is identical under doc-values and stored loading.
-// Reading the typed column directly (`KEEP labels.status_code`) still returns the native long. 
-// That is covered by mappedLongSubFieldHasLongType.
+// Loading the flattened root with `labels` renders every leaf as a string, including the mapped sub-fields.
 loadFlattenedRootIncludesNonTextMappedSubfields
 required_capability: flattened_datatype
 required_capability: flattened_root_stringifies_mapped_subfields
@@ -223,11 +218,11 @@ FROM flattened_typed
 ;
 
 id:integer | labels:flattened
-1          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""service"":""search"",""status_code"":""200""}"
-2          | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""service"":""search"",""status_code"":""404""}"
-3          | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""service"":""indexing"",""status_code"":""500""}"
-4          | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""service"":""indexing"",""status_code"":""200""}"
-5          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""service"":""search"",""status_code"":""503""}"
+1          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""request processed"",""service"":""search"",""status_code"":""200""}"
+2          | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""message"":""resource not found"",""service"":""search"",""status_code"":""404""}"
+3          | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""message"":""internal error"",""service"":""indexing"",""status_code"":""500""}"
+4          | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""message"":""request processed"",""service"":""indexing"",""status_code"":""200""}"
+5          | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""service unavailable"",""service"":""search"",""status_code"":""503""}"
 ;
 
 // `STATS ... BY labels` groups on the flattened root
@@ -245,11 +240,11 @@ FROM flattened_typed
 ;
 
 c:long | labels:flattened
-1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""service"":""search"",""status_code"":""200""}"
-1      | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""service"":""indexing"",""status_code"":""200""}"
-1      | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""service"":""search"",""status_code"":""404""}"
-1      | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""service"":""indexing"",""status_code"":""500""}"
-1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""service"":""search"",""status_code"":""503""}"
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""request processed"",""service"":""search"",""status_code"":""200""}"
+1      | "{""env"":""dev"",""host.ip"":""192.168.0.1"",""message"":""request processed"",""service"":""indexing"",""status_code"":""200""}"
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.2"",""message"":""resource not found"",""service"":""search"",""status_code"":""404""}"
+1      | "{""env"":""staging"",""host.ip"":""10.0.0.3"",""message"":""internal error"",""service"":""indexing"",""status_code"":""500""}"
+1      | "{""env"":""prod"",""host.ip"":""10.0.0.1"",""message"":""service unavailable"",""service"":""search"",""status_code"":""503""}"
 ;
 
 // `==` on the flattened root is byte equality over the canonical blob

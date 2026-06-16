@@ -474,21 +474,14 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
 
         /**
-         * Loading a {@code flattened} root that has mapped sub-fields (e.g. {@code KEEP attributes}) produces the
-         * same stringly-typed blob regardless of whether the values come from doc values or {@code _source}:
-         * <ul>
-         *   <li>Every leaf is rendered as a string, including non-text mapped sub-fields. A mapped {@code long}
-         *       sub-field reads back as {@code "200"} rather than the native {@code 200}, matching the keyed
-         *       channel and the {@code _source}-based fetcher.</li>
-         *   <li>Mapped sub-fields the doc-values loader cannot reconstruct (a bare {@code text} sub-field with no
-         *       doc values and no stored value) are dropped on the {@code _source} path too, so the same keys
-         *       appear on both paths.</li>
-         * </ul>
-         * Direct access to the typed sub-field column (e.g. {@code attributes.status_code} or
-         * {@code attributes.message}) is unaffected and still returns the native value. Tests that pin the
-         * flattened-root shape across both loading paths must require this capability so they skip on mixed
-         * clusters where any data node still renders mapped sub-fields with their native type or retains a text
-         * sub-field only on the {@code _source} path.
+         * A {@code flattened} root that declares mapped sub-fields (e.g. {@code KEEP attributes}) is always loaded
+         * from {@code _source}, producing one canonical stringly-typed blob on every loading path: every leaf is a
+         * string (a mapped {@code long} sub-field reads back as {@code "200"}, not the native {@code 200}) and every
+         * key is present, including a bare {@code text} sub-field that has no doc values and so could never be rebuilt
+         * by the doc-values root loader. Direct access to the typed sub-field column (e.g. {@code attributes.status_code}
+         * or {@code attributes.message}) is unaffected and still returns the native value. Tests that pin this blob
+         * shape must require this capability so they skip on mixed clusters where an older data node still builds the
+         * root from doc values, rendering mapped sub-fields with their native type and dropping a bare text sub-field.
          */
         FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
 

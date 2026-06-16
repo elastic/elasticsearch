@@ -1268,9 +1268,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv3 = fma(qv, dv3, sv3);
         }
 
-        int remaining = query.length - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+        if (i < query.length) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, query.length);
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
             FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
@@ -1324,9 +1323,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             sv3 = fma(diff3, diff3, sv3);
         }
 
-        int remaining = end - i;
-        if (remaining > 0) {
-            VectorMask<Float> mask = VectorMask.fromLong(FLOAT_SPECIES, (1L << remaining) - 1);
+        if (i < end) {
+            VectorMask<Float> mask = FLOAT_SPECIES.indexInRange(i, end);
             FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, query, i, mask);
             FloatVector dv0 = FloatVector.fromArray(FLOAT_SPECIES, v0, i, mask);
             FloatVector dv1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i, mask);
@@ -1376,7 +1374,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int remaining = query.length - c;
         if (remaining > 0) {
             // masked tail, at most a single ByteVector left
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            VectorMask<Byte> mask = BYTE_SPECIES.indexInRange(c, query.length);
             ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c, mask);
             ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c, mask);
             ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c, mask);
@@ -1444,7 +1442,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int remaining = query.length - c;
         if (remaining > 0) {
             // masked tail, at most a single ByteVector left
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            VectorMask<Byte> mask = BYTE_SPECIES.indexInRange(c, query.length);
             ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, c, mask);
             ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, c, mask);
             ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, c, mask);
@@ -1540,7 +1538,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         int remaining = length - c;
         if (remaining > 0) {
             // masked tail, at most a single ByteVector left
-            VectorMask<Byte> mask = VectorMask.fromLong(BYTE_SPECIES, (1L << remaining) - 1);
+            VectorMask<Byte> mask = BYTE_SPECIES.indexInRange(c, length);
             ByteVector qv = ByteVector.fromArray(BYTE_SPECIES, query, queryOffset + c, mask);
             ByteVector bv0 = ByteVector.fromArray(BYTE_SPECIES, v0, queryOffset + c, mask);
             ByteVector bv1 = ByteVector.fromArray(BYTE_SPECIES, v1, queryOffset + c, mask);

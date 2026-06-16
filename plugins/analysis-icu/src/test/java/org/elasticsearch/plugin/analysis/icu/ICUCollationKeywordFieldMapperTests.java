@@ -315,6 +315,22 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fields, empty());
     }
 
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        var ms = createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", FIELD_TYPE);
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        }));
+        assertNotNull(ms.fieldType("field"));
+    }
+
+
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("docvalue_fields is broken", true);

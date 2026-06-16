@@ -47,7 +47,6 @@ public class DateExtract extends EsqlConfigurationFunction {
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateExtract.class)
         .binaryConfig(DateExtract::new)
-        .capabilities("field_date_part")
         .name("date_extract");
 
     private ChronoField chronoField;

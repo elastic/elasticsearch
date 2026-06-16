@@ -1108,7 +1108,7 @@ FROM sample_data
 ;
 
 dateExtractFromFields
-required_capability: fn_date_extract_field_date_part
+required_capability: fn_date_extract
 
 FROM date_extract_fields
 | EVAL result = DATE_EXTRACT(date_part, date_val)
@@ -1123,7 +1123,7 @@ year              | 2022-05-06T14:30:00.000Z | 2022
 ;
 
 dateExtractFieldDatePart
-required_capability: fn_date_extract_field_date_part
+required_capability: fn_date_extract
 
 FROM date_extract_fields
 | EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)

@@ -120,6 +120,7 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
 
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
+        briefSummary = "Computes a buffer area around the input geometry at the specified distance.",
         description = "Computes a buffer area around the input geometry at the specified distance. "
             + "The distance is in the units of the input spatial reference system. "
             + "Positive distances expand the geometry, negative distances shrink it. "

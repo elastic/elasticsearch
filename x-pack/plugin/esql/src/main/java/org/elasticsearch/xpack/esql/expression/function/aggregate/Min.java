@@ -71,6 +71,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Returns the minimum value of a field.",
         description = "The minimum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {

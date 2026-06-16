@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -75,7 +76,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * FormatReader backed by a Rust parquet-rs native library via JNI.
@@ -633,13 +633,11 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
      * Iterates over batches from the native parquet-rs reader using the Arrow C Data Interface.
      * Each batch is imported as a VectorSchemaRoot, then columns are zero-copy wrapped as ESQL blocks.
      */
-    static class ParquetRsBatchIterator implements CloseableIterator<Page>, Describable {
+    static class ParquetRsBatchIterator extends BufferingPageIterator implements Describable {
         private final long handle;
         private final BlockFactory blockFactory;
         private final BufferAllocator allocator;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
         private boolean exhausted = false;
-        private Page nextPage;
         // describe() can be called from a different thread than iteration (driver/profiler vs compute);
         // volatile gives us safe publication of the cached plan string.
         private volatile String cachedPlan;
@@ -662,7 +660,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
         @Override
         public boolean hasNext() {
-            if (exhausted) {
+            // isClosed() guards the native handle: after closeInternal() frees it, a stray hasNext()/next()
+            // (early close via LIMIT/cancel leaves exhausted==false) would call nextBatch() on a freed
+            // ParquetReaderState — a native use-after-free. Mirrors the NdJson reader's post-close guard.
+            if (exhausted || isClosed()) {
                 return false;
             }
             if (nextPage != null) {
@@ -822,13 +823,10 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
 
         @Override
-        public void close() {
-            // Idempotent: the native side guards on handle != 0 but does not clear it for the caller,
-            // so a double-call would double-free the ParquetReaderState. Use an AtomicBoolean so the
-            // first close() wins regardless of which thread initiates it.
-            if (closed.compareAndSet(false, true)) {
-                ParquetRsBridge.closeReader(handle);
-            }
+        protected void closeInternal() {
+            // BufferingPageIterator.close() already guarantees a single, thread-safe invocation, so the native
+            // ParquetReaderState (which would double-free on a second closeReader) is torn down exactly once.
+            ParquetRsBridge.closeReader(handle);
         }
     }
 }

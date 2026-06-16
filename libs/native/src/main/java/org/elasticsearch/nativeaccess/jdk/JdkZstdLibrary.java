@@ -64,11 +64,11 @@ class JdkZstdLibrary implements ZstdLibrary {
         LinkerHelperUtil.critical()
     );
 
-    // Linker.Option.critical(true) only exists from JDK 22 onward; on JDK 21 LinkerHelperUtil.critical()
-    // returns no options, which means the heap handles above are plain downcalls that reject heap
-    // MemorySegments ("Heap segment not allowed"). When heap access is unavailable we route the heap
-    // byte[] overloads through an off-heap staging copy instead of handing the heap segment straight in.
-    private static final boolean HEAP_ACCESS_AVAILABLE = LinkerHelperUtil.critical().length > 0;
+    // Linker.Option.critical(true) only exists from JDK 22 onward; on JDK 21 the heap handles above
+    // are plain downcalls that reject heap MemorySegments ("Heap segment not allowed"). When heap
+    // access is unavailable we route the heap byte[] overloads through an off-heap staging copy
+    // instead of handing the heap segment straight in.
+    private static final boolean HEAP_ACCESS_AVAILABLE = LinkerHelperUtil.heapAccessAvailable();
 
     // --- streaming API ---
     private static final MethodHandle createDStream$mh = downcallHandle("ZSTD_createDStream", FunctionDescriptor.of(ADDRESS));
@@ -221,7 +221,15 @@ class JdkZstdLibrary implements ZstdLibrary {
     @Override
     public long decompress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
         if (HEAP_ACCESS_AVAILABLE == false) {
-            return decompressViaStaging(dst, dstOffset, dstSize, src, srcOffset, srcSize);
+            return runViaStaging(
+                dst,
+                dstOffset,
+                dstSize,
+                src,
+                srcOffset,
+                srcSize,
+                (segmentDst, segmentSrc) -> (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize)
+            );
         }
         // Heap MemorySegments — bounds checked in the Zstd facade. The critical() linker option on
         // decompressHeap$mh tells Panama to pass these heap addresses through without copying,
@@ -239,7 +247,15 @@ class JdkZstdLibrary implements ZstdLibrary {
     @Override
     public long compress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
         if (HEAP_ACCESS_AVAILABLE == false) {
-            return compressViaStaging(dst, dstOffset, dstSize, src, srcOffset, srcSize, level);
+            return runViaStaging(
+                dst,
+                dstOffset,
+                dstSize,
+                src,
+                srcOffset,
+                srcSize,
+                (segmentDst, segmentSrc) -> (long) compress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize, level)
+            );
         }
         var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
         var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
@@ -251,19 +267,27 @@ class JdkZstdLibrary implements ZstdLibrary {
     }
 
     /**
-     * JDK 21 fallback for {@link #decompress(byte[], int, int, byte[], int, int)}: copy the heap input into an off-heap
-     * staging buffer, run the off-heap {@code ZSTD_decompress} handle (which accepts native segments without the
-     * {@code critical} option), then copy the produced bytes back into the caller's array. The off-heap segments alias the
-     * same C entry point as the heap handle, so the libzstd return value (decompressed length or error code) is identical.
+     * JDK 21 fallback for the heap {@code byte[]} {@code compress} / {@code decompress} overloads: stage the heap input
+     * into a confined off-heap arena, run the supplied off-heap downcall (which accepts native segments without the
+     * {@code critical} option), then copy the produced bytes back into the caller's array. The off-heap segments alias
+     * the same C entry points as the heap handles, so the libzstd return value (length or error code) is identical.
      */
-    private static long decompressViaStaging(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
+    private static long runViaStaging(
+        byte[] dst,
+        int dstOffset,
+        int dstSize,
+        byte[] src,
+        int srcOffset,
+        int srcSize,
+        StagedDowncall downcall
+    ) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment segmentSrc = arena.allocate(srcSize);
             MemorySegment.copy(src, srcOffset, segmentSrc, JAVA_BYTE, 0L, srcSize);
             MemorySegment segmentDst = arena.allocate(dstSize);
             long ret;
             try {
-                ret = (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize);
+                ret = downcall.invoke(segmentDst, segmentSrc);
             } catch (Throwable t) {
                 throw new AssertionError(t);
             }
@@ -275,26 +299,13 @@ class JdkZstdLibrary implements ZstdLibrary {
     }
 
     /**
-     * JDK 21 fallback for {@link #compress(byte[], int, int, byte[], int, int, int)} mirroring
-     * {@link #decompressViaStaging}: stage the heap input off-heap, invoke the off-heap {@code ZSTD_compress} handle, and
-     * copy the compressed frame back into the caller's array.
+     * Functional interface for off-heap zstd downcalls invoked from {@link #runViaStaging}. Captures the size/level
+     * arguments in the lambda so callers can adapt either the (dst, dstSize, src, srcSize) decompress signature or the
+     * (dst, dstSize, src, srcSize, level) compress signature to a uniform two-segment shape.
      */
-    private static long compressViaStaging(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment segmentSrc = arena.allocate(srcSize);
-            MemorySegment.copy(src, srcOffset, segmentSrc, JAVA_BYTE, 0L, srcSize);
-            MemorySegment segmentDst = arena.allocate(dstSize);
-            long ret;
-            try {
-                ret = (long) compress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize, level);
-            } catch (Throwable t) {
-                throw new AssertionError(t);
-            }
-            if (ret >= 0 && ret <= dstSize) {
-                MemorySegment.copy(segmentDst, JAVA_BYTE, 0L, dst, dstOffset, (int) ret);
-            }
-            return ret;
-        }
+    @FunctionalInterface
+    private interface StagedDowncall {
+        long invoke(MemorySegment dst, MemorySegment src) throws Throwable;
     }
 
     @Override

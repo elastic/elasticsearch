@@ -611,9 +611,10 @@ setup:
 
 ---
 "similarity_function override changes the score function":
-  # Override the cosine-mapped int8_hnsw index to l2_norm. Top hit is still doc 3 (its stored vector
-  # equals the query post-normalization), but the score formula is 1/(1+distance²) instead of cosine,
-  # which lands well below 1.0 — proving the override actually drove scoring.
+  # Override the cosine-mapped int8_hnsw index to l2_norm. Doc 3 (original [0.5,…]) is nearest in
+  # Euclidean distance to the query [0.4, 0.5, …]. The override reconstructs original vectors via the
+  # stored per-doc magnitude, so the score is 1/(1+||query−original||²) = 1/(1+0.01) ≈ 0.990 —
+  # well below the cosine default of ~1.0, proving the override drove scoring.
   - do:
       search:
         index: dv_int8_hnsw
@@ -621,13 +622,12 @@ setup:
           query:
             dense_vector:
               field: vector
-              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5]
               similarity_function: l2_norm
   - match: {hits.hits.0._id: "3"}
-  # Stored doc 3 is index-time-normalized to unit ([0.4472, …]); query is non-unit.
-  # ||q - stored_unit||² ≈ 0.01394 ⇒ Lucene EUCLIDEAN score = 1/(1+0.01394) ≈ 0.9862. Comfortably
-  # below the cosine default of ~1.0, so passing this assertion implies the override changed scoring.
-  - close_to: {hits.hits.0._score: {value: 0.986, error: 0.01}}
+  # dist² from query [0.4,0.5,0.5,0.5,0.5] to original doc 3 [0.5,0.5,0.5,0.5,0.5] = 0.01 →
+  # EUCLIDEAN score = 1/(1+0.01) ≈ 0.990; cosine score for same query ≈ 0.998 (outside the error range).
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
 
 ---
 "dense_vector exact query against bbq_hnsw uses raw scoring by default":
@@ -726,9 +726,10 @@ setup:
 
 ---
 "similarity_function override works on a bfloat16 field":
-  # Override the cosine-mapped bfloat16 index to l2_norm: top hit is still doc 3 (stored vector equals
-  # the query post-normalization) but the EUCLIDEAN score lands below the cosine ~1.0, proving the
-  # literal override function drove scoring on the bfloat16 read path.
+  # Override the cosine-mapped bfloat16 index to l2_norm: doc 3 (original [0.5,…]) is nearest in
+  # Euclidean distance to the query [0.4, 0.5, …]. The override reconstructs original vectors via the
+  # stored per-doc magnitude, so the score is 1/(1+||query−original||²) ≈ 0.990, proving the
+  # override drove scoring on the bfloat16 read path.
   - do:
       search:
         index: dv_bfloat16_int8_hnsw
@@ -736,10 +737,12 @@ setup:
           query:
             dense_vector:
               field: vector
-              query_vector: [0.5, 0.5, 0.5, 0.5, 0.5]
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5]
               similarity_function: l2_norm
   - match: {hits.hits.0._id: "3"}
-  - close_to: {hits.hits.0._score: {value: 0.986, error: 0.01}}
+  # dist² from query [0.4,0.5,0.5,0.5,0.5] to original doc 3 [0.5,0.5,0.5,0.5,0.5] = 0.01 →
+  # score ≈ 0.990 (bfloat16 rounding introduces a tiny error, covered by error: 0.01).
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
 
 ---
 "dense_vector raw scoring on a non-indexed field matches the indexed equivalent":

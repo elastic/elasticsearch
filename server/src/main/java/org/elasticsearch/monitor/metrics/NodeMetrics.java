@@ -25,10 +25,13 @@ import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -266,6 +269,42 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(o -> o.getBytes())
                         .orElse(0L)
                 )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongsAsyncCounter(
+                "es.transport.data_read.rx.size",
+                "Size, in bytes, of data read operation requests received by the node, by operation type.",
+                "bytes",
+                () -> groupTransportBytesByOperation("indices:data/read/", true)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongsAsyncCounter(
+                "es.transport.data_read.tx.size",
+                "Size, in bytes, of data read operation responses sent by the node, by operation type.",
+                "bytes",
+                () -> groupTransportBytesByOperation("indices:data/read/", false)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongsAsyncCounter(
+                "es.transport.data_write.rx.size",
+                "Size, in bytes, of data write operation requests received by the node, by operation type.",
+                "bytes",
+                () -> groupTransportBytesByOperation("indices:data/write/", true)
+            )
+        );
+
+        metrics.add(
+            registry.registerLongsAsyncCounter(
+                "es.transport.data_write.tx.size",
+                "Size, in bytes, of data write operation responses sent by the node, by operation type.",
+                "bytes",
+                () -> groupTransportBytesByOperation("indices:data/write/", false)
             )
         );
 
@@ -710,6 +749,50 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                 )
             )
         );
+    }
+
+    /**
+     * Aggregates transport bytes for actions matching {@code prefix} (e.g. {@code "indices:data/read/"}) into a
+     * collection of per-operation measurements suitable for a multi-valued async counter.
+     *
+     * <p>Categorization rules applied to each matching action name:
+     * <ol>
+     *   <li>Bracket suffixes are stripped: {@code indices:data/read/search[phase/query]} becomes
+     *       {@code indices:data/read/search}. This collapses all internal search phase actions
+     *       (query, fetch, dfs, rank) into a single {@code search} operation.</li>
+     *   <li>The prefix is removed and the first remaining path segment is used as the {@code operation}
+     *       attribute: {@code indices:data/read/esql/resolve_fields} becomes {@code esql}.</li>
+     *   <li>Bytes are summed across all action variants that map to the same operation.</li>
+     * </ol>
+     *
+     * <p>Each element in the returned collection carries an {@code operation} attribute whose value is
+     * the normalized segment (e.g. {@code search}, {@code esql}, {@code bulk}).
+     * {@code useRequestSize} selects between request bytes (rx) and response bytes (tx).
+     */
+    private Collection<LongWithAttributes> groupTransportBytesByOperation(String prefix, boolean useRequestSize) {
+        TransportStats transport = Optional.ofNullable(stats.getOrRefresh()).map(NodeStats::getTransport).orElse(null);
+        if (transport == null) {
+            return List.of();
+        }
+        Map<String, Long> byOperation = new HashMap<>();
+        for (var entry : transport.getTransportActionStats().entrySet()) {
+            String action = entry.getKey();
+            if (action.startsWith(prefix) == false) {
+                continue;
+            }
+            String remainder = action.substring(prefix.length());
+            int bracketIdx = remainder.indexOf('[');
+            if (bracketIdx >= 0) {
+                remainder = remainder.substring(0, bracketIdx);
+            }
+            int slashIdx = remainder.indexOf('/');
+            String operation = slashIdx >= 0 ? remainder.substring(0, slashIdx) : remainder;
+            if (operation.isEmpty() == false) {
+                long bytes = useRequestSize ? entry.getValue().totalRequestSize() : entry.getValue().totalResponseSize();
+                byOperation.merge(operation, bytes, Long::sum);
+            }
+        }
+        return byOperation.entrySet().stream().map(e -> new LongWithAttributes(e.getValue(), Map.of("operation", e.getKey()))).toList();
     }
 
     /**

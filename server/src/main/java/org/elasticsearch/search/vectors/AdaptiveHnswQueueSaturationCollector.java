@@ -56,7 +56,7 @@ public class AdaptiveHnswQueueSaturationCollector extends HnswQueueSaturationCol
         float thresholdLooseness,
         float patienceScaling
     ) {
-        super(delegate, 1.0, 0);
+        super(delegate, 0, 0);
         this.discoveryRateSmoothing = discoveryRateSmoothing;
         this.thresholdLooseness = thresholdLooseness;
         this.patienceScaling = patienceScaling;

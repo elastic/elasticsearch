@@ -38,12 +38,26 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final LongCounter trippedCountMeter;
     private final LongUpDownCounter memoryHeldMeter;
 
+    /**
+     * Attribute key identifying the breaker on the legacy {@link CircuitBreakerMetrics#ES_BREAKER_TRIP_COUNT_TOTAL} counter.
+     * Retained as {@code "type"} for backwards compatibility with existing trip-count dashboards.
+     */
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
 
+    /**
+     * Attribute key identifying the breaker on the memory gauges ({@code es.breaker.memory.*}). Equivalent in meaning to
+     * {@link #CIRCUIT_BREAKER_TYPE_ATTRIBUTE} but namespaced as {@code "es_breaker_type"} to follow the newer metric naming convention.
+     */
     public static final String BREAKER_METRIC_TYPE_ATTRIBUTE = "es_breaker_type";
 
+    /**
+     * Attribute key on the memory gauges identifying the caller-supplied label a charge was admitted/released under.
+     */
     public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
 
+    /**
+     * Category value used for releases that go through the unlabeled {@link #addWithoutBreaking(long)} path.
+     */
     public static final String UNCATEGORIZED_RELEASE = "uncategorized";
 
     /**

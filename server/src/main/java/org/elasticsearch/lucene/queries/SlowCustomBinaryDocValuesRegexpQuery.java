@@ -9,6 +9,7 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -28,6 +29,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
     private final int syntaxFlags;
     private final int matchFlags;
     private final int maxDeterminizedStates;
+    private final ByteRunAutomaton automaton;
 
     public SlowCustomBinaryDocValuesRegexpQuery(
         String fieldName,
@@ -59,6 +61,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
         this.syntaxFlags = syntaxFlags;
         this.matchFlags = matchFlags;
         this.maxDeterminizedStates = maxDeterminizedStates;
+        this.automaton = automaton;
     }
 
     private static ByteRunAutomaton buildAutomaton(String pattern, int syntaxFlags, int matchFlags, int maxDeterminizedStates) {
@@ -68,6 +71,13 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
                 maxDeterminizedStates
             )
         );
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(fieldName)) {
+            visitor.consumeTermsMatching(this, fieldName, () -> automaton);
+        }
     }
 
     @Override

@@ -17,12 +17,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
@@ -33,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -234,6 +237,44 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testVisitor() {
+        String fieldName = "my_field";
+        SlowCustomBinaryDocValuesRegexpQuery query = new SlowCustomBinaryDocValuesRegexpQuery(fieldName, "hel.*", 0, 0, 1000);
+
+        // consumeTermsMatching must be called with the correct field and a working automaton
+        boolean[] called = { false };
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                called[0] = true;
+                assertSame(query, q);
+                assertEquals(fieldName, field);
+                ByteRunAutomaton a = automaton.get();
+                assertNotNull(a);
+                byte[] hello = "hello".getBytes(StandardCharsets.UTF_8);
+                byte[] world = "world".getBytes(StandardCharsets.UTF_8);
+                assertTrue(a.run(hello, 0, hello.length));
+                assertFalse(a.run(world, 0, world.length));
+            }
+        });
+        assertTrue("consumeTermsMatching was not called", called[0]);
+
+        // acceptField returning false must suppress the call
+        boolean[] calledForRejectedField = { false };
+        query.visit(new QueryVisitor() {
+            @Override
+            public boolean acceptField(String field) {
+                return false;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                calledForRejectedField[0] = true;
+            }
+        });
+        assertFalse(calledForRejectedField[0]);
     }
 
     private static void addDoc(RandomIndexWriter writer, String fieldName, String... values) throws IOException {

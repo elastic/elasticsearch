@@ -25,6 +25,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomInferenceString;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticInput;
+import static org.hamcrest.Matchers.containsString;
+
 public class SemanticFieldContentTests extends ESTestCase {
 
     public void testNullValue() {
@@ -34,12 +38,21 @@ public class SemanticFieldContentTests extends ESTestCase {
         assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, randomIntBetween(1, 10)));
     }
 
-    public void testRandomInputs() throws IOException {
+    public void testRandomListInput() throws IOException {
         for (int i = 0; i < 50; i++) {
-            List<Object> inputs = randomList(1, 10, () -> SemanticTextFieldTests.randomSemanticInput(true));
-            List<Object> materialized = materialize(inputs);
-            SemanticFieldContent content = new SemanticFieldContent(materialized);
+            List<Object> inputs = randomList(1, 10, () -> randomSemanticInput(true));
+            SemanticFieldContent content = new SemanticFieldContent(materialize(inputs));
             assertSemanticFieldContent(inputs, content);
+        }
+    }
+
+    public void testRandomSingleInput() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Object input = randomSemanticInput(true);
+            Object materialized = materialize(List.of(input)).getFirst();
+
+            SemanticFieldContent content = new SemanticFieldContent(materialized);
+            assertSemanticFieldContent(List.of(input), content);
         }
     }
 
@@ -60,6 +73,31 @@ public class SemanticFieldContentTests extends ESTestCase {
             }
         }
         return result;
+    }
+
+    public void testGetChunkTextEdgeCases() {
+        // Layout with "hello" and "world": indices 0-4 = "hello", 5 = separator, 6-10 = "world"
+        SemanticFieldContent content = new SemanticFieldContent(List.of("hello", "world"));
+
+        assertEquals("hello", content.getChunkText(0, 5));
+        assertEquals("world", content.getChunkText(6, 11));
+
+        IndexOutOfBoundsException separatorException = expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(5, 6));
+        assertThat(separatorException.getMessage(), containsString("refers to a separator character"));
+
+        IndexOutOfBoundsException outOfBoundsException = expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(11, 12));
+        assertThat(outOfBoundsException.getMessage(), containsString("out of bounds"));
+
+        IndexOutOfBoundsException crossesBoundaryException = expectThrows(
+            IndexOutOfBoundsException.class,
+            () -> content.getChunkText(0, 6)
+        );
+        assertThat(crossesBoundaryException.getMessage(), containsString("crosses a text value boundary"));
+    }
+
+    public void testGetChunkTextMapOnlyInput() throws IOException {
+        SemanticFieldContent content = new SemanticFieldContent(materialize(List.of(randomInferenceString())));
+        expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
     }
 
     private static void assertSemanticFieldContent(List<Object> inputs, SemanticFieldContent content) throws IOException {

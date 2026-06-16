@@ -50,6 +50,10 @@ public class SemanticFieldContent {
         int currentEndOffset = endOffset;
         String currentTextValue = textValues.get(textValueIndex);
         while (currentStartOffset >= currentTextValue.length()) {
+            if (++textValueIndex >= textValues.size()) {
+                throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");
+            }
+
             // Add one to account for separator character between text values
             int offsetAdjustment = currentTextValue.length() + 1;
             currentStartOffset -= offsetAdjustment;
@@ -58,10 +62,6 @@ public class SemanticFieldContent {
                 throw new IndexOutOfBoundsException("Start offset [" + startOffset + "] refers to a separator character");
             }
 
-            textValueIndex++;
-            if (textValueIndex >= textValues.size()) {
-                throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");
-            }
             currentTextValue = textValues.get(textValueIndex);
         }
 

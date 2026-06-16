@@ -26,6 +26,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.WatcherHandle;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -77,6 +78,7 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
 
     private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
     private StsClient securityTokenServiceClient;
+    private WatcherHandle<FileWatcher> watcherHandle;
 
     public CustomWebIdentityTokenCredentialsProvider(Environment environment, Clock clock, ResourceWatcherService resourceWatcherService) {
         this(environment, clock, resourceWatcherService, System::getenv);
@@ -94,6 +96,14 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
     ) {
         final String webIdentityTokenFileEnvVar = envLookup.apply(AWS_WEB_IDENTITY_TOKEN_FILE.name());
         if (Strings.hasText(webIdentityTokenFileEnvVar) == false) {
+            return;
+        }
+        if (environment == null) {
+            LOGGER.warn(
+                "Cannot configure EKS IRSA: node environment is unavailable "
+                    + "(AWS_WEB_IDENTITY_TOKEN_FILE=[{}] will not be used for ESQL S3 reads)",
+                webIdentityTokenFileEnvVar
+            );
             return;
         }
 
@@ -183,7 +193,7 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
             }
         });
         try {
-            resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+            watcherHandle = resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to start watching AWS web identity token file [{}]", e, webIdentityTokenFileSymlink);
         }
@@ -200,6 +210,9 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
 
     @Override
     public void close() throws IOException {
+        if (watcherHandle != null) {
+            watcherHandle.stop();
+        }
         Releasables.close(releasableFromSdkCloseable(credentialsProvider), releasableFromSdkCloseable(securityTokenServiceClient));
     }
 

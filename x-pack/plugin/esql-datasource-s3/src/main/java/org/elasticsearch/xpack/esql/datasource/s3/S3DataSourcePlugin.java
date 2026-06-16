@@ -67,6 +67,9 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     /** Guards one-time wiring of the workload-identity sources; mutated only under {@code synchronized(this)}. */
     private boolean workloadIdentityInitialized;
 
+    /** Set to {@code true} by {@link #close()}; prevents post-shutdown init from leaking resources. */
+    private boolean closed;
+
     @Override
     public Set<String> supportedSchemes() {
         return Set.of("s3", "s3a", "s3n");
@@ -89,6 +92,9 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
      * provider so callers can hand it to the {@link S3StorageProvider} credentials chain.
      */
     private synchronized CustomWebIdentityTokenCredentialsProvider initWorkloadIdentitySources(StorageProviderServices services) {
+        if (closed) {
+            return null;
+        }
         if (workloadIdentityInitialized == false) {
             // EKS Pod Identity: AWS SDK v2's ContainerCredentialsProvider is final and reads
             // AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE directly. The Kubernetes-injected path
@@ -122,6 +128,14 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (Strings.hasText(envValue) == false) {
             return;
         }
+        if (environment == null) {
+            LOGGER.warn(
+                "Cannot redirect EKS Pod Identity token file: node environment is unavailable "
+                    + "(AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE=[{}] will be used as-is)",
+                envValue
+            );
+            return;
+        }
         String entitledPath = environment.configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION).toString();
         String existing = System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property());
         if (existing != null && existing.equals(entitledPath) == false) {
@@ -153,9 +167,11 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public synchronized void close() throws IOException {
+        closed = true;
         try {
             // CustomWebIdentityTokenCredentialsProvider is Closeable; IOUtils.close tolerates null.
             IOUtils.close(webIdentityProvider);
+            webIdentityProvider = null;
         } finally {
             clearPodIdentitySysprop();
         }

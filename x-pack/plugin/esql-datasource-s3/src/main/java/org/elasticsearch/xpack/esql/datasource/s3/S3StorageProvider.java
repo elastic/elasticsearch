@@ -199,15 +199,13 @@ public class S3StorageProvider implements StorageProvider {
         // effect; RCVBUF_ALLOCATOR is the closest knob the SDK leaves untouched as of
         // netty-nio-client 2.31.x. Re-verify this assumption when bumping the AWS SDK version. See
         // PooledRecvByteBufAllocator for the full rationale.
-        var httpClient = NettyNioAsyncHttpClient.builder()
-            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-            .build();
-        try {
-            return configureCommon(S3AsyncClient.builder(), config, credentials).httpClient(httpClient).build();
-        } catch (Exception e) {
-            IOUtils.closeWhileHandlingException(asCloseable(httpClient));
-            throw e;
-        }
+        //
+        // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
+        // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
+        // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
+        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClientBuilder(
+            NettyNioAsyncHttpClient.builder().putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+        ).build();
     }
 
     /**

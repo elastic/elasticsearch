@@ -86,8 +86,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             childFilter,
             parentBitSet,
             0,
-            random().nextBoolean(),
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
@@ -446,7 +445,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
         }
     }
 
-    private static TopDocs getTopDocs(
+    private TopDocs getTopDocs(
         int expectedDocs,
         float[] vector,
         Query filterQuery,
@@ -467,8 +466,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             filterQuery,
             parents,
             1.0f,
-            random().nextBoolean(),
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             sliceRef
         );
@@ -513,8 +511,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             null,
             parent -> null,
             0.1f,
-            false,
-            1f,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );

@@ -28,7 +28,8 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  *   <li>SAS token</li>
  *   <li>Workload identity federation via {@code tenant_id}, {@code client_id}, and {@code jwt_audience}</li>
  *   <li>{@code auth=none} for anonymous access to public containers</li>
- *   <li>DefaultAzureCredential when no explicit credentials are provided</li>
+ *   <li>{@code auth=workload_identity} to use the node's managed identity via Azure IMDS. Requires the
+ *       {@code esql.datasource.workload_identity.enabled} cluster setting.</li>
  * </ul>
  */
 public class AzureConfiguration extends FileDataSourceConfiguration {

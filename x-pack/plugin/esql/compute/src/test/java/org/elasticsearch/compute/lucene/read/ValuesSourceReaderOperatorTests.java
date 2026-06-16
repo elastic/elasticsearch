@@ -2063,7 +2063,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         );
 
         // Run the operator through the segment switch that used to trip assertions.

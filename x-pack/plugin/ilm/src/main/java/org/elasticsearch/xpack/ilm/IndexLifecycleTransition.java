@@ -265,10 +265,7 @@ public final class IndexLifecycleTransition {
         if (error instanceof ElasticsearchException ee) {
             for (String key : ee.getMetadataKeys()) {
                 if (ee.getMetadata(key) != null) {
-                    newError.addMetadata(
-                        key,
-                        ee.getMetadata(key).stream().map(IndexLifecycleTransition::truncateWithExplanation).toList()
-                    );
+                    newError.addMetadata(key, ee.getMetadata(key).stream().map(IndexLifecycleTransition::truncateWithExplanation).toList());
                 }
             }
         }

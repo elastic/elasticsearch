@@ -138,13 +138,26 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        float maxRescoreOversampleAcrossLeaves = 0;
+        float maxRescoreOversampleAcrossLeaves = 1f;
         for (LeafReaderContext context : leafReaderContexts) {
             SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(context.reader());
             if (segmentReader == null) {
+                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
+                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
+                    indexSearcher
+                );
+                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
                 continue;
             }
             FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo == null) {
+                IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
+                    IvfSegmentConfig.leafCollectorBudget(k, maxRescoreOversampleAcrossLeaves),
+                    indexSearcher
+                );
+                tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManagerForSegment, visitRatio));
+                continue;
+            }
             IvfSegmentConfig resolved = ivfQueryConfigResolver.resolve(fieldInfo, segmentReader);
 
             float segmentOversample = resolved.rescoreOversample();

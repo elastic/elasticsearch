@@ -55,7 +55,7 @@ public class CacheFileReader {
     );
     private static final Map<String, Object> PEER_POPULATION_SOURCE_ATTRIBUTES = Map.of(
         CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
-        CachePopulationSource.BlobStore.name()
+        CachePopulationSource.Peer.name()
     );
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;

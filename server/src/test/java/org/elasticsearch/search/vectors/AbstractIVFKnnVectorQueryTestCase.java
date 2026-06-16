@@ -72,6 +72,8 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -101,6 +103,10 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     }
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio);
+
+    protected TestIvfQueryConfigResolver testResolver() {
+        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f);
+    }
 
     AbstractIVFKnnVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
         return getKnnVectorQuery(field, query, k, queryFilter, visitRatio);

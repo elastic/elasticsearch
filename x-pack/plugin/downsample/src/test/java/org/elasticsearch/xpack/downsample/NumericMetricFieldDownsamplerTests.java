@@ -17,6 +17,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.trackingWithDocIdIterator;
+import static org.elasticsearch.xpack.downsample.SortedNumericDoubleValuesTestUtils.withDocIdIterator;
+
 public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
 
     public void testMinCountMetric() throws IOException {
@@ -227,6 +230,65 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         assertEquals("{\"field\":{\"min\":5.5,\"max\":55.0,\"sum\":72.7,\"value_count\":3}}", Strings.toString(builder));
 
         assertEquals(field, producer.name());
+    }
+
+    public void testGaugeMetricSkipsSparseDocsWithDocIdIterator() throws IOException {
+        NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
+            randomAlphaOfLength(10),
+            null
+        );
+        var docIdBuffer = IntArrayList.from(0, 1, 2, 3, 4, 5);
+        var valuesInstance = withDocIdIterator(IntArrayList.from(1, 4), 12.2, 55.0);
+        producer.collect(valuesInstance, docIdBuffer);
+
+        assertFalse(producer.isEmpty());
+        assertEquals(12.2, producer.min, 0d);
+        assertEquals(55.0, producer.max, 0d);
+        assertEquals(67.2, producer.sum.value(), 0d);
+        assertEquals(2, producer.count);
+    }
+
+    public void testGaugeMetricSkipsExhaustedLeafAfterBucketReset() throws IOException {
+        NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
+            randomAlphaOfLength(10),
+            null
+        );
+        var valuesInstance = trackingWithDocIdIterator(IntArrayList.from(1), 12.2);
+
+        producer.collect(valuesInstance, IntArrayList.from(2, 3));
+
+        assertTrue(producer.isEmpty());
+        assertEquals(1, valuesInstance.advanceCalls());
+        assertEquals(0, valuesInstance.advanceExactCalls());
+
+        producer.reset();
+        producer.collect(valuesInstance, IntArrayList.from(4, 5));
+
+        assertTrue(producer.isEmpty());
+        assertEquals(1, valuesInstance.advanceCalls());
+        assertEquals(0, valuesInstance.advanceExactCalls());
+    }
+
+    public void testGaugeMetricClearsExhaustionForNewLeafIterator() throws IOException {
+        NumericMetricFieldDownsampler.AggregateGauge producer = new NumericMetricFieldDownsampler.AggregateGauge(
+            randomAlphaOfLength(10),
+            null
+        );
+        var firstLeafValues = trackingWithDocIdIterator(IntArrayList.from(1), 12.2);
+        producer.collect(firstLeafValues, IntArrayList.from(2, 3));
+        assertTrue(producer.isEmpty());
+
+        producer.reset();
+        var secondLeafValues = trackingWithDocIdIterator(IntArrayList.from(4), 55.0);
+        producer.collect(secondLeafValues, IntArrayList.from(4, 5));
+
+        assertFalse(producer.isEmpty());
+        assertEquals(55.0, producer.min, 0d);
+        assertEquals(55.0, producer.max, 0d);
+        assertEquals(55.0, producer.sum.value(), 0d);
+        assertEquals(1, producer.count);
+        assertEquals(2, secondLeafValues.advanceCalls());
+        assertEquals(0, secondLeafValues.advanceExactCalls());
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {

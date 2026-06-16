@@ -11,8 +11,10 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -42,15 +44,28 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TestUtils {
 
     private TestUtils() {}
+
+    public static ClusterService mockClusterService(Settings nodeSettings) {
+        ClusterService clusterService = mock(ClusterService.class);
+        Set<Setting<?>> clusterSettingsSet = Sets.addToCopy(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING
+        );
+        final var clusterSettings = new ClusterSettings(nodeSettings, clusterSettingsSet);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
+    }
 
     public static class StatelessPluginWithTrialLicense extends StatelessPlugin {
         public StatelessPluginWithTrialLicense(Settings settings) {
@@ -67,7 +82,7 @@ public class TestUtils {
         Settings settings,
         ThreadPool threadPool
     ) {
-        return newCacheService(nodeEnvironment, settings, threadPool, null, mock(ClusterService.class));
+        return newCacheService(nodeEnvironment, settings, threadPool, null, mockClusterService(settings));
     }
 
     public static StatelessSharedBlobCacheService newCacheService(
@@ -76,7 +91,7 @@ public class TestUtils {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
-        return newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, mock(ClusterService.class));
+        return newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, mockClusterService(settings));
     }
 
     public static StatelessSharedBlobCacheService newCacheService(

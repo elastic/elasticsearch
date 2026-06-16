@@ -227,6 +227,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
+    private final MutableOperationGate mutableOperationGate;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
@@ -353,6 +354,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
+        final MutableOperationGate mutableOperationGate,
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
@@ -369,6 +371,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPoolMergeExecutorService == null ? null : threadPool
         );
         this.warmer = warmer;
+        this.mutableOperationGate = mutableOperationGate;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -5013,7 +5016,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param executorOnDelay executor used to notify the listener if the shard is not yet mutable
      */
     public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired, Executor executorOnDelay) {
-        indexEventListener.beforeIndexShardMutableOperation(this, permitAcquired, executorOnDelay, listener);
+        if (mutableOperationGate == null) {
+            listener.onResponse(null);
+        } else {
+            mutableOperationGate.beforeMutableOperation(this, permitAcquired, executorOnDelay, listener);
+        }
     }
 
     // package-private for tests

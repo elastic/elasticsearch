@@ -85,6 +85,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -1260,10 +1261,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Blocks until the elected master applies a {@link ClusterState} matching {@code statePredicate}. Registers a temporary
+     * {@link ClusterStateListener} instead of busy-polling on the test thread.
+     * Prefer this over {@link ESTestCase#assertBusy(CheckedRunnable)} when the wait condition only inspects cluster state.
+     */
     public static void awaitClusterState(Predicate<ClusterState> statePredicate) {
         awaitClusterState(internalCluster().getMasterName(), statePredicate);
     }
 
+    /**
+     * Blocks until {@code viaNode} applies a {@link ClusterState} matching {@code statePredicate}.
+     * See {@link #awaitClusterState(Predicate)} for general usage.
+     */
     public static void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) {
         ClusterServiceUtils.awaitClusterState(statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
     }

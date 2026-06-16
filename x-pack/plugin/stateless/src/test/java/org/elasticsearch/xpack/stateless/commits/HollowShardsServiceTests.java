@@ -223,7 +223,7 @@ public class HollowShardsServiceTests extends ESTestCase {
             command.run();
         };
 
-        harness.hollowShardsService.onMutableOperation(harness.indexShard, true, trackingExecutor, unhollowListener);
+        harness.hollowShardsService.beforeMutableOperation(harness.indexShard, true, trackingExecutor, unhollowListener);
 
         safeGet(unhollowListener);
         assertTrue("executor must be used to dispatch the delayed listener", executorUsed.get());

@@ -567,16 +567,6 @@ class StatelessIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardMutableOperation(
-        IndexShard indexShard,
-        boolean permitAcquired,
-        Executor executorOnDelay,
-        ActionListener<Void> listener
-    ) {
-        hollowShardsService.onMutableOperation(indexShard, permitAcquired, executorOnDelay, listener);
-    }
-
-    @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
         // Index shards only.
         if (indexShard.routingEntry().isPromotableToPrimary()) {

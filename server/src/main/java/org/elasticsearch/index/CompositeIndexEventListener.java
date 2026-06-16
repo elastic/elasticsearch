@@ -27,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -136,41 +135,6 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw e;
             }
         }
-    }
-
-    @Override
-    public void beforeIndexShardMutableOperation(
-        IndexShard indexShard,
-        boolean permitAcquired,
-        Executor executorOnDelay,
-        ActionListener<Void> listener
-    ) {
-        iterateBeforeIndexShardMutableOperation(indexShard, permitAcquired, executorOnDelay, listener.delegateResponse((l, e) -> {
-            logger.warn(() -> format("%s failed to invoke the listener before ensuring shard mutability", indexShard.shardId()), e);
-            l.onFailure(e);
-        }));
-    }
-
-    private void iterateBeforeIndexShardMutableOperation(
-        IndexShard indexShard,
-        boolean permitAcquired,
-        Executor executorOnDelay,
-        ActionListener<Void> outerListener
-    ) {
-        callListeners(
-            indexShard,
-            listeners.stream()
-                .map(
-                    iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardMutableOperation(
-                        indexShard,
-                        permitAcquired,
-                        executorOnDelay,
-                        l
-                    )
-                )
-                .iterator(),
-            outerListener
-        );
     }
 
     @Override

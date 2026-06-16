@@ -23,6 +23,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
@@ -68,7 +69,7 @@ import java.util.function.LongSupplier;
  * <li> The target indexing shard installs an ingestion blocker.</li>
  * </ul>
  */
-public class HollowShardsService extends AbstractLifecycleComponent {
+public class HollowShardsService extends AbstractLifecycleComponent implements MutableOperationGate {
 
     private static final Logger logger = LogManager.getLogger(HollowShardsService.class);
 
@@ -307,7 +308,13 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      *                        if the shard is already mutable the listener is notified on the calling thread
      * @param listener        the listener to be notified when the mutable operation can proceed
      */
-    public void onMutableOperation(IndexShard indexShard, boolean permitAcquired, Executor executorOnDelay, ActionListener<Void> listener) {
+    @Override
+    public void beforeMutableOperation(
+        IndexShard indexShard,
+        boolean permitAcquired,
+        Executor executorOnDelay,
+        ActionListener<Void> listener
+    ) {
         // Unhollowing requires a primary permit. We use the permitAcquired flag to determine if the primary permit has been acquired.
         // If it's not, we take our own primary permit here before unhollowing.
         // Ingestion already holds a primary permit, so there is no need to take another one, and it would be dangerous to take yet

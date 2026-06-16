@@ -145,7 +145,7 @@ public class HollowIndexEngine extends Engine {
      * {@link org.elasticsearch.action.support.TransportActions#isShardNotAvailableException(java.lang.Throwable)} function.
      * <p>
      * Some operations that may unhollow (e.g., force merge, pre-update) via
-     * {@link HollowShardsService#onMutableOperation(IndexShard, boolean, java.util.concurrent.Executor, ActionListener)}
+     * {@link HollowShardsService#beforeMutableOperation(IndexShard, boolean, java.util.concurrent.Executor, ActionListener)}
      * ultimately can still race with hollowing as they do not prevent a shard from being relocated. So they may end up calling
      * these unsupported functions on a hollow engine,
      * similarly to how they may end up calling the functions on a closed/relocated shard. They handle such eventualities by handling

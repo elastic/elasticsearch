@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -87,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -4802,22 +4802,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testIpLocationCommand() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
         LogicalPlan cmd = processingCommand("ip_location g = a");
-        IpLocation ip = as(cmd, IpLocation.class);
-        assertEqualsIgnoringIds(attribute("a"), ip.getInput());
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
         assertEquals("GeoLite2-City.mmdb", ip.databaseFile());
         assertTrue(ip.firstOnly());
-
-        Set<String> expectedDefaults = Set.of(
-            "g.country_iso_code",
-            "g.country_name",
-            "g.continent_name",
-            "g.region_iso_code",
-            "g.region_name",
-            "g.city_name",
-            "g.location"
-        );
-        Set<String> actualFieldNames = ip.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toSet());
-        assertEquals(expectedDefaults, actualFieldNames);
+        assertNull(ip.properties());
     }
 
     public void testIpLocationCommandWithOptions() {
@@ -4825,8 +4814,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan cmd = processingCommand(
             "ip_location g = a WITH { \"database_file\": \"GeoLite2-Country.mmdb\", \"first_only\": false }"
         );
-        IpLocation ip = as(cmd, IpLocation.class);
-        assertEqualsIgnoringIds(attribute("a"), ip.getInput());
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEqualsIgnoringIds(attribute("a"), ip.input());
         assertEquals("GeoLite2-Country.mmdb", ip.databaseFile());
         assertFalse(ip.firstOnly());
     }
@@ -4834,10 +4823,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testIpLocationCommandWithProperties() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
         LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [\"city_name\", \"country_iso_code\"] }");
-        IpLocation ip = as(cmd, IpLocation.class);
-
-        List<String> actualFieldNames = ip.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
-        assertEquals(List.of("g.city_name", "g.country_iso_code"), actualFieldNames);
+        UnresolvedIpLocation ip = as(cmd, UnresolvedIpLocation.class);
+        assertEquals(List.of("city_name", "country_iso_code"), ip.properties());
     }
 
     public void testIpLocationCommandUnknownOption() {
@@ -4854,11 +4841,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testIpLocationCommandFirstOnlyAcceptsBothValues() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
         LogicalPlan cmdTrue = processingCommand("ip_location g = a WITH { \"first_only\": true }");
-        IpLocation ipTrue = as(cmdTrue, IpLocation.class);
+        UnresolvedIpLocation ipTrue = as(cmdTrue, UnresolvedIpLocation.class);
         assertTrue(ipTrue.firstOnly());
 
         LogicalPlan cmdFalse = processingCommand("ip_location g = a WITH { \"first_only\": false }");
-        IpLocation ipFalse = as(cmdFalse, IpLocation.class);
+        UnresolvedIpLocation ipFalse = as(cmdFalse, UnresolvedIpLocation.class);
         assertFalse(ipFalse.firstOnly());
     }
 

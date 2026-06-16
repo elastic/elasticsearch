@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 
 /**
  * Integration test verifying the end-to-end ESQL consumer lifecycle for IP_LOCATION:
- * parse-time consumer registration, runtime sentinels while the database is unavailable,
- * and transition to real data once the database has been downloaded.
+ * consumer registration triggered while coordinating the query, runtime sentinels while the
+ * database is unavailable, and transition to real data once the database has been downloaded.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {

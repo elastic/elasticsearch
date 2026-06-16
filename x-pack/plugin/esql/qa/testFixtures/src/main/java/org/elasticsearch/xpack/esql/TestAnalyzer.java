@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_IP_LOCATION_SERVICE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -809,7 +810,8 @@ public class TestAnalyzer {
             externalSourceResolution,
             minimumTransportVersion.get(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            TEST_IP_LOCATION_SERVICE
         );
     }
 

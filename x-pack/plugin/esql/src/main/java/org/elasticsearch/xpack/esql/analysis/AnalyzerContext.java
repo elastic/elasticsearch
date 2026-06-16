@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -44,6 +45,8 @@ public class AnalyzerContext {
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final TimestampBounds timestampBounds;
+    @Nullable
+    private final IpLocationService ipLocationService;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -58,7 +61,8 @@ public class AnalyzerContext {
         ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        @Nullable IpLocationService ipLocationService
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
@@ -73,6 +77,7 @@ public class AnalyzerContext {
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
+        this.ipLocationService = ipLocationService;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -104,6 +109,7 @@ public class AnalyzerContext {
             ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution,
+            null,
             null
         );
     }
@@ -175,6 +181,15 @@ public class AnalyzerContext {
         return timestampBounds;
     }
 
+    /**
+     * The IP location service used by the {@code ResolveIpLocation} analyzer rule to resolve {@code IP_LOCATION} output columns.
+     * May be {@code null} in contexts where the service is unavailable (e.g. some tests), in which case resolution fails verification.
+     */
+    @Nullable
+    public IpLocationService ipLocationService() {
+        return ipLocationService;
+    }
+
     public Set<String> allowedTags() {
         Set<String> result = new HashSet<>();
         result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
@@ -202,7 +217,8 @@ public class AnalyzerContext {
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
-        @Nullable TimestampBounds timestampBounds
+        @Nullable TimestampBounds timestampBounds,
+        @Nullable IpLocationService ipLocationService
     ) {
         this(
             configuration,
@@ -217,7 +233,8 @@ public class AnalyzerContext {
             result.externalSourceResolution(),
             result.minimumTransportVersion(),
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            ipLocationService
         );
     }
 }

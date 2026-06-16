@@ -80,7 +80,8 @@ public class MutableAnalyzerContext extends AnalyzerContext {
             ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution,
-            timestampBounds
+            timestampBounds,
+            null
         );
         this.currentVersion = minimumVersion;
     }

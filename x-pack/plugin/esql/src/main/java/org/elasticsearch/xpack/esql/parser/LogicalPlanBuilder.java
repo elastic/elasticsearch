@@ -21,10 +21,6 @@ import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.iplocation.api.DatabaseProperty;
-import org.elasticsearch.iplocation.api.IpDataLookupInfo;
-import org.elasticsearch.iplocation.api.IpLocationConsumer;
-import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
@@ -73,7 +69,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -94,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -717,56 +713,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
         }
 
-        IpLocationService ipLocationService = context.ipLocationService();
-        if (ipLocationService == null) {
-            throw new ParsingException(source, "IP_LOCATION command requires the IP location service to be available");
-        }
-        IpDataLookupInfo info = ipLocationService.getIpDataLookupInfo(databaseFile);
-        if (info == null) {
-            throw new ParsingException(
-                source,
-                "IP location database [{}] is not recognized. Use a bundled MaxMind/ipinfo filename "
-                    + "(e.g. GeoLite2-City.mmdb, GeoIP2-City.mmdb, asn.mmdb) or register the file via the Manage IP Geolocation "
-                    + "Database API.",
-                databaseFile
-            );
-        }
-
-        SequencedMap<String, Class<?>> filteredOutputFields;
-        if (properties == null) {
-            filteredOutputFields = info.getDefaultFields();
-        } else {
-            Set<DatabaseProperty> validProperties = DatabaseProperty.buildValidSet(info.getFields().keySet());
-            filteredOutputFields = new LinkedHashMap<>();
-            for (String property : properties) {
-                DatabaseProperty dp;
-                try {
-                    dp = DatabaseProperty.parseProperty(validProperties, property);
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(source, e.getMessage());
-                }
-                Class<?> type = info.getFields().get(dp.fieldName());
-                if (type != null) {
-                    filteredOutputFields.put(dp.fieldName(), type);
-                }
-            }
-        }
-
-        if (context.projectId() != null) {
-            ipLocationService.requestDownloads(context.projectId(), IpLocationConsumer.ESQL);
-        }
-
         final String finalDatabaseFile = databaseFile;
         final boolean finalFirstOnly = firstOnly;
-        return child -> IpLocation.createInitialInstance(
-            source,
-            child,
-            input,
-            outputPrefix,
-            finalDatabaseFile,
-            finalFirstOnly,
-            filteredOutputFields
-        );
+        final List<String> finalProperties = properties;
+        return child -> new UnresolvedIpLocation(source, child, input, outputPrefix, finalDatabaseFile, finalFirstOnly, finalProperties);
     }
 
     @Override

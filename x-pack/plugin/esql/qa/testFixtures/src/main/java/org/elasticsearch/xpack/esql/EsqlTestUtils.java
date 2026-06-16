@@ -717,7 +717,7 @@ public final class EsqlTestUtils {
         }
     );
 
-    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY), TEST_IP_LOCATION_SERVICE, null);
+    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 
     public static final Verifier TEST_VERIFIER = new Verifier(
         new Metrics(TEST_FUNCTION_REGISTRY, true, true),

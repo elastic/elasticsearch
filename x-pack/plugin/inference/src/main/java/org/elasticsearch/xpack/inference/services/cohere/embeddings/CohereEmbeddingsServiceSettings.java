@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CommonUpdate;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
@@ -29,12 +30,10 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.validatePositiveInteger;
-import static org.elasticsearch.xpack.inference.common.parser.EnumParser.parseFromStringInObjectParserContext;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -61,15 +60,8 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             super(context);
         }
 
-        void setSimilarity(String similarity) {
-            this.similarity = similarity != null
-                ? parseFromStringInObjectParserContext(
-                    similarity,
-                    SimilarityMeasure::fromString,
-                    EnumSet.allOf(SimilarityMeasure.class),
-                    EnumSet.noneOf(SimilarityMeasure.class)
-                )
-                : null;
+        void setSimilarity(SimilarityMeasure similarity) {
+            this.similarity = similarity;
         }
 
         void setDimensions(Integer dimensions) {
@@ -109,7 +101,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             () -> new Builder(context)
         );
         CohereCommonServiceSettings.declareCommonFields(parser, context);
-        parser.declareString(Builder::setSimilarity, new ParseField(SIMILARITY));
+        parser.declareString(Builder::setSimilarity, ServiceUtils::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         parser.declareString(Builder::setEmbeddingType, new ParseField(ServiceFields.EMBEDDING_TYPE));

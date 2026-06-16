@@ -29,13 +29,7 @@ final class ClassWriterUtil {
     static final ClassDesc CD_MemoryLayout = ClassDesc.of("java.lang.foreign.MemoryLayout");
     static final ClassDesc CD_MemoryLayoutArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/MemoryLayout;");
     static final ClassDesc CD_MemorySegment = ClassDesc.of("java.lang.foreign.MemorySegment");
-    static final ClassDesc CD_Arena = ClassDesc.of("java.lang.foreign.Arena");
-    static final ClassDesc CD_StructLayout = ClassDesc.ofDescriptor("Ljava/lang/foreign/StructLayout;");
-    static final ClassDesc CD_MemoryLayoutPathElement = ClassDesc.of("java.lang.foreign.MemoryLayout$PathElement");
     private static final ClassDesc CD_ValueLayout = ClassDesc.of("java.lang.foreign.ValueLayout");
-
-    // java.lang.invoke types
-    static final ClassDesc CD_VarHandle = ClassDesc.of("java.lang.invoke.VarHandle");
 
     /**
      * Converts a Java release number (e.g. 21) to the corresponding class file major version

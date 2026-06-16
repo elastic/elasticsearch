@@ -156,15 +156,24 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         // rather than relying on the `default` configuration of `:libs:native:native-libraries`: if
         // any plugin (e.g. `elasticsearch.build`) ends up applied to that project, `default` would be
         // silently rebound to the Java runtime variant and corrupt `es.nativelibs.path` for every test JVM.
-        Configuration nativeLibsDeclared = project.getConfigurations().dependencyScope("nativeLibsDeclared").get();
+        //
+        // The project-path dependency is added lazily via `defaultDependencies` so that builds which
+        // apply this plugin but do not contain `:libs:native:native-libraries` as a local project
+        // (e.g. the elasticsearch-serverless composite build, where the producer lives in an included
+        // build and is supplied via the module coordinate `org.elasticsearch:native-libraries`) can
+        // override the dependency before resolution. Adding it eagerly would fail at plugin-apply
+        // time with "Project with path ':libs:native:native-libraries' could not be found".
+        Configuration nativeLibsDeclared = project.getConfigurations()
+            .dependencyScope(
+                "nativeLibsDeclared",
+                c -> c.defaultDependencies(
+                    deps -> deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs")))
+                )
+            )
+            .get();
         Configuration nativeConfig = project.getConfigurations()
             .resolvable("resolvedNativeLibs", c -> c.extendsFrom(nativeLibsDeclared))
             .get();
-        project.getDependencies()
-            .add(
-                nativeLibsDeclared.getName(),
-                project.getDependencies().project(Map.of("path", nativeProject, "configuration", "nativeLibs"))
-            );
         // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
         FileCollection nativeConfigFiles = nativeConfig;
 

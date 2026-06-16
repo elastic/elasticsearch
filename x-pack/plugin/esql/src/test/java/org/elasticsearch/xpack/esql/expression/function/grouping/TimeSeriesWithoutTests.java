@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -98,16 +98,16 @@ public class TimeSeriesWithoutTests extends AbstractScalarFunctionTestCase {
 
     public void testExcludedFieldNames() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod"), dimension("host")));
-        assertThat(without.excludedFieldNames(), equalTo(Set.of("pod", "host")));
+        assertThat(excludedNames(without), equalTo(Set.of("pod", "host")));
     }
 
     public void testExcludedFieldNamesIsEmptyForNoArguments() {
-        assertThat(new TimeSeriesWithout(Source.EMPTY, List.of()).excludedFieldNames(), equalTo(Set.<String>of()));
+        assertThat(excludedNames(new TimeSeriesWithout(Source.EMPTY, List.of())), equalTo(Set.<String>of()));
     }
 
     public void testExcludedFieldNamesDeduplicatesAndPreservesOrder() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod"), dimension("host"), dimension("pod")));
-        assertThat(new ArrayList<>(without.excludedFieldNames()), contains("pod", "host"));
+        assertThat(new ArrayList<>(excludedNames(without)), contains("pod", "host"));
     }
 
     public void testDataTypeIsKeyword() {
@@ -118,24 +118,27 @@ public class TimeSeriesWithoutTests extends AbstractScalarFunctionTestCase {
         assertThat(new TimeSeriesWithout(Source.EMPTY, List.of()).nullable(), equalTo(Nullability.FALSE));
     }
 
-    public void testToAttributeWrapsTimeseriesMetadataColumn() {
+    public void testCreateNamedExpressionWrapsTimeseriesMetadataColumn() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod")));
-        Alias attribute = without.toAttribute();
+        Alias attribute = (Alias) without.createNamedExpression();
         assertThat(attribute.name(), equalTo(MetadataAttribute.TIMESERIES));
         assertSame(without, attribute.child());
-    }
-
-    public void testToAttributeUsesProvidedNameId() {
-        TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod")));
-        NameId id = new NameId();
-        assertSame(id, without.toAttribute(id).id());
     }
 
     public void testReplaceChildren() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod")));
         TimeSeriesWithout replaced = without.replaceChildren(List.of(dimension("host")));
         assertThat(replaced.children(), hasSize(1));
-        assertThat(replaced.excludedFieldNames(), equalTo(Set.of("host")));
+        assertThat(excludedNames(replaced), equalTo(Set.of("host")));
+    }
+
+    /** The PromQL label keys a {@code WITHOUT} excludes, derived from its children (deduplicated, order-preserving). */
+    private static Set<String> excludedNames(TimeSeriesWithout without) {
+        Set<String> names = new LinkedHashSet<>();
+        for (Expression child : without.children()) {
+            names.add(((FieldAttribute) child).fieldName().string());
+        }
+        return names;
     }
 
     /**

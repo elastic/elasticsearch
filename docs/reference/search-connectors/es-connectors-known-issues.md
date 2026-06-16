@@ -154,9 +154,9 @@ The connector service has the following known issues:
 
     [elastic/connectors#3710](https://github.com/elastic/connectors/pull/3710) migrated the Jira issues endpoint to the cursor-based `rest/api/3/search/jql` endpoint. That endpoint is not available on Jira Server/Data Center pre-v10, so syncs against those instances fail when fetching issues.
 
-    **Affected versions**: 8.18.8+, 8.19.5+, 9.0.8+, 9.1.5+, 9.2.0+, 9.3.0–9.3.5, and 9.4.0–9.4.2. Jira Cloud is not affected.
+    **Affected versions**: 8.18.8+, 8.19.5-8.19.16, 9.0.8+, 9.1.5+, 9.2.0+, 9.3.0–9.3.5, and 9.4.0–9.4.2. Jira Cloud is not affected.
 
-    **Fix**: [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059), shipped in 9.3.6, 9.4.3, and 9.5.0.
+    **Fix**: [elastic/connectors#4059](https://github.com/elastic/connectors/pull/4059), shipped in 8.19.17, 9.3.6, 9.4.3, and 9.5.0.
 
 
 ## Individual connector known issues [es-connectors-known-issues-specific]

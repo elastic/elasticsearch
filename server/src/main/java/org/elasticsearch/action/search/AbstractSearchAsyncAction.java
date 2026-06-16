@@ -868,7 +868,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
             shardIt.getSplitShardCountSummary(),
-            true
+            ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled()
         );
     }
 

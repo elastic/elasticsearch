@@ -360,7 +360,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
-            this.enableShardResultsSkipRequest = true;
+            this.enableShardResultsSkipRequest = ShardSearchRequest.SHARD_RESULTS_SKIP_SHARD_SEARCH_REQUEST_FEATURE_FLAG.isEnabled();
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {

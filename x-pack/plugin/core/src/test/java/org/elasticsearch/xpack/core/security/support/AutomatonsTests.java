@@ -193,10 +193,7 @@ public class AutomatonsTests extends ESTestCase {
     private static void assertSameLanguageBothBuilders(Collection<String> patterns) {
         final Automaton original = Automatons.buildPatternsAutomaton(patterns, false);
         final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);
-        assertTrue(
-            "literal partition diverged from the general builder for " + patterns,
-            Operations.sameLanguage(original, partitioned)
-        );
+        assertTrue("literal partition diverged from the general builder for " + patterns, Operations.sameLanguage(original, partitioned));
         // CharacterRunAutomaton matching requires a deterministic automaton.
         assertTrue("literal partition produced a non-deterministic automaton for " + patterns, partitioned.isDeterministic());
     }

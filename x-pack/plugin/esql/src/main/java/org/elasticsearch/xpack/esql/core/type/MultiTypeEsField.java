@@ -128,11 +128,8 @@ public final class MultiTypeEsField extends UnionTypeEsField {
         if (expression != null) {
             return expression;
         }
-        int separator = indexName.indexOf(':');
-        if (separator < 0 || separator == indexName.length() - 1) {
-            return null;
-        }
-        return indexToConversionExpressions.get(indexName.substring(separator + 1));
+        int sep = indexName.indexOf(':');
+        return sep >= 0 || sep < indexName.length() - 1 ? indexToConversionExpressions.get(indexName.substring(sep + 1)) : null;
     }
 
     @Override

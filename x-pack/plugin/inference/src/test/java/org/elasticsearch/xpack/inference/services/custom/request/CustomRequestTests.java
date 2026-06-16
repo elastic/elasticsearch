@@ -80,7 +80,10 @@ public class CustomRequestTests extends ESTestCase {
         );
 
         var request = new CustomRequest(
-            EmbeddingParameters.of(EmbeddingsInput.fromStrings(List.of("abc", "123"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(
+                EmbeddingsInput.fromStrings(List.of("abc", "123"), null),
+                model.getServiceSettings().getInputTypeTranslator()
+            ),
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);

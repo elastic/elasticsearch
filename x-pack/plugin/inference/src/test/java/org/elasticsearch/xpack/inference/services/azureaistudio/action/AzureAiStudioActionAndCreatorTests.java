@@ -235,7 +235,13 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TimeValue.timeValueMinutes(1),
             TimeValue.timeValueSeconds(0)
         );
-        return new ServiceComponents(threadPool, mock(ThrottlerManager.class), timeoutSettings, TruncatorTests.createTruncator(), new TestCircuitBreaker());
+        return new ServiceComponents(
+            threadPool,
+            mock(ThrottlerManager.class),
+            timeoutSettings,
+            TruncatorTests.createTruncator(),
+            new TestCircuitBreaker()
+        );
     }
 
     private final String testEmbeddingsTokenResponseJson = """

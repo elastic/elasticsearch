@@ -17,10 +17,22 @@ import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mo
 
 public class ServiceComponentsTests extends ESTestCase {
     public static ServiceComponents createWithEmptySettings(ThreadPool threadPool) {
-        return new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY, TruncatorTests.createTruncator(), new TestCircuitBreaker());
+        return new ServiceComponents(
+            threadPool,
+            mockThrottlerManager(),
+            Settings.EMPTY,
+            TruncatorTests.createTruncator(),
+            new TestCircuitBreaker()
+        );
     }
 
     public static ServiceComponents createWithSettings(ThreadPool threadPool, Settings settings) {
-        return new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker());
+        return new ServiceComponents(
+            threadPool,
+            mockThrottlerManager(),
+            settings,
+            TruncatorTests.createTruncator(),
+            new TestCircuitBreaker()
+        );
     }
 }

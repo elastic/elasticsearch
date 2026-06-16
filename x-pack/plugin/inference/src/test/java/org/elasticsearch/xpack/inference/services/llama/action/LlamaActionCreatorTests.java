@@ -207,7 +207,13 @@ public class LlamaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

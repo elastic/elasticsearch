@@ -189,7 +189,13 @@ public class MistralActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));

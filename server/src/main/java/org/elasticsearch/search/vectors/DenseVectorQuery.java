@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -39,6 +40,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValues;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
@@ -191,23 +194,16 @@ public abstract class DenseVectorQuery extends Query {
         // doc-values constructor. elementType selects float vs bfloat16 decoding.
         private final ElementType docValuesElementType;
         private final IndexVersion docValuesIndexVersion;
+        // True when the KNN-indexed vectors are unit-normalized but the query requests a different metric.
+        // The scorer reads <field>._magnitude NumericDocValues to reconstruct the originals before scoring.
+        private final boolean denormalize;
 
         /**
          * Codec-bound scoring (uses {@code FloatVectorValues.scorer(query)}). On quantized fields
          * this scores against the quantized representation.
          */
         public Floats(float[] query, String field, Query filter) {
-            this(query, field, filter, null);
-        }
-
-        /**
-         * Raw scoring with the given {@code function}. When {@code function} matches the field's bound
-         * similarity, scoring uses {@link FloatVectorValues#rescorer(float[])} (Lucene's high-fidelity
-         * raw primitive); when it differs, scoring iterates {@code vectorValue(ord)} and applies
-         * {@code function.compare(query, raw)} directly. Pass {@code null} to use the codec scorer.
-         */
-        public Floats(float[] query, String field, Query filter, VectorSimilarityFunction function) {
-            this(query, field, filter, function, null, null);
+            this(query, field, filter, null, null, null, false);
         }
 
         /**
@@ -222,11 +218,33 @@ public abstract class DenseVectorQuery extends Query {
             ElementType elementType,
             IndexVersion indexVersion
         ) {
+            this(query, field, filter, function, elementType, indexVersion, false);
+        }
+
+        /**
+         * Raw scoring with the given {@code function}. When {@code denormalize} is {@code true}, reads
+         * {@code <field>._magnitude} NumericDocValues to reconstruct original vectors from unit-normalized
+         * KNN storage before applying {@code function}.
+         */
+        public Floats(float[] query, String field, Query filter, VectorSimilarityFunction function, boolean denormalize) {
+            this(query, field, filter, function, null, null, denormalize);
+        }
+
+        private Floats(
+            float[] query,
+            String field,
+            Query filter,
+            VectorSimilarityFunction function,
+            ElementType elementType,
+            IndexVersion indexVersion,
+            boolean denormalize
+        ) {
             super(field, filter);
             this.query = query;
             this.function = function;
             this.docValuesElementType = elementType;
             this.docValuesIndexVersion = indexVersion;
+            this.denormalize = denormalize;
         }
 
         public float[] getQuery() {
@@ -251,7 +269,7 @@ public abstract class DenseVectorQuery extends Query {
             } else if (rewritten.getClass() == MatchNoDocsQuery.class) {
                 return rewritten;
             } else {
-                return new Floats(query, field, rewritten, function, docValuesElementType, docValuesIndexVersion);
+                return new Floats(query, field, rewritten, function, docValuesElementType, docValuesIndexVersion, denormalize);
             }
         }
 
@@ -275,6 +293,11 @@ public abstract class DenseVectorQuery extends Query {
                     if (function == null) {
                         return vectorValues.scorer(query);
                     }
+                    if (denormalize) {
+                        NumericDocValues magnitudes = leafReaderContext.reader()
+                            .getNumericDocValues(field + DenseVectorFieldMapper.COSINE_MAGNITUDE_FIELD_SUFFIX);
+                        return new RawFloatVectorScorer(new DenormalizedCosineFloatVectorValues(vectorValues, magnitudes), query, function);
+                    }
                     FieldInfo fieldInfo = leafReaderContext.reader().getFieldInfos().fieldInfo(field);
                     if (fieldInfo != null && fieldInfo.getVectorSimilarityFunction() == function) {
                         return vectorValues.rescorer(query);
@@ -294,12 +317,13 @@ public abstract class DenseVectorQuery extends Query {
                 && Objects.equals(filter, other.filter)
                 && function == other.function
                 && docValuesElementType == other.docValuesElementType
-                && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion);
+                && Objects.equals(docValuesIndexVersion, other.docValuesIndexVersion)
+                && denormalize == other.denormalize;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion);
+            return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion, denormalize);
         }
 
         /** Decodes each document's float vector from binary doc values and applies {@code function}. */

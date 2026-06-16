@@ -3219,7 +3219,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector = normalizeQueryVector(queryVector, squaredMagnitude);
                 }
             }
-            return new DenseVectorQuery.Floats(queryVector, name(), null, function);
+            // A non-cosine override on a normalized-cosine field must score against the original (denormalized) vectors.
+            boolean denormalize = isOverridden && isNormalized() && effectiveSimilarity != VectorSimilarity.COSINE;
+            return new DenseVectorQuery.Floats(queryVector, name(), null, function, denormalize);
         }
 
         private static float[] normalizeQueryVector(float[] queryVector, float squaredMagnitude) {

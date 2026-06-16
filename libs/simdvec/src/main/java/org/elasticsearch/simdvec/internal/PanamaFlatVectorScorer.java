@@ -73,14 +73,14 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         return createScorer(similarityFunction, target, (ByteVectorValues) vectorValues);
     }
 
-    private abstract static class AbstractNativeScorer<V> extends RandomVectorScorer.AbstractRandomVectorScorer
+    private abstract static class AbstractPanamaScorer<V> extends RandomVectorScorer.AbstractRandomVectorScorer
         implements
             RandomVectorScorer,
             HasKnnVectorValues {
 
         final int dims;
 
-        AbstractNativeScorer(KnnVectorValues vectors) {
+        AbstractPanamaScorer(KnnVectorValues vectors) {
             super(vectors);
             dims = vectors.dimension();
         }
@@ -130,10 +130,10 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private abstract static class NativeFloatScorer extends AbstractNativeScorer<float[]> {
+    private abstract static class PanamaFloatScorer extends AbstractPanamaScorer<float[]> {
         private final FloatVectorValues[] vectors = new FloatVectorValues[BULK_SIZE];
 
-        NativeFloatScorer(FloatVectorValues vectors) throws IOException {
+        PanamaFloatScorer(FloatVectorValues vectors) throws IOException {
             super(vectors);
 
             for (int i = 0; i < BULK_SIZE; i++) {
@@ -147,11 +147,11 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private abstract static class NativeUpdateableFloatScorer extends NativeFloatScorer implements UpdateableRandomVectorScorer {
+    private abstract static class PanamaUpdateableFloatScorer extends PanamaFloatScorer implements UpdateableRandomVectorScorer {
         private final FloatVectorValues targetVectors;
         private float[] target;
 
-        NativeUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) throws IOException {
+        PanamaUpdateableFloatScorer(FloatVectorValues vectors, FloatVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
         }
@@ -167,10 +167,10 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private abstract static class NativeByteScorer extends AbstractNativeScorer<byte[]> {
+    private abstract static class PanamaByteScorer extends AbstractPanamaScorer<byte[]> {
         private final ByteVectorValues[] vectors = new ByteVectorValues[BULK_SIZE];
 
-        NativeByteScorer(ByteVectorValues vectors) throws IOException {
+        PanamaByteScorer(ByteVectorValues vectors) throws IOException {
             super(vectors);
 
             for (int i = 0; i < BULK_SIZE; i++) {
@@ -184,11 +184,11 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         }
     }
 
-    private abstract static class NativeUpdateableByteScorer extends NativeByteScorer implements UpdateableRandomVectorScorer {
+    private abstract static class PanamaUpdateableByteScorer extends PanamaByteScorer implements UpdateableRandomVectorScorer {
         private final ByteVectorValues targetVectors;
         private byte[] target;
 
-        NativeUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException {
+        PanamaUpdateableByteScorer(ByteVectorValues vectors, ByteVectorValues targetVectors) throws IOException {
             super(vectors);
             this.targetVectors = targetVectors;
         }
@@ -218,7 +218,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         @Override
         public UpdateableRandomVectorScorer scorer() throws IOException {
             return switch (function) {
-                case EUCLIDEAN -> new NativeUpdateableFloatScorer(vectors, targetVectors) {
+                case EUCLIDEAN -> new PanamaUpdateableFloatScorer(vectors, targetVectors) {
                     @Override
                     float score(float[] query, float[] value) {
                         return ESVectorUtil.squareDistance(query, value);
@@ -234,7 +234,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                         return normalizeDistanceToUnitInterval(score);
                     }
                 };
-                case DOT_PRODUCT -> new NativeUpdateableFloatScorer(vectors, targetVectors) {
+                case DOT_PRODUCT -> new PanamaUpdateableFloatScorer(vectors, targetVectors) {
                     @Override
                     float score(float[] query, float[] value) {
                         return ESVectorUtil.dotProduct(query, value);
@@ -251,7 +251,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                     }
                 };
                 case COSINE -> DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(function, targetVectors).scorer();
-                case MAXIMUM_INNER_PRODUCT -> new NativeUpdateableFloatScorer(vectors, targetVectors) {
+                case MAXIMUM_INNER_PRODUCT -> new PanamaUpdateableFloatScorer(vectors, targetVectors) {
                     @Override
                     float score(float[] query, float[] value) {
                         return ESVectorUtil.dotProduct(query, value);
@@ -284,7 +284,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
     private static RandomVectorScorer createScorer(VectorSimilarityFunction similarityFunction, float[] target, FloatVectorValues values)
         throws IOException {
         return switch (similarityFunction) {
-            case EUCLIDEAN -> new NativeFloatScorer(values) {
+            case EUCLIDEAN -> new PanamaFloatScorer(values) {
                 @Override
                 float[] queryVector() {
                     return target;
@@ -305,7 +305,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                     return normalizeDistanceToUnitInterval(score);
                 }
             };
-            case DOT_PRODUCT -> new NativeFloatScorer(values) {
+            case DOT_PRODUCT -> new PanamaFloatScorer(values) {
                 @Override
                 float[] queryVector() {
                     return target;
@@ -327,7 +327,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                 }
             };
             case COSINE -> DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorer(similarityFunction, values, target);
-            case MAXIMUM_INNER_PRODUCT -> new NativeFloatScorer(values) {
+            case MAXIMUM_INNER_PRODUCT -> new PanamaFloatScorer(values) {
                 @Override
                 float[] queryVector() {
                     return target;
@@ -370,7 +370,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         @Override
         public UpdateableRandomVectorScorer scorer() throws IOException {
             return switch (function) {
-                case EUCLIDEAN -> new NativeUpdateableByteScorer(vectors, targetVectors) {
+                case EUCLIDEAN -> new PanamaUpdateableByteScorer(vectors, targetVectors) {
                     @Override
                     float score(byte[] query, byte[] value) {
                         return ESVectorUtil.squareDistance(query, value);
@@ -386,7 +386,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                         return normalizeDistanceToUnitInterval(score);
                     }
                 };
-                case DOT_PRODUCT -> new NativeUpdateableByteScorer(vectors, targetVectors) {
+                case DOT_PRODUCT -> new PanamaUpdateableByteScorer(vectors, targetVectors) {
                     @Override
                     float score(byte[] query, byte[] value) {
                         return ESVectorUtil.dotProduct(query, value);
@@ -402,7 +402,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                         return dotProductByteCorrection(score, dims);
                     }
                 };
-                case COSINE -> new NativeUpdateableByteScorer(vectors, targetVectors) {
+                case COSINE -> new PanamaUpdateableByteScorer(vectors, targetVectors) {
                     @Override
                     float score(byte[] query, byte[] value) {
                         return ESVectorUtil.cosine(query, value);
@@ -418,7 +418,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                         return (1f + score) / 2f;
                     }
                 };
-                case MAXIMUM_INNER_PRODUCT -> new NativeUpdateableByteScorer(vectors, targetVectors) {
+                case MAXIMUM_INNER_PRODUCT -> new PanamaUpdateableByteScorer(vectors, targetVectors) {
                     @Override
                     float score(byte[] query, byte[] value) {
                         return ESVectorUtil.dotProduct(query, value);
@@ -451,7 +451,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
     private static RandomVectorScorer createScorer(VectorSimilarityFunction similarityFunction, byte[] target, ByteVectorValues values)
         throws IOException {
         return switch (similarityFunction) {
-            case EUCLIDEAN -> new NativeByteScorer(values) {
+            case EUCLIDEAN -> new PanamaByteScorer(values) {
                 @Override
                 byte[] queryVector() {
                     return target;
@@ -472,7 +472,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                     return normalizeDistanceToUnitInterval(score);
                 }
             };
-            case DOT_PRODUCT -> new NativeByteScorer(values) {
+            case DOT_PRODUCT -> new PanamaByteScorer(values) {
                 @Override
                 byte[] queryVector() {
                     return target;
@@ -493,7 +493,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                     return dotProductByteCorrection(score, dims);
                 }
             };
-            case COSINE -> new NativeByteScorer(values) {
+            case COSINE -> new PanamaByteScorer(values) {
                 @Override
                 byte[] queryVector() {
                     return target;
@@ -514,7 +514,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
                     return normalizeToUnitInterval(score);
                 }
             };
-            case MAXIMUM_INNER_PRODUCT -> new NativeByteScorer(values) {
+            case MAXIMUM_INNER_PRODUCT -> new PanamaByteScorer(values) {
                 @Override
                 byte[] queryVector() {
                     return target;

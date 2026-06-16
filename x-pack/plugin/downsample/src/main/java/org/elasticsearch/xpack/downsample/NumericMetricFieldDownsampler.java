@@ -87,27 +87,21 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    this.max = Math.max(value, max);
-                    this.min = Math.min(value, min);
-                    sum.add(value);
-                    count++;
-                }
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double value = docValues.nextValue();
+                this.max = Math.max(value, max);
+                this.min = Math.min(value, min);
+                sum.add(value);
+                count++;
             }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             max = MAX_NO_VALUE;
             min = MIN_NO_VALUE;
             sum.reset(0, 0);
@@ -140,19 +134,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId)) {
-                    isEmpty = false;
-                    lastValue = docValues.nextValue();
-                    return;
-                }
-            }
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            lastValue = docValues.nextValue();
+            state = State.BUCKET_COMPLETED;
         }
 
         public Double lastValue() {
@@ -164,7 +148,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             lastValue = Double.NaN;
         }
 
@@ -216,10 +200,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 }
                 int docValuesCount = counterDocValues.docValueCount();
                 assert docValuesCount > 0;
-                isEmpty = false;
-
-                var currentCounterValue = counterDocValues.nextValue();
-                temporalityCollector.collect(currentCounterValue, currentTimestamp);
+                temporalityCollector.collect(counterDocValues.nextValue(), currentTimestamp);
+                state = State.IN_PROGRESS;
             }
         }
 
@@ -235,7 +217,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             if (temporalityCollector != null) {
                 temporalityCollector.reset();
             }
@@ -261,12 +243,25 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             return temporalityCollector;
         }
 
-        public double downsampledValue() {
+        double downsampledValue() {
             return temporalityCollector != null ? temporalityCollector.downsampledValue() : Double.NaN;
         }
 
+        /**
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * instead.
+         */
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            throw new UnsupportedOperationException("This producer should never be called without timestamps");
+        }
+
+        /**
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * instead.
+         */
+        @Override
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) {
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 
@@ -378,7 +373,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 lastTimestamp = timestamp;
             }
 
-            @Override
             public void reset() {
                 previousBucketValue = downsampledValue;
                 downsampledValue = Double.NaN;
@@ -386,11 +380,15 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 resetStack.clear();
             }
 
-            @Override
             public void tsidReset() {
                 reset();
                 previousValue = Double.NaN;
                 previousBucketValue = Double.NaN;
+            }
+
+            @Override
+            public double downsampledValue() {
+                return downsampledValue;
             }
 
             /**
@@ -411,11 +409,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 while (resetStack.isEmpty() == false) {
                     resetDataPoints.addDataPoint(name, resetStack.pop());
                 }
-            }
-
-            @Override
-            public double downsampledValue() {
-                return downsampledValue;
             }
         }
     }

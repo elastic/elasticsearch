@@ -50,7 +50,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
-  implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
 
   testImplementation(project('qa:testFixtures')) {
@@ -101,6 +100,10 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-csv'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-s3'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-netty-commons'))
+  internalClusterTestImplementation project(':test:fixtures:s3-fixture')
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
@@ -412,6 +415,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
     "millisNanos": Name == "MillisNanos" ? "true" : "",
+    "LongRange"  : Name == "LongRange" ? "true" : "",
   ]
 }
 
@@ -463,6 +467,11 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile = inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongRangeEvaluator.java"
   }
 
   File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")

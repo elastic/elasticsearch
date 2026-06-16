@@ -48,6 +48,7 @@ public class Concat extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Concatenates two or more strings.",
         description = "Concatenates two or more strings.",
         examples = @Example(file = "eval", tag = "docsConcat")
     )

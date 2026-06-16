@@ -398,9 +398,8 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
             indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
-            var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
-            concreteIndices.computeIfAbsent(RemoteClusterAware.getClusterAlias(parts), k -> new ArrayList<>())
-                .add(RemoteClusterAware.getLocalIndexName(parts));
+            var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
+            concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
 
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL

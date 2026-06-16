@@ -4,6 +4,10 @@
 stack: preview 9.3.0, ga 9.4.0
 ```
 
+
+:::{include} ../briefSummary/stddev_over_time.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/stddev_over_time.svg

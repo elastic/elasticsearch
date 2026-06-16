@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -40,6 +42,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -60,6 +63,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         TelemetryProvider.NOOP
     );
     private RestValidateQueryAction action = new RestValidateQueryAction();
+    private final AtomicReference<ValidateQueryRequest> capturedRequest = new AtomicReference<>();
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -77,7 +81,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
             @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
+            protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
+                capturedRequest.set((ValidateQueryRequest) request);
+            }
         };
 
         final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
@@ -117,6 +123,54 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         assertNull(channel.capturedResponse());
     }
 
+    public void testParseValidateQueryRequestWithSliceParam() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), client);
+
+        ValidateQueryRequest validateQueryRequest = capturedRequest.get();
+        assertNotNull(validateQueryRequest);
+        assertEquals("s1,s2", validateQueryRequest.routing());
+        assertEquals("s1,s2", validateQueryRequest.searchSlice());
+        assertTrue(validateQueryRequest.isRoutingFromSlice());
+    }
+
+    public void testParseValidateQueryRequestWithSliceAllParam() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final RestRequest request = createRestRequest(
+            "{\"query\":{\"match_all\":{}}}",
+            Map.of(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL)
+        );
+
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean()), client);
+
+        ValidateQueryRequest validateQueryRequest = capturedRequest.get();
+        assertNotNull(validateQueryRequest);
+        assertNull(validateQueryRequest.routing());
+        assertEquals(SliceIndexing.SLICE_ALL, validateQueryRequest.searchSlice());
+        assertTrue(validateQueryRequest.isRoutingFromSlice());
+    }
+
+    public void testParseValidateQueryRequestRejectsRoutingAndSliceTogether() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final RestRequest request = createRestRequest(
+            "{\"query\":{\"match_all\":{}}}",
+            Map.of("routing", "manual", SliceIndexing.PARAM_NAME, "s1")
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
+        assertEquals("[routing] is not allowed together with [_slice]", e.getMessage());
+    }
+
+    public void testParseValidateQueryRequestRejectsSliceWhenFeatureDisabled() {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        final RestRequest request = createRestRequest("{\"query\":{\"match_all\":{}}}", Map.of(SliceIndexing.PARAM_NAME, "s1"));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, client));
+        assertEquals("request does not support [_slice]", e.getMessage());
+    }
+
     public void testRestValidateQueryAction_emptyQuery() throws Exception {
         // GIVEN an empty (i.e. invalid) query wrapped into a valid JSON
         final String content = "{\"query\":{}}";
@@ -150,8 +204,12 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     }
 
     private RestRequest createRestRequest(String content) {
+        return createRestRequest(content, emptyMap());
+    }
+
+    private RestRequest createRestRequest(String content, Map<String, String> params) {
         return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/type1/_validate/query")
-            .withParams(emptyMap())
+            .withParams(params)
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
     }

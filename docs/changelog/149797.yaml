@@ -1,0 +1,5 @@
+pr: 149797
+summary: "[Axonius] Replace the axonius.alert_and_incident index with the axonius.alert_finding and axonius.incident indices to `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+area: Authorization
+type: enhancement
+issues: []

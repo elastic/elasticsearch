@@ -129,10 +129,15 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                 if (docValues.advanceExact(docId) == false) {
                     continue;
                 }
-                isEmpty = false;
+                state = State.IN_PROGRESS;
                 ExponentialHistogram value = docValues.histogramValue();
                 temporalityCollector.collect(value, timestamps[i]);
             }
+        }
+
+        @Override
+        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) {
+            throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 
         private boolean assertTemporality(Temporality temporality) {
@@ -148,7 +153,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             if (temporalityCollector != null) {
                 temporalityCollector.reset();
             }
@@ -288,7 +293,8 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                 if (value.valueCount() > previousValueHolder.accessor().valueCount()
                     || diffMerger.setToDifference(previousValueHolder.accessor(), value) == false) {
                     // We check if we need to persist the previous value too.
-                    // lastTimestamp == -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist.
+                    // lastTimestamp == -1 means that the previous value is already persisted by a previous bucket, nothing extra to
+                    // persist.
                     if (lastTimestamp > 0) {
                         // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture
                         // the reset or not.
@@ -390,14 +396,14 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             lastValue = null;
         }
 
         @Override
         void collect(ExponentialHistogramValuesReader docValues, long[] timestamps, IntArrayList docIdBuffer, Temporality temporality)
             throws IOException {
-            if (isEmpty() == false) {
+            if (isDone()) {
                 return;
             }
             for (int i = 0; i < docIdBuffer.size(); i++) {
@@ -405,10 +411,15 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
                 if (docValues.advanceExact(docId) == false) {
                     continue;
                 }
-                isEmpty = false;
-                lastValue = docValues.histogramValue();
+                collectCurrentValues(docValues);
                 return;
             }
+        }
+
+        @Override
+        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) throws IOException {
+            lastValue = docValues.histogramValue();
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override

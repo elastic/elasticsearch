@@ -309,7 +309,7 @@ public class CacheFileReaderTests extends ESTestCase {
                     searchFuture.onFailure(e);
                 }
             });
-            searchFuture.get();
+            safeGet(searchFuture);
             assertSearchOriginMeasurementAttribute(meterRegistry, CachePopulationSource.BlobStore.name());
             meterRegistry.getRecorder().resetCalls();
 
@@ -323,7 +323,7 @@ public class CacheFileReaderTests extends ESTestCase {
                     vbccFuture.onFailure(e);
                 }
             });
-            vbccFuture.get();
+            safeGet(vbccFuture);
             assertSearchOriginMeasurementAttribute(meterRegistry, CachePopulationSource.Peer.name());
             meterRegistry.getRecorder().resetCalls();
 

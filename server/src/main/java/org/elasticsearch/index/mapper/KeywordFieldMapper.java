@@ -75,6 +75,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.Utf8CodePointsFro
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
@@ -853,13 +854,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (indexType.hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             } else if (usesBinaryDocValues) {
-                return new StringScriptFieldPrefixQuery(
-                    new Script(""),
-                    ctx -> new SortedBinaryDocValuesStringFieldScript(name(), context.lookup(), ctx, indexVersion),
-                    name(),
-                    indexedValueForSearch(value).utf8ToString(),
-                    caseInsensitive
-                );
+                return new SlowCustomBinaryDocValuesPrefixQuery(name(), indexedValueForSearch(value).utf8ToString(), caseInsensitive);
             } else {
                 if (caseInsensitive == false) {
                     Term prefix = new Term(name(), indexedValueForSearch(value));
@@ -1267,10 +1262,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
             } else {
                 value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
-                if (matchFlags != 0) {
-                    throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
-                }
-
                 if (usesBinaryDocValues) {
                     return new SlowCustomBinaryDocValuesRegexpQuery(
                         name(),

@@ -15,8 +15,21 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Specifies the exact C symbol name for a native function binding.
- * The symbol name is never inferred from the Java method name.
+ * Specifies the exact C symbol that backs a method on a {@link LibrarySpecification @LibrarySpecification}
+ * interface. The symbol name is never inferred from the Java method name, so multiple Java methods
+ * may bind to the same C function with different argument types or linker options.
+ *
+ * <p>For example, two Java methods bind to {@code ZSTD_compress}: a baseline binding and a heap-friendly
+ * variant marked {@link Critical @Critical}:
+ *
+ * <pre>{@code
+ * @Function("ZSTD_compress")
+ * long compress(MemorySegment dst, long dstCap, MemorySegment src, long srcSize, int level);
+ *
+ * @Function("ZSTD_compress")
+ * @Critical
+ * long compressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize, int level);
+ * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)

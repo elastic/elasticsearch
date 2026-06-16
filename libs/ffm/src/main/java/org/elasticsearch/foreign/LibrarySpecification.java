@@ -15,8 +15,34 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks an interface as a native library binding. The annotation processor generates
- * a {@code $Impl} class implementing the interface with FFM-based method handles.
+ * Marks an interface as a native library binding. The annotation processor generates a
+ * {@code $Impl} class implementing the interface with FFM-based method handles, plus a
+ * {@code $Provider} class that exposes it through {@link LibraryProvider}.
+ *
+ * <p>The annotated type must be an interface. Every method on the interface must be annotated
+ * with {@link Function @Function} naming a C symbol; the processor reports a compile error
+ * otherwise.
+ *
+ * <p>Example binding the system zlib compression library:
+ *
+ * <pre>{@code
+ * @LibrarySpecification(name = "z")
+ * public interface Zlib {
+ *
+ *     @Function("compressBound")
+ *     long compressBound(long sourceLen);
+ *
+ *     @Function("compress")
+ *     int compress(MemorySegment dest, MemorySegment destLen, MemorySegment source, long sourceLen);
+ * }
+ * }</pre>
+ *
+ * Look up the implementation via {@link LibraryProvider#lookupLibrary(Class)}:
+ *
+ * <pre>{@code
+ * Zlib zlib = LibraryProvider.lookupLibrary(Zlib.class);
+ * long bound = zlib.compressBound(srcLen);
+ * }</pre>
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.TYPE)

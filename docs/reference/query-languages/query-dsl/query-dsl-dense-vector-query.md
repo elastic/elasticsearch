@@ -85,7 +85,7 @@ both. See [`query_vector_builder`](/reference/query-languages/query-dsl/query-ds
 :   (Optional, string) The similarity metric used for scoring, overriding the field's mapped similarity for
 this query. One of `l2_norm`, `dot_product`, `cosine`, or `max_inner_product`. Defaults to the field's
 configured similarity, or to `cosine` for a non-indexed (`index: false`) field, which has no configured
-similarity. Cannot be combined with `quantized: true`.
+similarity. For `bit` fields, only `l2_norm` is supported. Cannot be combined with `quantized: true`.
 
 `quantized` [dense-vector-query-quantized]
 :   (Optional, Boolean) Defaults to `false`.

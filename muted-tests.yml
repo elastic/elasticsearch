@@ -301,9 +301,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
-- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
-  method: testDelegatesMetadataAndReadZstd
-  issue: https://github.com/elastic/elasticsearch/issues/149943
 - class: org.elasticsearch.xpack.esql.datasources.DecompressingStorageObjectTests
   method: testDecompressStreamZstd
   issue: https://github.com/elastic/elasticsearch/issues/149944

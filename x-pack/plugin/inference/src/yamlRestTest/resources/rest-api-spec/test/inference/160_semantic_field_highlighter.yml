@@ -29,6 +29,9 @@ setup:
               semantic_field:
                 type: semantic
                 inference_id: embedding-inference-id
+              source_field:
+                type: text
+                copy_to: semantic_field
 
 ---
 "Highlighting image values":
@@ -153,3 +156,30 @@ setup:
   - match: { hits.hits.0.highlight.semantic_field.1: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA==" }
   - match: { hits.hits.0.highlight.semantic_field.2: "a dog running in a park" }
   - match: { hits.hits.0.highlight.semantic_field.3: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr" }
+
+---
+"Highlighting copy_to values":
+  - do:
+      index:
+        index: test-semantic-field-highlight-index
+        id: doc_copy_to
+        body:
+          source_field: "a cat on a windowsill"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-highlight-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_field:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_copy_to" }
+  - length: { hits.hits.0.highlight.semantic_field: 1 }
+  - match: { hits.hits.0.highlight.semantic_field.0: "a cat on a windowsill" }

@@ -1995,33 +1995,8 @@ public abstract class FieldMapper extends Mapper {
             IndexSortConfig sortConfig,
             DocValuesParameter docValuesParameters
         ) {
-            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
-                return;
-            }
-            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
-                return;
-            }
-            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
-            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
-                return;
-            }
-            boolean cardinalityExplicitlySet = docValuesParameters.cardinalityParameter.map(Parameter::isSet).orElse(false);
-            if (cardinalityExplicitlySet) {
-                throw new MapperParsingException(
-                    "field ["
-                        + fullFieldName
-                        + "] cannot use [cardinality: high] because it is configured as an index sort field,"
-                        + " which requires sortable doc values"
-                );
-            }
-            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
-            docValuesParameters.setValue(
-                new DocValuesParameter.Values(
-                    currentValues.enabled(),
-                    DocValuesParameter.Values.Cardinality.LOW,
-                    currentValues.multiValue()
-                )
-            );
+            // BinarySortField makes binary doc values index-sortable, so cardinality: high is compatible
+            // with index sort fields regardless of whether it was explicitly set or defaulted.
         }
     }
 

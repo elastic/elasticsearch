@@ -5,6 +5,10 @@ stack: preview 9.3.0
 serverless: preview
 ```
 
+
+:::{include} ../briefSummary/chunk.md
+:::
+
 ## Syntax
 
 :::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/chunk.svg

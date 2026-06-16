@@ -14,6 +14,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
 import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
@@ -269,7 +270,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             }
             return true;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw ExternalFailures.surface(e, "Failed to read NDJSON page");
         }
     }
 

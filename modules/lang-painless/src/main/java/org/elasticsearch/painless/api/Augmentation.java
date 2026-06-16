@@ -1087,6 +1087,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static DoubleConsumer wrap(PainlessScript script, DoubleConsumer action) {
         if (script._getCancellationCheck() == null) {
             return action;

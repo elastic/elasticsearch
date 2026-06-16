@@ -123,6 +123,61 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         '1.0'          | 'production'
     }
 
+    def "snyk dependency graph deduplicates diamond dependencies and stays reachable"() {
+        given:
+        buildFile << """
+            apply plugin:'java'
+            version = "1.0"
+
+            repositories { mavenCentral() }
+
+            dependencies {
+                implementation 'org.apache.lucene:lucene-monitor:9.2.0'
+                implementation 'org.apache.lucene:lucene-grouping:9.2.0'
+                implementation 'org.apache.lucene:lucene-core:9.2.0'
+            }
+
+            tasks.named('generateSnykDependencyGraph').configure {
+                remoteUrl = "http://acme.org"
+            }
+        """
+
+        when:
+        def result = gradleRunner("generateSnykDependencyGraph").build()
+        def json = new JsonSlurper().parse(file("build/snyk/dependencies.json"))
+        def graph = json.depGraphJSON.graph
+        def nodes = graph.nodes
+        def nodesById = nodes.collectEntries { [it.nodeId, it] }
+
+        then:
+        result.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+
+        and: "lucene-core is deduplicated"
+        nodes.count { it.nodeId == "org.apache.lucene:lucene-core@9.2.0" } == 1
+
+        and: "lucene-core is referenced from multiple parents"
+        def coreParents = nodes.findAll { n ->
+            n.deps?.any { it.nodeId == "org.apache.lucene:lucene-core@9.2.0" }
+        }*.nodeId
+        coreParents.size() >= 2
+
+        and: "every node is reachable from root-node (mirrors Snyk server-side validation)"
+        def visited = [] as Set
+        def stack = [graph.rootNodeId]
+        while (stack) {
+            def cur = stack.pop()
+            if (visited.add(cur)) {
+                def n = nodesById[cur]
+                assert n != null : "deps reference unknown node ${cur}"
+                n.deps?.each { stack.push(it.nodeId) }
+            }
+        }
+        visited == nodes*.nodeId.toSet()
+
+        and: "every nodeId has a matching pkg entry"
+        json.depGraphJSON.pkgs*.id.toSet() == nodes*.pkgId.toSet()
+    }
+
     @Unroll
     def "upload #scenario"() {
         given:

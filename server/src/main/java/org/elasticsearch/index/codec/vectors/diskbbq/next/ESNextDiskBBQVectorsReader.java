@@ -344,8 +344,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     @Override
-    public CentroidData readCentroidData(String fiedName) throws IOException {
-        FieldInfo fieldInfo = fieldInfos.fieldInfo(fiedName);
+    public CentroidData readCentroidData(String fieldName) throws IOException {
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(fieldName);
         if (fieldInfo == null) {
             return null;
         }

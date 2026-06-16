@@ -30,6 +30,7 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -668,6 +669,19 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             () -> sortedSetDocValuesOnly().regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertThat(ee.getMessage(), Matchers.containsString("not indexed and 'search.allow_expensive_queries' is set to false"));
+    }
+
+    public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        Query q = sortedSetDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertThat(q, Matchers.instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        assertThat(
+            binaryDocValuesOnly().regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT),
+            Matchers.instanceOf(StringScriptFieldRegexpQuery.class)
+        );
     }
 
     private static MatchOnlyTextFieldType sortedSetDocValuesOnly() {

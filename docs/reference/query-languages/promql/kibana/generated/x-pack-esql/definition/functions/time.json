@@ -13,6 +13,5 @@
   "examples" : [
     "time()"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

@@ -67,6 +67,16 @@ import java.util.Set;
  * always the same {@code MapperParsingException} at index creation time, so new entries are easy
  * to locate from the test failure log.
  *
+ * <h2>Keyword sub-fields of an existing flattened field</h2>
+ * A field already declared {@code flattened} is treated as a leaf: the walk does not descend into
+ * its {@code "properties"}. Those entries are the flattened field's typed <em>mapped sub-fields</em>,
+ * not object sub-fields, and they may only be a fixed set of scalar types &mdash; {@code flattened}
+ * is not one of them. Rewriting such a keyword sub-field (e.g. {@code labels.service} in
+ * {@code flattened_typed}) to {@code flattened} would emit an illegal "flattened sub-field of a
+ * flattened field" mapping and fail index creation. Mapped sub-fields are also queried directly
+ * (e.g. {@code labels.service}) rather than through {@code field_extract}, so they are outside this
+ * variant's rewrite scope regardless. See {@link #isFlattenedField}.
+ *
  * <h2>TSDB dimension keyword fields</h2>
  * {@code keyword} fields that declare {@code time_series_dimension: true} are handled specially
  * rather than being left as {@code keyword}: they are converted to {@code flattened} with
@@ -268,7 +278,7 @@ public final class KeywordToFlattenedTransformer {
                 paths.add(fullPath);
             }
             JsonNode nested = fieldObj.path("properties");
-            if (nested.isObject()) {
+            if (nested.isObject() && isFlattenedField(fieldObj) == false) {
                 collectFieldPaths((ObjectNode) nested, fullPath, paths);
             }
         }
@@ -314,7 +324,7 @@ public final class KeywordToFlattenedTransformer {
                 }
             }
             JsonNode nested = fieldObj.path("properties");
-            if (nested.isObject()) {
+            if (nested.isObject() && isFlattenedField(fieldObj) == false) {
                 rewriteKeywords((ObjectNode) nested, fullPath, paths, excludedPaths, skipped);
             }
             // Multi-fields under "fields" are intentionally skipped here; if a keyword parent has
@@ -322,6 +332,23 @@ public final class KeywordToFlattenedTransformer {
             // findIncompatibleParameter, which keeps the multi-field children consistent with their
             // (still scalar) parent source.
         }
+    }
+
+    /**
+     * Returns {@code true} if {@code fieldObj} declares {@code "type":"flattened"}.
+     * <p>
+     * A {@code flattened} field's {@code "properties"} are typed <em>mapped sub-fields</em> (a
+     * flattened-specific construct restricted to a fixed set of scalar types that does <em>not</em>
+     * include {@code flattened} itself), not the object sub-fields that {@code "properties"} denotes
+     * on an {@code object} mapper. Both walks therefore treat a flattened field as a leaf and do not
+     * descend into it: rewriting a keyword mapped sub-field to {@code flattened} would emit an illegal
+     * "flattened sub-field of a flattened field" mapping and fail index creation, and mapped sub-fields
+     * are queried directly (e.g. {@code labels.service}) rather than through {@code field_extract},
+     * so they are outside this variant's keyword&rarr;flattened rewrite scope anyway.
+     */
+    private static boolean isFlattenedField(ObjectNode fieldObj) {
+        JsonNode typeNode = fieldObj.get("type");
+        return typeNode != null && typeNode.isTextual() && FLATTENED_TYPE.equals(typeNode.asText());
     }
 
     /**

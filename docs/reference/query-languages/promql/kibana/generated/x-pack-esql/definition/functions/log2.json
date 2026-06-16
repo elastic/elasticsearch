@@ -20,6 +20,6 @@
   "examples" : [
     "log2(memory_usage_bytes)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

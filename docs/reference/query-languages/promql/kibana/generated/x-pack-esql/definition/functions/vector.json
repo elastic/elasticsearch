@@ -20,6 +20,6 @@
   "examples" : [
     "vector(1)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

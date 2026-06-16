@@ -20,6 +20,6 @@
   "examples" : [
     "last_over_time(http_requests_total[1h])"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

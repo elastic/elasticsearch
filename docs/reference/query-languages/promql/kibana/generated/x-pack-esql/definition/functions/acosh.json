@@ -20,6 +20,6 @@
   "examples" : [
     "acosh(some_metric)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

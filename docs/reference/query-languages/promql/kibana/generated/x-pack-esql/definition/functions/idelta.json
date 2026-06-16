@@ -20,6 +20,6 @@
   "examples" : [
     "idelta(cpu_temp_celsius[5m])"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

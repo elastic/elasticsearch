@@ -20,6 +20,6 @@
   "examples" : [
     "sgn(delta(queue_depth[5m]))"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

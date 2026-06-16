@@ -32,6 +32,6 @@
   "examples" : [
     "clamp(http_requests_total, 0, 100)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

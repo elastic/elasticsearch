@@ -20,6 +20,6 @@
   "examples" : [
     "deriv(node_memory_free_bytes[5m])"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

@@ -275,7 +275,7 @@ public final class PromqlDocsSupport {
             builder.endArray();
 
             builder.array("examples", examples.toArray(String[]::new));
-            builder.field("preview", true);
+            builder.field("preview", false);
             builder.field("snapshot_only", false);
             builder.endObject();
 

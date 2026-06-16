@@ -20,6 +20,6 @@
   "examples" : [
     "scalar(sum(http_requests_total))"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

@@ -20,6 +20,6 @@
   "examples" : [
     "day_of_month()"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

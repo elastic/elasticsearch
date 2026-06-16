@@ -20,6 +20,6 @@
   "examples" : [
     "irate(http_requests_total[5m])"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

@@ -26,6 +26,6 @@
   "examples" : [
     "quantile(0.9, http_request_duration_seconds)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

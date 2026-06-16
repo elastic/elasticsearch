@@ -26,6 +26,6 @@
   "examples" : [
     "histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

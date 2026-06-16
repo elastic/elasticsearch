@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.benchmark.vector.scorer;
+package org.elasticsearch.benchmark.security;
 
-public enum VectorImplementation {
-    SCALAR,
-    LUCENE,
-    PANAMA,
-    NATIVE
+import org.elasticsearch.test.ESTestCase;
+
+public class AutomatonBuildBenchmarkTests extends ESTestCase {
+    public void test() {
+        AutomatonBuildBenchmark.selfTest();
+    }
 }

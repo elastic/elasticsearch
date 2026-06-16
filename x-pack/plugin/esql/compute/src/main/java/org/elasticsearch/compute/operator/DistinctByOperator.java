@@ -19,8 +19,6 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 
-import java.util.Arrays;
-
 /**
  * Operator that filters rows to keep only the first occurrence of each distinct key value.
  * This is useful for deduplication by a key column (e.g., _tsid).
@@ -160,7 +158,7 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
         if (rowCount == page.getPositionCount()) {
             return page.shallowCopy();
         }
-        return page.filter(false, Arrays.copyOf(positions, rowCount));
+        return page.filter(false, positions, 0, rowCount);
     }
 
     @Override

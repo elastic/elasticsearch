@@ -100,8 +100,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -832,18 +832,18 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof SemiJoin) {
-            SemiJoin.LogicalPlanTuple semiJoinTuple = SemiJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (firstJoin instanceof AbstractSubqueryJoin) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
             if (semiJoinTuple != null) {
                 AtomicReference<Page> localRelationPage = new AtomicReference<>();
                 subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
                     LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // SemiJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
                     // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
                     // below releases the right one at end of main plan execution.
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
-                    return SemiJoin.newMainPlan(
+                    return AbstractSubqueryJoin.newMainPlan(
                         mainPlan,
                         semiJoinTuple,
                         resultWrapper,
@@ -896,9 +896,9 @@ public class EsqlSession {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking SemiJoin or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
             // joins whose right child haven't been evaluated yet
-            if (p instanceof SemiJoin sj) {
+            if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }

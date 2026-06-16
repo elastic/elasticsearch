@@ -461,6 +461,19 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_RETURNS_MULTI_VALUE,
 
         /**
+         * {@code field_extract(<flattened root>, "<key>")} returns the sub-field's value for an explicitly
+         * mapped sub-key (one declared under {@code properties}) instead of {@code null}. Mapped sub-keys are
+         * no longer fused into the keyed block loader nor pushed to a Lucene query - the keyed channel never
+         * stores them, and a typed-field query would apply different comparison semantics than the keyword
+         * evaluator - so they always go through the per-row evaluator over the merged flattened root. This
+         * makes the result independent of whether the optimizer pushed the call. Tests that assert the value
+         * (rather than {@code null}) for a mapped sub-key, or that a mapped-key comparison is not pushed to
+         * Lucene, must require this capability so they skip on mixed clusters where any data node still fuses
+         * mapped sub-keys and returns {@code null}.
+         */
+        FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -2141,7 +2154,7 @@ public class EsqlCapabilities {
         /**
          * TS window functions use backward window semantics only.
          */
-        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+        FIX_TIME_SERIES_WINDOW_BACKWARD,
 
         /**
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
@@ -3063,6 +3076,11 @@ public class EsqlCapabilities {
          * Bugfix in query approximation to not produce confidence intervals for multivalued functions.
          */
         APPROXIMATION_FIX_MV_FUNCTIONS,
+
+        /**
+         * Support for PromQL {@code histogram_quantile()} over classic histograms with {@code le} buckets.
+         */
+        PROMQL_HISTOGRAM_QUANTILE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

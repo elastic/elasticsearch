@@ -69,7 +69,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
@@ -1352,9 +1351,22 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
 
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference) {
-            // Only the field_extract sub-key fusion is supported on the flattened root for now,
-            // and only when doc values are available (so we can use the keyed sub-field loader).
-            return config instanceof ExtractFlattenedSubfieldConfig && hasDocValues();
+            if (config instanceof ExtractFlattenedSubfieldConfig(String key)) {
+                return hasDocValues() && isMappedSubField(key) == false;
+            }
+            return false;
+        }
+
+        /**
+         * Whether {@code key} is an explicitly mapped sub-field (declared under {@code properties}) of this
+         * flattened root, as opposed to a dynamic keyed sub-field stored in the keyed channel. Mapped
+         * sub-fields are addressable as their own typed columns; {@code field_extract} excludes them from
+         * pushdown so its result stays consistent across execution paths. {@link #getChildFieldType} relies
+         * on the same {@code mappedSubFields} membership to decide between the typed sub-field type and a
+         * dynamic {@link KeyedFlattenedFieldType}.
+         */
+        public boolean isMappedSubField(String key) {
+            return mappedSubFields.containsKey(key);
         }
 
         @Override

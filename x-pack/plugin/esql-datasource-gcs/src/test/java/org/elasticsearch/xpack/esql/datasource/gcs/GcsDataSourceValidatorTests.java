@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"));
@@ -91,6 +93,34 @@ public class GcsDataSourceValidatorTests extends AbstractDataSourceValidatorTest
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_token", "ya29.token"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "project_id", "proj"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, Set.of("gs"))
+            .withWorkloadIdentityEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "credentials", "{\"type\":\"service_account\"}")
+            )
         );
     }
 

@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -138,8 +138,8 @@ public class ViewResolver {
      *       then recursively processes those plans</li>
      *   <li>{@code Fork}: Recursively processes each child branch</li>
      *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
-     *   <li>{@code SemiJoin} (and subclasses {@code AntiJoin}, {@code MarkJoin}): Recursively processes the left and right sides
-     *       independently so each side gets its own view resolution context</li>
+     *   <li>{@code AbstractSubqueryJoin} (i.e. {@code SemiJoin}, {@code AntiJoin}, {@code MarkJoin}): Recursively processes the left and
+     *       right sides independently so each side gets its own view resolution context</li>
      *   <li>{@code Filter}: Calls {@code }InSubqueryResolver} to expand {@code InSubquery}</li>
      *   <li>{@code ViewUnionAll}: Skipped (already the result of view resolution)</li>
      * </ul>
@@ -259,8 +259,8 @@ public class ViewResolver {
                         );
                     }
                 }
-                case SemiJoin semiJoin -> replaceViewsSemiJoin(
-                    semiJoin,
+                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                    subqueryJoin,
                     projectRouting,
                     parser,
                     seenInner,
@@ -345,8 +345,8 @@ public class ViewResolver {
         }).addListener(listener);
     }
 
-    private void replaceViewsSemiJoin(
-        SemiJoin semiJoin,
+    private void replaceViewsSubqueryJoin(
+        AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
@@ -355,8 +355,8 @@ public class ViewResolver {
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        LogicalPlan origLeft = semiJoin.left();
-        LogicalPlan origRight = semiJoin.right();
+        LogicalPlan origLeft = subqueryJoin.left();
+        LogicalPlan origRight = subqueryJoin.right();
         SubscribableListener<LogicalPlan> leftChain = SubscribableListener.newForked(
             l -> replaceViews(
                 origLeft,
@@ -388,9 +388,9 @@ public class ViewResolver {
                         newRight = named;
                     }
                     if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
-                        sl.onResponse(semiJoin.replaceChildren(newLeft, newRight));
+                        sl.onResponse(subqueryJoin.replaceChildren(newLeft, newRight));
                     } else {
-                        sl.onResponse(semiJoin);
+                        sl.onResponse(subqueryJoin);
                     }
                 })
             )

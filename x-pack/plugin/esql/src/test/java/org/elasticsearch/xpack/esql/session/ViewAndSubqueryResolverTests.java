@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -594,7 +595,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     // ---- helpers ----
 
-    private static void assertInSubqueryJoinKey(SemiJoin join, String expectedKey) {
+    private static void assertInSubqueryJoinKey(AbstractSubqueryJoin join, String expectedKey) {
         JoinConfig joinConfig = as(join.config(), JoinConfig.class);
         assertEquals(1, joinConfig.leftFields().size());
         UnresolvedAttribute joinKey = as(joinConfig.leftFields().get(0), UnresolvedAttribute.class);

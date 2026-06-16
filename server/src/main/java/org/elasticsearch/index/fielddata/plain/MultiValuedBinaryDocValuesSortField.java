@@ -82,7 +82,11 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public int nextDoc() throws IOException {
             int doc = in.nextDoc();
             if (doc != NO_MORE_DOCS) {
-                counts.advanceExact(doc);
+                // Use nextDoc (sequential) rather than advanceExact: during segment flush
+                // Lucene iterates docs with nextDoc() only and the buffered NumericDocValues
+                // writer does not support advanceExact(). The binary and count fields are
+                // always indexed together so they have the same doc IDs and stay in sync.
+                counts.nextDoc();
             }
             return doc;
         }
@@ -91,7 +95,7 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
         public int advance(int target) throws IOException {
             int doc = in.advance(target);
             if (doc != NO_MORE_DOCS) {
-                counts.advanceExact(doc);
+                counts.advance(doc);
             }
             return doc;
         }

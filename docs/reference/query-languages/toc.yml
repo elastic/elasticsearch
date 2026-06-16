@@ -419,6 +419,14 @@ toc:
   - file: promql.md
     children:
       - file: promql/promql-http-api.md
+      - file: promql/functions.md
+        children:
+          - file: promql/functions/range-vector.md
+          - file: promql/functions/aggregation.md
+          - file: promql/functions/histogram.md
+          - file: promql/functions/math.md
+          - file: promql/functions/date-time.md
+          - file: promql/functions/conversion.md
       - file: promql/promql-limitations.md
   - file: sql.md
     children:

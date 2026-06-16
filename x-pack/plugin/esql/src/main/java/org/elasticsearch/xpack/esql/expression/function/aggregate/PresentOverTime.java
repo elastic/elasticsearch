@@ -47,7 +47,7 @@ public class PresentOverTime extends TimeSeriesAggregateFunction implements Aggr
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeriesOverTime(PresentOverTime::new)
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
-        .description("Returns 1 if the range vector has any elements, otherwise returns an empty vector.")
+        .description("Returns true if the range vector has at least one element.")
         .example("present_over_time(http_requests_total[5m])")
         .name("present_over_time");
 

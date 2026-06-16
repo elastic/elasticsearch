@@ -44,7 +44,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 
 - Binary set operators: `and`, `or`, `unless`
 - Group modifiers: `on(...)`, `group_left`, `group_right`
-- Functions: `predict_linear`, `label_join`
+- Functions: see [Not yet supported](functions.md#promql-not-supported) for the full list of recognized but unimplemented functions.
 
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 

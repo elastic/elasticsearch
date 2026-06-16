@@ -136,9 +136,11 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
     }
 
     public void testExceptionWrapperTruncates() {
-        SetStepInfoUpdateTask.ExceptionWrapper wrapper = new SetStepInfoUpdateTask.ExceptionWrapper(new ElasticsearchException(
-            "this is a long message " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
-        ));
+        SetStepInfoUpdateTask.ExceptionWrapper wrapper = new SetStepInfoUpdateTask.ExceptionWrapper(
+            new ElasticsearchException(
+                "this is a long message " + randomAlphaOfLength(IndexLifecycleTransition.MAXIMUM_STEP_INFO_ERROR_MESSAGE_LENGTH)
+            )
+        );
 
         assertThat(Strings.toString(wrapper), containsString("... (~23 chars truncated)"));
     }

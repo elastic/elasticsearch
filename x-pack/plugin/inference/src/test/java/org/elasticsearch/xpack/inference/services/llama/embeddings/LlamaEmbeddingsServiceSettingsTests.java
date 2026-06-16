@@ -545,9 +545,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
         switch (randomInt(5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> uri = randomValueOtherThan(uri, () -> createUri("https://" + randomAlphaOfLength(10) + ".example"));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomIntBetween(32, 256));
-            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomIntBetween(128, 256));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomFrom(SimilarityMeasure.values()), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -568,9 +568,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
     private static LlamaEmbeddingsServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
         var uri = createUri("https://" + randomAlphaOfLength(10) + ".example");
-        var similarityMeasure = randomFrom(SimilarityMeasure.values());
-        var dimensions = randomIntBetween(32, 256);
-        var maxInputTokens = randomIntBetween(128, 256);
+        var similarityMeasure = randomFrom(randomFrom(SimilarityMeasure.values()), null);
+        var dimensions = randomFrom(randomIntBetween(32, 256), null);
+        var maxInputTokens = randomFrom(randomIntBetween(128, 256), null);
         return new LlamaEmbeddingsServiceSettings(
             modelId,
             uri,

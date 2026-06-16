@@ -67,7 +67,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
+        return List.of(
+            IngestClientIT.ExtendedIngestTestPlugin.class,
+            MockTransportService.TestPlugin.class
+        );
     }
 
     @Override
@@ -79,15 +82,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
             .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
             .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>(super.getMockPlugins());
-        if (mocks.contains(MockTransportService.TestPlugin.class) == false) {
-            mocks.add(MockTransportService.TestPlugin.class);
-        }
-        return mocks;
     }
 
     public void testSingleBulkRequest() {

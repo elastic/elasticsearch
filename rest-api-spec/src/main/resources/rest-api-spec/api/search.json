@@ -138,6 +138,10 @@
         "type": "list",
         "description": "A comma-separated list of specific routing values"
       },
+      "_slice": {
+        "type": "string",
+        "description": "Slice value for slice-enabled indices. Replaces routing when `index.slice.enabled` is true. Use `_all` to search across all slices."
+      },
       "scroll": {
         "type": "time",
         "description": "Specify how long a consistent view of the index should be maintained for scrolled search"

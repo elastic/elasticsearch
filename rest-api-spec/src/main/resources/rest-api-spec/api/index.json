@@ -75,6 +75,10 @@
         "type": "list",
         "description": "Specific routing value"
       },
+      "_slice": {
+        "type": "string",
+        "description": "Slice value for slice-enabled indices. Replaces routing when `index.slice.enabled` is true."
+      },
       "timeout": {
         "type": "time",
         "default": "1m",

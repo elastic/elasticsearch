@@ -13,6 +13,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 
+import java.util.HashSet;
 import java.util.Set;
 
 public class IndexFeatures implements FeatureSpecification {
@@ -49,9 +50,11 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
+    public static final NodeFeature INDEX_SLICE_INDEXING = new NodeFeature("index.slice_indexing");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(
+        Set<NodeFeature> features = new HashSet<>(Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
             TIME_SERIES_SYNTHETIC_ID,
             TIME_SERIES_SYNTHETIC_ID_DEFAULT,
@@ -64,6 +67,10 @@ public class IndexFeatures implements FeatureSpecification {
             InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
             CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT,
             InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_EXCLUDE_VECTORS
-        );
+        ));
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            features.add(INDEX_SLICE_INDEXING);
+        }
+        return Set.copyOf(features);
     }
 }

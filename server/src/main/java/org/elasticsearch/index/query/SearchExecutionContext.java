@@ -864,13 +864,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Release {@code bytes} of accumulated query construction memory back to the circuit breaker.
      *
      * @param bytes the number of bytes to refund; must be {@code >= 0}
+     * @param label the label the bytes were originally admitted under
      */
-    public void releaseQueryConstructionMemory(long bytes) {
+    public void releaseQueryConstructionMemory(long bytes, String label) {
         assert bytes >= 0 : "negative refund: " + bytes;
         if (circuitBreaker == null || bytes <= 0) {
             return;
         }
-        circuitBreaker.addWithoutBreaking(-bytes);
+        circuitBreaker.addWithoutBreaking(-bytes, label);
+        AtomicLong held = queryConstructionMemoryByLabel.get(label);
+        if (held != null) {
+            held.addAndGet(-bytes);
+        }
         queryConstructionMemoryUsed.addAndGet(-bytes);
     }
 }

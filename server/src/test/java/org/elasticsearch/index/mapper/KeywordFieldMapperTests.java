@@ -1597,7 +1597,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        // Index sort fields in LOGSDB_COLUMNAR stay at cardinality:high (binary doc values); no doc values skipper.
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
         assertFalse(mapper.fieldType().indexType().hasTerms());
     }
 
@@ -1798,25 +1799,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
-    public void testHighCardinalityRejectedForIndexSortField() {
+    public void testHighCardinalityAllowedForIndexSortField() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
             .build();
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+        // BinarySortField makes high-cardinality binary doc values index-sortable, so this must succeed.
+        MapperService ms = createMapperService(settings, mapping(b -> {
             b.startObject("host.name");
             b.field("type", "keyword");
             b.startObject("doc_values").field("cardinality", "high").endObject();
             b.endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "field [host.name] cannot use [cardinality: high] because it is configured as an"
-                    + " index sort field, which requires sortable doc values"
-            )
-        );
+        }));
+        assertNotNull(ms.fieldType("host.name"));
     }
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {

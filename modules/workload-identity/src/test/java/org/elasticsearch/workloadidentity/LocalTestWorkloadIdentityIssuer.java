@@ -249,7 +249,7 @@ public final class LocalTestWorkloadIdentityIssuer {
      * An unmapped audience returns {@code 404}.
      */
     @SuppressForbidden(
-        reason = "uses the JDK com.sun.net.httpserver request/response types and prints request diagnostics to stdout for this manual fixture"
+        reason = "uses the JDK com.sun.net.httpserver request/response types and prints request diagnostics to stdout for this fixture"
     )
     private static final class TokenHandler implements HttpHandler {
         private final Map<String, String> tokensByAudience;

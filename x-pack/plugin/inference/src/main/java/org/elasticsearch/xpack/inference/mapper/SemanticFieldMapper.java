@@ -24,6 +24,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -37,8 +38,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -77,6 +80,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -115,8 +119,26 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
     public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
             (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
-            List.of(notFromDynamicTemplates(CONTENT_TYPE))
+            List.of(notFromDynamicTemplates(CONTENT_TYPE), restrictToNewIndices())
         );
+    }
+
+    private static BiConsumer<String, MappingParserContext> restrictToNewIndices() {
+        return (name, context) -> {
+            if (context.indexVersionCreated().before(IndexVersions.SEMANTIC_FIELD_TYPE)) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + name
+                        + "] of type ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "] is not supported on indices created before version ["
+                        + IndexVersions.SEMANTIC_FIELD_TYPE
+                        + "]. Please create a new index to use ["
+                        + SemanticFieldMapper.CONTENT_TYPE
+                        + "]"
+                );
+            }
+        };
     }
 
     public static class Builder extends FieldMapper.Builder {

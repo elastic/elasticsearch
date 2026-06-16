@@ -14,13 +14,7 @@ import java.io.IOException;
 /**
  * Per-segment histogram values.
  */
-public abstract class HistogramValues {
-
-    /**
-     * Advance this instance to the given document id
-     * @return true if there is a value for this document
-     */
-    public abstract boolean advanceExact(int doc) throws IOException;
+public abstract class HistogramValues implements ProcessedDocValues {
 
     /**
      * Get the {@link HistogramValue} associated with the current document.
@@ -28,4 +22,8 @@ public abstract class HistogramValues {
      */
     public abstract HistogramValue histogram() throws IOException;
 
+    @Override
+    public int docValueCount() {
+        return 1;
+    }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -170,11 +171,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void waitForMerges() throws Exception {
         // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
         // AfterClass depending on the test's needs.
         waitForMergesToFinish();
-        super.tearDown();
     }
 
     private static void waitForMergesToFinish() throws Exception {
@@ -396,6 +396,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        if (randomBoolean()) {
+            builder.put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            );
+        }
         return builder;
     }
 
@@ -529,6 +536,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
         ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
+    }
+
+    protected void setProjectRepositoryStrategy(String nodeName, ProjectId projectId, StatelessMockRepositoryStrategy strategy) {
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
+        ObjectStoreTestUtils.getProjectObjectStoreStatelessMockRepository(projectId, objectStoreService).setStrategy(strategy);
     }
 
     protected void setNodeRepositoryFailureStrategy(

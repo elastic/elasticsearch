@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
-import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,15 +21,16 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
@@ -45,8 +48,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -134,14 +136,12 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  *   <li>{@link VectorBinaryOperator}: plan = merged from both sides, expression = left op right</li>
  * </ul>
  */
-public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
-
-    // TODO make configurable via lookback_delta parameter and (cluster?) setting
-    public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
-
-    public TranslatePromqlToEsqlPlan() {
-        super(OptimizerRules.TransformDirection.UP);
-    }
+public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
+    // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
+    // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
+    // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.
+    public static final Instant EPOCH_MIN = Instant.EPOCH;
+    public static final Instant EPOCH_MAX = Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999);
 
     /** Result flows upward */
     private record TranslationResult(
@@ -167,8 +167,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private record TranslationContext(
         /* The root PromQL command. */
         PromqlCommand promqlCommand,
-        /* Optimizer context (configuration, transport version, etc.). */
-        LogicalOptimizerContext optimizerContext,
+        /* Analyzer context (configuration, transport version, etc.). */
+        AnalyzerContext analyzerContext,
         /* Alias for the step bucket expression used in all aggregation groupings. */
         Alias stepBucketAlias,
         /*  What aggregate labels the child subtree MUST expose */
@@ -180,41 +180,49 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     @Override
-    protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
-        Alias stepBucketAlias = createStepBucketAlias(promqlCommand, context.configuration());
+    protected boolean skipResolved() {
+        return false;
+    }
 
-        TranslationContext ctx = new TranslationContext(promqlCommand, context, stepBucketAlias, LabelSetSpec.none());
+    @Override
+    protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
+        Alias stepBucketAlias = createStepBucketAlias(cmd, context);
 
-        TranslationResult result = translateNode(promqlCommand.promqlPlan(), promqlCommand.child(), ctx);
+        TranslationContext ctx = new TranslationContext(cmd, context, stepBucketAlias, LabelSetSpec.none());
+
+        TranslationResult result = translateNode(cmd.promqlPlan(), cmd.child(), ctx);
 
         var plan = result.plan();
         var valueExpr = result.expression();
         var filter = result.pendingFilter();
 
+        // TODO: Fix selector-free PromQL evaluation to produce values even when no data
+        // See https://github.com/elastic/elasticsearch/issues/149791
+
         if (filter != null) {
-            plan = applyLabelFilter(plan, filter, promqlCommand);
+            plan = applyLabelFilter(plan, filter, cmd);
         }
 
         // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
         // TODO: If we ever support metric references without last_over_time, we could
         // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
         if (findAggregate(plan, Aggregate.class) == null) {
-            plan = createInnermostAggregatePlan(ctx, plan, LabelSetSpec.of(promqlCommand.promqlPlan().output()), valueExpr);
+            plan = createInnermostAggregatePlan(ctx, plan, LabelSetSpec.of(cmd.promqlPlan().output()), valueExpr);
             valueExpr = getValueOutput(plan);
         }
 
-        if (promqlCommand.promqlPlan() instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
+        if (cmd.promqlPlan() instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
             // for comparison with the filtering mode, return the left operand and apply filter later
-            plan = addComparisonFilter(plan, binaryComparison, context);
+            plan = addComparisonFilter(plan, binaryComparison, context, valueExpr);
         }
 
-        plan = applyValueToDoubleConversion(promqlCommand, plan, valueExpr);
+        plan = applyValueToDoubleConversion(cmd, plan, valueExpr);
 
-        plan = applyProjection(promqlCommand, plan);
+        plan = applyProjection(cmd, plan);
 
-        plan = applyNullOutputFilter(promqlCommand, plan);
+        plan = applyNullOutputFilter(cmd, plan);
 
-        plan = withTimestampFilter(promqlCommand, plan, context.configuration());
+        plan = withTimestampFilter(cmd, plan, context.configuration());
 
         return plan;
     }
@@ -326,7 +334,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         TranslationContext childCtx = new TranslationContext(
             ctx.promqlCommand,
-            ctx.optimizerContext,
+            ctx.analyzerContext,
             ctx.stepBucketAlias,
             importAggregateLabels
         );
@@ -409,18 +417,10 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             window,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
 
         Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
-
-        // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
-        // This is essentially a bug since this limitation doesn't exist in PromQL itself.
-        // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
-        Expression.TypeResolution typeResolution = function.typeResolved();
-        if (typeResolution.unresolved()) {
-            throw new QlIllegalArgumentException("Could not resolve type for function [{}]: {}", function, typeResolution.message());
-        }
 
         // Wrap already aggregated child in Eval
         if (findAggregate(childResult.plan(), Aggregate.class) != null) {
@@ -443,13 +443,14 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * These produce expressions without modifying the plan.
      */
     private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
-        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
-            ctx.promqlCommand().timestamp(),
-            null,
-            ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+        var function = scalarFunction.buildEsqlFunction(
+            new PromqlFunctionRegistry.PromqlContext(
+                ctx.promqlCommand().timestamp(),
+                null,
+                ctx.stepAttr(),
+                ctx.analyzerContext().configuration()
+            )
         );
-        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
 
         return new TranslationResult(currentPlan, function);
     }
@@ -471,7 +472,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         Expression binaryExpr = binaryOp.binaryOp()
             .asFunction()
-            .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
+            .create(binaryOp.source(), leftExpr, rightExpr, ctx.analyzerContext().configuration());
 
         boolean leftAgg = findAggregate(leftResult.plan(), Aggregate.class) != null;
         boolean rightAgg = findAggregate(rightResult.plan(), Aggregate.class) != null;
@@ -564,7 +565,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Adds label filter conditions to the context.
      */
     private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
-        Expression matcherCondition = translateLabelMatchers(selector.source(), selector.labels(), selector.labelMatchers());
+        Expression matcherCondition = translateLabelMatchers(
+            selector.source(),
+            selector.labels(),
+            selector.labelMatchers(),
+            ctx.analyzerContext().configuration()
+        );
         Expression expr;
         if (selector instanceof LiteralSelector literalSelector) {
             expr = literalSelector.literal();
@@ -601,7 +607,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             AggregateFunction.NO_WINDOW,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
         return agg.buildEsqlFunction(inputValue, promqlCtx);
     }
@@ -655,7 +661,15 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp());
+        return new TimeSeriesAggregate(
+            source,
+            plan,
+            groupings,
+            aggregates,
+            null,
+            command.timestamp(),
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND
+        );
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {
@@ -793,41 +807,36 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return new Filter(promqlCommand.source(), plan, new IsNotNull(plan.output().getFirst().source(), plan.output().getFirst()));
     }
 
-    /**
-     * When both {@code start} and {@code end} provided apply time filter.
-     * <p>
-     * - Push {@code t >= start - w} AND {@code t <= end} down to the source.
-     * - Apply {@code step >= start} AND {@code step <= end} above the aggregation to drop.
-     * <p>
-     * Where `t` := @timestamp; `w` := longest range selector window.
-    */
     private static LogicalPlan withTimestampFilter(PromqlCommand promqlCommand, LogicalPlan plan, Configuration configuration) {
         Literal start = promqlCommand.start();
         Literal end = promqlCommand.end();
-        if (start.value() == null || end.value() == null) {
-            return plan;
-        }
         var source = promqlCommand.source();
-        var timestamp = promqlCommand.timestamp();
-        var window = promqlCommand.maxRangeSelectorWindow();
-        var child = promqlCommand.child();
         var step = promqlCommand.stepAttribute();
 
-        var lower = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
-        var upper = new LessThanOrEqual(source, timestamp, end);
-        plan = plan.transformUp(p -> p == child, p -> new Filter(source, p, new And(source, lower, upper)));
+        // Apply source filter: {@code t >= start - max(w)} AND {@code t <= end}
+        if (start.value() != null && end.value() != null) {
+            var timestamp = promqlCommand.timestamp();
+            var window = promqlCommand.sourceFilterWindow();
+            var child = promqlCommand.child();
 
-        plan = new Filter(
-            source,
-            plan,
-            new And(source, new GreaterThanOrEqual(source, step, start), new LessThanOrEqual(source, step, end))
-        );
-        return plan;
+            var lo = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
+            var hi = new LessThanOrEqual(source, timestamp, end);
+            plan = plan.transformUp(p -> p == child, p -> new Filter(source, p, new And(source, lo, hi)));
+        }
+
+        // Apply projection filter, i.e. final output
+        var lo = new GreaterThanOrEqual(source, step, start.value() != null ? start : Literal.dateTime(source, EPOCH_MIN));
+        var hi = new LessThanOrEqual(source, step, end.value() != null ? end : Literal.dateTime(source, EPOCH_MAX));
+        return new Filter(source, plan, new And(source, lo, hi));
     }
 
     /** Comparison filter (e.g., metric > x) */
-    private LogicalPlan addComparisonFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
-        Attribute left = plan.output().getFirst().toAttribute();
+    private LogicalPlan addComparisonFilter(
+        LogicalPlan plan,
+        VectorBinaryComparison binaryComparison,
+        AnalyzerContext context,
+        Expression left
+    ) {
         ToDouble right = new ToDouble(binaryComparison.right().source(), ((LiteralSelector) binaryComparison.right()).literal());
         Function condition = binaryComparison.op().asFunction().create(binaryComparison.source(), left, right, context.configuration());
         return new Filter(binaryComparison.source(), plan, condition);
@@ -844,28 +853,22 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
     }
 
-    private static Alias createStepBucketAlias(PromqlCommand promqlCommand, Configuration configuration) {
-        Expression timeBucketSize = promqlCommand.resolveTimeBucketSize();
-        if (promqlCommand.hasTimeRange()) {
-            TStep tstep = new TStep(
-                timeBucketSize.source(),
-                timeBucketSize,
-                promqlCommand.start(),
-                promqlCommand.end(),
-                promqlCommand.timestamp(),
-                configuration
-            );
-            return new Alias(tstep.source(), promqlCommand.stepColumnName(), tstep, promqlCommand.stepId());
+    private static Alias createStepBucketAlias(PromqlCommand p, AnalyzerContext context) {
+        var cfg = context.configuration();
+        var source = p.source();
+
+        if (p.isInstantQuery()) {
+            Expression stepSize = Literal.timeDuration(source, p.resolveInstantQueryWindow());
+            Expression start = new Sub(p.start().source(), p.start(), stepSize, cfg);
+            var tstep = new TStep(stepSize.source(), stepSize, start, p.end(), p.timestamp(), cfg);
+            return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
         }
-        Bucket b = new Bucket(
-            timeBucketSize.source(),
-            promqlCommand.timestamp(),
-            timeBucketSize,
-            null,
-            null,
-            ConfigurationAware.CONFIGURATION_MARKER
-        );
-        return new Alias(b.source(), promqlCommand.stepColumnName(), b, promqlCommand.stepId());
+
+        Expression timeBucketSize = p.resolveTimeBucketSize();
+        Expression start = p.start().value() != null ? p.start() : Literal.dateTime(source, EPOCH_MIN);
+        Expression end = p.end().value() != null ? p.end() : Literal.dateTime(source, EPOCH_MAX);
+        var tstep = new TStep(timeBucketSize.source(), timeBucketSize, start, end, p.timestamp(), cfg);
+        return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
     }
 
     /**
@@ -884,7 +887,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * @param labelMatchers the PromQL label matchers to translate
      * @return an ESQL Expression combining all label matcher conditions with AND
      */
-    private static Expression translateLabelMatchers(Source source, List<Expression> fields, LabelMatchers labelMatchers) {
+    private static Expression translateLabelMatchers(
+        Source source,
+        List<Expression> fields,
+        LabelMatchers labelMatchers,
+        Configuration config
+    ) {
         var matchers = labelMatchers.matchers();
         // optimization for literal selectors that don't have label matchers
         if (matchers.isEmpty()) {
@@ -899,6 +907,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 hasNameMatcher = true;
             } else {
                 Expression field = fields.get(hasNameMatcher ? i - 1 : i); // adjust index if name matcher was seen
+                if (field.resolved() && DataType.isString(field.dataType()) == false) {
+                    field = new ToString(field.source(), field, config);
+                }
                 Expression condition = translateLabelMatcher(source, field, matcher);
                 if (condition != null) {
                     conditions.add(condition);
@@ -932,25 +943,47 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             return Literal.fromBoolean(source, false);
         }
 
-        // Try to extract the exact match
-        String exactMatch = AutomatonUtils.matchesExact(matcher.automaton());
         Expression condition;
-        if (exactMatch != null) {
-            condition = new Equals(source, field, Literal.keyword(source, exactMatch));
-        } else {
-            // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
-            List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
-            if (fragments != null && fragments.isEmpty() == false) {
-                condition = translateDisjointPatterns(source, field, fragments);
+
+        if (matcher.isMultiValue()) {
+            var expressions = new ArrayList<Expression>(matcher.values().size());
+            if (matcher.matcher().isRegex()) {
+                // Each value is a regex, combine with OR
+                for (var v : matcher.values()) {
+                    expressions.add(new RLike(source, field, new RLikePattern(v)));
+                }
+                condition = Predicates.combineOr(expressions);
             } else {
-                // Fallback to RLIKE with the full automaton pattern
-                // Note: We need to ensure the pattern is properly anchored for PromQL semantics
-                condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+                // Each value is a plain literal, match exact with the IN clause
+                for (var v : matcher.values()) {
+                    expressions.add(Literal.keyword(source, v));
+                }
+                condition = new In(source, field, expressions);
             }
             if (matcher.isNegation()) {
                 condition = new Not(source, condition);
             }
+        } else {
+            // Single value exact match
+            var m = AutomatonUtils.matchesExact(matcher.automaton());
+            if (m != null) {
+                condition = new Equals(source, field, Literal.keyword(source, m));
+            } else {
+                // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
+                var fragments = AutomatonUtils.extractFragments(matcher.getFirstValue());
+                if (fragments != null && fragments.isEmpty() == false) {
+                    condition = translateDisjointPatterns(source, field, fragments);
+                } else {
+                    // Fallback to RLIKE with the full automaton pattern
+                    // Note: We need to ensure the pattern is properly anchored for PromQL semantics
+                    condition = new RLike(source, field, new RLikePattern(matcher.getFirstValue()));
+                }
+                if (matcher.isNegation()) {
+                    condition = new Not(source, condition);
+                }
+            }
         }
+
         // PromQL spec: absent labels are treated as having value "". If the matcher's automaton
         // accepts the empty string (e.g. {label=""} or {label!="foo"}), series where the label
         // field is NULL (absent) must also match.

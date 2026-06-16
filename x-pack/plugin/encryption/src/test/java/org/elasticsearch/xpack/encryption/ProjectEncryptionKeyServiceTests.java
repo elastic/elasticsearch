@@ -18,8 +18,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
@@ -30,6 +33,8 @@ import static org.mockito.Mockito.verify;
 public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
+    private static final String PASSWORD_ID = "v1";
+    private static final String PASSWORD_VALUE = "test-password-fips";
 
     private static ClusterStateListener captureListener(ClusterService clusterService) {
         ArgumentCaptor<ClusterStateListener> captor = ArgumentCaptor.forClass(ClusterStateListener.class);
@@ -37,11 +42,27 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
         return captor.getValue();
     }
 
-    private static ProjectEncryptionKeyMetadata randomPekMetadata() {
-        byte[] keyBytes = new byte[32];
-        random().nextBytes(keyBytes);
+    private static Settings settingsWithPassword(String passwordId, String password) {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, passwordId);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + passwordId, password);
+        return Settings.builder().setSecureSettings(secure).build();
+    }
+
+    /**
+     * Builds a metadata instance whose entries are real PasswordBasedEncryption wraps of a freshly generated PEK under
+     * {@code passwordId} / {@code password}, so the service's lazy-unwrap path has something it can actually decrypt.
+     */
+    private static ProjectEncryptionKeyMetadata wrappedPekMetadata(String passwordId, String password) {
+        byte[] plaintextKey = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
+        random().nextBytes(plaintextKey);
+        EncryptedData wrapped = PasswordBasedEncryption.wrap(plaintextKey, passwordId, password.toCharArray());
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
-        return new ProjectEncryptionKeyMetadata(Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(keyBytes, 0L)), keyId);
+        return new ProjectEncryptionKeyMetadata(
+            Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(wrapped.payload(), 0L)),
+            keyId,
+            passwordId
+        );
     }
 
     private static DiscoveryNodes nodes() {
@@ -63,39 +84,93 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
     public void testGetActiveKeyReturnsNullInitially() {
         ClusterService clusterService = mock(ClusterService.class);
-        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(clusterService, DefaultProjectResolver.INSTANCE);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            Settings.EMPTY
+        );
         assertNull(service.getActiveKey());
         assertNull(service.getKey("anything"));
     }
 
-    public void testServiceRegistersAsClusterStateListener() {
+    public void testCacheUpdatedOnMetadataChangeAndLazyUnwrapSucceeds() {
         ClusterService clusterService = mock(ClusterService.class);
-        ProjectEncryptionKeyService.create(clusterService, DefaultProjectResolver.INSTANCE);
-        captureListener(clusterService);
-    }
-
-    public void testCacheUpdatedOnMetadataChange() {
-        ClusterService clusterService = mock(ClusterService.class);
-        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(clusterService, DefaultProjectResolver.INSTANCE);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            settingsWithPassword(PASSWORD_ID, PASSWORD_VALUE)
+        );
         ClusterStateListener listener = captureListener(clusterService);
 
-        ProjectEncryptionKeyMetadata pek = randomPekMetadata();
+        ProjectEncryptionKeyMetadata pek = wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE);
         listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey(pek), stateWithoutKey()));
 
         AesGcmEncryptionService.ActiveKey activeKey = service.getActiveKey();
-        assertNotNull(activeKey);
+        assertNotNull("active key should be lazily unwrapped under the configured password", activeKey);
         assertEquals(pek.getActiveKeyId(), activeKey.keyId());
         assertEquals("AES", activeKey.key().getAlgorithm());
         assertNotNull(service.getKey(pek.getActiveKeyId()));
         assertNull(service.getKey("nonexistent"));
     }
 
-    public void testGatewayBlockSkipsCacheUpdate() {
+    public void testGetActiveKeyReturnsNullWhenPasswordMissing() {
         ClusterService clusterService = mock(ClusterService.class);
-        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(clusterService, DefaultProjectResolver.INSTANCE);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            Settings.EMPTY // no password configured
+        );
         ClusterStateListener listener = captureListener(clusterService);
 
-        ClusterState blockedState = ClusterState.builder(stateWithKey(randomPekMetadata()))
+        ProjectEncryptionKeyMetadata pek = wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE);
+        listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey(pek), stateWithoutKey()));
+
+        assertNull("getActiveKey should return null when the matching password is not configured", service.getActiveKey());
+    }
+
+    public void testGetActiveKeyReturnsNullWhenWrongPassword() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            settingsWithPassword(PASSWORD_ID, "wrong-password")
+        );
+        ClusterStateListener listener = captureListener(clusterService);
+
+        ProjectEncryptionKeyMetadata pek = wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE);
+        listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey(pek), stateWithoutKey()));
+
+        assertNull("unwrap with wrong password should not produce a usable key", service.getActiveKey());
+    }
+
+    public void testReloadInvalidatesDecryptedCache() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            settingsWithPassword(PASSWORD_ID, "wrong-password")
+        );
+        ClusterStateListener listener = captureListener(clusterService);
+
+        ProjectEncryptionKeyMetadata pek = wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE);
+        listener.clusterChanged(new ClusterChangedEvent("test", stateWithKey(pek), stateWithoutKey()));
+
+        assertNull("wrong password initially", service.getActiveKey());
+
+        service.reload(settingsWithPassword(PASSWORD_ID, PASSWORD_VALUE));
+        assertNotNull("after reload with correct password, unwrap should succeed", service.getActiveKey());
+    }
+
+    public void testGatewayBlockSkipsCacheUpdate() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            settingsWithPassword(PASSWORD_ID, PASSWORD_VALUE)
+        );
+        ClusterStateListener listener = captureListener(clusterService);
+
+        ClusterState blockedState = ClusterState.builder(stateWithKey(wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE)))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
         listener.clusterChanged(new ClusterChangedEvent("test", blockedState, stateWithoutKey()));
@@ -105,10 +180,14 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
     public void testCacheClearedWhenMetadataRemoved() {
         ClusterService clusterService = mock(ClusterService.class);
-        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(clusterService, DefaultProjectResolver.INSTANCE);
+        ProjectEncryptionKeyService service = ProjectEncryptionKeyService.create(
+            clusterService,
+            DefaultProjectResolver.INSTANCE,
+            settingsWithPassword(PASSWORD_ID, PASSWORD_VALUE)
+        );
         ClusterStateListener listener = captureListener(clusterService);
 
-        ProjectEncryptionKeyMetadata pek = randomPekMetadata();
+        ProjectEncryptionKeyMetadata pek = wrappedPekMetadata(PASSWORD_ID, PASSWORD_VALUE);
         ClusterState withKey = stateWithKey(pek);
         listener.clusterChanged(new ClusterChangedEvent("test", withKey, stateWithoutKey()));
         assertNotNull(service.getActiveKey());

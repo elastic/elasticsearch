@@ -24,7 +24,7 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
-    default KMeansResult secondLevelClusters() throws IOException {
+    default KMeansResult<float[]> secondLevelClusters() throws IOException {
         return null;
     }
 
@@ -35,10 +35,10 @@ public interface CentroidSupplier {
     KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {
-        return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
+        return fromArray(new float[0][dims], KMeansResult.emptyFloat(), dims);
     }
 
-    static CentroidSupplier fromArray(float[][] centroids, KMeansResult secondLevelClusters, int dims) {
+    static CentroidSupplier fromArray(float[][] centroids, KMeansResult<float[]> secondLevelClusters, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -51,7 +51,7 @@ public interface CentroidSupplier {
             }
 
             @Override
-            public KMeansResult secondLevelClusters() {
+            public KMeansResult<float[]> secondLevelClusters() {
                 return secondLevelClusters;
             }
 

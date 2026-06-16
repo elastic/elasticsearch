@@ -92,6 +92,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Groups text messages into categories of similarly formatted text values.",
         description = "Groups text messages into categories of similarly formatted text values.",
         detailedDescription = """
             `CATEGORIZE` has the following limitations:
@@ -104,6 +105,17 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 file = "docs",
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeByTime",
+                description = "Group log message categories by time interval by combining "
+                    + "`CATEGORIZE` with `BUCKET` in the same `BY` clause. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeBySample",
+                description = "Surface one representative raw message per category by combining `CATEGORIZE` with `SAMPLE`. "
             ) },
         type = FunctionType.GROUPING,
         appliesTo = {

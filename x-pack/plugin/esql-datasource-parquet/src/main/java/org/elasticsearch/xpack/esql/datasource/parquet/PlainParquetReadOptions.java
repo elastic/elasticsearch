@@ -31,7 +31,7 @@ import java.util.Map;
  * package-private {@code ParquetReadOptions} constructor directly, bypassing the Builder entirely
  * and avoiding all Hadoop class loading.
  */
-final class PlainParquetReadOptions {
+public final class PlainParquetReadOptions {
 
     private static final MethodHandle CONSTRUCTOR;
 
@@ -69,11 +69,11 @@ final class PlainParquetReadOptions {
 
     private PlainParquetReadOptions() {}
 
-    static Builder builder(CompressionCodecFactory codecFactory) {
+    public static Builder builder(CompressionCodecFactory codecFactory) {
         return new Builder(codecFactory);
     }
 
-    static final class Builder {
+    public static final class Builder {
         private boolean useSignedStringMinMax = false;
         private boolean useStatsFilter = true;
         private boolean useDictionaryFilter = true;
@@ -116,7 +116,7 @@ final class PlainParquetReadOptions {
         }
 
         @SuppressWarnings("unchecked")
-        ParquetReadOptions build() {
+        public ParquetReadOptions build() {
             try {
                 return (ParquetReadOptions) CONSTRUCTOR.invokeExact(
                     useSignedStringMinMax,

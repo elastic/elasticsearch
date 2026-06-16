@@ -15,21 +15,31 @@ esplugin {
 
 def otelVersion = '1.62.0'
 def otelInstrumentationVersion = '2.26.1-alpha'
+def otelContribDiskBufferingVersion = '1.57.0-alpha'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-metrics:${otelVersion}"
+  implementation "io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}"
+  implementation "io.opentelemetry.instrumentation:opentelemetry-log4j-appender-2.17:${otelInstrumentationVersion}"
   implementation("io.opentelemetry:opentelemetry-exporter-otlp:${otelVersion}") {
     exclude group: 'io.opentelemetry', module: 'opentelemetry-exporter-sender-okhttp'
   }
+  implementation("io.opentelemetry.contrib:opentelemetry-disk-buffering:${otelContribDiskBufferingVersion}") {
+    // we already have them
+    exclude group: 'io.opentelemetry', module: 'opentelemetry-sdk'
+  }
+  // disk-buffering's serialization layer (Wire) depends on Okio.
+  implementation "com.squareup.okio:okio-jvm:3.17.0"
   implementation "io.opentelemetry.instrumentation:opentelemetry-runtime-telemetry:${otelInstrumentationVersion}"
 
   implementation "io.opentelemetry:opentelemetry-sdk-common:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-sdk-trace:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-common:${otelVersion}"
-  runtimeOnly "io.opentelemetry:opentelemetry-sdk-logs:${otelVersion}"
+  runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-okhttp:${otelVersion}"
+  implementation "com.squareup.okhttp3:okhttp-jvm:5.3.2"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-otlp-common:${otelVersion}"
   runtimeOnly "io.opentelemetry:opentelemetry-exporter-sender-jdk:${otelVersion}"
@@ -53,10 +63,23 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.io.ByteStreams',
     'io.grpc.Drainable',
     'io.grpc.KnownLength',
-    'io.grpc.ManagedChannel'
+    'io.grpc.ManagedChannel',
+    // OkHttp TLS provider integrations — only loaded if these providers are on the classpath.
+    'org.bouncycastle.jsse.BCSSLParameters',
+    'org.bouncycastle.jsse.BCSSLSocket',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.Conscrypt$Version',
+    'org.conscrypt.ConscryptHostnameVerifier',
+    'org.openjsse.javax.net.ssl.SSLParameters',
+    'org.openjsse.javax.net.ssl.SSLSocket',
+    // okhttp GraalVM native-image hooks; not relevant on the JVM.
+    'org.graalvm.nativeimage.hosted.Feature',
+    'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess'
   )
 }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+  mapping from: /okio.*/, to: 'okio'
+  mapping from: /okhttp.*/, to: 'okhttp'
 }

@@ -137,6 +137,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
 
     @Override
     protected void shardOperationOnPrimary(
+        Task task,
         final Request request,
         final IndexShard primary,
         ActionListener<PrimaryResult<Request, ReplicationResponse>> listener

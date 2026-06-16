@@ -65,7 +65,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
      * @param componentOrdinal The {@link org.elasticsearch.compute.data.ExponentialHistogramBlock.Component#ordinal()}
      *                         as integer-expression, must be foldable
      */
-    @FunctionInfo(returnType = { "double" })
+    @FunctionInfo(returnType = { "double" }, briefSummary = "Extracts a component value from a histogram.")
     public ExtractHistogramComponent(
         Source source,
         @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,
@@ -88,7 +88,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction {
         return field;
     }
 
-    Expression componentOrdinal() {
+    public Expression componentOrdinal() {
         return componentOrdinal;
     }
 

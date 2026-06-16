@@ -454,6 +454,94 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     /**
+     * Given the Apache producer is paused for backpressure
+     * When the subscriber cancels the subscription
+     * Then we shut down the saved IOControl so the leased connection is released
+     * (otherwise Apache never calls consumeContent again and the connection stays paused indefinitely)
+     */
+    public void testCancelShutsDownPausedProducer() throws IOException {
+        var subscriber = subscribe();
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes - 1));
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        verify(ioControl).suspendInput();
+
+        subscriber.subscription.cancel();
+
+        verify(ioControl).shutdown();
+        verify(ioControl, times(0)).requestInput();
+    }
+
+    /**
+     * Given the subscriber cancels the subscription while consumeContent is in the middle of its read
+     * (i.e. cancel races with pauseProducer before the IOControl has been saved)
+     * When consumeContent later calls pauseProducer with the fresh IOControl
+     * Then pauseProducer detects the pending shutdown and shuts the IOControl down immediately,
+     * so the leased connection is released rather than held indefinitely.
+     *
+     * Without the fix: shutdownProducer sees savedIoControl == null and does nothing; pauseProducer
+     * then suspends and saves the IOControl — leaving the producer permanently paused with the lease held.
+     */
+    public void testCancelWhilePausingShutsDownProducer() throws IOException {
+        var subscriber = subscribe();
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes - 1));
+
+        // A ContentDecoder that fires cancel() mid-read, before any bytes are written to the buffer.
+        // This reproduces the race: subscriptionCanceled is set and shutdownProducer() runs while
+        // savedIoControl is still null, then pauseProducer() is called with the real ioControl.
+        var cancelDuringRead = new ContentDecoder() {
+            boolean firstRead = true;
+
+            @Override
+            public int read(ByteBuffer byteBuffer) {
+                if (firstRead) {
+                    firstRead = false;
+                    subscriber.subscription.cancel();
+                    byteBuffer.put(message);
+                    return message.length;
+                }
+                return 0;
+            }
+
+            @Override
+            public boolean isCompleted() {
+                return true;
+            }
+        };
+
+        publisher.consumeContent(cancelDuringRead, ioControl);
+
+        // pauseProducer must detect the pending shutdown and call ioControl.shutdown() instead of
+        // suspendInput(), so the connection lease is released.
+        verify(ioControl).shutdown();
+        verify(ioControl, times(0)).suspendInput();
+        verify(ioControl, times(0)).requestInput();
+    }
+
+    /**
+     * Given the Apache producer was never paused
+     * When the subscriber cancels the subscription
+     * Then we do not touch IOControl, since there is no saved reference and the existing consumeContent cancel
+     * branch handles any later data
+     */
+    public void testCancelWithoutPauseDoesNotShutDownProducer() throws IOException {
+        var subscriber = subscribe();
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes + 1));
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        verify(ioControl, times(0)).suspendInput();
+
+        subscriber.subscription.cancel();
+
+        verify(ioControl, times(0)).shutdown();
+        verify(ioControl, times(0)).requestInput();
+    }
+
+    /**
      * When a subscriber requests a negative number
      * Then the subscription should call onError with an IllegalArgumentException
      */

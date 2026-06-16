@@ -118,10 +118,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @Override
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createFieldCapsIndices() throws Exception {
 
         XContentBuilder oldIndexMapping = XContentFactory.jsonBuilder()
             .startObject()

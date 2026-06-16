@@ -328,12 +328,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
-  method: testV2Zstd
-  issue: https://github.com/elastic/elasticsearch/issues/150015
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
-  method: testV1Zstd
-  issue: https://github.com/elastic/elasticsearch/issues/150019
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testDataVisibility
   issue: https://github.com/elastic/elasticsearch/issues/150028
@@ -346,9 +340,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:stats.weightedAvgWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/150051
-- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
-  method: testRandomSchema
-  issue: https://github.com/elastic/elasticsearch/issues/150077
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101

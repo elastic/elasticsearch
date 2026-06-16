@@ -51,8 +51,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
 import java.util.ArrayList;
@@ -379,10 +379,10 @@ public class FieldNameUtils {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
-        // Skip the right (subquery) child of SemiJoin/AntiJoin — its KEEP/STATS should not
+        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
         // force the main pipeline into explicit field collection.
-        if (plan instanceof SemiJoin semiJoin) {
-            return mainQueryRequiresFieldCollection(semiJoin.left(), inlinestatsAggs);
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
             if (mainQueryRequiresFieldCollection(child, inlinestatsAggs)) {
@@ -394,7 +394,7 @@ public class FieldNameUtils {
 
     private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
         Holder<Boolean> requireFieldCollection = new Holder<>(true);
-        plan.forEachUp(SemiJoin.class, sj -> {
+        plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
             if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
                 requireFieldCollection.set(false);
             }

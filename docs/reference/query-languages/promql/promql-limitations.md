@@ -49,7 +49,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 
 - Binary set operators: `and`, `or`, `unless`
 - Group modifiers: `on(...)`, `group_left`, `group_right`
-- Functions: `histogram_quantile`, `predict_linear`, `label_join`
+- Functions: `predict_linear`, `label_join`
 
 ## Metric metadata `help` (HTTP API) [promql-limitations-metadata-help]
 

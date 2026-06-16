@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -208,7 +209,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 DataSourceCapabilities.build(plugins),
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -313,7 +316,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -415,7 +420,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -491,7 +498,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -553,7 +562,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials(),
+                () -> false
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);

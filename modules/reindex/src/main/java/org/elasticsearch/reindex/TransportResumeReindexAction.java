@@ -17,13 +17,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportResumeReindexAction extends AbstractResumeBulkByScrollAction<ReindexRequest> {
+public class TransportResumeReindexAction extends AbstractResumeBulkByPaginatedSearchAction<ReindexRequest> {
 
     private final ReindexMetrics reindexMetrics;
 
@@ -49,7 +49,11 @@ public class TransportResumeReindexAction extends AbstractResumeBulkByScrollActi
     }
 
     @Override
-    protected void doExecute(Task task, ResumeBulkByPaginatedSearchRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
+    protected void doExecute(
+        Task task,
+        ResumeBulkByPaginatedSearchRequest request,
+        ActionListener<ResumeBulkByPaginatedSearchResponse> listener
+    ) {
         final ReindexRequest reindexRequest = (ReindexRequest) request.getDelegate();
         reindexMetrics.recordRelocation(reindexRequest.getRemoteInfo() != null, ReindexMetrics.resolveSlicingMode(reindexRequest));
         super.doExecute(task, request, listener);

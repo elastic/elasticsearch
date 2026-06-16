@@ -118,11 +118,25 @@ public class CsvTestsDataLoader {
             "lookup-settings.json"
         ),
         new TestDataset("languages_mixed_numerics").withSetting("lookup-settings.json"),
+        new TestDataset(
+            "keyword_languages_lookup",
+            "mapping-keyword_languages_lookup.json",
+            "keyword_languages_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
+        new TestDataset(
+            "partial_message_types_lookup",
+            "mapping-partial_message_types_lookup.json",
+            "partial_message_types_lookup.csv",
+            "lookup-settings.json"
+        ),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv"),
+        new TestDataset("no_message_sample_data", "mapping-sample_data.json", "sample_data.csv").withTypeMapping(removeFields("message"))
+            .withDynamic("false"),
         new TestDataset(
             "partial_mapping_no_source_sample_data",
             "mapping-partial_mapping_no_source_sample_data.json",
@@ -190,6 +204,18 @@ public class CsvTestsDataLoader {
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset(
+            "promql_classic_histogram",
+            "mapping-promql-classic-histogram-passthrough.json",
+            "promql_classic_histogram.csv",
+            "promql_classic_histogram-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset(
+            "promql_histogram_no_le",
+            "mapping-promql-histogram-no-le-passthrough.json",
+            "promql_histogram_no_le.csv",
+            "promql_histogram_no_le-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -259,13 +285,17 @@ public class CsvTestsDataLoader {
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
         new TestDataset("flattened_many"),
+        new TestDataset("flattened_keyed"),
+        new TestDataset("path_lookup").withSetting("lookup-settings.json"),
+        new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
+        new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 

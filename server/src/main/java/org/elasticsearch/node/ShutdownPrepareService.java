@@ -288,8 +288,8 @@ public class ShutdownPrepareService {
                         );
                     } else if (hasLocalParent) {
                         logger.info(
-                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible " +
-                                "(parent task is local but not found)",
+                            "Not requesting relocation for bulk-by-paginated-search task {} as not eligible "
+                                + "(parent task is local but not found)",
                             bulkByPaginatedSearchTask.getId()
                         );
                     } else if (parentTaskId.isSet()) {

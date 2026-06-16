@@ -249,5 +249,4 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             return hasValidLicense.get();
         }
     }
-
 }

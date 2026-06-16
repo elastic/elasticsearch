@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  * {@code 10^scale}, optionally replacing a configurable fraction of positions with
  * irrationals to exercise the ALP exception path.
  */
-public final class DecimalDoubleSupplier implements Supplier<long[]> {
+public final class AlpDecimalDoubleSupplier implements Supplier<long[]> {
 
     private final Random random;
     private final int size;
@@ -29,7 +29,7 @@ public final class DecimalDoubleSupplier implements Supplier<long[]> {
     private final long spread;
     private final double exceptionFraction;
 
-    private DecimalDoubleSupplier(Builder builder) {
+    private AlpDecimalDoubleSupplier(Builder builder) {
         this.random = new Random(builder.seed);
         this.size = builder.size;
         this.scale = builder.scale;
@@ -64,7 +64,7 @@ public final class DecimalDoubleSupplier implements Supplier<long[]> {
         return Long.SIZE - Long.numberOfLeadingZeros(midpoint + spread + 1);
     }
 
-    /** Builder for {@link DecimalDoubleSupplier}. */
+    /** Builder for {@link AlpDecimalDoubleSupplier}. */
     public static final class Builder {
         private final int seed;
         private final int size;
@@ -107,8 +107,8 @@ public final class DecimalDoubleSupplier implements Supplier<long[]> {
             return this;
         }
 
-        public DecimalDoubleSupplier build() {
-            return new DecimalDoubleSupplier(this);
+        public AlpDecimalDoubleSupplier build() {
+            return new AlpDecimalDoubleSupplier(this);
         }
     }
 }

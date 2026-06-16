@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.benchmark.index.codec.tsdb.internal.DecimalDoubleSupplier;
+import org.elasticsearch.benchmark.index.codec.tsdb.internal.AlpDecimalDoubleSupplier;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
@@ -103,7 +103,7 @@ public class DecodeAlpDoubleBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
-        final long[] template = DecimalDoubleSupplier.builder(SEED, blockSize)
+        final long[] template = AlpDecimalDoubleSupplier.builder(SEED, blockSize)
             .withScale(scale)
             .withMidpoint(10_000L)
             .withSpread(5_000L)

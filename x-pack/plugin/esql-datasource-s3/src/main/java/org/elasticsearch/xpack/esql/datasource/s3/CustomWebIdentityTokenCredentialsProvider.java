@@ -93,7 +93,7 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
         Function<String, String> envLookup
     ) {
         final String webIdentityTokenFileEnvVar = envLookup.apply(AWS_WEB_IDENTITY_TOKEN_FILE.name());
-        if (webIdentityTokenFileEnvVar == null) {
+        if (Strings.hasText(webIdentityTokenFileEnvVar) == false) {
             return;
         }
 
@@ -121,7 +121,7 @@ public class CustomWebIdentityTokenCredentialsProvider implements AwsCredentials
         }
 
         final String roleArn = envLookup.apply(AWS_ROLE_ARN.name());
-        if (roleArn == null) {
+        if (Strings.hasText(roleArn) == false) {
             LOGGER.warn(
                 """
                     Cannot use AWS Web Identity Tokens: AWS_WEB_IDENTITY_TOKEN_FILE is defined as [{}] but Elasticsearch requires \

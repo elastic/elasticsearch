@@ -86,6 +86,34 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         }
     }
 
+    public void testInactiveWhenWebIdentityTokenFileEnvVarBlank() throws IOException {
+        try (
+            CustomWebIdentityTokenCredentialsProvider provider = new CustomWebIdentityTokenCredentialsProvider(
+                environment,
+                Clock.systemUTC(),
+                resourceWatcherService,
+                env(Map.of("AWS_WEB_IDENTITY_TOKEN_FILE", "   ", "AWS_ROLE_ARN", ROLE_ARN))
+            )
+        ) {
+            assertFalse("blank AWS_WEB_IDENTITY_TOKEN_FILE must leave provider inactive", provider.isActive());
+        }
+    }
+
+    public void testInactiveWhenRoleArnBlank() throws IOException {
+        Path tokenFile = environment.configDir().resolve(WEB_IDENTITY_TOKEN_FILE_LOCATION);
+        Files.writeString(tokenFile, "fake-token");
+        try (
+            CustomWebIdentityTokenCredentialsProvider provider = new CustomWebIdentityTokenCredentialsProvider(
+                environment,
+                Clock.systemUTC(),
+                resourceWatcherService,
+                env(Map.of("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token", "AWS_ROLE_ARN", "   "))
+            )
+        ) {
+            assertFalse("blank AWS_ROLE_ARN must leave provider inactive", provider.isActive());
+        }
+    }
+
     public void testInactiveWhenSymlinkAbsent() throws IOException {
         try (
             CustomWebIdentityTokenCredentialsProvider provider = new CustomWebIdentityTokenCredentialsProvider(

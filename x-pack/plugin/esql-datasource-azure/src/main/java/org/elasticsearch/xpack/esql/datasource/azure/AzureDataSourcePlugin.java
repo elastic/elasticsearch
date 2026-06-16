@@ -14,13 +14,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderServices;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Data source plugin providing Azure Blob Storage support for ESQL.
@@ -32,19 +30,13 @@ import java.util.concurrent.atomic.AtomicReference;
  *   EXTERNAL "wasbs://account.blob.core.windows.net/container/path/data.parquet"
  *     WITH (account="myaccount", key="...", endpoint="https://myaccount.blob.core.windows.net")
  * </pre>
+ * <p>
+ * The node-level {@link Environment} needed to resolve the AKS Workload Identity token symlink
+ * ({@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token}) arrives through the
+ * {@link StorageProviderServices} threaded into {@link #storageProviders(StorageProviderServices)}.
+ * Without it the workload-identity chain is {@code ManagedIdentity}-only.
  */
 public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
-
-    /**
-     * Node-level {@link Environment} captured during {@link #createComponents}. Static (rather
-     * than instance) on purpose: {@link org.elasticsearch.xpack.esql.plugin.EsqlPlugin}'s
-     * {@code DataSourcePlugin} SPI creates its own {@link AzureDataSourcePlugin} instance via
-     * reflection (see {@code PluginsService#createExtension}), so the instance whose
-     * {@link #storageProviders} runs is NOT the same one whose {@code createComponents} got the
-     * {@link PluginServices}. Hoisting the reference to a static field lets both instances see
-     * the same {@code Environment} for resolving the AKS federated-token symlink.
-     */
-    private static final AtomicReference<Environment> ENVIRONMENT = new AtomicReference<>();
 
     @Override
     public Set<String> supportedSchemes() {
@@ -52,24 +44,13 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Collection<?> createComponents(PluginServices services) {
-        // Capture the node-level environment so we can resolve the AKS Workload Identity token
-        // symlink (${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token) when building
-        // BlobServiceClients. Without it the workload-identity chain is ManagedIdentity-only.
-        ENVIRONMENT.compareAndSet(null, services.environment());
-        return List.of();
-    }
-
-    @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
-        // Read the singleton inside the factory lambdas (not at method entry) so that a future
-        // call ordering where storageProviders runs before createComponents still picks up the
-        // environment on the next factory invocation, instead of permanently capturing null.
-        // See ENVIRONMENT javadoc.
+    public Map<String, StorageProviderFactory> storageProviders(StorageProviderServices services) {
+        Environment environment = services.environment();
+        ExecutorService executor = services.executor();
         StorageProviderFactory azureFactory = StorageProviderFactory.of(
-            () -> new AzureStorageProvider(null, ENVIRONMENT.get(), executor),
+            () -> new AzureStorageProvider(null, environment, executor),
             AzureConfiguration::fromQueryConfig,
-            cfg -> new AzureStorageProvider(cfg, ENVIRONMENT.get(), executor)
+            cfg -> new AzureStorageProvider(cfg, environment, executor)
         );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }

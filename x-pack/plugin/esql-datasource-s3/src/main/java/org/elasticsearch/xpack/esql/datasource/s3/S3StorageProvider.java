@@ -92,6 +92,14 @@ public class S3StorageProvider implements StorageProvider {
     // Owned only on the keyless workload-identity path; null otherwise. Closed by close().
     private final StsAsyncClient stsAsyncClient;
     private final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
+    /**
+     * Workload-identity credentials providers that this instance creates in
+     * {@link #workloadIdentityProviders()} and therefore owns: the {@link ContainerCredentialsProvider}
+     * and {@link InstanceProfileCredentialsProvider}, each of which opens a background credential-refresh
+     * resource. Closed by {@link #close()}. The IRSA provider is excluded — it is a node-level singleton
+     * owned by {@code S3DataSourcePlugin}.
+     */
+    private final List<SdkAutoCloseable> ownedWorkloadIdentityProviders = new ArrayList<>();
 
     /**
      * Test-friendly constructor: no IRSA web-identity provider available. Equivalent to
@@ -132,7 +140,13 @@ public class S3StorageProvider implements StorageProvider {
             success = true;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(asCloseable(sts), asCloseable(s3));
+                List<Closeable> closeables = new ArrayList<>(2 + ownedWorkloadIdentityProviders.size());
+                closeables.add(asCloseable(sts));
+                closeables.add(asCloseable(s3));
+                for (SdkAutoCloseable provider : ownedWorkloadIdentityProviders) {
+                    closeables.add(asCloseable(provider));
+                }
+                IOUtils.closeWhileHandlingException(closeables);
             }
         }
     }
@@ -334,10 +348,16 @@ public class S3StorageProvider implements StorageProvider {
     List<AwsCredentialsProvider> workloadIdentityProviders() {
         List<AwsCredentialsProvider> providers = new ArrayList<>(3);
         if (webIdentityTokenCredentialsProvider != null && webIdentityTokenCredentialsProvider.isActive()) {
+            // Node-level singleton owned by S3DataSourcePlugin; do NOT close it from this instance.
             providers.add(new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER));
         }
-        providers.add(ContainerCredentialsProvider.create());
-        providers.add(InstanceProfileCredentialsProvider.create());
+        // Created per S3StorageProvider, so this instance owns them and must close them in close().
+        ContainerCredentialsProvider containerCredentialsProvider = ContainerCredentialsProvider.create();
+        InstanceProfileCredentialsProvider instanceProfileCredentialsProvider = InstanceProfileCredentialsProvider.create();
+        ownedWorkloadIdentityProviders.add(containerCredentialsProvider);
+        ownedWorkloadIdentityProviders.add(instanceProfileCredentialsProvider);
+        providers.add(containerCredentialsProvider);
+        providers.add(instanceProfileCredentialsProvider);
         return providers;
     }
 
@@ -468,7 +488,14 @@ public class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(asCloseable(s3Client), asCloseable(s3AsyncClient), asCloseable(stsAsyncClient));
+        List<Closeable> closeables = new ArrayList<>(3 + ownedWorkloadIdentityProviders.size());
+        closeables.add(asCloseable(s3Client));
+        closeables.add(asCloseable(s3AsyncClient));
+        closeables.add(asCloseable(stsAsyncClient));
+        for (SdkAutoCloseable provider : ownedWorkloadIdentityProviders) {
+            closeables.add(asCloseable(provider));
+        }
+        IOUtils.close(closeables);
     }
 
     private String credentialHint() {

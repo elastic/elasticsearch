@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
  *   <li>a fixture-supplied auth token symlinked at the entitled config path
  *       ({@code ${ES_PATH_CONF}/esql-datasource-s3/eks-pod-identity-token}),</li>
  *   <li>{@code AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE} env var set so the plugin's
- *       {@code S3DataSourcePlugin#createComponents} sysprop redirect kicks in,</li>
+ *       {@code S3DataSourcePlugin#storageProviders} sysprop redirect kicks in on first use,</li>
  *   <li>{@code AWS_CONTAINER_CREDENTIALS_FULL_URI} env var pointing at the local
  *       {@link PodIdentityCredentialsHttpFixture} so {@code ContainerCredentialsProvider}
  *       resolves credentials against a fake endpoint instead of the real EKS Pod Identity Agent,</li>

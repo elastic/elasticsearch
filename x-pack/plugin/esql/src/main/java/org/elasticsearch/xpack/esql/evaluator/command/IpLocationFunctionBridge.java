@@ -61,9 +61,11 @@ public final class IpLocationFunctionBridge {
         private final String unavailableMessage;
         private final String midQueryUnavailableMessage;
         private final String expiredMessage;
-        // User-facing warning for lookup I/O failures. The raw IOException (database file/codec read errors, etc.)
-        // is internal and not actionable for query users, so we surface this fixed message and log the real
-        // exception at DEBUG in evaluate() instead.
+        /**
+         * User-facing warning for lookup I/O failures. The raw {@link IOException} (database file/codec read errors,
+         * etc.) is internal and not actionable for query users, so we surface this fixed message and log the real
+         * exception at {@code DEBUG} in {@link #evaluate(String)} instead.
+         */
         private final String ioFailureMessage;
 
         private final Map<Class<? extends Exception>, Set<String>> emittedWarningKeys = new HashMap<>();
@@ -147,13 +149,16 @@ public final class IpLocationFunctionBridge {
             }
         }
 
-        // registerException does not deduplicate (only the emitted HTTP header does, via HeaderWarning.addWarning), and
-        // each call consumes one of the bounded MAX_ADDED_WARNINGS slots. These failure messages can repeat per row, so
-        // we forward each distinct (exception type, message) only once: this both avoids the per-call string building and
-        // synchronized addWarning (bounded to the first MAX_ADDED_WARNINGS calls, after which registerException is a
-        // no-op) and keeps duplicates from exhausting the budget and crowding out other distinct warnings. We use
-        // registerException rather than the self-deduplicating registerWarning to keep the standard "evaluation failed,
-        // treating result as null" preamble and exception-class categorization shared by all other ES|QL failure warnings.
+        /**
+         * {@code registerException} does not deduplicate (only the emitted HTTP header does, via
+         * {@code HeaderWarning.addWarning}), and each call consumes one of the bounded {@code MAX_ADDED_WARNINGS} slots.
+         * These failure messages can repeat per row, so we forward each distinct (exception type, message) only once:
+         * this both avoids the per-call string building and synchronized {@code addWarning} (bounded to the first
+         * {@code MAX_ADDED_WARNINGS} calls, after which {@code registerException} is a no-op) and keeps duplicates from
+         * exhausting the budget and crowding out other distinct warnings. We use {@code registerException} rather than
+         * the self-deduplicating {@code registerWarning} to keep the standard "evaluation failed, treating result as
+         * null preamble and exception-class categorization shared by all other ES|QL failure warnings.
+         */
         private void registerOnce(Class<? extends Exception> cls, String message) {
             if (emittedWarningKeys.computeIfAbsent(cls, k -> new HashSet<>()).add(message)) {
                 warnings.registerException(cls, message);

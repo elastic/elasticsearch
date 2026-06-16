@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -230,7 +231,17 @@ public class IndexAgeEvictionPolicyTests extends ESTestCase {
     }
 
     private static CacheRegion<FileCacheKey> region(ShardId shardId, String file) {
-        return () -> new FileCacheKey(shardId, 1L, file);
+        return new CacheRegion<>() {
+            @Override
+            public FileCacheKey key() {
+                return new FileCacheKey(shardId, 1L, file);
+            }
+
+            @Override
+            public long timestampMillis() {
+                return UNKNOWN_TIMESTAMP;
+            }
+        };
     }
 
     private static long[] randomOlderAndRecentCreationDates() {

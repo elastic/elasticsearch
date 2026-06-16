@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
-import org.apache.lucene.internal.hppc.IntDoubleHashMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -292,27 +291,6 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {
-        return new SortedNumericDoubleValues(null) {
-
-            final IntDoubleHashMap docIdToValue = IntDoubleHashMap.from(docIdBuffer.toArray(), values);
-
-            int currentDocId = -1;
-
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                currentDocId = target;
-                return docIdToValue.containsKey(target);
-            }
-
-            @Override
-            public double nextValue() throws IOException {
-                return docIdToValue.get(currentDocId);
-            }
-
-            @Override
-            public int docValueCount() {
-                return 1;
-            }
-        };
+        return withDocIdIterator(docIdBuffer, values);
     }
 }

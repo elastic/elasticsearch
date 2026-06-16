@@ -22,6 +22,10 @@ final class SortedNumericDoubleValuesTestUtils {
         return create(docIdsWithValues, true, values);
     }
 
+    static SortedNumericDoubleValues withoutDocIdIterator(IntArrayList docIdsWithValues, double... values) {
+        return create(docIdsWithValues, false, values);
+    }
+
     static TrackingSortedNumericDoubleValues trackingWithDocIdIterator(IntArrayList docIdsWithValues, double... values) {
         if (docIdsWithValues.size() != values.length) {
             throw new IllegalArgumentException("doc ids and values must have the same length");

@@ -213,6 +213,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
+required_capability: fix_promql_without_output
 PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
 | SORT result;
 

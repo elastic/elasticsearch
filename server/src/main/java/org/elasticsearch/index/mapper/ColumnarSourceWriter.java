@@ -135,7 +135,8 @@ final class ColumnarSourceWriter {
 
             @Override
             public FieldInfo fieldInfo(String fieldName) {
-                // It is ok to return null here, since this will be used by DocValues#checkField(...) to return an empty doc values instance.
+                // It is ok to return null here, since this will be used by DocValues#checkField(...) to return an empty doc values
+                // instance.
                 return null;
             }
 
@@ -412,7 +413,6 @@ final class ColumnarSourceWriter {
                 false
             );
         }
-
 
         // -------------------------------------------------------------------------
         // Minimal required overrides

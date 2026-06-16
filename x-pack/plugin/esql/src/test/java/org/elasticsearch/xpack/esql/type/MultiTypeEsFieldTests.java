@@ -174,13 +174,11 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
             fieldName,
             Map.of(DataType.SHORT.typeName(), Set.of("short-index"), DataType.INTEGER.typeName(), Set.of("int-index"))
         );
-        Expression shortToLong = testConvertExpression(fieldName, DataType.SHORT, DataType.LONG);
-        Expression integerToLong = testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG);
         Map<String, Expression> typeToConversionExpressions = Map.of(
             DataType.SHORT.typeName(),
-            shortToLong,
+            testConvertExpression(fieldName, DataType.SHORT, DataType.LONG),
             DataType.INTEGER.typeName(),
-            integerToLong
+            testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG)
         );
 
         MultiTypeEsField resolved = MultiTypeEsField.resolveFrom(typeConflictedField, typeToConversionExpressions);
@@ -190,8 +188,8 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
 
         assertEquals(DataType.LONG, resolved.getDataType());
         assertThat(shortIndexExpression, instanceOf(ToLong.class));
-        assertThat(intIndexExpression, instanceOf(ToLong.class));
         assertThat(((ToLong) shortIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
+        assertThat(intIndexExpression, instanceOf(ToLong.class));
         assertThat(((ToLong) intIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
     }
 }

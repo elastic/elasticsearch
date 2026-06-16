@@ -34,7 +34,6 @@ import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.After;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,14 +63,6 @@ public class DataStreamLifecycleDownsampleIT extends DownsamplingIntegTestCase {
         settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
         settings.put(DataStreamLifecycleService.DATA_STREAM_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_SETTING.getKey(), "1");
         return settings.build();
-    }
-
-    @After
-    public void cleanUp() {
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().putNull(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL))
-        );
     }
 
     @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")

@@ -58,7 +58,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
         super.setUp();
         this.threadPool = new TestThreadPool("test-dlm-frozen-transition-executor");
         Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING);
+        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
         this.clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             DiscoveryNodeUtils.create("node", "node"),

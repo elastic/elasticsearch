@@ -112,10 +112,10 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     // visible for testing
     void checkForFrozenIndices() {
-        if (transitionSettings.isTransitionDisabled()) {
+        if (transitionSettings.isTransitionEnabled() == false) {
             logger.debug(
                 "DLM frozen transition is disabled via [{}], skipping scan",
-                DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING.getKey()
+                DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey()
             );
             return;
         }

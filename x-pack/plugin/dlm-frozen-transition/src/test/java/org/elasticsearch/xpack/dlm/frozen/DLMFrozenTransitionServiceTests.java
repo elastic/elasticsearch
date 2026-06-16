@@ -99,7 +99,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     public void setupTest() {
         Set<org.elasticsearch.common.settings.Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING);
+        settingSet.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
         threadPool = new TestThreadPool(
             getTestName(),
             new FixedExecutorBuilder(
@@ -363,7 +363,7 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     public void testAlreadyQueuedIndexIsNotResubmitted() throws Exception {
         Set<org.elasticsearch.common.settings.Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allSettings.add(DLMFrozenTransitionService.POLL_INTERVAL_SETTING);
-        allSettings.add(DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING);
+        allSettings.add(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING);
         TestThreadPool localThreadPool = new TestThreadPool(
             "test-dlm-frozen-transition-single-thread",
             new FixedExecutorBuilder(
@@ -432,18 +432,18 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     }
 
     /**
-     * When {@link DLMFrozenTransitionSettings#TRANSITION_DISABLED_SETTING} is {@code true}, {@code checkForFrozenIndices} must return
+     * When {@link DLMFrozenTransitionSettings#TRANSITION_ENABLED_SETTING} is {@code false}, {@code checkForFrozenIndices} must return
      * without submitting any work, even when marked indices are present in cluster state.
      */
     public void testDisabledSettingPreventsSubmission() throws Exception {
         // Set up cluster state first so that the implicit applySettings({}) from setState does not
-        // reset the kill switch after we enable it.
+        // reset the kill switch after we disable transitions.
         ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(randomProjectIdOrDefault());
         addDataStream(projectBuilder, "frozen-ds", createMarkedIndex("frozen-ds"));
         setProjectState(projectBuilder);
 
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING.getKey(), true).build());
+            .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
 
         List<String> submittedIndices = new CopyOnWriteArrayList<>();
         var service = new DLMFrozenTransitionService(clusterService, (indexName, pid) -> {
@@ -461,8 +461,8 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
     }
 
     /**
-     * When the kill switch is flipped on at runtime, {@code checkForFrozenIndices} stops submitting new transitions, but a transition
-     * that is already executing must run to completion. Specifically, the kill switch must NOT route through
+     * When transitions are disabled at runtime, {@code checkForFrozenIndices} stops submitting new transitions, but a transition that
+     * is already executing must run to completion. Specifically, the kill switch must NOT route through
      * {@link DLMFrozenTransitionExecutor#stop()} which would cancel in-flight tasks via
      * {@link java.util.concurrent.Future#cancel(boolean)}.
      */
@@ -484,10 +484,10 @@ public class DLMFrozenTransitionServiceTests extends ESTestCase {
             safeAwait(firstTaskStarted);
             assertEquals(1, submittedIndices.size());
 
-            // Flip the kill switch. No setState calls follow, so the setting stays set.
+            // Disable transitions. No setState calls follow, so the setting stays set.
             clusterService.getClusterSettings()
-                .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_DISABLED_SETTING.getKey(), true).build());
-            assertTrue(transitionSettings.isTransitionDisabled());
+                .applySettings(Settings.builder().put(DLMFrozenTransitionSettings.TRANSITION_ENABLED_SETTING.getKey(), false).build());
+            assertFalse(transitionSettings.isTransitionEnabled());
 
             // Release the in-flight task. Once it completes, frozen-ds-1 is removed from
             // submittedTransitions and capacity is available — without the kill switch it would be

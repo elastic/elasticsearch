@@ -15,19 +15,19 @@ import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 public class DLMFrozenTransitionSettings {
 
     /**
-     * When {@code true}, {@link DLMFrozenTransitionService} will not submit any new frozen-tier
+     * When {@code false}, {@link DLMFrozenTransitionService} will not submit any new frozen-tier
      * transitions to the executor. In-flight transitions that are already running will continue
      * to completion; only the submission of new work is suppressed.
      */
-    public static final Setting<Boolean> TRANSITION_DISABLED_SETTING = Setting.boolSetting(
-        "dlm.frozen_transition.disabled",
-        false,
+    public static final Setting<Boolean> TRANSITION_ENABLED_SETTING = Setting.boolSetting(
+        "dlm.frozen_transitions.enabled",
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     private volatile int errorRetryInterval;
-    private volatile boolean transitionDisabled;
+    private volatile boolean transitionEnabled;
 
     /**
      * Sets internal settings to their initial values
@@ -35,7 +35,7 @@ public class DLMFrozenTransitionSettings {
      */
     public DLMFrozenTransitionSettings(Settings settings) {
         this.errorRetryInterval = DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.get(settings);
-        this.transitionDisabled = TRANSITION_DISABLED_SETTING.get(settings);
+        this.transitionEnabled = TRANSITION_ENABLED_SETTING.get(settings);
     }
 
     /**
@@ -59,15 +59,15 @@ public class DLMFrozenTransitionSettings {
                 DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
                 this::updateErrorInterval
             );
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_DISABLED_SETTING, this::updateTransitionDisabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TRANSITION_ENABLED_SETTING, this::updateTransitionEnabled);
     }
 
     private void updateErrorInterval(int newInterval) {
         this.errorRetryInterval = newInterval;
     }
 
-    private void updateTransitionDisabled(boolean disabled) {
-        this.transitionDisabled = disabled;
+    private void updateTransitionEnabled(boolean enabled) {
+        this.transitionEnabled = enabled;
     }
 
     /**
@@ -79,11 +79,11 @@ public class DLMFrozenTransitionSettings {
     }
 
     /**
-     * @return {@code true} when the kill switch is active and no new frozen-tier transitions should
-     *         be submitted. In-flight transitions already executing are unaffected.
-     * @see #TRANSITION_DISABLED_SETTING
+     * @return {@code true} when new frozen-tier transitions should be submitted. In-flight transitions
+     *         already executing are unaffected when this is set to {@code false}.
+     * @see #TRANSITION_ENABLED_SETTING
      */
-    public boolean isTransitionDisabled() {
-        return transitionDisabled;
+    public boolean isTransitionEnabled() {
+        return transitionEnabled;
     }
 }

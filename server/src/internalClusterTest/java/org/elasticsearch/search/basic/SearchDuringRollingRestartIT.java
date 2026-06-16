@@ -131,7 +131,7 @@ public class SearchDuringRollingRestartIT extends ESIntegTestCase {
             assertThat(
                 "shard accounting drift: " + response,
                 response.getTotalShards(),
-                equalTo(response.getSuccessfulShards() + response.getFailedShards())
+                equalTo(response.getSuccessfulShards() + response.getFailedShards() + response.getSkippedShards())
             );
             if (response.getFailedShards() == 0) {
                 assertThat(response.getHits().getHits().length, equalTo(expectedReturnedHits));

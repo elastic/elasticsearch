@@ -395,9 +395,9 @@ public final class LocalTestWorkloadIdentityIssuer {
             if (eq <= 0 || eq == spec.length() - 1) {
                 throw new IllegalArgumentException("--token-for expects <aud>=<file>, got: " + spec + "\n\n" + helpText());
             }
-        final String audience = spec.substring(0, eq);
-        final Path file = PathUtils.get(spec.substring(eq + 1));
-        args.tokenFiles.put(audience, file);
+            final String audience = spec.substring(0, eq);
+            final Path file = PathUtils.get(spec.substring(eq + 1));
+            args.tokenFiles.put(audience, file);
         }
 
         private static String requireValue(String[] argv, int i, String flag) {

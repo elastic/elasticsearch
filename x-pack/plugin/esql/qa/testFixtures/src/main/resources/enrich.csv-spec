@@ -668,6 +668,7 @@ Fyodor Dostoevsky     |1211           |null             |null          |null    
 
 
 statsAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -684,6 +685,7 @@ messages:long | language_name:keyword
 
 
 enrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -701,6 +703,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 coordinatorEnrichAfterRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -718,6 +721,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleRemoteEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -735,6 +739,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 enrichAfterCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data
@@ -752,6 +757,7 @@ Connected to 10.1.0.1 | 1                     | English                     | En
 
 
 doubleCoordinatorEnrich
+skip_flattened_rewrite: enrich_output_type_mismatch
 required_capability: enrich_load
 
 FROM sample_data

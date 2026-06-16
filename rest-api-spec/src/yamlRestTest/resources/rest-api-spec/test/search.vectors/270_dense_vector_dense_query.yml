@@ -183,6 +183,22 @@ setup:
                 dims: 5
                 index: false
 
+  # dv_unindexed_byte mirrors dv_byte's vectors so l2_norm override scoring can be compared against the
+  # indexed equivalent (different code path: binary doc values vs KNN byte vector values).
+  - do:
+      indices.create:
+        index: dv_unindexed_byte
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: byte
+                dims: 5
+                index: false
+
   # dv_unindexed_bit mirrors dv_bit's vectors, to compare Hamming scoring against the indexed equivalent.
   - do:
       indices.create:
@@ -407,6 +423,23 @@ setup:
         id: "3"
         body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
 
+  # dv_unindexed_byte mirrors dv_byte exactly.
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "1"
+        body: { name: cow.jpg,    vector: [10, -20, 30, -40, 50] }
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "2"
+        body: { name: moose.jpg,  vector: [-10, 20, -30, 40, -50] }
+  - do:
+      index:
+        index: dv_unindexed_byte
+        id: "3"
+        body: { name: rabbit.jpg, vector: [5, -10, 15, -20, 25] }
+
   # dv_unindexed_bit mirrors dv_bit exactly.
   - do:
       index:
@@ -595,6 +628,28 @@ setup:
               query_vector: [2, -1, 1, 4, -3]
               similarity_function: cosine
 
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: dot_product
+
+  - do:
+      catch: bad_request
+      search:
+        index: dv_bit
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [2, -1, 1, 4, -3]
+              similarity_function: max_inner_product
+
 ---
 "similarity_function and quantized: true are mutually exclusive":
   - do:
@@ -745,6 +800,67 @@ setup:
   - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
 
 ---
+"similarity_function override on int4_hnsw":
+  # Same denormalization path as int8_hnsw: the override reconstructs the original vectors via the stored
+  # per-doc magnitude, then applies EUCLIDEAN directly against the full-precision preserved floats.
+  - do:
+      search:
+        index: dv_int4_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [0.4,0.5,…] to original doc 3 [0.5,0.5,…] = 0.01 → score = 1/1.01 ≈ 0.990.
+  - close_to: {hits.hits.0._score: {value: 0.990, error: 0.01}}
+
+---
+"similarity_function override on bbq_hnsw":
+  # Override the cosine-mapped bbq_hnsw index to l2_norm using a query at half the magnitude of doc 3.
+  # Cosine is scale-invariant (score ≈ 1.0), but EUCLIDEAN on the reconstructed original gives
+  # 1/(1 + 0.25·||doc3||²) ≈ 0.375 — clearly different, proving the override drove scoring.
+  - do:
+      search:
+        index: dv_bbq_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.0695,  0.089 , -0.0585,  0.1995,  0.007 , -0.0695,  0.1735, -0.165 ,
+                             0.0695,  0.170 , -0.026 , -0.026 , -0.1245,  0.1635, -0.144 ,  0.0245,
+                             0.232 ,  0.169 ,  0.258 ,  0.1235, -0.052 ,  0.1295, -0.1045, -0.123 ,
+                             -0.055 ,  0.1615,  0.0455,  0.221 , -0.127 ,  0.0975, -0.0545, -0.029 ,
+                             -0.1395,  0.201 , -0.0535,  0.154 , -0.1365,  0.0095,  0.041 ,  0.1995,
+                             -0.329 , -0.015 ,  0.138 ,  0.0205,  0.0935, -0.1655,  0.0825,  0.0085,
+                             0.0855, -0.1015, -0.099 ,  0.0575, -0.0035,  0.1685, -0.222 ,  0.3075,
+                             -0.3415,  0.6655,  0.097 , -0.0785, -0.05  , -0.1395, -0.049 , -0.088 ]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # query = 0.5·doc3_original → dist² = 0.25·||doc3||² ≈ 0.25·6.655 = 1.664 → score ≈ 1/2.664 ≈ 0.375.
+  # BBQ scoring uses the preserved full-precision floats (not the 1-bit representation), so error is small.
+  - close_to: {hits.hits.0._score: {value: 0.375, error: 0.05}}
+
+---
+"similarity_function override on a byte field":
+  # Byte vectors go through a separate code path (createExactKnnByteQuery / RawByteVectorScorer).
+  # Override the dot_product-indexed byte field with l2_norm; EUCLIDEAN is applied directly to the stored
+  # integer byte values with no denormalization (no magnitude is stored for byte fields).
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: {hits.hits.0._id: "3"}
+  # dist² from query [4,-10,15,-20,25] to doc 3 [5,-10,15,-20,25] = 1 → score = 1/(1+1) = 0.5.
+  - close_to: {hits.hits.0._score: {value: 0.5, error: 0.000001}}
+
+---
 "dense_vector raw scoring on a non-indexed field matches the indexed equivalent":
   # A non-indexed field stores vectors as binary doc values and has no configured similarity, so the query
   # supplies l2_norm. The raw scores must match the indexed flat field (same vectors, same metric).
@@ -803,6 +919,41 @@ setup:
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: $bf16_top_id }
   - close_to: {hits.hits.0._score: {value: $bf16_indexed_score_0, error: 0.000001}}
+
+---
+"dense_vector raw scoring on a non-indexed byte field matches the indexed equivalent":
+  # A non-indexed byte field decodes stored binary doc values and applies the supplied similarity function.
+  # Scores must match the indexed dv_byte field under the same l2_norm override (both use RawByteVectorScorer
+  # / DocValuesByteVectorScorer with EUCLIDEAN on the raw integer byte values).
+  - do:
+      search:
+        index: dv_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: byte_top_id }
+  - set: { hits.hits.0._score: byte_indexed_score_0 }
+  - set: { hits.hits.1._score: byte_indexed_score_1 }
+  - set: { hits.hits.2._score: byte_indexed_score_2 }
+
+  - do:
+      search:
+        index: dv_unindexed_byte
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [4, -10, 15, -20, 25]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $byte_top_id }
+  - close_to: {hits.hits.0._score: {value: $byte_indexed_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $byte_indexed_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $byte_indexed_score_2, error: 0.000001}}
 
 ---
 "dense_vector on a non-indexed field defaults to cosine when no similarity_function is given":

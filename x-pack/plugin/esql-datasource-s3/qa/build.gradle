@@ -37,7 +37,7 @@ tasks.named('javaRestTestTestingConventions').configure {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution("to be triaged")
+  usesDefaultDistribution("esql-datasource-s3 is bundled only in the default distribution")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild
 

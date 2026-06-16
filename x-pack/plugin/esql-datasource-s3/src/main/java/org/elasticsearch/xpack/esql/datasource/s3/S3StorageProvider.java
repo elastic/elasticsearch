@@ -185,9 +185,15 @@ public class S3StorageProvider implements StorageProvider {
         // effect; RCVBUF_ALLOCATOR is the closest knob the SDK leaves untouched as of
         // netty-nio-client 2.31.x. Re-verify this assumption when bumping the AWS SDK version. See
         // PooledRecvByteBufAllocator for the full rationale.
-        NettyNioAsyncHttpClient.Builder httpClient = NettyNioAsyncHttpClient.builder()
-            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT);
-        return configureCommon(S3AsyncClient.builder(), config, credentials).httpClient(httpClient.build()).build();
+        var httpClient = NettyNioAsyncHttpClient.builder()
+            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+            .build();
+        try {
+            return configureCommon(S3AsyncClient.builder(), config, credentials).httpClient(httpClient).build();
+        } catch (Exception e) {
+            IOUtils.closeWhileHandlingException(asCloseable(httpClient));
+            throw e;
+        }
     }
 
     /**
@@ -282,7 +288,8 @@ public class S3StorageProvider implements StorageProvider {
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
                 + "WITH (auth = 'none') for public buckets, "
-                + "WITH (auth = 'workload_identity') to use the node's instance role (requires cluster setting), "
+                + "WITH (auth = 'workload_identity') to use the node's instance role "
+                + "(requires the esql.datasource.workload_identity.enabled cluster setting), "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)"
         );
     }
@@ -308,9 +315,11 @@ public class S3StorageProvider implements StorageProvider {
      */
     protected AwsCredentialsProvider buildWorkloadIdentityCredentialsProvider() {
         return AwsCredentialsProviderChain.builder()
-            // Refresh -> retry every link rather than caching the first successful provider for
-            // the lifetime of the chain. This matches repository-s3 and is necessary because the
-            // file-watcher-driven IRSA provider can transition between active/inactive states.
+            // Re-resolve through every link on each request instead of pinning the chain to the
+            // first provider that ever succeeded. This matches repository-s3 and is needed so that
+            // (a) the IRSA provider's short-lived STS credentials are refreshed/re-read, and (b) a
+            // transient failure that caused fallback to a lower-priority provider does not become
+            // permanent once the preferred provider recovers.
             .reuseLastProviderEnabled(false)
             .credentialsProviders(workloadIdentityProviders())
             .build();
@@ -463,7 +472,11 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
+        if (config == null
+            || (config.isAnonymous() == false
+                && config.hasCredentials() == false
+                && config.hasKeylessAuth() == false
+                && config.isWorkloadIdentity() == false)) {
             return ". If accessing a public bucket, use WITH (auth = 'none'). "
                 + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') "
                 + "or configure keyless authentication settings (role_arn, jwt_audience)";
@@ -471,7 +484,7 @@ public class S3StorageProvider implements StorageProvider {
         return "";
     }
 
-    private void validateS3Scheme(StoragePath path) {
+    private static void validateS3Scheme(StoragePath path) {
         String scheme = path.scheme().toLowerCase(Locale.ROOT);
         if (scheme.equals("s3") == false && scheme.equals("s3a") == false && scheme.equals("s3n") == false) {
             throw new IllegalArgumentException("S3StorageProvider only supports s3://, s3a://, and s3n:// schemes, got: " + scheme);
@@ -511,7 +524,6 @@ public class S3StorageProvider implements StorageProvider {
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
         private boolean hasMorePages;
-        private boolean initialized;
 
         S3StorageIterator(S3Client s3Client, String bucket, String prefix, StoragePath baseDirectory) {
             this.s3Client = s3Client;
@@ -519,14 +531,12 @@ public class S3StorageProvider implements StorageProvider {
             this.prefix = prefix;
             this.baseDirectory = baseDirectory;
             this.hasMorePages = true;
-            this.initialized = false;
         }
 
         @Override
         public boolean hasNext() {
-            if (initialized == false) {
+            if (currentBatch == null) {
                 fetchNextBatch();
-                initialized = true;
             }
 
             if (currentBatch != null && currentBatch.hasNext()) {

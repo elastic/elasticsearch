@@ -16,6 +16,7 @@ import com.azure.storage.blob.models.BlobItemProperties;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -28,8 +29,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -312,13 +316,16 @@ public class AzureStorageProviderTests extends ESTestCase {
         );
     }
 
-    public void testAksWorkloadIdentityInactiveWhenSymlinkAbsent() throws IOException {
+    public void testAksWorkloadIdentityThrowsWhenSymlinkAbsent() throws IOException {
         Environment env = newTestEnvironment();
         Files.createDirectories(env.configDir().resolve("esql-datasource-azure"));
         AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
-        assertNull(
-            "AKS env triple set but entitled symlink absent must fall back to ManagedIdentity-only",
-            provider.maybeBuildAksWorkloadIdentityCredential(
+        // The AKS env triple means the operator intended workload identity; a missing entitled
+        // symlink is a misconfiguration that must fail loudly rather than silently degrade to a
+        // ManagedIdentityCredential that re-enters the entitlement-blocked K8s token path.
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> provider.maybeBuildAksWorkloadIdentityCredential(
                 env(
                     Map.of(
                         "AZURE_FEDERATED_TOKEN_FILE",
@@ -331,6 +338,7 @@ public class AzureStorageProviderTests extends ESTestCase {
                 )
             )
         );
+        assertThat(e.getMessage(), containsString("is missing"));
     }
 
     public void testAksWorkloadIdentityActiveWhenFullyConfigured() throws IOException {
@@ -353,6 +361,42 @@ public class AzureStorageProviderTests extends ESTestCase {
         );
         assertNotNull("fully configured AKS env triple must produce a TokenCredential", credential);
         assertThat(credential.getClass().getName(), org.hamcrest.Matchers.containsString("WorkloadIdentityCredential"));
+    }
+
+    public void testAksWorkloadIdentityThrowsWhenSymlinkUnreadable() throws IOException {
+        // POSIX permissions are required for this test; skip on filesystems that don't honor them
+        // (e.g. native Windows). The plugin only ships on Linux/macOS in production.
+        assumeTrue("requires POSIX file permissions", PathUtils.getDefaultFileSystem().supportedFileAttributeViews().contains("posix"));
+        Environment env = newTestEnvironment();
+        Path tokenFile = env.configDir().resolve(AzureStorageProvider.AKS_FEDERATED_TOKEN_FILE_LOCATION);
+        Files.createDirectories(tokenFile.getParent());
+        Files.writeString(tokenFile, "fake-federated-token");
+        try {
+            Files.setPosixFilePermissions(tokenFile, EnumSet.noneOf(PosixFilePermission.class));
+            // chmod 000 can still leave the file readable for the owning user on some filesystems
+            // (e.g. macOS APFS when the test runs as root); skip if the permission did not stick.
+            assumeTrue("filesystem honors chmod 000", Files.isReadable(tokenFile) == false);
+
+            AzureStorageProvider provider = new AzureStorageProvider((AzureConfiguration) null, env, null);
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> provider.maybeBuildAksWorkloadIdentityCredential(
+                    env(
+                        Map.of(
+                            "AZURE_FEDERATED_TOKEN_FILE",
+                            "/var/run/secrets/azure/tokens/azure-identity-token",
+                            "AZURE_CLIENT_ID",
+                            "cid",
+                            "AZURE_TENANT_ID",
+                            "tid"
+                        )
+                    )
+                )
+            );
+            assertThat(e.getMessage(), containsString("not readable"));
+        } finally {
+            Files.setPosixFilePermissions(tokenFile, PosixFilePermissions.fromString("rw-------"));
+        }
     }
 
     private static Environment newTestEnvironment() {

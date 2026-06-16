@@ -27,8 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -88,8 +86,6 @@ import java.util.function.Function;
  * credential sources blocked by entitlements.
  */
 public final class AzureStorageProvider implements StorageProvider {
-
-    private static final Logger LOGGER = LogManager.getLogger(AzureStorageProvider.class);
 
     /** Operator-managed AKS Workload Identity token symlink, relative to {@code ${ES_PATH_CONF}}. */
     public static final String AKS_FEDERATED_TOKEN_FILE_LOCATION = "esql-datasource-azure/azure-federated-token";
@@ -162,7 +158,12 @@ public final class AzureStorageProvider implements StorageProvider {
      *       {@code ${ES_PATH_CONF}/esql-datasource-azure/azure-federated-token} exists and is
      *       readable.</li>
      * </ol>
-     * Returns {@code null} otherwise so the caller can fall back to {@code ManagedIdentity}-only.
+     * Returns {@code null} when the {@link Environment} or the AKS env triple is absent, so the
+     * caller can fall back to {@code ManagedIdentity}-only (the plain Azure VM / IMDS case).
+     * Throws {@link IllegalStateException} when the AKS env triple is present but the entitled
+     * symlink is missing or unreadable: the env triple means the operator deliberately enabled AKS
+     * Workload Identity, so a misconfigured token fails loudly rather than silently degrading to a
+     * different identity (mirrors the esql-datasource-s3 IRSA provider).
      *
      * <p>The K8s-injected path in {@code AZURE_FEDERATED_TOKEN_FILE} is ignored on purpose: it
      * lives outside the entitlement-allowlisted area and would be blocked at runtime. Operators
@@ -186,22 +187,32 @@ public final class AzureStorageProvider implements StorageProvider {
         if (Strings.hasText(federatedTokenEnvVar) == false || Strings.hasText(clientId) == false || Strings.hasText(tenantId) == false) {
             return null;
         }
+        // The AKS env triple is the AKS Workload Identity webhook's signature: its presence means the
+        // operator deliberately wired up workload identity. A missing or unreadable entitled symlink
+        // is therefore a misconfiguration. Fail loudly rather than returning null and silently
+        // degrading to ManagedIdentityCredential, which auto-detects AZURE_FEDERATED_TOKEN_FILE and
+        // re-enters the entitlement-blocked K8s path, surfacing as a misleading "Managed Identity
+        // not available" error. (Mirrors the esql-datasource-s3 IRSA provider's hard-fail.)
         Path tokenPath = environment.configDir().resolve(AKS_FEDERATED_TOKEN_FILE_LOCATION);
         if (Files.exists(tokenPath) == false) {
-            LOGGER.warn(
-                "AKS Workload Identity env triple is set (AZURE_FEDERATED_TOKEN_FILE=[{}]) but the entitled symlink [{}] is missing; "
-                    + "falling back to ManagedIdentityCredential",
-                federatedTokenEnvVar,
-                tokenPath
+            throw new IllegalStateException(
+                Strings.format(
+                    "Cannot use AKS Workload Identity: the AKS env triple is set (AZURE_FEDERATED_TOKEN_FILE=[%s]) but the entitled "
+                        + "symlink [%s] is missing. Create it to point at the projected service-account token.",
+                    federatedTokenEnvVar,
+                    tokenPath
+                )
             );
-            return null;
         }
         if (Files.isReadable(tokenPath) == false) {
-            LOGGER.warn(
-                "AKS Workload Identity entitled symlink [{}] exists but is not readable; falling back to ManagedIdentityCredential",
-                tokenPath
+            throw new IllegalStateException(
+                Strings.format(
+                    "Cannot use AKS Workload Identity: the AKS env triple is set (AZURE_FEDERATED_TOKEN_FILE=[%s]) but the entitled "
+                        + "symlink [%s] exists and is not readable.",
+                    federatedTokenEnvVar,
+                    tokenPath
+                )
             );
-            return null;
         }
         WorkloadIdentityCredentialBuilder workloadIdentityBuilder = new WorkloadIdentityCredentialBuilder().clientId(clientId)
             .tenantId(tenantId)
@@ -255,10 +266,11 @@ public final class AzureStorageProvider implements StorageProvider {
         } else if (config != null && config.isWorkloadIdentity()) {
             // Workload-identity selection (NOT a chain: only one of these makes sense at a time).
             //
-            // 1. If the AKS Workload Identity env triple is present AND the entitled
-            // federated-token symlink is readable, use WorkloadIdentityCredential pinned to
-            // the entitled symlink. We deliberately ignore AZURE_FEDERATED_TOKEN_FILE so the
-            // K8s-injected path stays out of the entitlement allowlist.
+            // 1. If the AKS Workload Identity env triple is present, use WorkloadIdentityCredential
+            // pinned to the entitled symlink (maybeBuildAksWorkloadIdentityCredential hard-fails if
+            // the env triple is set but the symlink is missing/unreadable). We deliberately ignore
+            // AZURE_FEDERATED_TOKEN_FILE so the K8s-injected path stays out of the entitlement
+            // allowlist.
             //
             // Crucially we do NOT also add ManagedIdentityCredential here:
             // ManagedIdentityCredentialBuilder auto-detects AZURE_FEDERATED_TOKEN_FILE itself
@@ -266,8 +278,8 @@ public final class AzureStorageProvider implements StorageProvider {
             // entitlement and surfacing as a misleading "Managed Identity authentication is
             // not available" error. WorkloadIdentityCredential already covers the AKS case.
             //
-            // 2. Otherwise (no AKS env triple, no entitled symlink), fall back to
-            // ManagedIdentityCredential — covers Azure IMDS, the v1 surface.
+            // 2. Otherwise (no AKS env triple at all) fall back to ManagedIdentityCredential —
+            // covers Azure IMDS, the v1 surface.
             //
             // EnvironmentCredential is intentionally excluded: it reads AZURE_CLIENT_* env vars,
             // which are a dev/CI convention and open a JVM-global-state override on production
@@ -442,7 +454,11 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
+        if (config == null
+            || (config.isAnonymous() == false
+                && config.hasCredentials() == false
+                && config.hasKeylessAuth() == false
+                && config.isWorkloadIdentity() == false)) {
             return ". If accessing a public container, use WITH (auth = 'none'). "
                 + "Otherwise, provide credentials via WITH (account = '...', key = '...'), configure keyless "
                 + "authentication settings, or set Azure environment variables";
@@ -460,18 +476,26 @@ public final class AzureStorageProvider implements StorageProvider {
         Clients c = clients;
         clients = null;
         if (c != null) {
+            IOException primaryException = null;
             try {
                 closeHttpClient(c.sync().getHttpPipeline().getHttpClient());
             } catch (Exception e) {
-                throw new IOException("Failed to close Azure BlobServiceClient", e);
-            } finally {
-                if (c.async() != null) {
-                    try {
-                        closeHttpClient(c.async().getHttpPipeline().getHttpClient());
-                    } catch (Exception e) {
-                        throw new IOException("Failed to close Azure BlobServiceAsyncClient", e);
+                primaryException = new IOException("Failed to close Azure BlobServiceClient", e);
+            }
+            if (c.async() != null) {
+                try {
+                    closeHttpClient(c.async().getHttpPipeline().getHttpClient());
+                } catch (Exception e) {
+                    IOException asyncException = new IOException("Failed to close Azure BlobServiceAsyncClient", e);
+                    if (primaryException != null) {
+                        primaryException.addSuppressed(asyncException);
+                    } else {
+                        primaryException = asyncException;
                     }
                 }
+            }
+            if (primaryException != null) {
+                throw primaryException;
             }
         }
     }
@@ -635,12 +659,9 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             fullPath.append(name);
             StoragePath objectPath = StoragePath.of(fullPath.toString());
-            Instant lastModified = item.getProperties() != null && item.getProperties().getLastModified() != null
-                ? item.getProperties().getLastModified().toInstant()
-                : null;
-            long size = item.getProperties() != null && item.getProperties().getContentLength() != null
-                ? item.getProperties().getContentLength()
-                : 0L;
+            var props = item.getProperties();
+            Instant lastModified = props != null && props.getLastModified() != null ? props.getLastModified().toInstant() : null;
+            long size = props != null && props.getContentLength() != null ? props.getContentLength() : 0L;
             return new StorageEntry(objectPath, size, lastModified);
         }
 

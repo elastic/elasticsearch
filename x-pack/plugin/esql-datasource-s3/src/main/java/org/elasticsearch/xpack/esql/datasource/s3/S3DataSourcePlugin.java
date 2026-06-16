@@ -112,14 +112,20 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
         String entitledPath = services.environment().configDir().resolve(POD_IDENTITY_TOKEN_FILE_LOCATION).toString();
         String existing = System.getProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property());
         if (existing != null && existing.equals(entitledPath) == false) {
-            // Some other component already pinned the SDK to a different path. Don't fight it; warn instead.
-            LOGGER.warn(
-                "AWS container auth token file system property [{}] already set to [{}]; not overriding to [{}]",
-                SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property(),
-                existing,
-                entitledPath
+            // Something else already pinned the SDK to a different token-file path. We cannot override it
+            // without breaking that component, and leaving it in place would silently point our chain's
+            // ContainerCredentialsProvider at the wrong token file. Fail fast rather than mis-authenticate.
+            throw new IllegalStateException(
+                Strings.format(
+                    "Cannot configure EKS Pod Identity for the S3 data source: the JVM system property [%s] is already set to [%s], "
+                        + "but it must point at the entitled token symlink [%s]. Remove the conflicting "
+                        + "-D%s setting (or align it with the entitled location) before starting the node.",
+                    SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property(),
+                    existing,
+                    entitledPath,
+                    SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property()
+                )
             );
-            return;
         }
         System.setProperty(SdkSystemSetting.AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE.property(), entitledPath);
         POD_IDENTITY_SYSPROP_SET_TO.set(entitledPath);

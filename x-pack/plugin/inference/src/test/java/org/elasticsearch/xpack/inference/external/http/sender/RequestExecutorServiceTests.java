@@ -871,11 +871,9 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(
-                eq(
-                    format(
-                        "Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight",
-                        INFERENCE_ID
-                    )
+                format(
+                    "Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight",
+                    INFERENCE_ID
                 )
             )
         );

@@ -543,7 +543,7 @@ public class RequestExecutorService implements RequestExecutor {
             listener.onFailure(
                 new EsRejectedExecutionException(
                     format(
-                        "Failed to enqueue request task for inference id [%s] because too many inference requests are inflight",
+                        "Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight",
                         inferenceEntityId
                     ),
                     false

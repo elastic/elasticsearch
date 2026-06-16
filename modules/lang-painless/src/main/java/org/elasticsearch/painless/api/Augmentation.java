@@ -1067,6 +1067,7 @@ public class Augmentation {
     // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
     // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
 
+    @SuppressWarnings("overloads")
     private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
         if (script._getCancellationCheck() == null) {
             return action;
@@ -1077,6 +1078,7 @@ public class Augmentation {
         };
     }
 
+    @SuppressWarnings("overloads")
     private static LongConsumer wrap(PainlessScript script, LongConsumer action) {
         if (script._getCancellationCheck() == null) {
             return action;

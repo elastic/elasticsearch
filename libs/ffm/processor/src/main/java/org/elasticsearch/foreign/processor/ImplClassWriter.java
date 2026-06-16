@@ -141,12 +141,6 @@ class ImplClassWriter {
         emitFunctionDescriptor(cb, nm.returnType(), nativeParamTypes(nm));
         emitLinkerOptions(cb, nm);
         emitDowncallHandleCall(cb, nm);
-        if (nm.isCritical()) {
-            // Hand off to the MR-JAR'd helper, which is the identity on JDK 22+ and wraps the handle with a
-            // heap-staging adapter on JDK 21 (where Linker.Option.critical(true) is unavailable and heap segments
-            // would otherwise be rejected by the downcall).
-            cb.invokestatic(CD_LinkerHelperUtil, "adaptCritical", MethodTypeDesc.of(CD_MethodHandle, CD_MethodHandle));
-        }
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
     }
 

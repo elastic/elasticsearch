@@ -312,8 +312,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             case SYNTHETIC -> SYNTHETIC;
             case STORED -> STORED;
             case DISABLED -> DISABLED;
-            // COLUMNAR_STORED gets its own instance per mapping version so it can cache a
-            // SourceLoader.Synthetic without conflating state across indices.
+            // COLUMNAR_STORED gets its own instance per mapping version so ColumnarSourceWriter can cache
+            // instances of SourceLoader.Synthetic and related classes without conflating state across indices.
             case COLUMNAR_STORED -> new SourceFieldMapper(
                 Mode.COLUMNAR_STORED,
                 Explicit.IMPLICIT_TRUE,

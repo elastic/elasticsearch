@@ -64,7 +64,7 @@ final class ColumnarSourceWriter {
     }
 
     void write(DocumentParserContext context, XContentBuilder builder) throws IOException {
-        // It is safe to reuse synthic loader and leaf loader for each thread per index.
+        // It is safe to reuse synthetic loader and leaf loader for each thread per index.
         // Because a new mapping will result into a new instance of this class and otherwise materialized mappings stay immutable.
         ColumnarPerThread perThread = cachedColumnarPerThread.get();
         if (perThread == null) {

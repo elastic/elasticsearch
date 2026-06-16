@@ -28,7 +28,6 @@ import org.junit.BeforeClass;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -663,8 +662,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         final var running = new AtomicInteger();
         final var peakRunning = new AtomicInteger();
-        final var totalTasksEnqueued = new AtomicInteger();
-        final var totalTasksFinished = new AtomicInteger();
+        final var tasksEnqueued = new AtomicInteger();
+        final var tasksCompleted = new AtomicInteger();
         final var allFinished = new CountDownLatch(1);
         final var refCounted = AbstractRefCounted.of(allFinished::countDown);
         final int maxTaskCount = 1000;
@@ -678,22 +677,25 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
                 refCounted.decRef();
+                tasksCompleted.incrementAndGet();
             }
 
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 refCounted.decRef();
+                tasksCompleted.incrementAndGet();
             }
 
             @Override
             public void onRecoveryAborted() {
                 refCounted.decRef();
+                tasksCompleted.incrementAndGet();
             }
         };
 
         final int producerThreads = between(3, 6);
         runInParallel(producerThreads, index -> {
-            while (totalTasksEnqueued.get() < maxTaskCount) {
+            while (tasksEnqueued.get() < maxTaskCount) {
                 if (index == 0) {
                     if (rarely()) {
                         int nextLimit = between(1, 20);
@@ -703,48 +705,22 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             );
                         peakLimit.accumulateAndGet(nextLimit, Integer::max);
                     }
-                    if (totalTasksEnqueued.get() * 1.0 / maxTaskCount > 0.8 && rarely()) {
+                    if ((tasksEnqueued.get() * 1.0 / maxTaskCount) > 0.8 && rarely()) {
                         throttlingRecoveryService.close();
                     }
                 }
-                if (randomBoolean()) {
-                    // high contention
-                    int burst = between(2, 50);
-                    for (int b = 0; b < burst && totalTasksEnqueued.get() < maxTaskCount; b++) {
-                        refCounted.incRef();
-                        totalTasksEnqueued.incrementAndGet();
-                        throttlingRecoveryService.enqueue(
-                            trackingListener,
-                            recoveryState,
-                            schedulingListener -> runStressInboundRecoveryTask(
-                                schedulingListener,
-                                running,
-                                peakRunning,
-                                totalTasksFinished,
-                                recoveryState,
-                                threadPool.generic()
-                            )
-                        );
-                    }
-                } else {
-                    // low contention
+                final boolean highContention = randomBoolean();
+                int incomingTasks = highContention ? between(2, 50) : 1;
+                if (highContention == false) {
                     Thread.yield();
-                    if (totalTasksEnqueued.get() < maxTaskCount) {
-                        refCounted.incRef();
-                        totalTasksEnqueued.incrementAndGet();
-                        throttlingRecoveryService.enqueue(
-                            trackingListener,
-                            recoveryState,
-                            schedulingListener -> runStressInboundRecoveryTask(
-                                schedulingListener,
-                                running,
-                                peakRunning,
-                                totalTasksFinished,
-                                recoveryState,
-                                threadPool.generic()
-                            )
-                        );
-                    }
+                }
+                for (int i = 0; i < incomingTasks && tasksEnqueued.get() < maxTaskCount; i++) {
+                    refCounted.incRef();
+                    tasksEnqueued.incrementAndGet();
+                    throttlingRecoveryService.enqueue(trackingListener, recoveryState, schedulingListener -> {
+                        peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
+                        runStressInboundRecoveryTask(recoveryState, schedulingListener, running);
+                    });
                 }
                 Thread.yield();
             }
@@ -753,33 +729,24 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         // taskLatch starts with 1 ref, decremented here
         refCounted.decRef();
         safeAwait(allFinished, TimeValue.timeValueSeconds(30));
-        assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
+        assertThat(tasksCompleted.get(), equalTo(tasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));
         assertThat(running.get(), equalTo(0));
     }
 
     private static void runStressInboundRecoveryTask(
-        RecoveryListener schedulingListener,
-        AtomicInteger running,
-        AtomicInteger peakRunning,
-        AtomicInteger totalTasksFinished,
         RecoveryState recoveryState,
-        Executor executor
-    ) {
-        executor.execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, recoveryState));
-    }
-
-    private static void doRunStressInboundRecoveryTask(
         RecoveryListener schedulingListener,
-        AtomicInteger running,
-        AtomicInteger peakRunning,
-        AtomicInteger totalTasksFinished,
-        RecoveryState recoveryState
+        AtomicInteger running
     ) {
-        peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
-        try {
-            // simulates work
-            Thread.sleep(randomIntBetween(0, 20));
+        threadPool.generic().execute(() -> {
+            try {
+                // simulates work
+                Thread.sleep(randomIntBetween(0, 20));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
             running.decrementAndGet();
             if (randomBoolean()) {
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -793,11 +760,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     );
                 }
             }
-            totalTasksFinished.incrementAndGet();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AssertionError(e);
-        }
+        });
     }
 
     private static ClusterService newClusterService(int maxConcurrentRecoveries) {

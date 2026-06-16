@@ -116,7 +116,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     /// Drains the pending queue up to the max slot capacity
     private void fillSlots() {
-        List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
+        final List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (closed) {
                 return;
@@ -134,13 +134,13 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     private void releaseSlot(RecoveryState state) {
-        int currentRunning;
+        final int currentRunning;
         synchronized (this) {
             runningRecoveries--;
             currentRunning = runningRecoveries;
         }
         assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
-        logger.trace("recovery slot released: recoverySource: [{}], shardId: [{}]", state.getRecoverySource(), state.getShardId());
+        logger.trace("recovery slot released: recoverySource [{}], shardId [{}]", state.getRecoverySource(), state.getShardId());
         fillSlots();
     }
 

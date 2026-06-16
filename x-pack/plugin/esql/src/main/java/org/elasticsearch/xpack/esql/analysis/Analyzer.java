@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -839,7 +840,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case SemiJoin sj -> resolveSemiAntiJoin(sj);
+                case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -1228,20 +1229,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       output verifier.</li>
          * </ul>
          */
-        private SemiJoin resolveSemiAntiJoin(SemiJoin semiJoin) {
+        private AbstractSubqueryJoin resolveSubqueryJoin(AbstractSubqueryJoin subqueryJoin) {
             // Resolve left fields. Skip when every leftField is either already resolved or is an
             // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
             // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
             // equality includes the message, so re-processing an already-customized message would
             // loop forever in the rule executor. Mirrors the customMessage() bail-out in
             // resolveLookupJoin.
-            List<Attribute> leftFields = semiJoin.config().leftFields();
+            List<Attribute> leftFields = subqueryJoin.config().leftFields();
             boolean leftNeedsResolution = leftFields.stream()
                 .anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage() == false);
-            List<Attribute> leftKeys = leftNeedsResolution ? resolveUsingColumns(leftFields, semiJoin.left().output(), "left") : leftFields;
+            List<Attribute> leftKeys = leftNeedsResolution
+                ? resolveUsingColumns(leftFields, subqueryJoin.left().output(), "left")
+                : leftFields;
 
             // resolve right fields
-            List<Attribute> rightFields = resolveRightFields(semiJoin);
+            List<Attribute> rightFields = resolveRightFields(subqueryJoin);
 
             // Wrap the right side in an explicit Project on the single right field when the
             // subquery plan does not already contain a Project or Aggregate anywhere. Both nodes
@@ -1253,24 +1256,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // {@code ReplaceSourceAttributes} and trip the post-optimization output verifier.
             // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
             // since we have no concrete attribute to project.
-            LogicalPlan right = semiJoin.right();
+            LogicalPlan right = subqueryJoin.right();
             if (rightFields.size() == 1
                 && rightFields.get(0).resolved()
                 && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
-                right = new Project(semiJoin.source(), right, rightFields);
+                right = new Project(subqueryJoin.source(), right, rightFields);
             }
 
-            JoinConfig joinConfig = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
+            JoinConfig joinConfig = new JoinConfig(
+                subqueryJoin.config().type(),
+                leftKeys,
+                rightFields,
+                subqueryJoin.config().joinOnConditions()
+            );
 
-            if (semiJoin instanceof MarkJoin markJoin) {
+            if (subqueryJoin instanceof MarkJoin markJoin) {
                 return new MarkJoin(markJoin.source(), markJoin.left(), right, joinConfig, markJoin.markAttribute());
             }
-            return semiJoin instanceof AntiJoin
-                ? new AntiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig)
-                : new SemiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig);
+            return subqueryJoin instanceof AntiJoin
+                ? new AntiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig)
+                : new SemiJoin(subqueryJoin.source(), subqueryJoin.left(), right, joinConfig);
         }
 
-        private static List<Attribute> resolveRightFields(SemiJoin semiJoin) {
+        private static List<Attribute> resolveRightFields(AbstractSubqueryJoin semiJoin) {
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
                 // Bail out if rightFields already carries an analyzer-supplied custom error message
@@ -1311,7 +1319,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
          * unchanged.
          */
-        private static Attribute resolveSingleRightField(SemiJoin semiJoin, Attribute rightAttr) {
+        private static Attribute resolveSingleRightField(AbstractSubqueryJoin semiJoin, Attribute rightAttr) {
             if (NO_FIELDS_NAME.equals(rightAttr.name())) {
                 return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
             }

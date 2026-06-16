@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.PrimitiveIterator;
 import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -57,6 +58,7 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -1061,6 +1063,94 @@ public class Augmentation {
         }
     }
 
+    // Wrap a primitive consumer so it polls _pollCancellation() once per element before delegating, or return it
+    // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
+    // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
+
+    private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return i -> {
+            script._pollCancellation();
+            action.accept(i);
+        };
+    }
+
+    private static LongConsumer wrap(PainlessScript script, LongConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return l -> {
+            script._pollCancellation();
+            action.accept(l);
+        };
+    }
+
+    private static DoubleConsumer wrap(PainlessScript script, DoubleConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return d -> {
+            script._pollCancellation();
+            action.accept(d);
+        };
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
     // stream terminal wrappers for cancellation-aware iteration
     //
     // Each wrapper takes the user's functional-interface argument and wraps it in a polling lambda so
@@ -1188,6 +1278,28 @@ public class Augmentation {
             accumulator.accept(r, t);
             script._pollCancellation();
         }, combiner);
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Stream#collect(Collector)}.  Unlike the other stream
+     * terminals there is no per-element argument to wrap directly — the accumulator is bundled inside
+     * the {@link Collector} — so this decomposes the collector and rebuilds an equivalent one whose
+     * accumulator also polls {@link PainlessScript#_pollCancellation()} once per element.  Painless does
+     * not expose {@link Stream#parallel()}, so the stream is always sequential: the accumulator runs once
+     * per element and the combiner is never invoked.  The original characteristics (including
+     * {@code IDENTITY_FINISH}) and finisher are preserved unchanged, so the result is identical to the JDK.
+     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     */
+    public static <T, A, R> R collect(PainlessScript script, Stream<T> receiver, Collector<? super T, A, R> collector) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(collector);
+        }
+        BiConsumer<A, ? super T> accumulator = collector.accumulator();
+        Collector<T, A, R> polling = Collector.of(collector.supplier(), (a, t) -> {
+            accumulator.accept(a, t);
+            script._pollCancellation();
+        }, collector.combiner(), collector.finisher(), collector.characteristics().toArray(new Collector.Characteristics[0]));
+        return receiver.collect(polling);
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#forEach}. */

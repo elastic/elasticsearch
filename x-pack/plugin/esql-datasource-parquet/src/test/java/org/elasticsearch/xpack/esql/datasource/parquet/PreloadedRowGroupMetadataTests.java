@@ -18,6 +18,8 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -43,13 +45,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Verifies that {@link PreloadedRowGroupMetadata#preload(ParquetFileReader, StorageObject, Set, BufferAllocator)}
@@ -591,6 +598,119 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Measures how many ColumnIndex/OffsetIndex bytes the gated preload fetches old (unrestricted)
+     * vs new (consumption-aware) across the representative ClickBench query shapes. Page indexes are
+     * fetched per column per row group, so on a wide table a full scan that consumes none of them
+     * used to pay for every column's indexes; this quantifies exactly how much that is.
+     *
+     * <p>This is a deterministic, hermetic stand-in for an S3 latency benchmark: it counts index
+     * bytes rather than timing them, so there is zero run-to-run variance. The per-scenario numbers
+     * are logged (run with {@code -Dtests.output=always}); the assertions only lock the invariants
+     * the gate guarantees (full scan fetches nothing, no gated shape fetches more than unrestricted).
+     */
+    public void testPageIndexBytesByScenario() throws IOException {
+        int cols = 105;
+        int rows = 16_384;
+        MessageType schema = wideInt64Schema(cols);
+        byte[] parquetData = writeWideInt64Parquet(schema, cols, rows);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        PageIndexRanges ranges;
+        try (
+            ParquetFileReader probe = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
+                options
+            )
+        ) {
+            ranges = collectPageIndexRanges(probe);
+            assertTrue("wide file must carry page indexes for the measurement to be meaningful", ranges.totalCount() > 0);
+        }
+
+        String c0 = columnName(0);
+        Set<String> projected5 = Set.of(columnName(0), columnName(1), columnName(2), columnName(3), columnName(4));
+
+        // label, predicate columns (drive dict/bloom pre-warm only), columnIndex paths, offsetIndex
+        // paths. A null path set means "unrestricted" — the legacy, pre-PR behavior that fetched
+        // every column's page index.
+        record Scenario(String label, Set<String> predicate, Set<String> columnIndex, Set<String> offsetIndex) {}
+        List<Scenario> scenarios = List.of(
+            new Scenario("unrestricted_OLD", Set.of(), null, null),
+            new Scenario("full_scan_NEW", Set.of(), Set.of(), Set.of()),
+            new Scenario("topN_threshold", Set.of(), Set.of(c0), Set.of(c0)),
+            new Scenario("single_predicate", Set.of(c0), Set.of(c0), Set.of(c0)),
+            new Scenario("filtered_projection", Set.of(c0), Set.of(c0), projected5)
+        );
+
+        Map<String, Long> totals = new LinkedHashMap<>();
+        logger.info("page-index byte measurement: {} columns x {} rows, {} index ranges", cols, rows, ranges.totalCount());
+        logger.info(
+            String.format(
+                Locale.ROOT,
+                "%-22s %12s %12s %12s %10s %16s",
+                "scenario",
+                "ci_bytes",
+                "oi_bytes",
+                "total",
+                "idx_reads",
+                "saved_vs_OLD"
+            )
+        );
+        for (Scenario s : scenarios) {
+            ParquetStorageObjectAdapter.clearFooterCacheForTests();
+            AtomicLong ciBytes = new AtomicLong();
+            AtomicLong oiBytes = new AtomicLong();
+            AtomicInteger idxReads = new AtomicInteger();
+            StorageObject counting = createRangeReadCountingStorageObject(parquetData, (pos, len) -> {
+                long ci = overlapBytes(pos, len, ranges.columnIndex());
+                long oi = overlapBytes(pos, len, ranges.offsetIndex());
+                if (ci > 0) {
+                    ciBytes.addAndGet(ci);
+                }
+                if (oi > 0) {
+                    oiBytes.addAndGet(oi);
+                }
+                if (ci > 0 || oi > 0) {
+                    idxReads.incrementAndGet();
+                }
+            });
+            try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(counting, allocator), options)) {
+                // Footer reads during open never overlap the index ranges; snapshot afterwards so the
+                // measurement isolates the preload's contribution.
+                long ciAfterOpen = ciBytes.get();
+                long oiAfterOpen = oiBytes.get();
+                int readsAfterOpen = idxReads.get();
+                try (
+                    PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(
+                        reader,
+                        counting,
+                        s.predicate(),
+                        s.columnIndex(),
+                        s.offsetIndex(),
+                        allocator
+                    )
+                ) {
+                    assertNotNull(metadata);
+                    long ci = ciBytes.get() - ciAfterOpen;
+                    long oi = oiBytes.get() - oiAfterOpen;
+                    long total = ci + oi;
+                    int reads = idxReads.get() - readsAfterOpen;
+                    totals.put(s.label(), total);
+                    long old = totals.getOrDefault("unrestricted_OLD", 0L);
+                    String saved = old > 0 ? String.format(Locale.ROOT, "%d (%.1f%%)", old - total, 100.0 * (old - total) / old) : "-";
+                    logger.info(String.format(Locale.ROOT, "%-22s %12d %12d %12d %10d %16s", s.label(), ci, oi, total, reads, saved));
+                }
+            }
+        }
+
+        long old = totals.get("unrestricted_OLD");
+        assertTrue("unrestricted preload must fetch some page-index bytes", old > 0);
+        assertEquals("full scan must fetch zero page-index bytes", 0L, (long) totals.get("full_scan_NEW"));
+        for (Map.Entry<String, Long> e : totals.entrySet()) {
+            assertTrue("gated scenario " + e.getKey() + " must not fetch more than unrestricted", e.getValue() <= old);
+        }
+    }
+
     private static byte[] writeDictionaryEncodedInt64Parquet(MessageType schema, long[] values) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(out);
@@ -692,6 +812,109 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         }
         return tmp.toArray(new long[0][]);
+    }
+
+    /**
+     * Builds a wide INT64 schema with {@code cols} columns named c000..cNNN, approximating the
+     * column count of the ClickBench hits table so a full scan's eliminated page-index volume is
+     * representative rather than a three-column toy.
+     */
+    private static MessageType wideInt64Schema(int cols) {
+        Types.MessageTypeBuilder builder = Types.buildMessage();
+        for (int i = 0; i < cols; i++) {
+            builder.required(PrimitiveType.PrimitiveTypeName.INT64).named(columnName(i));
+        }
+        return builder.named("schema");
+    }
+
+    private static String columnName(int index) {
+        return String.format(Locale.ROOT, "c%03d", index);
+    }
+
+    /**
+     * Writes a wide INT64 parquet file with small (4 KB) pages so every column chunk emits a
+     * multi-entry ColumnIndex and OffsetIndex. Per-column value cardinality is varied so the page
+     * indexes are non-trivial.
+     */
+    private static byte[] writeWideInt64Parquet(MessageType schema, int cols, int rows) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(out);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        PlainParquetConfiguration conf = new PlainParquetConfiguration();
+        conf.set("parquet.enable.dictionary", "true");
+
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(conf)
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(true)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                // Large row group so the wide file stays a couple of row groups (not hundreds),
+                // while the small page size still forces many pages per column chunk.
+                .withRowGroupSize(8 * 1024 * 1024L)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup();
+                for (int c = 0; c < cols; c++) {
+                    g.add(columnName(c), (long) (i % (8 + c)));
+                }
+                writer.write(g);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * The [start, end) byte ranges of every ColumnIndex and OffsetIndex in the file, kept separate
+     * so a measurement can attribute fetched bytes to the column index vs the offset index.
+     */
+    private record PageIndexRanges(long[][] columnIndex, long[][] offsetIndex) {
+        int totalCount() {
+            return columnIndex.length + offsetIndex.length;
+        }
+    }
+
+    /**
+     * Collects ColumnIndex and OffsetIndex byte ranges separately across all row groups.
+     */
+    private static PageIndexRanges collectPageIndexRanges(ParquetFileReader reader) {
+        List<long[]> ci = new ArrayList<>();
+        List<long[]> oi = new ArrayList<>();
+        for (BlockMetaData block : reader.getRowGroups()) {
+            for (ColumnChunkMetaData col : block.getColumns()) {
+                var c = col.getColumnIndexReference();
+                if (c != null && c.getLength() > 0) {
+                    ci.add(new long[] { c.getOffset(), c.getOffset() + c.getLength() });
+                }
+                var o = col.getOffsetIndexReference();
+                if (o != null && o.getLength() > 0) {
+                    oi.add(new long[] { o.getOffset(), o.getOffset() + o.getLength() });
+                }
+            }
+        }
+        return new PageIndexRanges(ci.toArray(new long[0][]), oi.toArray(new long[0][]));
+    }
+
+    /**
+     * Sums the bytes of a read {@code [position, position + length)} that overlap any of the given
+     * index ranges, so coalesced reads that pull adjacent data are attributed only their index bytes.
+     */
+    private static long overlapBytes(long position, long length, long[][] indexRanges) {
+        long end = position + length;
+        long sum = 0;
+        for (long[] r : indexRanges) {
+            long lo = Math.max(position, r[0]);
+            long hi = Math.min(end, r[1]);
+            if (hi > lo) {
+                sum += hi - lo;
+            }
+        }
+        return sum;
     }
 
     private static OutputFile createOutputFile(ByteArrayOutputStream out) {

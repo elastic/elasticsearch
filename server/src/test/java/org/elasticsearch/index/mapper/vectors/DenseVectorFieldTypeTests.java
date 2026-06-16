@@ -141,7 +141,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 IndexVersion.current(),
                 randomBoolean(),
                 randomFrom(1, 2, 4),
-                randomBoolean()
+                randomBoolean(),
+                false
             )
         );
 
@@ -949,7 +950,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         } else {
             assertThat(query, instanceOf(DiversifyingChildrenIVFKnnFloatSlicedVectorQuery.class));
         }
-        assertThat(query.toString("ignored"), containsString("_routing=s1"));
+        assertThat(query.toString("ignored"), containsString("_routing=[s1]"));
     }
 
     public void testBBQIVFRejectsMissingSliceForKnnWhenSliceEnabled() {
@@ -1075,7 +1076,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             IndexVersion.current(),
             false,
             1,
-            true
+            true,
+            false
         );
         return new DenseVectorFieldType(
             "f",

@@ -41,6 +41,7 @@ public class RankFeatureResult extends SearchPhaseResult {
         rankShardResult = in.readOptionalWriteable(RankFeatureShardResult::new);
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setSearchShardTarget(in.readOptionalWriteable(SearchShardTarget::new));
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -50,6 +51,7 @@ public class RankFeatureResult extends SearchPhaseResult {
         out.writeOptionalWriteable(rankShardResult);
         out.writeOptionalWriteable(getShardSearchRequest());
         out.writeOptionalWriteable(getSearchShardTarget());
+        writeDirectoryMetrics(out);
     }
 
     @Override

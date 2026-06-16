@@ -37,6 +37,7 @@ public class Tan extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the tangent of an angle.",
         description = "Returns the {wikipedia}/Sine_and_cosine[tangent] of an angle.",
         examples = @Example(file = "floats", tag = "tan")
     )

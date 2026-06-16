@@ -23,9 +23,11 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -221,7 +223,8 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     public void testColumnarModeUsesDocValuesSkipper() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        DocumentMapper mapper = createMapperService(settings, fieldMapping(b -> b.field("type", "version"))).documentMapper();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "version")));
+        DocumentMapper mapper = mapperService.documentMapper();
 
         FieldMapper fieldMapper = (FieldMapper) mapper.mappers().getMapper("field");
         assertThat(fieldMapper.fieldType().indexType(), equalTo(IndexType.skippers()));
@@ -234,5 +237,18 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         assertThat(f.fieldType().docValuesType(), equalTo(DocValuesType.SORTED_SET));
         assertThat(f.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.RANGE));
         assertThat(f.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+
+        // The inverted index is gone, so term/terms/range queries must fall back to the doc-values skipper rather than throw a
+        // "not indexed" error. They run as doc-values queries (e.g. TermInSetQuery with DOC_VALUES_REWRITE).
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+        VersionStringFieldMapper.VersionStringFieldType ft = (VersionStringFieldMapper.VersionStringFieldType) fieldMapper.fieldType();
+        assertNotNull(ft.termQuery("1.2.3", context));
+        assertNotNull(ft.termsQuery(List.of("1.2.3", "4.5.6"), context));
+        assertNotNull(ft.rangeQuery("1.0.0", "2.0.0", true, true, context));
+
+        // Scan-style queries have no doc-values equivalent and require the inverted index, so they throw in columnar mode.
+        expectThrows(IllegalArgumentException.class, () -> ft.regexpQuery("1.*", 0, 0, 10, null, context));
+        expectThrows(IllegalArgumentException.class, () -> ft.wildcardQuery("1.*", null, false, context));
+        expectThrows(IllegalArgumentException.class, () -> ft.prefixQuery("1.", null, false, context));
     }
 }

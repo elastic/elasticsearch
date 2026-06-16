@@ -1609,7 +1609,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(threadCounter);
     }
 
-    public void testSearchTriggeredDownloadsTelemetry() {
+    public void testSearchTriggeredDownloadsTelemetry() throws Exception {
         startMasterAndIndexNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         String searchNode = startSearchNode();
@@ -1621,22 +1621,34 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         }
         flush(indexName);
 
-        evictSearchShardCache(indexName);
-        SearchResponse searchResponse = null;
-        try {
-            searchResponse = prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        } finally {
-            if (searchResponse != null) {
-                searchResponse.decRef();
-            }
-        }
-
+        // OBJECT_STORE_PREFETCH_FEATURE_FLAG is enabled by default on snapshot builds (all CI runs).
+        // When enabled, Lucene read-ahead hints (BlobCacheIndexInput.prefetch) schedule async blob-store
+        // downloads that can complete before the actual readInternal call for the same range. If that
+        // race is lost, tryRead() succeeds (fast path) and CacheFileReader.read() — the only site that
+        // records SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME — is never called. Retry the
+        // eviction+search cycle (resetting the meter each time) until the slow path is exercised.
         TestTelemetryPlugin telemetryPlugin = getTelemetryPlugin(searchNode);
+        assertBusy(() -> {
+            telemetryPlugin.resetMeter();
+            evictSearchShardCache(indexName);
+            SearchResponse searchResponse = null;
+            try {
+                searchResponse = prepareSearch(indexName).setQuery(matchAllQuery()).get();
+            } finally {
+                if (searchResponse != null) {
+                    searchResponse.decRef();
+                }
+            }
+            assertThat(
+                telemetryPlugin.getLongHistogramMeasurement(BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME).size(),
+                greaterThan(0)
+            );
+        });
+
         List<Measurement> searchOriginMeasurement = telemetryPlugin.getLongHistogramMeasurement(
             BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME
         );
-        assertThat(searchOriginMeasurement.size(), greaterThan(0));
-        Measurement measurement = searchOriginMeasurement.stream().findFirst().get();
+        Measurement measurement = searchOriginMeasurement.stream().findFirst().orElseThrow();
         assertThat(measurement.getLong(), greaterThanOrEqualTo(0L));
         assertThat(
             measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),

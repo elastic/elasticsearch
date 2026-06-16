@@ -1,0 +1,716 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plan.logical.join;
+
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.SortPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
+
+/**
+ * Shared base for the joins that implement {@code field IN (subquery)} and {@code field NOT IN (subquery)}: {@link SemiJoin} (SEMI),
+ * {@link AntiJoin} (ANTI) and {@link MarkJoin} (MARK). The three are siblings — they share this dedup pipeline but differ in the terminal
+ * plan they produce.
+ * <p>
+ * The right side is an independent subquery that must be executed first. Once the subquery result is available as a {@code LocalRelation},
+ * {@link #inlineData} converts the node into an In list predicate or a hash join. The SEMI / ANTI / MARK differences are isolated into the
+ * small set of {@code protected} hooks below; the default implementations here encode the SEMI ({@code IN}) behavior, {@link AntiJoin}
+ * flips a couple of hooks for {@code NOT IN}, and {@link MarkJoin} returns Eval-based plans that preserve every left row and produce a
+ * boolean mark attribute with three-valued logic.
+ */
+public abstract class AbstractSubqueryJoin extends Join implements SortPreserving, ExecutesOn.Coordinator {
+
+    protected AbstractSubqueryJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
+        super(source, left, right, config);
+    }
+
+    protected AbstractSubqueryJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinType type,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields
+    ) {
+        super(source, left, right, type, leftFields, rightFields, null);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
+        return new ArrayList<>(left);
+    }
+
+    @Override
+    public boolean expressionsResolved() {
+        // A subquery join with empty rightFields is not yet fully resolved, it is generated by InSubqueryResolver, the right field is
+        // resolved during Analyzer.ResolveRefs after the subquery's single output field is resolved.
+        return config().rightFields().isEmpty() == false && super.expressionsResolved();
+    }
+
+    // -- Hooks for SEMI / ANTI / MARK variation in the inlineData transformation. --
+
+    /**
+     * Build the terminal plan when the right side has zero rows. {@code x IN ()} ≡ FALSE for SEMI / MARK; {@code x NOT IN ()} ≡ TRUE for
+     * ANTI. MarkJoin produces an Eval that sets the mark attribute to FALSE.
+     */
+    protected abstract LogicalPlan buildEmptyRightSidePlan(Source source);
+
+    /**
+     * Build the terminal plan when the right side contains a NULL value that forces the predicate to a constant for every left row.
+     * For SEMI this only fires when every right value is NULL ({@code allRightNull == true}) and produces {@code Filter(FALSE)}.
+     * For ANTI any NULL on the right is fatal, so it overrides {@link #shortCircuitOnAnyRightNull()} and likewise produces
+     * {@code Filter(FALSE)}. MarkJoin does not short-circuit on any NULL — it keeps the row counts unchanged and emits
+     * {@code Eval($m = NULL)} when every right value is NULL.
+     */
+    protected LogicalPlan buildShortCircuitPlan(Source source, boolean allRightNull) {
+        return new Filter(source, left(), Literal.FALSE);
+    }
+
+    /**
+     * Whether any NULL on the right side makes the predicate non-TRUE for every left row. For ANTI ({@code x NOT IN (..., NULL, ...)})
+     * this is always the case, so once {@link #inlineData} detects a NULL position in the BlockHash dedup output it short-circuits to
+     * {@code Filter(FALSE)}. For SEMI the NULL stays in the dedup output for the filter path
+     * ({@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE semantics) and is stripped before constructing the
+     * {@link LocalRelation} on the hash-join path. For MARK the {@code rightHadNulls} flag is forwarded to the hash-join path's CASE
+     * expression; the filter path uses the NULL position in the dedup output directly.
+     */
+    protected boolean shortCircuitOnAnyRightNull() {
+        return false;
+    }
+
+    /**
+     * Build the terminal plan for the small-dedup "filter" path. {@code dedupKeys} contains the BlockHash-deduplicated distinct values
+     * from the right side and may include a single NULL position at index 0 if any input position was NULL or multi-valued
+     * (BlockHash collapses all NULL inputs into its reserved group 0). {@code rightHadNulls} is equivalent to {@code dedupKeys.isNull(0)}
+     * and is passed through for documentation / hash-join-path symmetry. SEMI returns {@code Filter(In(...))}, ANTI returns
+     * {@code Filter(NOT In(...))} (ANTI never reaches this path with {@code rightHadNulls = true} — it short-circuits earlier), and
+     * MarkJoin builds an {@link Eval} whose IN list is the dedup positions verbatim, relying on {@link In}'s three-valued semantics to
+     * compute the mark.
+     */
+    protected LogicalPlan buildFilterPathPlan(
+        Block dedupKeys,
+        DataType keyType,
+        Attribute leftField,
+        Source source,
+        boolean rightHadNulls
+    ) {
+        return new Filter(source, left(), wrapInExpression(source, inListFromDedupKeys(source, leftField, dedupKeys, keyType)));
+    }
+
+    /**
+     * Build the {@link In} expression for the filter path by turning each BlockHash dedup position into a {@link Literal}. A NULL position
+     * (BlockHash's reserved group 0) becomes a NULL literal naturally, so {@link In}'s three-valued semantics carry the correct
+     * predicate/mark value into the surrounding {@code Filter} (SEMI/ANTI) or {@code Eval} (MARK).
+     */
+    protected static In inListFromDedupKeys(Source source, Attribute leftField, Block dedupKeys, DataType keyType) {
+        int positionCount = dedupKeys.getPositionCount();
+        List<Expression> literals = new ArrayList<>(positionCount);
+        for (int i = 0; i < positionCount; i++) {
+            literals.add(new Literal(source, toJavaObject(dedupKeys, i), keyType));
+        }
+        return new In(source, leftField, literals);
+    }
+
+    /**
+     * Build the terminal plan for the large-dedup "hash-join" path. The deduplicated key column has already been wrapped in a
+     * {@link LocalRelation} alongside a constant TRUE sentinel column. SEMI/ANTI add a sentinel filter and Project that drops the
+     * right-side column; MarkJoin instead computes the mark via a CASE expression and projects the mark column out alongside the original
+     * left output.
+     */
+    protected LogicalPlan buildHashJoinPathPlan(
+        LogicalPlan leftSide,
+        LocalRelation deduplicatedData,
+        JoinConfig leftJoinConfig,
+        Attribute sentinelAttr,
+        Source source,
+        boolean rightHadNulls
+    ) {
+        Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
+        Filter filter = new Filter(source, leftJoin, sentinelFilterCondition(source, sentinelAttr));
+        List<NamedExpression> leftOutput = new ArrayList<>(left().output());
+        return new Project(source, filter, leftOutput);
+    }
+
+    /**
+     * Wraps the {@code In} expression built from the dedup keys for the inline-filter path. SEMI returns it as-is; ANTI wraps it in
+     * {@code Not}.
+     */
+    protected Expression wrapInExpression(Source source, Expression in) {
+        return in;
+    }
+
+    /**
+     * Sentinel-column filter that drives the hash-join path. SEMI keeps matched rows ({@code IS NOT NULL} on the sentinel); ANTI keeps
+     * unmatched rows ({@code IS NULL}).
+     */
+    protected Expression sentinelFilterCondition(Source source, Attribute sentinel) {
+        return new IsNotNull(source, sentinel);
+    }
+
+    /**
+     * Whether the hash-join path needs to drop NULL-keyed left rows before the join. SEMI/ANTI filter on the sentinel after the join;
+     * ANTI in particular would otherwise keep NULL-keyed rows (sentinel NULL → "no match") even though {@code NULL NOT IN (...)} should
+     * yield NULL. MARK keeps every left row and handles the NULL-key case explicitly inside the CASE expression that produces the mark,
+     * so it suppresses the filter.
+     */
+    protected boolean filterNullLeftKeysBeforeHashJoin() {
+        return true;
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        // SemiJoin/AntiJoin/MarkJoin are built by InSubqueryResolver which always produces a single-field config (one left field, one
+        // right field). The Analyzer additionally verifies that the subquery returns exactly one column. inlineData reads
+        // leftFields().get(0) unconditionally, so a multi-field config would silently use only the first pair — fail loudly here instead.
+        if (config().leftFields().size() != 1 || config().rightFields().size() != 1) {
+            failures.add(
+                fail(
+                    this,
+                    "IN subquery requires exactly one left and right field, found [{}] and [{}]",
+                    config().leftFields().size(),
+                    config().rightFields().size()
+                )
+            );
+            return;
+        }
+        Attribute leftField = config().leftFields().get(0);
+        Attribute rightField = config().rightFields().get(0);
+        DataType leftType = leftField.dataType();
+        DataType rightType = rightField.dataType();
+
+        if (subqueryJoinCompatible(leftType, rightType) == false) {
+            failures.add(
+                fail(
+                    leftField,
+                    "left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                    leftField.name(),
+                    leftType,
+                    rightField.name(),
+                    rightType
+                )
+            );
+        }
+        // Same unsupported types as Join, except TEXT and VERSION are allowed in IN/NOT IN subquery joins
+        if (isSubqueryJoinUnsupported(rightType)) {
+            failures.add(fail(leftField, "IN subquery with right field [{}] of type [{}] is not supported", rightField.name(), rightType));
+        }
+    }
+
+    /**
+     * SubqueryJoin type compatibility: requires exact type match for most types. KEYWORD and TEXT are compatible with each other.
+     */
+    private static boolean subqueryJoinCompatible(DataType leftType, DataType rightType) {
+        if (leftType == rightType) {
+            return true;
+        }
+        // KEYWORD and TEXT are compatible with each other
+        return isString(leftType) && isString(rightType);
+    }
+
+    /**
+     * Same as {@link Join#UNSUPPORTED_TYPES} but TEXT and VERSION are allowed in IN/NOT IN subquery joins because IN/NOT IN can compare
+     * these types via equality.
+     */
+    public static boolean isSubqueryJoinUnsupported(DataType type) {
+        return Arrays.asList(UNSUPPORTED_TYPES).contains(type) && type != DataType.TEXT && type != DataType.VERSION;
+    }
+
+    /**
+     * Converts this subquery join (SEMI / ANTI / MARK) into an executable plan once the subquery result is available.
+     * <p>
+     * The subquery key column is always run through a {@link BlockHash} (backed by the supplied {@code blockFactory}, so the dedup blocks
+     * are tracked by the request circuit breaker) <em>before</em> deciding the output shape. Doing dedup up-front lets duplicate-heavy
+     * subqueries collapse to the cheaper inline-filter path even when their raw position count exceeds the threshold, and it shrinks the
+     * IN list (and therefore both the planning and runtime cost) for the filter path itself.
+     * <p>
+     * Once dedup is done:
+     * <ul>
+     *   <li>If the deduplicated key count is {@code <= hashJoinThreshold}, the dedup keys are converted to {@link Literal}s and the join
+     *   becomes {@code Filter(IN(...))} (or  {@code Filter(NOT IN(...))} for ANTI). The dedup blocks are released immediately.</li>
+     *   <li>Otherwise, the dedup keys plus a constant TRUE sentinel become a {@link LocalRelation} on the right of a LEFT {@link Join};
+     *   a {@link Filter} on the sentinel ({@code IS NOT NULL} for SEMI, {@code IS NULL} for ANTI) and a {@link Project} that drops the
+     *   right-side column complete the rewrite. The mapper turns this into a {@code HashJoinExec}.</li>
+     * </ul>
+     * <p>
+     * <b>SQL NULL / MV semantics for IN / NOT IN.</b> Under {@code WHERE}, {@code x IN (...)} returns NULL (filtered out) when {@code x}
+     * is NULL or when {@code x} matches no non-null value and the list contains a NULL; {@code x NOT IN (..., NULL, ...)} is never TRUE
+     * for any row. Multi-valued operands on either side fold to NULL with the standard "single-value function encountered multi-value"
+     * warning, matching the {@link In} operator's MV behavior. The filter path inherits these semantics from {@link In} directly. The
+     * hash-join path needs extra work because its runtime {@link BlockHash} (inside {@code RowInTableLookupOperator}) treats
+     * {@code null = null} as a match, and a non-match always yields sentinel NULL (kept by ANTI). We close every gap as part of dedup
+     * canonicalization and join construction:
+     * <ul>
+     *   <li><b>Right side:</b> convert MV positions to NULL via {@link #convertMvPositionsToNull} (mirrors the left-side
+     *   {@link MvSingleValueOrNull} guard), then hand the result to BlockHash. BlockHash collapses every NULL — original or MV-derived —
+     *   into its reserved group 0, which surfaces as a single NULL position at index 0 of the dedup output. The post-dedup logic derives
+     *   {@code rightHadNulls} from that position and drives the short-circuit decisions:
+     *       <ul>
+     *         <li>SEMI: {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} once {@code WHERE} drops NULL results, so the filter path keeps
+     *         the NULL literal (it's harmless) and the hash-join path strips it from the {@link LocalRelation}.</li>
+     *         <li>ANTI: any NULL on the right makes the predicate non-TRUE for every row, so we short-circuit to {@code Filter(FALSE)}
+     *         immediately after the dedup.</li>
+     *         <li>MARK: keeps {@code rightHadNulls} only as a hint for the hash-join path's CASE expression — the filter path uses the
+     *         NULL position in the dedup output directly to drive {@link In}'s three-valued mark.</li>
+     *       </ul>
+     *   </li>
+     *   <li><b>Left side (hash-join path only):</b> insert {@code Eval(svKey = MvSingleValueOrNull(leftField))} and (for SEMI/ANTI)
+     *   {@code Filter(IsNotNull(svKey))} above {@code subqueryJoin.left()} so NULL-keyed and MV-keyed left rows can never reach the
+     *   lookup. MARK keeps the SV guard but skips the IsNotNull filter so MV/NULL left rows survive into the output with the CASE-driven
+     *   mark.</li>
+     * </ul>
+     * <p>
+     * Page lifecycle: when a non-null {@code pageHolder} is supplied, the source page held there is released eagerly (the dedup step
+     * copied every distinct value into a fresh, CB-tracked block), and the holder is either cleared (filter / empty / short-circuit paths)
+     * or swapped to point at the new dedup page (hash-join path) so the caller's existing cleanup releases the right page at end of plan
+     * execution.
+     *
+     * @param blockFactory CB-tracked factory used to allocate the dedup key column and sentinel
+     * @param pageHolder   optional holder that initially references the source page from {@code data.supplier().get()}; updated to
+     *                    reference the new dedup page (hash-join path) or cleared (filter / empty path) so the caller's existing cleanup
+     *                    releases the correct page. May be {@code null} for callers that do not need this swap (e.g. unit tests).
+     */
+    public static LogicalPlan inlineData(
+        AbstractSubqueryJoin subqueryJoin,
+        LocalRelation data,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        // InSubqueryResolver always produces single-field SemiJoin/AntiJoin/MarkJoin configs, and the Analyzer enforces a single-column
+        // subquery output. This method reads leftFields().get(0) unconditionally — assert the contract here so a programmatic misuse trips
+        // an assertion rather than silently using only the first field pair.
+        assert subqueryJoin.config().leftFields().size() == 1
+            : "subquery join must have exactly one left field, found " + subqueryJoin.config().leftFields().size();
+        assert subqueryJoin.config().rightFields().size() == 1
+            : "subquery join must have exactly one right field, found " + subqueryJoin.config().rightFields().size();
+
+        List<Attribute> schema = data.output();
+        Page page = data.supplier().get();
+        Source source = subqueryJoin.source();
+
+        if (page == null || page.getBlockCount() == 0 || schema.isEmpty() || page.getPositionCount() == 0) {
+            releaseSourcePage(pageHolder);
+            return subqueryJoin.buildEmptyRightSidePlan(source);
+        }
+
+        // Dedup the right-side key column up front. The DedupResult owns the freshly allocated key block; try-with-resources releases it
+        // for every terminal path except the hash-join path, which transfers the block into the new dedup page.
+        try (DedupResult dedup = deduplicateRightKeys(page.getBlock(0), blockFactory)) {
+            return routeDedupResult(subqueryJoin, dedup, schema, source, hashJoinThreshold, blockFactory, pageHolder);
+        }
+    }
+
+    /**
+     * Pick the terminal plan from the deduplicated right-side keys. The routing order mirrors the cost of each shape: an empty right side
+     * and the NULL short-circuits resolve to constant plans, a small dedup count becomes an inline {@code IN} filter, and anything larger
+     * becomes a LEFT hash join. See {@link #inlineData} for the SQL NULL / MV semantics behind each branch.
+     */
+    private static LogicalPlan routeDedupResult(
+        AbstractSubqueryJoin subqueryJoin,
+        DedupResult dedup,
+        List<Attribute> schema,
+        Source source,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        if (dedup.positions() == 0) {
+            releaseSourcePage(pageHolder);
+            return subqueryJoin.buildEmptyRightSidePlan(source);
+        }
+
+        boolean rightHadNulls = dedup.hadNulls();
+        boolean allRightNull = dedup.allNull();
+        if (allRightNull || (rightHadNulls && subqueryJoin.shortCircuitOnAnyRightNull())) {
+            // ANTI: any NULL on the right is fatal regardless of other values. SEMI: only fatal when every value is NULL/MV (no candidate
+            // match key remains). MARK: never short-circuits on a NULL alone, but routes the all-NULL case through
+            // {@link #buildShortCircuitPlan} so the mark becomes a constant NULL.
+            releaseSourcePage(pageHolder);
+            return subqueryJoin.buildShortCircuitPlan(source, allRightNull);
+        }
+
+        Attribute leftField = subqueryJoin.config().leftFields().get(0);
+        DataType keyType = schema.get(0).dataType();
+        if (dedup.positions() <= hashJoinThreshold) {
+            // Filter path: hand the dedup keys (possibly including a NULL at position 0) straight to {@link #buildFilterPathPlan}. The
+            // iteration over positions turns the NULL position into a NULL Literal naturally, so the {@link In} operator's three-valued
+            // semantics carry the correct mark/predicate value into the surrounding {@code Filter} or {@code Eval}.
+            LogicalPlan plan = subqueryJoin.buildFilterPathPlan(dedup.keys(), keyType, leftField, source, rightHadNulls);
+            releaseSourcePage(pageHolder);
+            return plan;
+        }
+
+        // Hash-join path: strip the NULL position from the dedup output before constructing the right-side {@link LocalRelation}. The
+        // runtime LEFT join uses BlockHash's {@code areAllValuesNull} fast path, which would route a NULL left key to the same group 0
+        // the NULL right occupies — i.e. {@code null = null} would match, which is wrong for SQL {@code =}. SEMI's left-side
+        // {@link IsNotNull} guard already prevents this in practice; MARK does not have that guard (NULL left keys must survive into the
+        // output with mark=NULL via the CASE), so stripping here is what keeps the {@code null = null} branch unreachable. ANTI
+        // short-circuits earlier on {@code rightHadNulls} and never reaches this branch.
+        if (rightHadNulls) {
+            dedup.stripNullPosition();
+        }
+        return inlineAsHashJoin(subqueryJoin, dedup, schema, source, blockFactory, pageHolder, rightHadNulls);
+    }
+
+    /**
+     * Owns the deduplicated right-side key column produced by {@link #deduplicateRightKeys} and the derived "right side had a NULL" flag,
+     * so the post-dedup routing in {@link #routeDedupResult} can reason about the keys without juggling a loose {@link Block} array and
+     * parallel locals.
+     * <p>
+     * BlockHash reserves group 0 for NULL and orders {@link BlockHash#nonEmpty()} as {@code [seenNull ? 0 : 1, hash.size() + 1)}, so the
+     * NULL group (if any) is the first position of the output. {@code keys.isNull(0)} is therefore a precise "right side had any NULL or
+     * MV input" test, captured once at construction as {@link #hadNulls()}.
+     * <p>
+     * The instance owns {@link #keys} until either {@link #close()} releases it (filter / empty / short-circuit paths) or
+     * {@link #markConsumed()} hands it to the new dedup page (hash-join path). {@link #stripNullPosition()} replaces the block in place,
+     * releasing the previous one.
+     */
+    private static final class DedupResult implements Releasable {
+        private Block keys;
+        private final boolean hadNulls;
+
+        DedupResult(Block keys) {
+            this.keys = keys;
+            this.hadNulls = keys.getPositionCount() > 0 && keys.isNull(0);
+        }
+
+        Block keys() {
+            return keys;
+        }
+
+        int positions() {
+            return keys.getPositionCount();
+        }
+
+        boolean hadNulls() {
+            return hadNulls;
+        }
+
+        /** True when every right value is NULL/MV, i.e. the only dedup group is the reserved NULL group. */
+        boolean allNull() {
+            return hadNulls && positions() == 1;
+        }
+
+        /**
+         * Drop the leading NULL position (BlockHash's reserved group 0) in place, releasing the previous block. Used by the hash-join
+         * path so the right-side {@link LocalRelation} never carries a NULL key into the LEFT join.
+         */
+        void stripNullPosition() {
+            assert hadNulls : "stripNullPosition called without a NULL group";
+            Block stripped = stripFirstPosition(keys);
+            Releasables.closeExpectNoException(keys);
+            keys = stripped;
+        }
+
+        /**
+         * Relinquish ownership of {@link #keys} after it has been handed to another owner (the new dedup {@link Page}); a subsequent
+         * {@link #close()} then becomes a no-op.
+         */
+        void markConsumed() {
+            keys = null;
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(keys);
+        }
+    }
+
+    /**
+     * Canonicalize the right-side key column and deduplicate it through a single-column {@link BlockHash}.
+     * <p>
+     * Multi-valued right positions are first collapsed to NULL via {@link #convertMvPositionsToNull} (mirroring the left-side
+     * {@link MvSingleValueOrNull} guard) so both sides of the join see the same single-value-or-NULL shape. The MV-to-NULL intermediate
+     * is only needed by {@link BlockHash#add}; BlockHash retains its own copies of every distinct value before {@code getKeys} returns,
+     * so the intermediate is released as soon as dedup finishes (whether or not it threw). We do NOT strip the NULLs here — BlockHash
+     * collapses every NULL (originally NULL or MV-derived) into its reserved group 0, which the returned {@link DedupResult} surfaces
+     * as {@link DedupResult#hadNulls()}.
+     * <p>
+     * The returned {@link DedupResult} owns a freshly allocated, circuit-breaker-tracked key block; the caller is responsible for
+     * releasing it (or transferring it via {@link DedupResult#markConsumed()}).
+     */
+    private static DedupResult deduplicateRightKeys(Block keyBlock, BlockFactory blockFactory) {
+        Block dedupInput = keyBlock;
+        Block convertedKeyBlock = null;
+        if (keyBlock.mayHaveMultivaluedFields()) {
+            convertedKeyBlock = convertMvPositionsToNull(keyBlock, blockFactory);
+            dedupInput = convertedKeyBlock;
+        }
+
+        Block[] dedupKeys = null;
+        try {
+            dedupKeys = dedupViaBlockHash(dedupInput, blockFactory);
+            DedupResult result = new DedupResult(dedupKeys[0]);
+            dedupKeys = null; // ownership transferred to the DedupResult
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(convertedKeyBlock);
+            if (dedupKeys != null) {
+                Releasables.closeExpectNoException(dedupKeys);
+            }
+        }
+    }
+
+    /**
+     * Runs {@code input} through a single-column {@link BlockHash} and returns the deduplicated keys as freshly allocated blocks owned
+     * by the caller.
+     * <p>
+     * Lifecycle: the {@link BlockHash} (and the {@link IntVector} returned by {@link BlockHash#nonEmpty()}) are released by their
+     * try-with-resources blocks before this method returns. {@link BlockHash#getKeys} allocates a brand-new block per group column via
+     * the supplied {@code blockFactory}, so the returned blocks survive the BlockHash close and are tracked by the request circuit breaker
+     * independently. On any thrown exception, the BlockHash and its internal state are released by its try-with-resources before
+     * propagation.
+     * <p>
+     * Caller is responsible for releasing the returned {@code Block[]} (each element is a {@link Block} the caller now owns).
+     */
+    private static Block[] dedupViaBlockHash(Block input, BlockFactory blockFactory) {
+        // emitBatchSize is the ordinal-flush chunk size used by composite hashes when streaming AddInput callbacks. It is unused for the
+        // single-column hashes (Int/Long/BytesRef/Double/Boolean/Null BlockHash) that we always end up with here, so the exact value is
+        // cosmetic. We match HashAggregationOperator's default (TARGET_PAGE_SIZE / Long.SIZE = 4096 positions) for consistency.
+        int emitBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+        try (
+            BlockHash hash = BlockHash.build(List.of(new BlockHash.GroupSpec(0, input.elementType())), blockFactory, emitBatchSize, false)
+        ) {
+            hash.add(new Page(input), new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {}
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {}
+
+                @Override
+                public void close() {}
+            });
+            try (IntVector selected = hash.nonEmpty()) {
+                return hash.getKeys(selected);
+            }
+        }
+    }
+
+    /**
+     * Wraps the already-deduplicated key block from {@code dedup} into a {@link LocalRelation} with a sentinel TRUE column, builds a
+     * LEFT {@link Join} on the original join keys, and delegates to {@link #buildHashJoinPathPlan} for the join-type-specific terminal
+     * shape (sentinel filter + Project for SEMI / ANTI; CASE-Eval for MARK). On success the key block is handed to the new dedup page
+     * via {@link DedupResult#markConsumed()} so the caller's try-with-resources doesn't double-release the key block now owned by the
+     * new page. See {@link #inlineData} for SQL NULL semantics.
+     */
+    private static LogicalPlan inlineAsHashJoin(
+        AbstractSubqueryJoin subqueryJoin,
+        DedupResult dedup,
+        List<Attribute> schema,
+        Source source,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder,
+        boolean rightHadNulls
+    ) {
+        Block sentinel = null;
+        Page dedupPage;
+        boolean success = false;
+        try {
+            // The LEFT join strips the right-side key column from its output, so we attach a constant TRUE sentinel column to detect
+            // matches via IS NOT NULL / IS NULL.
+            sentinel = blockFactory.newConstantBooleanBlockWith(true, dedup.positions());
+            dedupPage = new Page(dedup.keys(), sentinel);
+            // Ownership of the key block and sentinel has been handed off to dedupPage; relinquish the DedupResult's claim so its
+            // close() doesn't double-release the key block.
+            dedup.markConsumed();
+            sentinel = null;
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(sentinel);
+            }
+        }
+
+        // The source page is no longer referenced by anything reachable from the new plan: BlockHash#getKeys returned a fresh,
+        // breaker-tracked Block. Release it eagerly and hand the holder the new page so end-of-plan cleanup releases it instead.
+        if (pageHolder != null) {
+            Page oldSource = pageHolder.getAndSet(dedupPage);
+            if (oldSource != null) {
+                Releasables.closeExpectNoException(oldSource);
+            }
+        }
+
+        Attribute sentinelAttr = new ReferenceAttribute(source, null, "$$matched", DataType.BOOLEAN, Nullability.TRUE, null, false);
+        List<Attribute> extendedSchema = new ArrayList<>(schema);
+        extendedSchema.add(sentinelAttr);
+        LocalRelation deduplicatedData = new LocalRelation(source, extendedSchema, LocalSupplier.of(dedupPage));
+
+        // SV guard: pipe the left key through {@link MvSingleValueOrNull} via an EVAL so multi-valued left positions become NULL
+        // (emitting the standard "single-value function encountered multi-value" warning) before the LEFT join. The dedup right side
+        // is single-valued by construction (BlockHash collapses each group to one value), so multi-valued left positions would
+        // otherwise produce one output row per matching MV value and leak through the sentinel filter as a spurious match. With
+        // the guard, MV → NULL → no match → exactly one output row per left row, matching the filter path's three-valued In
+        // semantics. Subquery joins always have exactly one left/right field pair (asserted in inlineData and enforced by
+        // postAnalysisVerification), so there is a single SV guard to build.
+        Attribute leftField = subqueryJoin.config().leftFields().get(0);
+        Alias svGuardAlias = new Alias(source, "$$" + leftField.name() + "$sv", new MvSingleValueOrNull(source, leftField), null, true);
+        Attribute svGuardedLeftField = svGuardAlias.toAttribute();
+        LogicalPlan leftSide = new Eval(source, subqueryJoin.left(), List.of(svGuardAlias));
+        JoinConfig leftJoinConfig = new JoinConfig(LEFT, List.of(svGuardedLeftField), subqueryJoin.config().rightFields(), null);
+        // Drop NULL/MV-keyed left rows before the LEFT join so the runtime BlockHash lookup can never spuriously match `null = null`
+        // against a NULL group on the right side, and to mirror the filter path's behavior of dropping MV-LHS rows for SEMI/ANTI
+        // (where In and Not(In) return NULL → treated as FALSE under WHERE). MARK suppresses this filter so that NULL-keyed and MV-keyed
+        // rows survive into the output with their mark set to NULL by the CASE expression in {@link MarkJoin#buildHashJoinPathPlan}.
+        if (subqueryJoin.filterNullLeftKeysBeforeHashJoin()) {
+            leftSide = new Filter(source, leftSide, new IsNotNull(source, svGuardedLeftField));
+        }
+
+        return subqueryJoin.buildHashJoinPathPlan(leftSide, deduplicatedData, leftJoinConfig, sentinelAttr, source, rightHadNulls);
+    }
+
+    private static void releaseSourcePage(AtomicReference<Page> pageHolder) {
+        if (pageHolder == null) {
+            return;
+        }
+        Page page = pageHolder.getAndSet(null);
+        if (page != null) {
+            Releasables.closeExpectNoException(page);
+        }
+    }
+
+    /**
+     * Build a copy of {@code input} where every multi-valued position has been replaced with NULL. Already-NULL positions and
+     * already-single-value positions are preserved. Mirrors the left-side {@link MvSingleValueOrNull} guard so that BlockHash sees the
+     * same single-value-or-NULL representation on both sides of the join, and so the dedup output represents a multi-valued right-side
+     * row as a single NULL group rather than expanding it across all of its element values.
+     * <p>
+     * The returned Block is owned by the caller (allocated through {@code blockFactory} and tracked by the request circuit breaker).
+     */
+    private static Block convertMvPositionsToNull(Block input, BlockFactory blockFactory) {
+        int positionCount = input.getPositionCount();
+        ElementType type = input.elementType();
+        try (Block.Builder builder = type.newBlockBuilder(positionCount, blockFactory)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (input.isNull(p) || input.getValueCount(p) > 1) {
+                    builder.appendNull();
+                } else {
+                    builder.copyFrom(input, p, p + 1);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Drop position 0 of {@code input} via a shallow {@link Block#filter}, returning a new Block owned by the caller. Used by the
+     * hash-join path to remove the NULL position that BlockHash always places at index 0 when {@code seenNull} is true — see the comment
+     * on {@code rightHadNulls} in {@link #inlineData} for why the right-side {@link LocalRelation} must not carry a NULL key into the
+     * LEFT join.
+     */
+    private static Block stripFirstPosition(Block input) {
+        int positionCount = input.getPositionCount();
+        int[] positions = new int[positionCount - 1];
+        for (int i = 0; i < positions.length; i++) {
+            positions[i] = i + 1;
+        }
+        return input.filter(false, positions);
+    }
+
+    /**
+     * Finds the first subquery join in the plan whose right side has not yet been replaced with results. Unlike InlineJoin, the right
+     * side is an independent subquery that doesn't use StubRelation, no replaceStub is needed, deep copy is not required.
+     */
+    public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan, Set<LocalRelation> subPlansResults) {
+        Holder<LogicalPlan> subPlanHolder = new Holder<>();
+        optimizedPlan.forEachUp(AbstractSubqueryJoin.class, sj -> {
+            if (subPlanHolder.get() == null) {
+                if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
+                    return;
+                }
+                subPlanHolder.set(sj.right());
+            }
+        });
+        LogicalPlan subPlan = subPlanHolder.get();
+        if (subPlan == null) {
+            return null;
+        }
+        subPlan.setOptimized();
+        // Unlike InlineJoin there is no StubRelation deep copy here, so the node executed as the subplan is the very same instance held
+        // on the join's right side. It therefore doubles as the identity key that newMainPlan matches against, hence both tuple slots are
+        // the same.
+        return new LogicalPlanTuple(subPlan, subPlan);
+    }
+
+    public static LogicalPlan newMainPlan(
+        LogicalPlan optimizedPlan,
+        LogicalPlanTuple subPlans,
+        LocalRelation resultWrapper,
+        int hashJoinThreshold,
+        BlockFactory blockFactory,
+        AtomicReference<Page> pageHolder
+    ) {
+        LogicalPlan newPlan = optimizedPlan.transformUp(
+            AbstractSubqueryJoin.class,
+            sj -> sj.right() == subPlans.originalSubPlan() ? inlineData(sj, resultWrapper, hashJoinThreshold, blockFactory, pageHolder) : sj
+        );
+        newPlan.setOptimized();
+        return newPlan;
+    }
+
+    /**
+     * Tuple holding the subplan to execute and the original plan node for identity matching.
+     */
+    public record LogicalPlanTuple(LogicalPlan subPlan, LogicalPlan originalSubPlan) {}
+}

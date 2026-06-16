@@ -270,7 +270,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
             boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
             assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
-        }, 300, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
 
         logger.info("--> frozen index [{}] is now in the data stream and cleanup is complete", expectedFrozenIndexName);
 
@@ -378,7 +378,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             );
             assertThat("Original index should have been deleted", projectMetadata.index(candidateIndex), nullValue());
             assertThat("Clone index should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
-        }, 300, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
 
         logger.info("--> initial transition complete; frozen index [{}] is in the data stream", expectedFrozenIndexName);
 

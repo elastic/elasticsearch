@@ -4,32 +4,34 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermsSetQueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Objects;
+import java.util.Set;
 
-import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+public class TermsSetQuery extends Query {
+    private final String field;
+    private final Set<Object> values;
 
-public class ExistsQuery extends Query {
-
-    private final String name;
-
-    public ExistsQuery(Source source, String name) {
+    public TermsSetQuery(Source source, String field, Set<Object> values) {
         super(source);
-        this.name = name;
+        this.field = field;
+        this.values = values;
     }
 
     @Override
     protected QueryBuilder asBuilder() {
-        return existsQuery(name);
+        return new TermsSetQueryBuilder(field, values.stream().toList()).setMinimumShouldMatch(String.valueOf(values.size()));
     }
 
     @Override
     protected String innerToString() {
-        return name;
+        return "terms_set(" + field + ", " + values + ")";
     }
 
     @Override
@@ -39,7 +41,7 @@ public class ExistsQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name);
+        return Objects.hash(super.hashCode(), field, values);
     }
 
     @Override
@@ -47,8 +49,7 @@ public class ExistsQuery extends Query {
         if (false == super.equals(obj)) {
             return false;
         }
-
-        ExistsQuery other = (ExistsQuery) obj;
-        return Objects.equals(name, other.name);
+        TermsSetQuery other = (TermsSetQuery) obj;
+        return field.equals(other.field) && values.equals(other.values);
     }
 }

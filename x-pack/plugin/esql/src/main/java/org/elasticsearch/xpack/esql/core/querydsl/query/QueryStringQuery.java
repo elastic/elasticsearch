@@ -113,16 +113,12 @@ public class QueryStringQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, fields);
+        return Objects.hash(super.hashCode(), query, fields, options);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
 

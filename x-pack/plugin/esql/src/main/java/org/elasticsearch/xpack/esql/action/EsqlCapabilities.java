@@ -3049,6 +3049,11 @@ public class EsqlCapabilities {
         FIX_PROMQL_SCALAR_FLOAT_DIV,
 
         /**
+         * Lucene pushdown for MV_CONTAINS
+         */
+        MV_CONTAINS_LUCENE_PUSHDOWN,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */

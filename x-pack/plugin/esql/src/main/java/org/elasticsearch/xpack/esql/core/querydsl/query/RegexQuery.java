@@ -18,10 +18,6 @@ public class RegexQuery extends Query {
     private final String field, regex;
     private final boolean caseInsensitive;
 
-    public RegexQuery(Source source, String field, String regex) {
-        this(source, field, regex, false);
-    }
-
     public RegexQuery(Source source, String field, String regex, boolean caseInsensitive) {
         super(source);
         this.field = field;
@@ -48,16 +44,12 @@ public class RegexQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, regex, caseInsensitive);
+        return Objects.hash(super.hashCode(), field, regex, caseInsensitive);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
+        if (false == super.equals(obj)) {
             return false;
         }
 

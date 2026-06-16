@@ -102,6 +102,7 @@ public class CsvTestsDataLoader {
             .withDynamic("false")
             .noSubfields(),
         new TestDataset("all_types", "mapping-all-types.json", "all-types.csv"),
+        new TestDataset("all_types_mv", "mapping-all-types.json", "all-types-mv.csv"),
         new TestDataset("hosts"),
         new TestDataset("apps"),
         new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),

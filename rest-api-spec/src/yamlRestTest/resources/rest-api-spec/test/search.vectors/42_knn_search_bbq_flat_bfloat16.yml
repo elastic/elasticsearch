@@ -427,6 +427,12 @@ setup:
         index: bbq_flat_nested
         max_num_segments: 1
 
+  # In stateless, a single-segment force-merge is a no-op, so no commit propagates
+  # to the search shard; refresh waits for the latest commit to avoid a race.
+  - do:
+      indices.refresh:
+        index: bbq_flat_nested
+
   - do:
       search:
         index: bbq_flat_nested

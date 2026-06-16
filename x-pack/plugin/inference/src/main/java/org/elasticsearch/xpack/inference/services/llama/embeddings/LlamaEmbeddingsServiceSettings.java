@@ -133,27 +133,6 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         this.maxInputTokens = maxInputTokens;
     }
 
-    /**
-     * Constructs a new LlamaEmbeddingsServiceSettings with the specified parameters.
-     *
-     * @param modelId the identifier for the model
-     * @param url the URL of the Llama service
-     * @param dimensions the number of dimensions for the embeddings, can be null
-     * @param similarity the similarity measure to use, can be null
-     * @param maxInputTokens the maximum number of input tokens, can be null
-     * @param rateLimitSettings the rate limit settings for the service, can be null
-     */
-    public LlamaEmbeddingsServiceSettings(
-        String modelId,
-        String url,
-        @Nullable Integer dimensions,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, createUri(url), dimensions, similarity, maxInputTokens, rateLimitSettings);
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;

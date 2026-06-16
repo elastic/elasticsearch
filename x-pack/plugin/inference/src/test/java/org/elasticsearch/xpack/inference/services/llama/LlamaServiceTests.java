@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests.createChatCompletionModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
@@ -497,7 +498,14 @@ public class LlamaServiceTests extends InferenceServiceTestCase {
     }
 
     public Model createEmbeddingModel(SimilarityMeasure similarity) {
-        var settings = new LlamaEmbeddingsServiceSettings(randomAlphaOfLength(8), randomAlphaOfLength(8), null, similarity, null, null);
+        var settings = new LlamaEmbeddingsServiceSettings(
+            randomAlphaOfLength(8),
+            createUri(randomAlphaOfLength(8)),
+            null,
+            similarity,
+            null,
+            null
+        );
         return new LlamaEmbeddingsModel(
             randomAlphaOfLength(8),
             TaskType.TEXT_EMBEDDING,

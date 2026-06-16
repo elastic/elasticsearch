@@ -439,7 +439,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractBWCSerializatio
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
             );
-            assertThat(e.getMessage(), endsWith(Strings.format("[service_settings] unknown field [%s]", immutableField)));
+            assertThat(
+                e.getMessage(),
+                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
+            );
         }
     }
 

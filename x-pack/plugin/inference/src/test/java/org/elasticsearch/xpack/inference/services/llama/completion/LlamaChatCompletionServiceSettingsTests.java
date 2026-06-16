@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -80,7 +81,13 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.MODEL_ID))
+            is(
+                Strings.format(
+                    "[%s] does not contain the required setting [%s]",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    ServiceFields.MODEL_ID
+                )
+            )
         );
     }
 
@@ -95,7 +102,7 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("[service_settings] does not contain the required setting [%s]", ServiceFields.URL))
+            is(Strings.format("[%s] does not contain the required setting [%s]", ModelConfigurations.SERVICE_SETTINGS, ServiceFields.URL))
         );
     }
 
@@ -124,7 +131,7 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
-    public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {
+    public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {
         var serviceSettings = new LlamaChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_URI,
@@ -136,7 +143,10 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
                 XContentParseException.class,
                 () -> serviceSettings.updateServiceSettings(new HashMap<>(Map.of(immutableField, "value")))
             );
-            assertThat(e.getMessage(), endsWith(Strings.format("[service_settings] unknown field [%s]", immutableField)));
+            assertThat(
+                e.getMessage(),
+                endsWith(Strings.format("[%s] unknown field [%s]", ModelConfigurations.SERVICE_SETTINGS, immutableField))
+            );
         }
     }
 

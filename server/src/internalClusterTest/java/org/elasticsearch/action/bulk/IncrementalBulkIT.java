@@ -67,10 +67,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            IngestClientIT.ExtendedIngestTestPlugin.class,
-            MockTransportService.TestPlugin.class
-        );
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override

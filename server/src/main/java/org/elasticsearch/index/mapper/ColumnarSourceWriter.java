@@ -58,7 +58,7 @@ final class ColumnarSourceWriter {
     private final SourceFilter sourceFilter;
     private final ThreadLocal<ColumnarPerThread> cachedColumnarPerThread;
 
-    public ColumnarSourceWriter(SourceFilter sourceFilter) {
+    ColumnarSourceWriter(SourceFilter sourceFilter) {
         this.sourceFilter = sourceFilter;
         this.cachedColumnarPerThread = new ThreadLocal<>();
     }

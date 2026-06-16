@@ -47,8 +47,6 @@ public class EsRelation extends LeafPlan {
     private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
-    /** Planning-time annotation added by {@code DetermineUnmappedFieldsToKeep}; never serialized. */
-    private final UnmappedFieldsAttribute unmappedFieldsAnnotation;
 
     public EsRelation(
         Source source,
@@ -59,19 +57,6 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
-        this(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes, null);
-    }
-
-    private EsRelation(
-        Source source,
-        String indexPattern,
-        IndexMode indexMode,
-        Map<String, List<String>> originalIndices,
-        Map<String, List<String>> concreteIndices,
-        Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes,
-        UnmappedFieldsAttribute unmappedFieldsAnnotation
-    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
@@ -79,7 +64,6 @@ public class EsRelation extends LeafPlan {
         this.concreteIndices = concreteIndices;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
-        this.unmappedFieldsAnnotation = unmappedFieldsAnnotation;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
@@ -146,14 +130,6 @@ public class EsRelation extends LeafPlan {
     @Override
     public List<Attribute> output() {
         return attrs;
-    }
-
-    /**
-     * Returns the planning-time {@link UnmappedFieldsAttribute} annotation added by
-     * {@code DetermineUnmappedFieldsToKeep}, or {@code null} if not yet annotated.
-     */
-    public UnmappedFieldsAttribute unmappedFieldsAnnotation() {
-        return unmappedFieldsAnnotation;
     }
 
     /**
@@ -247,16 +223,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(
-            source(),
-            indexPattern,
-            indexMode,
-            originalIndices,
-            concreteIndices,
-            indexNameWithModes,
-            newAttributes,
-            unmappedFieldsAnnotation
-        );
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }
 
     public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
@@ -273,22 +240,8 @@ public class EsRelation extends LeafPlan {
         return withAdditionalAttributes(List.of(additionalAttribute));
     }
 
-    /** Attaches the planning-time annotation produced by {@code DetermineUnmappedFieldsToKeep}. */
-    public EsRelation withUnmappedFieldsAnnotation(UnmappedFieldsAttribute annotation) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs, annotation);
-    }
-
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(
-            source(),
-            indexPattern,
-            indexMode,
-            originalIndices,
-            concreteIndices,
-            indexNameWithModes,
-            attrs,
-            unmappedFieldsAnnotation
-        );
+        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
     }
 
 }

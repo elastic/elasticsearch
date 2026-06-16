@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -15,27 +18,35 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * A planning-time-only {@link MetadataAttribute} that annotates an {@link EsRelation} with
- * the {@link UnmappedFieldsPattern} describing which additional unmapped source fields would
- * survive to the query output when {@code SET unmapped_fields="LOAD_ALL"} is in effect.
+ * A {@link MetadataAttribute} that represents the synthetic {@code _unmapped_fields} column
+ * produced when {@code SET unmapped_fields="LOAD_ALL"} is in effect.
  *
- * <p>This attribute is added to {@link EsRelation#output()} by
- * {@code DetermineUnmappedFieldsToKeep} in the Finish Analysis batch and is never serialized
- * or executed.
+ * <p>Added to {@link EsRelation#output()} by {@code DetermineUnmappedFieldsToKeep} in the
+ * Finish Analysis batch. The carried {@link UnmappedFieldsPattern} describes which additional
+ * (currently unmapped) source fields are loaded into the JSON object value of the column.
  */
 public final class UnmappedFieldsAttribute extends MetadataAttribute {
 
     public static final String ATTRIBUTE_NAME = "_unmapped_fields";
 
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Attribute.class,
+        "UnmappedFieldsAttribute",
+        UnmappedFieldsAttribute::readFrom
+    );
+
     private final UnmappedFieldsPattern pattern;
 
     public UnmappedFieldsAttribute(Source source, UnmappedFieldsPattern pattern) {
-        super(source, ATTRIBUTE_NAME, DataType.NULL, false);
+        super(source, ATTRIBUTE_NAME, DataType.KEYWORD, false);
         this.pattern = pattern;
     }
 
@@ -58,12 +69,37 @@ public final class UnmappedFieldsAttribute extends MetadataAttribute {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("planning-time only");
+        if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
+            Source.EMPTY.writeTo(out);
+            out.writeString(name());
+            dataType().writeTo(out);
+            out.writeOptionalString(null); // qualifier, no longer used
+            out.writeEnum(nullable());
+            id().writeTo(out);
+            out.writeBoolean(synthetic());
+            out.writeStringCollection(pattern.includes());
+            out.writeStringCollection(pattern.excludes());
+        }
+    }
+
+    public static UnmappedFieldsAttribute readFrom(StreamInput in) throws IOException {
+        return ((PlanStreamInput) in).readAttributeWithCache(stream -> {
+            Source source = Source.readFrom((PlanStreamInput) stream);
+            stream.readString(); // attribute name constant _unmapped_fields
+            DataType dataType = DataType.readFrom(stream);
+            stream.readOptionalString(); // qualifier, no longer used
+            Nullability nullability = stream.readEnum(Nullability.class);
+            NameId id = NameId.readFrom((PlanStreamInput) stream);
+            boolean synthetic = stream.readBoolean();
+            List<String> includes = stream.readStringCollectionAsList();
+            List<String> excludes = stream.readStringCollectionAsList();
+            return new UnmappedFieldsAttribute(source, dataType, nullability, id, synthetic, new UnmappedFieldsPattern(includes, excludes));
+        });
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("planning-time only");
+        return ENTRY.name;
     }
 
     @Override

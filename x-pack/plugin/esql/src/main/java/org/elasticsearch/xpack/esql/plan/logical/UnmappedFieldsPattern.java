@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -39,5 +40,14 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
     public UnmappedFieldsPattern {
         includes = List.copyOf(includes);
         excludes = List.copyOf(excludes);
+    }
+
+    /** Returns a new pattern with {@code names} appended to the excludes list. */
+    public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {
+        if (names.isEmpty()) return this;
+        List<String> merged = new ArrayList<>(excludes.size() + names.size());
+        merged.addAll(excludes);
+        merged.addAll(names);
+        return new UnmappedFieldsPattern(includes, merged);
     }
 }

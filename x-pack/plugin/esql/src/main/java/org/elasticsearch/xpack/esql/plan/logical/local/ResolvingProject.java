@@ -45,13 +45,30 @@ public class ResolvingProject extends Project {
         Function<List<Attribute>, List<? extends NamedExpression>> resolver,
         UnmappedFieldsPattern unmappedFieldsPattern
     ) {
-        this(
-            source,
-            child,
-            resolver.apply(child.output().stream().filter(a -> !(a instanceof UnmappedFieldsAttribute)).toList()),
-            resolver,
-            unmappedFieldsPattern
-        );
+        this(source, child, computeProjections(child.output(), resolver), resolver, unmappedFieldsPattern);
+    }
+
+    /**
+     * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute}
+     * instances out of the resolver's scope (so KEEP/DROP/RENAME patterns cannot match the
+     * synthetic column), then re-appending them unconditionally at the end of the projections.
+     */
+    private static List<? extends NamedExpression> computeProjections(
+        List<Attribute> childOutput,
+        Function<List<Attribute>, List<? extends NamedExpression>> resolver
+    ) {
+        List<Attribute> unmappedAttrs = childOutput.stream().filter(a -> a instanceof UnmappedFieldsAttribute).toList();
+        List<Attribute> resolverInput = unmappedAttrs.isEmpty()
+            ? childOutput
+            : childOutput.stream().filter(a -> (a instanceof UnmappedFieldsAttribute) == false).toList();
+        List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
+        if (unmappedAttrs.isEmpty()) {
+            return resolved;
+        }
+        List<NamedExpression> combined = new ArrayList<>(resolved.size() + unmappedAttrs.size());
+        combined.addAll(resolved);
+        combined.addAll(unmappedAttrs);
+        return combined;
     }
 
     private ResolvingProject(

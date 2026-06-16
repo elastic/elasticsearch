@@ -2212,7 +2212,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsAttribute attr) {
             if (plan instanceof EsRelation esr) {
-                return esr.indexMode() == IndexMode.LOOKUP ? esr : esr.withUnmappedFieldsAnnotation(attr);
+                return esr.indexMode() == IndexMode.LOOKUP ? esr : esr.withAdditionalAttribute(attr);
             }
             List<LogicalPlan> children = plan.children();
             if (children.isEmpty()) {

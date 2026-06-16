@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -155,6 +156,7 @@ public class ExpressionWritables {
     public static List<NamedWriteableRegistry.Entry> attributes() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(ExpressionCoreWritables.attributes());
+        entries.add(UnmappedFieldsAttribute.ENTRY);
         entries.add(UnsupportedAttribute.ENTRY);
         return entries;
     }

@@ -1640,11 +1640,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         List<EsRelation> relations = plan.collect(EsRelation.class);
         assertThat("expected exactly one EsRelation", relations, hasSize(1));
         EsRelation esr = relations.get(0);
-        UnmappedFieldsAttribute annotation = esr.unmappedFieldsAnnotation();
-        if (annotation == null) {
-            throw new AssertionError("no UnmappedFieldsAttribute annotation on EsRelation");
+        UnmappedFieldsAttribute attr = esr.output()
+            .stream()
+            .filter(a -> a instanceof UnmappedFieldsAttribute)
+            .map(a -> (UnmappedFieldsAttribute) a)
+            .findFirst()
+            .orElse(null);
+        if (attr == null) {
+            throw new AssertionError("no UnmappedFieldsAttribute in EsRelation.output()");
         }
-        assertThat(annotation.pattern(), equalTo(expected));
+        assertThat(attr.pattern(), equalTo(expected));
     }
 
     private static Matcher<String> partiallyUnmappedNonKeywordError(String fieldName) {

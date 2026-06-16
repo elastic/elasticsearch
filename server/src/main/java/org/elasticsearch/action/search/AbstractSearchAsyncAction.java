@@ -631,8 +631,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
-        recordStoreMetrics(mergedDirectoryMetrics.get());
+        DirectoryMetrics directoryMetrics = mergedDirectoryMetrics.get();
+        createResponseHeaderFromDirectoryMetrics(threadContext, directoryMetrics);
+        recordStoreMetrics(directoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

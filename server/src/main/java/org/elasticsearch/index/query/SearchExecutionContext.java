@@ -865,12 +865,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        if (circuitBreaker != null) {
-            for (var entry : queryConstructionMemoryByLabel.entrySet()) {
-                long held = entry.getValue().getAndSet(0);
-                if (held != 0) {
-                    circuitBreaker.addWithoutBreaking(-held, entry.getKey());
-                }
+        if (circuitBreaker == null) {
+            return;
+        }
+        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+            long held = entry.getValue().getAndSet(0);
+            if (held != 0) {
+                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
             }
         }
         queryConstructionMemoryByLabel.clear();

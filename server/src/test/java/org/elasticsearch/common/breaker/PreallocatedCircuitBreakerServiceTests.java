@@ -156,7 +156,8 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
             .stream()
             .collect(Collectors.groupingBy(Measurement::attributes, Collectors.summingLong(Measurement::getLong)));
 
-        assertEquals(Long.valueOf(0L), heldByAttrs.getOrDefault(preallocateAttrs, 0L));
+        assertTrue("expected preallocate admission to be recorded", heldByAttrs.containsKey(preallocateAttrs));
+        assertEquals(Long.valueOf(0L), heldByAttrs.get(preallocateAttrs));
         assertNull("preallocate close() must not bucket releases under \"uncategorized\"", heldByAttrs.get(uncategorizedAttrs));
         assertThat(real.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }

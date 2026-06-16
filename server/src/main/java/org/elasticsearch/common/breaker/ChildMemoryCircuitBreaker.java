@@ -37,6 +37,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final String name;
     private final LongCounter trippedCountMeter;
     private final LongUpDownCounter memoryHeldMeter;
+    private final Map<String, Object> uncategorizedHeldAttributes;
 
     /**
      * Attribute key identifying the breaker on the legacy {@link CircuitBreakerMetrics#ES_BREAKER_TRIP_COUNT_TOTAL} counter.
@@ -87,6 +88,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.parent = parent;
         this.trippedCountMeter = metrics.getTripCount();
         this.memoryHeldMeter = metrics.getMemoryHeld();
+        this.uncategorizedHeldAttributes = Map.of(
+            BREAKER_METRIC_TYPE_ATTRIBUTE,
+            this.name,
+            CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
+            UNCATEGORIZED_RELEASE
+        );
     }
 
     /**
@@ -245,10 +252,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public void addWithoutBreaking(long bytes) {
         adjustUsedBytes(bytes);
-        this.memoryHeldMeter.add(
-            bytes,
-            Map.of(BREAKER_METRIC_TYPE_ATTRIBUTE, this.name, CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE, UNCATEGORIZED_RELEASE)
-        );
+        this.memoryHeldMeter.add(bytes, uncategorizedHeldAttributes);
     }
 
     /**

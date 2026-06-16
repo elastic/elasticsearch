@@ -131,7 +131,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            addWithoutBreakingInternal(bytes, null);
+            addWithoutBreakingInternal(bytes, ChildMemoryCircuitBreaker.UNCATEGORIZED_RELEASE);
         }
 
         @Override
@@ -145,22 +145,14 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             }
             if (preallocationUsed == preallocated) {
                 // Preallocation buffer was full before this request
-                if (label == null) {
-                    next.addWithoutBreaking(bytes);
-                } else {
-                    next.addWithoutBreaking(bytes, label);
-                }
+                next.addWithoutBreaking(bytes, label);
                 return;
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
                 preallocationUsed = preallocated;
-                if (label == null) {
-                    next.addWithoutBreaking(newUsed - preallocated);
-                } else {
-                    next.addWithoutBreaking(newUsed - preallocated, label);
-                }
+                next.addWithoutBreaking(newUsed - preallocated, label);
                 return;
             }
             // This is the fast case. No volatile reads or writes here, ma!

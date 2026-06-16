@@ -208,7 +208,7 @@ public class DataStreamLifecycleDownsamplingTests extends DataStreamLifecycleSer
             clusterService.state().projectState(projectId),
             dataStream,
             List.of(firstGenIndex),
-            DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM
+            randomIntBetween(0, DEFAULT_MAX_DOWNSAMPLING_INDICES_IN_PROGRESS_PER_DATA_STREAM)
         );
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertBusy(() -> {

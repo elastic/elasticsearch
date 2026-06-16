@@ -27,6 +27,33 @@ public abstract class AbstractHierarchicalKMeansTestCase<V> extends ESTestCase {
 
     protected abstract ClusteringVectorValues<V> generateData(int nSamples, int nDims, int nClusters);
 
+    public void testNumClustersForTargetSize() {
+        assertEquals(32, HierarchicalKMeans.numClustersForTargetSize(8192, 256));
+        assertEquals(2, HierarchicalKMeans.numClustersForTargetSize(400, 256));
+    }
+
+    public void testWarmStartMatchesColdStartClusterCount() throws IOException {
+        float[][] rows = {
+            { 1f, 0f, 0f, 0f },
+            { 0.9f, 0.1f, 0f, 0f },
+            { 0.8f, 0.2f, 0f, 0f },
+            { 0.7f, 0.3f, 0f, 0f },
+            { 0.6f, 0.4f, 0f, 0f },
+            { 0.5f, 0.5f, 0f, 0f },
+            { 0.4f, 0.6f, 0f, 0f },
+            { 0.3f, 0.7f, 0f, 0f },
+            { 0.2f, 0.8f, 0f, 0f },
+            { 0.1f, 0.9f, 0f, 0f },
+            { 0f, 1f, 0f, 0f },
+            { -0.1f, 0.9f, 0f, 0f } };
+        KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(List.of(rows), null, 4);
+        HierarchicalKMeans<float[]> kmeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, 4);
+        KMeansResult<float[]> cold = kmeans.cluster(vectors, 4);
+        KMeansResult<float[]> warm = kmeans.cluster(vectors, 4, cold.centroids());
+        assertEquals(cold.centroids().length, warm.centroids().length);
+        assertEquals(cold.assignments().length, warm.assignments().length);
+    }
+
     public void testHKmeans() throws IOException {
         int nClusters = random().nextInt(1, 10);
         int nVectors = random().nextInt(nClusters, nClusters * 200);

@@ -48,11 +48,14 @@ import static org.elasticsearch.foreign.processor.ClassWriterUtil.primitiveClass
 class ImplClassWriter {
 
     private static final ClassDesc CD_MethodHandle = ClassDesc.of("java.lang.invoke.MethodHandle");
+    private static final ClassDesc CD_MethodHandles = ClassDesc.of("java.lang.invoke.MethodHandles");
+    private static final ClassDesc CD_Lookup = ClassDesc.of("java.lang.invoke.MethodHandles$Lookup");
     private static final ClassDesc CD_FunctionDescriptor = ClassDesc.of("java.lang.foreign.FunctionDescriptor");
     private static final ClassDesc CD_LinkerOption = ClassDesc.of("java.lang.foreign.Linker$Option");
     private static final ClassDesc CD_LinkerOptionArray = ClassDesc.ofDescriptor("[Ljava/lang/foreign/Linker$Option;");
     private static final ClassDesc CD_AssertionError = ClassDesc.of("java.lang.AssertionError");
     private static final ClassDesc CD_Throwable = ClassDesc.of("java.lang.Throwable");
+    private static final ClassDesc CD_Class = ClassDesc.of("java.lang.Class");
     private static final ClassDesc CD_LinkerHelper = ClassDesc.of("org.elasticsearch.foreign.LinkerHelper");
     private static final ClassDesc CD_LinkerHelperUtil = ClassDesc.of("org.elasticsearch.foreign.LinkerHelperUtil");
     private static final ClassDesc CD_LoaderHelper = ClassDesc.of("org.elasticsearch.foreign.LoaderHelper");
@@ -135,12 +138,31 @@ class ImplClassWriter {
      */
     private static void emitMhFieldInit(java.lang.classfile.CodeBuilder cb, ClassDesc generatedDesc, MethodModel nm) {
         String fieldName = nm.methodName() + "$mh";
+        boolean hasFallbackAdapter = nm.fallbackAdapterClassName() != null;
+
+        // For @Critical methods with a fallback adapter we need to call
+        // LinkerHelperUtil.adaptCritical(lookup, rawHandle, adapterClass, methodName)
+        // where lookup is this generated class's own Lookup (so the adapter does not need to be in an exported
+        // package). Stack-prep the leading lookup arg here, then build the raw handle on top.
+        if (hasFallbackAdapter) {
+            cb.invokestatic(CD_MethodHandles, "lookup", MethodTypeDesc.of(CD_Lookup));
+        }
 
         cb.ldc(nm.cSymbol());
-
         emitFunctionDescriptor(cb, nm.returnType(), nativeParamTypes(nm));
         emitLinkerOptions(cb, nm);
         emitDowncallHandleCall(cb, nm);
+
+        if (hasFallbackAdapter) {
+            cb.ldc(ClassDesc.of(nm.fallbackAdapterClassName()));
+            cb.ldc(nm.methodName());
+            cb.invokestatic(
+                CD_LinkerHelperUtil,
+                "adaptCritical",
+                MethodTypeDesc.of(CD_MethodHandle, CD_Lookup, CD_MethodHandle, CD_Class, CD_String)
+            );
+        }
+
         cb.putstatic(generatedDesc, fieldName, CD_MethodHandle);
     }
 

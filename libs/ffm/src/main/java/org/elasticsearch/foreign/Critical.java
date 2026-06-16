@@ -28,8 +28,28 @@ import java.lang.annotation.Target;
  * @Critical
  * long decompressHeap(MemorySegment dst, long dstCap, MemorySegment src, long srcSize);
  * }</pre>
+ *
+ * <h2>JDK 21 fallback (required)</h2>
+ *
+ * The {@code Linker.Option.critical(boolean)} flag that lets the downcall accept heap segments is
+ * only available from JDK 22. On JDK 21 the raw downcall would reject any heap {@link
+ * java.lang.foreign.MemorySegment} argument, so every {@code @Critical} binding must supply a
+ * {@link #fallbackAdapter()} that stages the call. The adapter is a class declaring a
+ * {@code public static} method whose name matches the annotated method, with parameter list
+ * {@code (MethodHandle, …originalParams)} and the same return type as the annotated method. The
+ * processor validates the adapter at compile time and, on JDK 21, wraps the raw downcall handle in
+ * {@code <clinit>} so the binding routes through the adapter. On JDK 22+ the adapter is never
+ * resolved — the linker's {@code critical(true)} option handles heap segments directly.
  */
 @Retention(RetentionPolicy.SOURCE)
 @Target(ElementType.METHOD)
 public @interface Critical {
+
+    /**
+     * Class providing the JDK 21 fallback adapter. The adapter must declare a {@code public static}
+     * method with the same name as the annotated method and a leading {@link java.lang.invoke.MethodHandle}
+     * parameter; see the class-level docs for the full contract. Required — there is no default, because
+     * a {@code @Critical} binding cannot otherwise function on JDK 21 with heap-backed arguments.
+     */
+    Class<?> fallbackAdapter();
 }

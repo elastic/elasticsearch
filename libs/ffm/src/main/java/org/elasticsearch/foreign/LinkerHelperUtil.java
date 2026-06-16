@@ -10,6 +10,10 @@
 package org.elasticsearch.foreign;
 
 import java.lang.foreign.Linker;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
 
 public class LinkerHelperUtil {
 
@@ -21,11 +25,23 @@ public class LinkerHelperUtil {
     }
 
     /**
-     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly. False on JDK 21 because
-     * {@code Linker.Option.critical(boolean)} (which permits heap segments as downcall arguments) is unavailable.
+     * JDK 21 wraps the raw downcall handle of a {@code @Critical} binding through the user-supplied adapter:
+     * {@code Linker.Option.critical(true)} is unavailable on this release, so the raw handle would reject any
+     * heap {@link java.lang.foreign.MemorySegment} argument. The adapter must declare a {@code public static}
+     * method with the given name whose parameter list is {@code (MethodHandle, …origParams)} and whose return
+     * type matches {@code rawHandle}'s return type; the processor enforces this at compile time. We resolve it
+     * here with the supplied {@link Lookup} (the generated {@code $Impl}'s own lookup, so the adapter package
+     * does not need to be exported beyond the binding's module) and bind {@code rawHandle} as the leading
+     * argument so the returned handle has the same {@link MethodType} as {@code rawHandle}.
      */
-    static boolean heapAccessAvailable() {
-        return false;
+    public static MethodHandle adaptCritical(Lookup lookup, MethodHandle rawHandle, Class<?> adapterClass, String methodName) {
+        MethodType adapterType = rawHandle.type().insertParameterTypes(0, MethodHandle.class);
+        try {
+            MethodHandle wrapper = lookup.findStatic(adapterClass, methodName, adapterType);
+            return MethodHandles.insertArguments(wrapper, 0, rawHandle);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("@Critical fallback adapter not resolvable: " + adapterClass.getName() + "." + methodName, e);
+        }
     }
 
     private LinkerHelperUtil() {}

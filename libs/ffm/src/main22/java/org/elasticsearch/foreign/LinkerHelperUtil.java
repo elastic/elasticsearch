@@ -10,6 +10,8 @@
 package org.elasticsearch.foreign;
 
 import java.lang.foreign.Linker;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles.Lookup;
 
 public class LinkerHelperUtil {
 
@@ -21,11 +23,12 @@ public class LinkerHelperUtil {
     }
 
     /**
-     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly via
-     * {@code Linker.Option.critical(boolean)}. Always true on JDK 22+.
+     * JDK 22+ identity adapter: {@code Linker.Option.critical(true)} already lets the raw downcall accept heap
+     * segments, so the {@code @Critical} fallback adapter is never resolved. Mirrors the JDK 21 signature so
+     * the generated {@code $Impl} bytecode resolves on both releases.
      */
-    static boolean heapAccessAvailable() {
-        return true;
+    public static MethodHandle adaptCritical(Lookup lookup, MethodHandle rawHandle, Class<?> adapterClass, String methodName) {
+        return rawHandle;
     }
 
     private LinkerHelperUtil() {}

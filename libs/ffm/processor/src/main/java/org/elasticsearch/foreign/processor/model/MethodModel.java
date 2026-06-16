@@ -19,8 +19,17 @@ import java.util.List;
  * @param returnType the return type
  * @param paramTypes the parameter types in order
  * @param isCritical whether the method is annotated with {@code @Critical}
+ * @param fallbackAdapterClassName fully-qualified name of the JDK 21 {@code @Critical} fallback adapter class,
+ *        or {@code null} if none was specified
  */
-public record MethodModel(String methodName, String cSymbol, ReturnType returnType, List<ParamInfo> paramTypes, boolean isCritical) {
+public record MethodModel(
+    String methodName,
+    String cSymbol,
+    ReturnType returnType,
+    List<ParamInfo> paramTypes,
+    boolean isCritical,
+    String fallbackAdapterClassName
+) {
 
     /** A single method parameter. */
     public record ParamInfo(NativeType type) {}

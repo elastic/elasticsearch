@@ -1139,11 +1139,6 @@ decade:integer | description:keyword | date_range:date_range
 ;
 
 
-###############################################
-# MV_FIRST / MV_LAST tests
-###############################################
-
-// MV_FIRST returns the first element of a multivalued date_range field.
 mvFirstDateRange
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1158,7 +1153,6 @@ decade:integer | first_dr:date_range
 1950           | 1950-01-01..1960-01-01
 ;
 
-// MV_LAST returns the last element of a multivalued date_range field.
 mvLastDateRange
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1173,7 +1167,6 @@ decade:integer | last_dr:date_range
 1950           | 1955-01-01..1965-01-01
 ;
 
-// MV_FIRST on a single-valued date_range field returns the value unchanged.
 mvFirstDateRangeSingleValue
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1188,7 +1181,6 @@ decade:integer | first_dr:date_range
 1900           | 1900-01-01..1910-01-01
 ;
 
-// MV_LAST on a single-valued date_range field returns the value unchanged.
 mvLastDateRangeSingleValue
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1203,7 +1195,6 @@ decade:integer | last_dr:date_range
 1900           | 1900-01-01..1910-01-01
 ;
 
-// MV_FIRST on a multivalued date_range field from mv_decades returns the first element.
 mvFirstDateRangeRow
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1218,7 +1209,6 @@ decade:integer | first_dr:date_range
 2000           | 1995-01-01..2005-01-01
 ;
 
-// MV_LAST on a multivalued date_range field from mv_decades returns the last element.
 mvLastDateRangeRow
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1233,7 +1223,6 @@ decade:integer | last_dr:date_range
 2000           | 2000-01-01..2010-01-01
 ;
 
-// MV_FIRST with ROW on a single date_range value returns it unchanged.
 mvFirstDateRangeRowSingle
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range
@@ -1247,7 +1236,6 @@ first_dr:date_range
 2023-06-01..2023-12-31
 ;
 
-// MV_LAST with ROW on a single date_range value returns it unchanged.
 mvLastDateRangeRowSingle
 required_capability: date_range_field_type_v6
 required_capability: mv_first_last_date_range

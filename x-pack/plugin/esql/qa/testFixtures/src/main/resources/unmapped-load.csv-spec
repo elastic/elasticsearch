@@ -193,6 +193,46 @@ book_no:keyword | author:text
 2847            | Colleen Faulkner
 ;
 
+qstrWithUnmappedFieldUnderLoad
+required_capability: optional_fields_v5
+required_capability: qstr_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM books
+| WHERE QSTR("author: Faulkner")
+| EVAL x = LENGTH(does_not_exist_field)
+| KEEP book_no, author, does_not_exist_field, x
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text                                        | does_not_exist_field:keyword | x:integer
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                         | null
+2713            | William Faulkner                                   | null                         | null
+2847            | Colleen Faulkner                                   | null                         | null
+;
+
+kqlWithUnmappedFieldUnderLoad
+required_capability: optional_fields_v5
+required_capability: kql_function
+required_capability: fix_unmapped_fields_in_esrelation
+
+SET unmapped_fields="load"\;
+FROM books
+| WHERE KQL("author: Faulkner")
+| EVAL x = LENGTH(does_not_exist_field)
+| KEEP book_no, author, does_not_exist_field, x
+| SORT book_no
+| LIMIT 3
+;
+
+book_no:keyword | author:text                                        | does_not_exist_field:keyword | x:integer
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                         | null
+2713            | William Faulkner                                   | null                         | null
+2847            | Colleen Faulkner                                   | null                         | null
+;
+
 knnOnMappedDenseVectorFieldUnderLoad
 required_capability: optional_fields_v5
 required_capability: knn_function_v5

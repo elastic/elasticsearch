@@ -39,13 +39,9 @@ import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
-import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -148,7 +144,6 @@ public class Verifier {
 
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
-            checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
         }
 
@@ -485,28 +480,6 @@ public class Verifier {
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }
-        });
-    }
-
-    /**
-     * With {@code unmapped_fields="load"}, allow full-text functions that bind directly to a single field
-     * ({@link Match}, {@link MatchPhrase}, {@code :}, and {@link Knn}) so PUNK checks can validate the referenced field.
-     * Keep query-string style functions (for example {@code KQL}/{@code QSTR}) rejected.
-     */
-    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
-        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
-        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
-        fullTextFunctions.forEach(f -> {
-            if (f instanceof Match || f instanceof MatchPhrase || f instanceof Knn) {
-                return;
-            }
-            failures.add(
-                fail(
-                    f,
-                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"default\" or \"nullify\"",
-                    f.functionName()
-                )
-            );
         });
     }
 

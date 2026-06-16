@@ -3212,6 +3212,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
+                        if (mappedType == TEXT) {
+                            // Keep TO_TEXT explicit only: do not auto-insert KEYWORD -> TEXT conversions for two-legged PUNKs.
+                            return fa;
+                        }
 
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {

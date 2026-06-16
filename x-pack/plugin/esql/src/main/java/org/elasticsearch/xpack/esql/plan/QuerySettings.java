@@ -97,8 +97,7 @@ public class QuerySettings {
 
         Special notes about the `LOAD` option:
         - `FORK`, `LOOKUP JOIN`, subqueries, and views are not yet supported anywhere in the query.
-        - Only `MATCH`, `MATCH_PHRASE`, the match operator (`:`), and `KNN` are supported; other
-          full-text search functions are not yet supported.
+        - Full-text search functions are supported.
         - Referencing subfields of `flattened` parents is not supported.
         - Partially unmapped non-keyword fields can be used in expressions. Values remain typed where mapped and are `null`
           for rows from indices where the field is unmapped.

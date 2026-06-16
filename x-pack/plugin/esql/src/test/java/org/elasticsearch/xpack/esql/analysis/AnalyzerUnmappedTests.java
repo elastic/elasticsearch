@@ -1662,38 +1662,38 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 DataType.DENSE_VECTOR
             );
         }
+        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
+            var plan = analyzer.statement(
+                setUnmappedLoad(
+                    "FROM test | WHERE qstr(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP does_not_exist_field, x"
+                )
+            );
+            assertOutputContainsType(plan, "does_not_exist_field", DataType.KEYWORD);
+            assertOutputContainsType(plan, "x", DataType.INTEGER);
+        }
+        if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
+            var plan = analyzer.statement(
+                setUnmappedLoad(
+                    "FROM test | WHERE kql(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP does_not_exist_field, x"
+                )
+            );
+            assertOutputContainsType(plan, "does_not_exist_field", DataType.KEYWORD);
+            assertOutputContainsType(plan, "x", DataType.INTEGER);
+        }
     }
 
-    /**
-     * Under {@code unmapped_fields=load}, only full-text functions with a direct field argument are supported.
-     * Query-string full-text functions (for example QSTR/KQL) remain disallowed.
-     */
-    public void testUnmappedFieldsLoadWithUnsupportedFullTextSearchFails() {
-        // Assert the message format and that the specific full-text function is named in brackets.
-        // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR).
+    public void testUnmappedFieldsDefaultWithQueryStringFullTextFunctionsDoesNotLoadUnmappedFields() {
         var analyzer = test();
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
             analyzer.statementError(
-                setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString(
-                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [QSTR]; "
-                            + "use \"default\" or \"nullify\""
-                    )
-                )
+                "FROM test | WHERE qstr(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP x",
+                containsString("Unknown column [does_not_exist_field]")
             );
         }
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
             analyzer.statementError(
-                setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString(
-                        "line 1:47: unmapped_fields=\"load\" does not support full-text search function [KQL]; "
-                            + "use \"default\" or \"nullify\""
-                    )
-                )
+                "FROM test | WHERE kql(\"first_name: foo\") | EVAL x = LENGTH(does_not_exist_field) | KEEP x",
+                containsString("Unknown column [does_not_exist_field]")
             );
         }
     }

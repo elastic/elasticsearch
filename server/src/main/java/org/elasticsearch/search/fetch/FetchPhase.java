@@ -694,7 +694,7 @@ public final class FetchPhase {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(requiresSource, Collections.emptySet()));
             LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(subReaderContext, null);
             leafRootLoader.advanceTo(nestedInfo.rootDoc());
-            rootId = leafRootLoader.id();
+            rootId = context.newIdLoader().leaf(leafRootLoader, subReaderContext.reader(), null).getId(nestedInfo.rootDoc());
 
             if (requiresSource) {
                 if (leafRootLoader.source() != null) {

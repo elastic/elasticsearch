@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
@@ -84,7 +85,14 @@ public class TermVectorsService {
 
         try (
             Engine.GetResult get = indexShard.get(
-                new Engine.Get(request.realtime(), false, request.id()).version(request.version()).versionType(request.versionType()),
+                new Engine.Get(
+                    request.realtime(),
+                    false,
+                    request.id(),
+                    indexShard.indexSettings().isSliceEnabled() && request.routing() != null
+                        ? Uid.encodeSliceId(request.routing(), request.id())
+                        : Uid.encodeId(request.id())
+                ).version(request.version()).versionType(request.versionType()),
                 request.getSplitShardCountSummary()
             );
             Engine.Searcher searcher = indexShard.acquireExternalSearcher("term_vector", request.getSplitShardCountSummary())

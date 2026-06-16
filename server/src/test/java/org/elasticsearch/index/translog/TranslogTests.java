@@ -49,6 +49,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -3513,6 +3514,67 @@ public class TranslogTests extends ESTestCase {
         in.setTransportVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
+    }
+
+    /**
+     * A {@link Translog.Delete} stores the <em>plain</em> encoded id together with the document routing, so that a
+     * slice-enabled shard can rebuild the composite {@code (slice, id)} uid when replaying the operation. The routing is
+     * only written when the wire version supports {@link SliceIndexing#SLICE_TRANSLOG_DELETE_ROUTING}; older nodes must
+     * still be able to read the operation, dropping the routing rather than corrupting the stream.
+     */
+    public void testTranslogDeleteRoutingSerialization() throws Exception {
+        // The engine operates on the composite uid, but the translog persists only the plain id plus routing.
+        final BytesRef compositeUid = Uid.encodeSliceId("slice-1", "the-id");
+        final BytesRef plainUid = Uid.encodeId("the-id");
+        final long seqNo = randomNonNegativeLong();
+        final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final long version = randomLongBetween(1, Long.MAX_VALUE);
+        final String routing = randomBoolean() ? "slice-1" : null;
+
+        Engine.Delete delete = new Engine.Delete(
+            "the-id",
+            routing,
+            compositeUid,
+            seqNo,
+            primaryTerm,
+            version,
+            VersionType.INTERNAL,
+            Origin.PRIMARY,
+            0,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            0
+        );
+        Translog.Delete translogDelete = new Translog.Delete(delete, new Engine.DeleteResult(version, primaryTerm, seqNo, true, "the-id"));
+        assertEquals(routing, translogDelete.routing());
+        assertEquals("translog persists the plain id, not the composite uid", plainUid, translogDelete.uid());
+
+        // A version that understands the routing field must preserve it across the round-trip.
+        {
+            TransportVersion supporting = TransportVersionUtils.randomVersionSupporting(SliceIndexing.SLICE_TRANSLOG_DELETE_ROUTING);
+            Translog.Delete roundTripped = copyDelete(translogDelete, supporting);
+            assertEquals(translogDelete, roundTripped);
+            assertEquals("routing must survive when the wire version supports it", routing, roundTripped.routing());
+            assertEquals(plainUid, roundTripped.uid());
+        }
+
+        // An older version that predates the routing field must still read the operation, simply without the routing.
+        {
+            TransportVersion notSupporting = TransportVersionUtils.randomVersionNotSupporting(SliceIndexing.SLICE_TRANSLOG_DELETE_ROUTING);
+            Translog.Delete roundTripped = copyDelete(translogDelete, notSupporting);
+            // equals() does not consider routing, so the operation is still considered equal.
+            assertEquals(translogDelete, roundTripped);
+            assertNull("routing is not written for versions that predate the field", roundTripped.routing());
+            assertEquals(plainUid, roundTripped.uid());
+        }
+    }
+
+    private static Translog.Delete copyDelete(Translog.Delete delete, TransportVersion version) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(version);
+        delete.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(version);
+        return (Translog.Delete) Translog.Operation.readOperation(in);
     }
 
     public void testRollGeneration() throws Exception {

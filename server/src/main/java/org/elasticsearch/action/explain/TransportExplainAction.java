@@ -10,6 +10,7 @@
 package org.elasticsearch.action.explain;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
@@ -188,7 +190,10 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         Engine.GetResult result = null;
         try {
             // No need to check the type, IndexShard#get does it for us
-            result = context.indexShard().get(new Engine.Get(false, false, request.id()), request.getSplitShardCountSummary());
+            final BytesRef uid = context.indexShard().indexSettings().isSliceEnabled() && request.isRoutingFromSlice()
+                ? Uid.encodeSliceId(request.routing(), request.id())
+                : Uid.encodeId(request.id());
+            result = context.indexShard().get(new Engine.Get(false, false, request.id(), uid), request.getSplitShardCountSummary());
             if (result.exists() == false) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }

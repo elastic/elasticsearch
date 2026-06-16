@@ -199,4 +199,47 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
             return "BlockStoredFieldsReader.Id";
         }
     }
+
+    /**
+     * Load {@link BytesRef} blocks from stored {@code _id} fields in slice-enabled indices,
+     * decoding the composite slice+id term to recover the plain id.
+     */
+    public static class SliceIdBlockLoader extends StoredFieldsBlockLoader {
+        public SliceIdBlockLoader() {
+            super(IdFieldMapper.NAME);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new SliceId(breaker, context.reader().storedFields());
+        }
+    }
+
+    private static class SliceId extends BlockStoredFieldsReader {
+        private final org.apache.lucene.index.StoredFields luceneStoredFields;
+        private final IdLoader.RawIdVisitor visitor = new IdLoader.RawIdVisitor();
+        private final BytesRef scratch = new BytesRef();
+
+        protected SliceId(CircuitBreaker breaker, org.apache.lucene.index.StoredFields luceneStoredFields) {
+            super(breaker);
+            this.luceneStoredFields = luceneStoredFields;
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            visitor.reset();
+            luceneStoredFields.document(docId, visitor);
+            ((BytesRefBuilder) builder).appendBytesRef(BlockSourceReader.toBytesRef(scratch, visitor.plainId()));
+        }
+
+        @Override
+        public String toString() {
+            return "BlockStoredFieldsReader.SliceId";
+        }
+    }
 }

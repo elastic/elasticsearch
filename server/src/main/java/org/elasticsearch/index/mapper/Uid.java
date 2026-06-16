@@ -14,6 +14,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -198,5 +199,35 @@ public final class Uid {
             case UTF8 -> decodeUtf8Id(idBytes, offset, length);
             default -> decodeBase64Id(idBytes, offset, length);
         };
+    }
+
+    /** Encode a slice-scoped uid: length-prefixed slice followed by the standard encoded id. */
+    public static BytesRef encodeSliceId(String slice, String id) {
+        BytesRef encodedId = encodeId(id);
+        byte[] sliceBytes = slice.getBytes(StandardCharsets.UTF_8);
+        assert sliceBytes.length >= 1 && sliceBytes.length <= 128;
+        byte[] b = new byte[1 + sliceBytes.length + encodedId.length];
+        b[0] = (byte) sliceBytes.length;
+        System.arraycopy(sliceBytes, 0, b, 1, sliceBytes.length);
+        System.arraycopy(encodedId.bytes, encodedId.offset, b, 1 + sliceBytes.length, encodedId.length);
+        return new BytesRef(b);
+    }
+
+    /** Recover the plain id from a slice-scoped uid produced by {@link #encodeSliceId}. */
+    public static String decodeSliceId(byte[] bytes, int offset, int length) {
+        int sliceLen = bytes[offset] & 0xff;
+        int idOffset = offset + 1 + sliceLen;
+        return decodeId(bytes, idOffset, length - 1 - sliceLen);
+    }
+
+    /** Recover the plain id from a slice-scoped uid. */
+    public static String decodeSliceId(BytesRef b) {
+        return decodeSliceId(b.bytes, b.offset, b.length);
+    }
+
+    /** Recover the slice from a slice-scoped uid (used by ops recovery / diagnostics). */
+    public static String decodeSlice(BytesRef b) {
+        int sliceLen = b.bytes[b.offset] & 0xff;
+        return new String(b.bytes, b.offset + 1, sliceLen, StandardCharsets.UTF_8);
     }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.index.get;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
@@ -191,7 +193,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         currentMetric.inc();
         final long now = System.nanoTime();
         try {
-            var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            final BytesRef uid = indexSettings.isSliceEnabled() && routing != null ? Uid.encodeSliceId(routing, id) : Uid.encodeId(id);
+            var engineGet = new Engine.Get(realtime, realtime, id, uid).version(version)
                 .versionType(versionType)
                 .setIfSeqNo(ifSeqNo)
                 .setIfPrimaryTerm(ifPrimaryTerm);

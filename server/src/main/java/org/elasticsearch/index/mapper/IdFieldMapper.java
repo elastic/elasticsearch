@@ -35,9 +35,11 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_id";
 
     public static final TypeParser PARSER = new FixedTypeParser(mappingParserContext -> {
-        var indexMode = mappingParserContext.getIndexSettings().getMode();
-        if (indexMode == IndexMode.TIME_SERIES) {
+        var indexSettings = mappingParserContext.getIndexSettings();
+        if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
             return TsidExtractingIdFieldMapper.INSTANCE;
+        } else if (indexSettings.isSliceEnabled()) {
+            return SliceIdFieldMapper.INSTANCE;
         } else {
             return ProvidedIdFieldMapper.INSTANCE;
         }
@@ -103,7 +105,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         return new SyntheticIdField(uid);
     }
 
-    protected abstract static class AbstractIdFieldType extends TermBasedFieldType {
+    public abstract static class AbstractIdFieldType extends TermBasedFieldType {
 
         public AbstractIdFieldType() {
             super(NAME, IndexType.terms(true, false), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
@@ -141,6 +143,14 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        /**
+         * Decode a stored {@code _id} binary value to the user-visible string id.
+         * Subclasses may override this to handle composite (slice-prefixed) stored values.
+         */
+        public String decodeStoredId(BytesRef bytes) {
+            return Uid.decodeId(bytes);
         }
 
         @Override

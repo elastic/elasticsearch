@@ -24,6 +24,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -1116,8 +1117,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // whether mappings were provided or not.
             doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
+        final BytesRef uid = mapperService.getIndexSettings().isSliceEnabled() && source.routing() != null
+            ? Uid.encodeSliceId(source.routing(), doc.id())
+            : Uid.encodeId(doc.id());
         return new Engine.Index(
-            Uid.encodeId(doc.id()),
+            uid,
             doc,
             seqNo,
             primaryTerm,
@@ -1271,6 +1275,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifSeqNo,
         long ifPrimaryTerm
     ) throws IOException {
+        return applyDeleteOperationOnPrimary(version, id, null, versionType, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnPrimary(
+        long version,
+        String id,
+        @Nullable String routing,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) throws IOException {
         assert versionType.validateVersionForWrites(version);
         return applyDeleteOperation(
             getEngine(),
@@ -1278,6 +1293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getOperationPrimaryTerm(),
             version,
             id,
+            routing,
             versionType,
             ifSeqNo,
             ifPrimaryTerm,
@@ -1286,12 +1302,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.DeleteResult applyDeleteOperationOnReplica(long seqNo, long opPrimaryTerm, long version, String id) throws IOException {
+        return applyDeleteOperationOnReplica(seqNo, opPrimaryTerm, version, id, null);
+    }
+
+    public Engine.DeleteResult applyDeleteOperationOnReplica(
+        long seqNo,
+        long opPrimaryTerm,
+        long version,
+        String id,
+        @Nullable String routing
+    ) throws IOException {
         return applyDeleteOperation(
             getEngine(),
             seqNo,
             opPrimaryTerm,
             version,
             id,
+            routing,
             null,
             UNASSIGNED_SEQ_NO,
             0,
@@ -1305,6 +1332,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long opPrimaryTerm,
         long version,
         String id,
+        @Nullable String routing,
         @Nullable VersionType versionType,
         long ifSeqNo,
         long ifPrimaryTerm,
@@ -1316,7 +1344,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             Engine.Delete delete = indexingOperationListeners.preDelete(
                 shardId,
-                prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm)
+                prepareDelete(
+                    id,
+                    routing,
+                    mapperService.getIndexSettings().isSliceEnabled(),
+                    seqNo,
+                    opPrimaryTerm,
+                    version,
+                    versionType,
+                    origin,
+                    ifSeqNo,
+                    ifPrimaryTerm
+                )
             );
             final Engine.DeleteResult result;
             try {
@@ -1337,6 +1376,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public static Engine.Delete prepareDelete(
         String id,
+        @Nullable String routing,
+        boolean sliceEnabled,
         long seqNo,
         long primaryTerm,
         long version,
@@ -1346,7 +1387,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long ifPrimaryTerm
     ) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(id, Uid.encodeId(id), seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+        BytesRef uid = sliceEnabled && routing != null ? Uid.encodeSliceId(routing, id) : Uid.encodeId(id);
+        return new Engine.Delete(id, routing, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+    }
+
+    public static Engine.Delete prepareDelete(
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        return prepareDelete(id, null, false, seqNo, primaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
     }
 
     public Engine.GetResult get(Engine.Get get, SplitShardCountSummary splitShardCountSummary) {
@@ -2251,6 +2306,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     delete.primaryTerm(),
                     delete.version(),
                     Uid.decodeId(delete.uid()),
+                    delete.routing(),
                     versionType,
                     UNASSIGNED_SEQ_NO,
                     0,

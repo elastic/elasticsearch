@@ -42,7 +42,7 @@ import java.util.TreeSet;
 /**
  * Responsible for loading the _id from stored fields or for TSDB synthesizing the _id from the routing, _tsid and @timestamp fields.
  */
-public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader {
+public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.SliceIdLoader {
 
     /**
      * @return returns an {@link IdLoader} instance to load the value of the _id field.
@@ -70,6 +70,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
             }
             return createTsIdLoader(indexRouting, routingPaths, indexSettings.useTimeSeriesSyntheticId());
+        } else if (indexSettings.isSliceEnabled()) {
+            return new SliceIdLoader();
         } else {
             return fromLeafStoredFieldLoader();
         }
@@ -100,7 +102,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf, SliceIdLeaf, LazySliceIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -537,6 +539,95 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public String getId(int subDocId) {
             return loader.id();
+        }
+    }
+
+    final class SliceIdLoader implements IdLoader {
+
+        @Override
+        public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            if (docIdsInLeaf == null) {
+                return new LazySliceIdLeaf(reader);
+            }
+            String[] ids = new String[docIdsInLeaf.length];
+            org.apache.lucene.index.StoredFields storedFields = reader.storedFields();
+            RawIdVisitor visitor = new RawIdVisitor();
+            for (int i = 0; i < docIdsInLeaf.length; i++) {
+                visitor.reset();
+                storedFields.document(docIdsInLeaf[i], visitor);
+                ids[i] = visitor.plainId();
+            }
+            return new SliceIdLeaf(docIdsInLeaf, ids);
+        }
+
+        @Override
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
+            return new BlockStoredFieldsReader.SliceIdBlockLoader();
+        }
+    }
+
+    static class RawIdVisitor extends org.apache.lucene.index.StoredFieldVisitor {
+        private byte[] idBytes;
+
+        void reset() {
+            idBytes = null;
+        }
+
+        String plainId() {
+            assert idBytes != null;
+            return Uid.decodeSliceId(idBytes, 0, idBytes.length);
+        }
+
+        @Override
+        public Status needsField(org.apache.lucene.index.FieldInfo fieldInfo) {
+            return IdFieldMapper.NAME.equals(fieldInfo.name) ? Status.YES : Status.NO;
+        }
+
+        @Override
+        public void binaryField(org.apache.lucene.index.FieldInfo fieldInfo, byte[] value) {
+            this.idBytes = value;
+        }
+    }
+
+    final class SliceIdLeaf implements Leaf {
+        private final int[] docIdsInLeaf;
+        private final String[] ids;
+        private int idx = -1;
+
+        SliceIdLeaf(int[] docIdsInLeaf, String[] ids) {
+            this.docIdsInLeaf = docIdsInLeaf;
+            this.ids = ids;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            idx++;
+            if (docIdsInLeaf[idx] != subDocId) {
+                throw new IllegalArgumentException(
+                    "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + subDocId + " instead"
+                );
+            }
+            return ids[idx];
+        }
+    }
+
+    final class LazySliceIdLeaf implements Leaf {
+        private final org.apache.lucene.index.StoredFields storedFields;
+        private final RawIdVisitor visitor = new RawIdVisitor();
+
+        LazySliceIdLeaf(LeafReader reader) throws IOException {
+            this.storedFields = reader.storedFields();
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                visitor.reset();
+                storedFields.document(subDocId, visitor);
+                return visitor.plainId();
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
         }
     }
 

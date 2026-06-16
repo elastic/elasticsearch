@@ -53,6 +53,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     private SyntheticVectorsLoader.Leaf syntheticVectorPatchLoaderLeaf;
 
     private final DocValuesOrdinalToRoutingLookup ordinalToRoutingLookup;
+    private final boolean sliceEnabled;
 
     private final Thread creationThread; // for assertion
 
@@ -89,6 +90,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
         this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;
+        this.sliceEnabled = mapperService.getIndexSettings().isSliceEnabled();
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 
@@ -237,7 +239,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex]
             ? SourceFieldMapper.RECOVERY_SOURCE_NAME
             : SourceFieldMapper.NAME;
-        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
+        final FieldsVisitor fields = sliceEnabled ? new SliceAwareFieldsVisitor(true, sourceField) : new FieldsVisitor(true, sourceField);
 
         if (parallelArray.useSequentialStoredFieldsReader) {
             if (storedFieldsReaderOrd != leaf.ord) {
@@ -388,5 +390,16 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     // for testing
     boolean useSequentialStoredFieldsReader() {
         return storedFieldsReader != null;
+    }
+
+    private static class SliceAwareFieldsVisitor extends FieldsVisitor {
+        SliceAwareFieldsVisitor(boolean loadSource, String sourceField) {
+            super(loadSource, sourceField);
+        }
+
+        @Override
+        protected String decodeIdBytes(byte[] value, int offset, int length) {
+            return org.elasticsearch.index.mapper.Uid.decodeSliceId(value, offset, length);
+        }
     }
 }

@@ -12,6 +12,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -79,6 +80,71 @@ public class UidTests extends ESTestCase {
             assertEquals(id, doDecodeId(encoded));
             assertTrue(encoded.length <= 1 + binaryId.length);
         }
+    }
+
+    public void testEncodeDecodeSliceId() {
+        final int iters = 10000;
+        for (int iter = 0; iter < iters; ++iter) {
+            final String slice = randomSlice();
+            final String id = randomId();
+            BytesRef encoded = Uid.encodeSliceId(slice, id);
+            // The first byte is the length of the slice in UTF-8 bytes.
+            assertEquals(slice.getBytes(StandardCharsets.UTF_8).length, encoded.bytes[encoded.offset] & 0xff);
+            // The composite uid must round-trip both the plain id and the slice.
+            assertEquals(id, Uid.decodeSliceId(encoded));
+            assertEquals(slice, Uid.decodeSlice(encoded));
+            // The plain encoded id must be a suffix of the composite uid, so engine uniqueness is scoped by (slice, id).
+            BytesRef plainId = Uid.encodeId(id);
+            assertEquals(1 + slice.getBytes(StandardCharsets.UTF_8).length + plainId.length, encoded.length);
+        }
+    }
+
+    public void testDecodeSliceIdHonoursOffset() {
+        final String slice = randomSlice();
+        final String id = randomId();
+        BytesRef encoded = Uid.encodeSliceId(slice, id);
+        // Copy the composite uid into the middle of a larger buffer to ensure the offset/length based decode is correct.
+        final int prefix = randomIntBetween(1, 16);
+        byte[] buffer = new byte[prefix + encoded.length + randomIntBetween(0, 16)];
+        random().nextBytes(buffer);
+        System.arraycopy(encoded.bytes, encoded.offset, buffer, prefix, encoded.length);
+        assertEquals(id, Uid.decodeSliceId(buffer, prefix, encoded.length));
+        assertEquals(id, Uid.decodeSliceId(new BytesRef(buffer, prefix, encoded.length)));
+        assertEquals(slice, Uid.decodeSlice(new BytesRef(buffer, prefix, encoded.length)));
+    }
+
+    public void testEncodeDecodeSliceIdWithMultiByteSlice() {
+        // A slice value whose UTF-8 encoding uses more than one byte per character must still round-trip exactly.
+        final String slice = "sléçe";
+        final String id = "the-id";
+        BytesRef encoded = Uid.encodeSliceId(slice, id);
+        assertEquals(slice.getBytes(StandardCharsets.UTF_8).length, encoded.bytes[encoded.offset] & 0xff);
+        assertEquals(slice, Uid.decodeSlice(encoded));
+        assertEquals(id, Uid.decodeSliceId(encoded));
+    }
+
+    public void testDifferentSlicesProduceDistinctUids() {
+        final String id = randomId();
+        BytesRef a = Uid.encodeSliceId("slice-a", id);
+        BytesRef b = Uid.encodeSliceId("slice-b", id);
+        assertNotEquals(a, b);
+        // Same plain id is recovered regardless of slice.
+        assertEquals(id, Uid.decodeSliceId(a));
+        assertEquals(id, Uid.decodeSliceId(b));
+    }
+
+    private static String randomSlice() {
+        // Non-empty, within the 128-byte limit enforced by Uid#encodeSliceId.
+        return randomAlphaOfLengthBetween(1, 32);
+    }
+
+    private static String randomId() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> Long.toString(randomNonNegativeLong()); // numeric encoding
+            case 1 -> Base64.getUrlEncoder().withoutPadding().encodeToString(randomByteArrayOfLength(randomIntBetween(1, 12))); // base64
+            case 2 -> randomAlphaOfLengthBetween(1, 16); // utf8 encoding
+            default -> throw new AssertionError("unreachable");
+        };
     }
 
     private static String doDecodeId(BytesRef encoded) {

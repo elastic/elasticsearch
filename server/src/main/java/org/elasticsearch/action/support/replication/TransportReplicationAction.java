@@ -450,28 +450,11 @@ public abstract class TransportReplicationAction<
             return;
         }
 
-        handlerExecutor(indexShard).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
-                    logger.debug(
-                        () -> format(
-                            "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
-                            request.getDescription(),
-                            request.getRequest().shardId()
-                        )
-                    );
-                    return;
-                }
-
-                new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                return isForceExecutionOnPrimary(request.getRequest());
-            }
-        });
+        try {
+            handlerExecutor(indexShard).execute(new AsyncPrimaryAction(request, listener, (ReplicationTask) task));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected Executor handlerExecutor(IndexShard shard) {
@@ -486,7 +469,7 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    class AsyncPrimaryAction extends AbstractRunnable {
+    class AsyncPrimaryAction extends ActionRunnable<Response> {
         private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
         private final ConcreteShardRequest<Request> primaryRequest;
@@ -496,13 +479,29 @@ public abstract class TransportReplicationAction<
             ActionListener<Response> onCompletionListener,
             ReplicationTask replicationTask
         ) {
+            super(onCompletionListener);
             this.primaryRequest = primaryRequest;
             this.onCompletionListener = onCompletionListener;
             this.replicationTask = replicationTask;
         }
 
         @Override
+        public boolean isForceExecution() {
+            return isForceExecutionOnPrimary(primaryRequest.getRequest());
+        }
+
+        @Override
         protected void doRun() throws Exception {
+            if (replicationTask.notifyIfCancelled(onCompletionListener)) {
+                logger.debug(
+                    () -> format(
+                        "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
+                        primaryRequest.getDescription(),
+                        primaryRequest.getRequest().shardId()
+                    )
+                );
+                return;
+            }
             final ShardId shardId = primaryRequest.getRequest().shardId();
             final IndexShard indexShard = getIndexShard(shardId);
             final ShardRouting shardRouting = indexShard.routingEntry();
@@ -731,18 +730,11 @@ public abstract class TransportReplicationAction<
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
-        handlerExecutor(indexShard).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
-            }
-
-            @Override
-            public boolean isForceExecution() {
-                // we must never reject because of thread pool capacity on replicas
-                return true;
-            }
-        });
+        try {
+            handlerExecutor(indexShard).execute(new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
@@ -761,7 +753,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
+    private final class AsyncReplicaAction extends ActionRunnable<ReplicaResponse> implements ActionListener<Releasable> {
         private final ActionListener<ReplicaResponse> onCompletionListener;
         private final IndexShard replica;
         /**
@@ -778,12 +770,19 @@ public abstract class TransportReplicationAction<
             ActionListener<ReplicaResponse> onCompletionListener,
             ReplicationTask task
         ) {
+            super(onCompletionListener);
             this.replicaRequest = replicaRequest;
             this.onCompletionListener = onCompletionListener;
             this.task = task;
             final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            // we must never reject because of thread pool capacity on replicas
+            return true;
         }
 
         @Override

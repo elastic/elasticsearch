@@ -9,7 +9,6 @@
 
 package org.elasticsearch.lucene.queries;
 
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -23,13 +22,12 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesQuery {
+public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDocValuesAutomatonQuery {
 
     private final String pattern;
     private final int syntaxFlags;
     private final int matchFlags;
     private final int maxDeterminizedStates;
-    private final ByteRunAutomaton automaton;
 
     public SlowCustomBinaryDocValuesRegexpQuery(
         String fieldName,
@@ -56,12 +54,11 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
         int maxDeterminizedStates,
         ByteRunAutomaton automaton
     ) {
-        super(fieldName, value -> automaton.run(value.bytes, value.offset, value.length));
+        super(fieldName, automaton);
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
         this.matchFlags = matchFlags;
         this.maxDeterminizedStates = maxDeterminizedStates;
-        this.automaton = automaton;
     }
 
     private static ByteRunAutomaton buildAutomaton(String pattern, int syntaxFlags, int matchFlags, int maxDeterminizedStates) {
@@ -71,18 +68,6 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
                 maxDeterminizedStates
             )
         );
-    }
-
-    @Override
-    public void visit(QueryVisitor visitor) {
-        if (visitor.acceptField(fieldName)) {
-            visitor.consumeTermsMatching(this, fieldName, () -> automaton);
-        }
-    }
-
-    @Override
-    protected float matchCost() {
-        return 1000f;
     }
 
     @Override

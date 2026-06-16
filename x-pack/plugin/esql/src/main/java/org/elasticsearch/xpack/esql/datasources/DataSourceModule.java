@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BooleanSupplier;
 
 /**
  * Module that collects all data source implementations from plugins.
@@ -65,9 +66,10 @@ public final class DataSourceModule implements Closeable {
         Settings settings,
         BlockFactory blockFactory,
         ExecutorService executor,
-        DataSourceCredentials credentials
+        DataSourceCredentials credentials,
+        BooleanSupplier workloadIdentityEnabled
     ) {
-        this(dataSourcePlugins, capabilities, settings, blockFactory, executor, credentials, null);
+        this(dataSourcePlugins, capabilities, settings, blockFactory, executor, credentials, workloadIdentityEnabled, null);
     }
 
     public DataSourceModule(
@@ -77,6 +79,7 @@ public final class DataSourceModule implements Closeable {
         BlockFactory blockFactory,
         ExecutorService executor,
         DataSourceCredentials credentials,
+        BooleanSupplier workloadIdentityEnabled,
         @Nullable ThreadPool threadPool
     ) {
         this.capabilities = capabilities;
@@ -85,7 +88,7 @@ public final class DataSourceModule implements Closeable {
         RetryScheduler retryScheduler = threadPool == null
             ? RetryScheduler.DIRECT
             : (command, delayMillis, exec) -> threadPool.schedule(command, TimeValue.timeValueMillis(Math.max(0L, delayMillis)), exec);
-        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, retryScheduler);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials, workloadIdentityEnabled, retryScheduler);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {

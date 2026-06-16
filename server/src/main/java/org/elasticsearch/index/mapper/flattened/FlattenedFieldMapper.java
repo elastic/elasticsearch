@@ -102,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1343,10 +1344,33 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
                 blContext.sourcePaths(name()),
                 nullValue,
                 blContext.indexSettings().getIgnoredSourceFormat(),
-                preserveLeafArrays == PreserveLeafArrays.EXACT
+                preserveLeafArrays == PreserveLeafArrays.EXACT,
+                subFieldKeysAbsentFromDocValuesRoot()
             );
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext, name()));
+        }
+
+        /**
+         * Mapped sub-field keys that the doc-values root loader cannot reconstruct, so the {@code _source}-based
+         * fetcher must omit them too for {@code KEEP <flattened root>} to be identical regardless of which loading
+         * path the query takes. The values stay addressable through their own typed sub-field column.
+         * <p>
+         * The doc-values root loader ({@link RootFlattenedDocValuesBlockLoader}) can only read a mapped sub-field
+         * from doc values or a real stored field, so a sub-field with neither is never present in that blob. The
+         * canonical example is a bare {@code text} sub-field: it has no doc values, and in non-synthetic source
+         * mode (the only mode where this {@code _source} fetcher is used) it has no stored representation either,
+         * so the doc-values path drops it while the {@code _source} fetcher would otherwise keep it.
+         */
+        private Set<String> subFieldKeysAbsentFromDocValuesRoot() {
+            Set<String> absent = new HashSet<>();
+            for (Map.Entry<String, FieldMapper> entry : mappedSubFields.entrySet()) {
+                MappedFieldType subFieldType = entry.getValue().fieldType();
+                if (subFieldType.hasDocValues() == false && subFieldType.isStored() == false) {
+                    absent.add(entry.getKey());
+                }
+            }
+            return absent;
         }
 
         @Override

@@ -474,6 +474,25 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_MAPPED_SUBFIELD_RETURNS_VALUE(Build.current().isSnapshot()),
 
         /**
+         * Loading a {@code flattened} root that has mapped sub-fields (e.g. {@code KEEP attributes}) produces the
+         * same stringly-typed blob regardless of whether the values come from doc values or {@code _source}:
+         * <ul>
+         *   <li>Every leaf is rendered as a string, including non-text mapped sub-fields. A mapped {@code long}
+         *       sub-field reads back as {@code "200"} rather than the native {@code 200}, matching the keyed
+         *       channel and the {@code _source}-based fetcher.</li>
+         *   <li>Mapped sub-fields the doc-values loader cannot reconstruct (a bare {@code text} sub-field with no
+         *       doc values and no stored value) are dropped on the {@code _source} path too, so the same keys
+         *       appear on both paths.</li>
+         * </ul>
+         * Direct access to the typed sub-field column (e.g. {@code attributes.status_code} or
+         * {@code attributes.message}) is unaffected and still returns the native value. Tests that pin the
+         * flattened-root shape across both loading paths must require this capability so they skip on mixed
+         * clusters where any data node still renders mapped sub-fields with their native type or retains a text
+         * sub-field only on the {@code _source} path.
+         */
+        FLATTENED_ROOT_STRINGIFIES_MAPPED_SUBFIELDS(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

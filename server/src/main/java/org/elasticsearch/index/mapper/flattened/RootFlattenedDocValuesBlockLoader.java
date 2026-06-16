@@ -54,11 +54,24 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
             usesBinaryDocValues,
-            mappedSubFieldLoaders,
+            stringifySubFieldValues(mappedSubFieldLoaders),
             storeIgnoredFieldsInBinaryDocValues,
             preserveLeafArrays
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
+    }
+
+    /**
+     * Wraps each mapped sub-field loader so its value is rendered as a string when merged into the
+     * flattened root. The flattened root is loaded as a stringly-typed JSON blob, so a mapped {@code long}
+     * sub-field must read back as {@code "200"} (like the keyed channel and {@link FlattenedSourceValueFetcher}),
+     * not the native {@code 200}. This keeps {@code KEEP <flattened root>} identical across the doc-values and
+     * stored loading paths. See {@link StringifyingFlattenedSubFieldLoader}.
+     */
+    private static List<SourceLoader.SyntheticFieldLoader> stringifySubFieldValues(
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
+    ) {
+        return mappedSubFieldLoaders.stream().<SourceLoader.SyntheticFieldLoader>map(StringifyingFlattenedSubFieldLoader::new).toList();
     }
 
     @Override

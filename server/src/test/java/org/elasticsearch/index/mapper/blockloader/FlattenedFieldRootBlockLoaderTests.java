@@ -293,6 +293,36 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
         runner.run(new BytesRef(expected));
     }
 
+    public void testBlockLoaderStringifiesMappedNumericAndDropsTextSubfield() throws IOException {
+        assumeFalse("a bare text sub-field is not allowed under synthetic source", params.syntheticSource());
+        assumeFalse("a text sub-field is loadable (and so retained) under columnar-stored source", params.isColumnarStored());
+
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        Map<String, Object> labels = Map.of("env", "prod", "status_code", 200, "message", "hello");
+        runner.document(Map.of("field", labels));
+        runner.fieldName("field");
+
+        // status_code is a mapped long (doc values), message is a mapped text (no doc values), env is unmapped.
+        Map<String, Object> flattenedMapping = Map.of(
+            "type",
+            "flattened",
+            "properties",
+            Map.of("status_code", Map.of("type", "long"), "message", Map.of("type", "text"))
+        );
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", flattenedMapping))),
+            Map.of("field", flattenedMapping)
+        );
+
+        // env (unmapped keyed) and status_code (mapped long) appear as strings; the text sub-field message is
+        // dropped. The doc-values and source loading paths must both produce this exact blob.
+        String expected = "{\"env\":\"prod\",\"status_code\":\"200\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
+    }
+
     @Override
     protected boolean supportsMultiField() {
         return false;

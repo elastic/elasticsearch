@@ -38,17 +38,20 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
     private final Set<String> sourcePaths;
     private final Object nullValue;
     private final boolean preserveArrays;
+    private final Set<String> excludedSubFieldKeys;
 
     FlattenedSourceValueFetcher(
         Set<String> sourcePaths,
         Object nullValue,
         IgnoredSourceFormat ignoredSourceFormat,
-        boolean preserveArrays
+        boolean preserveArrays,
+        Set<String> excludedSubFieldKeys
     ) {
         super(sourcePaths, nullValue, ignoredSourceFormat);
         this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
         this.preserveArrays = preserveArrays;
+        this.excludedSubFieldKeys = excludedSubFieldKeys;
     }
 
     @Override
@@ -92,6 +95,9 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
         void flatten(String prefix, Map<String, Object> source) {
             for (Map.Entry<String, Object> entry : source.entrySet()) {
                 String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+                if (excludedSubFieldKeys.contains(key)) {
+                    continue;
+                }
                 Object value = entry.getValue();
                 if (value instanceof Map) {
                     flatten(key, (Map<String, Object>) value);

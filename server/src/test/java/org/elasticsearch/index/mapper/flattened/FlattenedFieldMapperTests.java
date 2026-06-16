@@ -2153,9 +2153,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
 
                 assertThat(
-                    "fields must be returned in alphabetical order",
+                    "fields must be returned in alphabetical order with all leaves rendered as strings",
                     bytesRef.utf8ToString(),
-                    equalTo("{\"code\":200,\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
+                    equalTo("{\"code\":\"200\",\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
                 );
             } finally {
                 columnReader.close();

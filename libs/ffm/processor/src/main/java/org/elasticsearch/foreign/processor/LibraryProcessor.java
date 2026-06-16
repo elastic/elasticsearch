@@ -11,7 +11,6 @@ package org.elasticsearch.foreign.processor;
 
 import org.elasticsearch.foreign.LibrarySpecification;
 import org.elasticsearch.foreign.processor.model.LibraryModel;
-import org.elasticsearch.foreign.processor.model.StructModel;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -64,7 +63,6 @@ public class LibraryProcessor extends AbstractProcessor {
         }
         ImplClassWriter implGenerator = new ImplClassWriter(filer, classFileVersion);
         ProviderClassWriter providerWriter = new ProviderClassWriter(filer, classFileVersion);
-        StructClassWriter structWriter = new StructClassWriter(filer, classFileVersion);
         for (Element element : roundEnv.getElementsAnnotatedWith(LibrarySpecification.class)) {
             if (element.getKind() != ElementKind.INTERFACE) {
                 processingEnv.getMessager().printMessage(Kind.ERROR, "@LibrarySpecification must be on an interface", element);
@@ -76,9 +74,6 @@ public class LibraryProcessor extends AbstractProcessor {
                 try {
                     implGenerator.generate(model, typeElement);
                     providerWriter.generate(model, typeElement);
-                    for (StructModel struct : model.structs()) {
-                        structWriter.generate(model, struct, typeElement);
-                    }
                     generatedProviderNames.add(model.qualifiedName() + "$Provider");
                 } catch (Exception e) {
                     processingEnv.getMessager()

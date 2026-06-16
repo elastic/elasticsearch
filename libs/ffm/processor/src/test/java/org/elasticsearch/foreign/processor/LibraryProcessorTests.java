@@ -35,60 +35,6 @@ public class LibraryProcessorTests extends ProcessorTestCase {
     }
 
     /**
-     * Combining {@code @Critical} and {@code @CaptureErrno} on the same method must emit a compile error
-     * because critical calls bypass the errno-capture mechanism.
-     */
-    public void testCriticalAndCaptureErrnoEmitsError() {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.CaptureErrno;
-            import org.elasticsearch.foreign.Critical;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("do_thing")
-                @Critical
-                @CaptureErrno
-                int doThing(int x);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail due to @Critical + @CaptureErrno", result.success());
-        assertTrue(
-            "Expected error about @Critical and @CaptureErrno but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@Critical") && msg.contains("@CaptureErrno"))
-        );
-    }
-
-    /**
-     * Applying {@code @Utf16} to a non-String parameter must emit a compile error.
-     */
-    public void testUtf16OnNonStringParamEmitsError() {
-        String source = """
-            package test;
-            import org.elasticsearch.foreign.Function;
-            import org.elasticsearch.foreign.LibrarySpecification;
-            import org.elasticsearch.foreign.Utf16;
-            @LibrarySpecification(name = "testlib")
-            public interface BadLib {
-                @Function("do_thing")
-                void doThing(@Utf16 int x);
-            }
-            """;
-
-        CompilationResult result = compile("test.BadLib", source);
-
-        assertFalse("Expected compilation to fail due to @Utf16 on non-String", result.success());
-        assertTrue(
-            "Expected error about @Utf16 on non-String but got: " + result.errors(),
-            result.errors().stream().anyMatch(msg -> msg.contains("@Utf16"))
-        );
-    }
-
-    /**
      * A {@code @LibrarySpecification} annotation on a class (not an interface) should emit an error.
      */
     public void testAnnotationOnClassEmitsError() {

@@ -57,7 +57,7 @@ final class ClassWriterUtil {
             case BOOLEAN -> ClassDesc.ofDescriptor("Z");
             case FLOAT -> ClassDesc.ofDescriptor("F");
             case DOUBLE -> ClassDesc.ofDescriptor("D");
-            case VOID, ARENA, ADDRESS, STRING -> throw new AssertionError("not a primitive type: " + type);
+            case VOID, ADDRESS, STRING -> throw new AssertionError("not a primitive type: " + type);
         };
     }
 
@@ -73,7 +73,6 @@ final class ClassWriterUtil {
             case FLOAT -> new VLField("JAVA_FLOAT", ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfFloat;"));
             case DOUBLE -> new VLField("JAVA_DOUBLE", ClassDesc.ofDescriptor("Ljava/lang/foreign/ValueLayout$OfDouble;"));
             case ADDRESS, STRING -> new VLField("ADDRESS", ClassDesc.ofDescriptor("Ljava/lang/foreign/AddressLayout;"));
-            case ARENA -> throw new AssertionError("ARENA has no ValueLayout");
             case VOID -> throw new AssertionError("void has no ValueLayout");
         };
         cb.getstatic(CD_ValueLayout, vl.name(), vl.type());
@@ -83,7 +82,6 @@ final class ClassWriterUtil {
     static ClassDesc fieldClassDesc(NativeType type) {
         return switch (type) {
             case ADDRESS, STRING -> CD_MemorySegment;
-            case ARENA -> throw new AssertionError("ARENA cannot be a struct field type");
             case VOID -> throw new AssertionError("void cannot be a struct field type");
             default -> primitiveClassDesc(type);
         };

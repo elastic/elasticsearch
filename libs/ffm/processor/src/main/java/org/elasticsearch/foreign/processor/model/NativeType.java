@@ -11,8 +11,7 @@ package org.elasticsearch.foreign.processor.model;
 
 /**
  * Classifies how a Java type participates in a native FFM call: which
- * {@code ValueLayout} it maps to, how it is marshaled, and whether it carries
- * special runtime semantics (STRING marshaling, ARENA lifetime management).
+ * {@code ValueLayout} it maps to and how it is marshaled (STRING marshaling).
  */
 public enum NativeType {
     INT,
@@ -22,8 +21,7 @@ public enum NativeType {
     BOOLEAN,
     FLOAT,
     DOUBLE,
-    ADDRESS,    // MemorySegment, @Struct types, @FunctionPointer types, @ArrayOf fields
-    STRING,     // String type — uses ADDRESS in layout but has special marshaling
-    VOID,       // void return — not a value type, only valid as a method return
-    ARENA       // java.lang.foreign.Arena — not a native argument; used for upcall stub lifetime
+    ADDRESS,    // MemorySegment
+    STRING,     // String return type only (UTF-8)
+    VOID        // void return
 }

@@ -249,6 +249,33 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testRegexpQueryHighCardinalityWithNormalizer() {
+        Analyzer lowercaseAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer in = new WhitespaceTokenizer();
+                return new TokenStreamComponents(in, new LowerCaseFilter(in));
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        NamedAnalyzer normalizer = new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, lowercaseAnalyzer);
+
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("field", defaultIndexSettings());
+        builder.docValues(FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+        TextSearchInfo textSearchInfo = new TextSearchInfo(KeywordFieldMapper.Defaults.FIELD_TYPE, null, normalizer, normalizer);
+        MappedFieldType ft = new KeywordFieldType("field", IndexType.docValuesOnly(), textSearchInfo, normalizer, builder, true);
+
+        // The normalizer must lowercase the pattern before building the regexp query
+        assertEquals(
+            new SlowCustomBinaryDocValuesRegexpQuery("field", "foo.*", 0, 0, 10),
+            ft.regexpQuery("FOO.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
+    }
+
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));

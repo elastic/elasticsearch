@@ -1272,7 +1272,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 if (usesBinaryDocValues) {
-                    return new SlowCustomBinaryDocValuesRegexpQuery(name(), value, syntaxFlags, matchFlags, maxDeterminizedStates);
+                    return new SlowCustomBinaryDocValuesRegexpQuery(
+                        name(),
+                        indexedValueForSearch(value).utf8ToString(),
+                        syntaxFlags,
+                        matchFlags,
+                        maxDeterminizedStates
+                    );
                 } else {
                     if (context.getCircuitBreaker() != null) {
                         Term term = new Term(name(), indexedValueForSearch(value));

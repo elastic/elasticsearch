@@ -504,6 +504,7 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
             );
         }
 
+        int sliceId = request.getSearchRequest().source().slice().getId();
         request.setAbortOnVersionConflict(abortOnVersionConflict)
             .setRefresh(refresh)
             .setTimeout(timeout)
@@ -519,16 +520,19 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
         // Copy resume info for the slice from leader to the slice request
         if (this.getResumeInfo().isPresent()) {
             ResumeInfo resumeInfo = this.getResumeInfo().get();
-            int sliceId = request.getSearchRequest().source().slice().getId();
             if (resumeInfo.isSliceCompleted(sliceId) == false) {
                 request.setResumeInfo(new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
             }
         }
 
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
-            // maxDocs is split between workers. This means the maxDocs might round
-            // down!
-            request.setMaxDocs(maxDocs / totalSlices);
+            // Split maxDocs between workers. We start by giving each slice maxDocs / totalSlices. That rounds down, so that would get
+            // maxDocs % totalSlices too few in total. So we add an extra docs to the first maxDocs % totalSlices slices.
+            // Note that, if the total number of docs in the source is just a little bit more than max_docs, we may still end up reindexing
+            // fewer than max_docs into the destination, because we might slice unevenly so some slices have fewer than maxDocsForSlice.
+            // But if the total number of docs in the source is a lot more than max_docs, we should end up reindexing max_docs.
+            int maxDocsForSlice = maxDocs / totalSlices + ((sliceId < maxDocs % totalSlices) ? 1 : 0);
+            request.setMaxDocs(maxDocsForSlice);
         }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
@@ -537,7 +541,8 @@ public abstract class AbstractBulkByPaginatedSearchRequest<Self extends Abstract
         if (sourceIndicesForDescription != null) {
             request.setSourceIndicesForDescription(sourceIndicesForDescription);
         }
-        // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
+        // TODO - https://github.com/elastic/elasticsearch/issues/150879
+        // It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
         return request;
     }
 

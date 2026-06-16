@@ -975,6 +975,37 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(0, unmappedSubFields.size());
     }
 
+    /**
+     * The {@code field_extract} block-loader fuse must not fire for an explicitly mapped sub-key: the
+     * keyed channel never stores mapped sub-fields, so a fused keyed load would return null while the
+     * per-row evaluator over the merged root returns the value. The flattened root therefore advertises
+     * {@code ExtractFlattenedSubfieldConfig} as supported only for unmapped (keyed) sub-keys, keeping
+     * {@code field_extract}'s result the same regardless of which path the optimizer picks.
+     */
+    public void testSupportsBlockLoaderConfigExcludesMappedSubfield() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        RootFlattenedFieldType ft = (RootFlattenedFieldType) mapperService.fieldType("field");
+
+        assertTrue("the declared sub-field must be recognised as mapped", ft.isMappedSubField("host.name"));
+        assertFalse("an unmapped keyed sub-key must not be recognised as mapped", ft.isMappedSubField("other"));
+
+        assertFalse(
+            "the fuse must be refused for a mapped sub-key so field_extract falls back to the evaluator",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("host.name"), MappedFieldType.FieldExtractPreference.NONE)
+        );
+        assertTrue(
+            "the fuse stays available for an unmapped keyed sub-key",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("other"), MappedFieldType.FieldExtractPreference.NONE)
+        );
+    }
+
     public void testPropertiesNestedObjectNotation() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");

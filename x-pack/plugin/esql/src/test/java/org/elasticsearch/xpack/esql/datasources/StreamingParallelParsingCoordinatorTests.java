@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -195,11 +198,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Contract mirror of {@link ParallelParsingCoordinator}: clean close must publish a
-     * {@link ExternalStats#FINALIZE_CHUNKS_KEY} marker under the real file path so coordinator-side
-     * reconciliation commits the sum of per-chunk partials.
+     * Each per-chunk partial must carry a coverage range, and those ranges must tile the decompressed
+     * stream contiguously from 0 with the final chunk flagged last — the property the coordinator-side
+     * reconciler checks before committing the summed per-chunk counts.
      */
-    public void testCleanClosePublishesFinalizeMarkerToSink() throws Exception {
+    public void testCleanClosePublishesTilingCoverageToSink() throws Exception {
         int lineCount = 500;
         String content = buildContent(lineCount);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
@@ -234,10 +237,70 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
-        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
-        boolean finalized = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.FINALIZE_CHUNKS_KEY)));
-        assertThat(partialCount, Matchers.greaterThanOrEqualTo(2L));
-        assertTrue("clean close must publish a finalize marker under the file path", finalized);
+        List<Map<String, Object>> partials = contributions.stream()
+            .filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY)))
+            .sorted(java.util.Comparator.comparingLong(m -> ((Number) m.get(ExternalStats.COVERAGE_START_KEY)).longValue()))
+            .toList();
+        assertThat(partials.size(), Matchers.greaterThanOrEqualTo(2));
+        long expectedStart = 0;
+        boolean lastFlagged = false;
+        for (Map<String, Object> p : partials) {
+            long start = ((Number) p.get(ExternalStats.COVERAGE_START_KEY)).longValue();
+            long end = ((Number) p.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+            assertEquals("chunk coverage must tile the decompressed stream with no gap", expectedStart, start);
+            assertTrue("coverage end must advance", end > start);
+            expectedStart = end;
+            lastFlagged = Boolean.TRUE.equals(p.get(ExternalStats.COVERAGE_IS_LAST_KEY));
+        }
+        assertTrue("the final chunk must be flagged last (observed end-of-input)", lastFlagged);
+    }
+
+    /**
+     * An early close (the consumer stops before draining the file — e.g. a LIMIT) must poison the
+     * file's captured stats. Otherwise a chunk cut off mid-parse would publish a partial row count
+     * under its full byte range, which the coordinator's coverage tiling would accept as a complete
+     * cover and cache an under-count. The poison marker makes the reconciler discard the file.
+     */
+    public void testEarlyClosePoisonsCapturedStats() throws Exception {
+        // Large content so many chunks are dispatched; consuming a single page then closing leaves
+        // the consumer well short of full consumption (currentChunk < chunksDispatched), i.e. not clean.
+        int lineCount = 5000;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-early-close-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink);
+            // Consume one page, then close without draining — an early termination.
+            if (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+            iter.close();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        boolean poisoned = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
+        assertTrue("an early close must publish a poison marker so the reconciler discards the incomplete cover", poisoned);
     }
 
     public void testParserErrorPropagates() throws Exception {
@@ -257,6 +320,54 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 "Expected injected failure message but got: " + ex.getMessage(),
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
             );
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Pins the typed-failure contract from elastic/esql-planning#836 on the streaming coordinator: a raw
+     * {@link IOException} thrown by a worker (here, {@code FailingFormatReader.read}) is stored in
+     * {@code firstError} and surfaced by {@code checkError()}'s {@code surface()} as a typed
+     * {@link ExternalClientException} (HTTP 400) — including the coordinator's "Streaming parallel parsing
+     * failed" prefix — rather than a status-neutral {@link RuntimeException} that would later be
+     * misclassified as 500. The injected "injected failure" mirrors the path real failures take (e.g. a
+     * record exceeding {@code max_record_size}).
+     */
+    public void testParserIoFailureSurfacesAsExternalClientException() throws Exception {
+        String content = buildContent(100);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            FailingFormatReader reader = new FailingFormatReader(5, 1024);
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> collectLines(
+                    StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 50, 4, executor, ErrorPolicy.STRICT)
+                )
+            );
+            assertThat(
+                "stored IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
+                ex,
+                Matchers.instanceOf(ExternalClientException.class)
+            );
+            assertEquals(
+                "ExternalClientException must classify as HTTP 400 so the read failure stops being labeled as a server fault",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ex)
+            );
+            assertThat(
+                "the original IOException must remain reachable as the cause",
+                ex.getCause(),
+                Matchers.instanceOf(IOException.class)
+            );
+            assertThat(
+                "the coordinator's context prefix must survive in the surfaced message",
+                ex.getMessage(),
+                Matchers.containsString("Streaming parallel parsing failed")
+            );
+            assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             executor.shutdownNow();
         }

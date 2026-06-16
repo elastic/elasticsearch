@@ -47,7 +47,9 @@ final class OtelSdkResource {
 
     static Resource get(Settings settings) {
         ResourceBuilder builder = Resource.builder()
-            .put("service.name", "elasticsearch")
+            .put("service.name", "self-managed-elasticsearch") // other deployment types should override via
+                                                               // telemetry.otel.resource.service.name
+            .put("service.type", "elasticsearch")
             .put("service.version", Build.current().version())
             .put("service.language.name", "java")
             .put("service.agent.name", "elasticsearch-otel-sdk")

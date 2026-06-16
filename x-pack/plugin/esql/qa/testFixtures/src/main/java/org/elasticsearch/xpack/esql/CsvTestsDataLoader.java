@@ -669,9 +669,6 @@ public class CsvTestsDataLoader {
         )) {
             load(client, dataset, indexCreator);
             loadedDatasets.add(dataset.indexName);
-            // Flush after each dataset to roll the translog, keeping the per-generation seenSequenceNumbers
-            // map bounded in assertion-enabled test runs.
-            flush(client, dataset.indexName);
         }
         forceMerge(client, loadedDatasets);
     }
@@ -1195,14 +1192,6 @@ public class CsvTestsDataLoader {
                 builder.substring(0, 100)
             )
         );
-    }
-
-    private static void flush(RestClient client, String index) throws IOException {
-        Request request = new Request("POST", "/" + index + "/_flush");
-        Response response = client.performRequest(request);
-        if (response.getStatusLine().getStatusCode() != 200) {
-            logger.warn("Flushing [{}] failed: {}", index, response.getStatusLine());
-        }
     }
 
     private static void forceMerge(RestClient client, Set<String> indices) throws IOException {

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,12 +55,25 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             Setting.Property.NodeScope
         );
 
+    /**
+     * How long recently accessed cache data stays protected from eviction when cache boost preference is enabled.
+     * Eviction policy wiring is added separately.
+     */
+    public static final Setting<TimeValue> STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING = Setting.timeSetting(
+        "stateless.cache_boost_preference.pinned_window.duration",
+        TimeValue.timeValueDays(1),
+        TimeValue.timeValueHours(1),
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private volatile TimeValue pinnedWindowDuration;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -73,6 +87,11 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING,
+                value -> this.pinnedWindowDuration = value
+            );
     }
 
     // for tests
@@ -96,6 +115,15 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(
+                STATELESS_CACHE_BOOST_PREFERENCE_PINNED_WINDOW_DURATION_SETTING,
+                value -> this.pinnedWindowDuration = value
+            );
+    }
+
+    public TimeValue getPinnedWindowDuration() {
+        return pinnedWindowDuration;
     }
 
     static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {

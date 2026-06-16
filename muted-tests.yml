@@ -385,9 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/150297
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
-  method: testParquetFile {bad_ARROW-GH-41321}
-  issue: https://github.com/elastic/elasticsearch/issues/150300
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356

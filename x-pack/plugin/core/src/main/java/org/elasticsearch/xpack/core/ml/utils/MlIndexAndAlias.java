@@ -806,8 +806,8 @@ public final class MlIndexAndAlias {
 
         // We used to assert here if no matching indices could be found. However, when called _before_ a job is created it may be the case
         // that no .ml-anomalies-shared* indices yet exist.
-        // strictFamilyOf also excludes prefix-siblings (e.g. .ml-anomalies-foobar when the base is .ml-anomalies-foo).
-        String[] filtered = strictFamilyOf(baseIndexName, expressionResolver, latestState);
+        // strictFamily also excludes prefix-siblings (e.g. .ml-anomalies-foobar when the base is .ml-anomalies-foo).
+        String[] filtered = strictFamily(baseIndexName, matching);
 
         if (filtered.length == 0) {
             return index;

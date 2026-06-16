@@ -52,6 +52,7 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Groups by all time-series dimensions except the specified ones.",
         description = "Groups by all time-series dimensions except the specified ones. "
             + "When called with no arguments, groups by all dimensions.",
         detailedDescription = """

@@ -9,21 +9,17 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Map;
 
 /**
  * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled.
  * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
- * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@code Float.Nan} (no calibrated ovresample).
+ * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@code Float.Nan} (no calibrated oversample).
  */
 public class IvfAutoCalibration {
 
@@ -51,77 +47,5 @@ public class IvfAutoCalibration {
      */
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig codecDefault) throws IOException {
         return codecDefault;
-    }
-
-    /**
-     * Attempt to reuse calibration results from the input segments being merged.
-     * Returns a merged {@link IvfSegmentConfig} if the data has not changed significantly,
-     * or {@code null} if merge-time calibration should be performed.
-     */
-    IvfSegmentConfig selectFromMergeState(FieldInfo fieldInfo, MergeState mergeState) {
-        Map<ESNextDiskBBQVectorsFormat.QuantEncoding, Long> encodingDocCounts = new EnumMap<>(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.class
-        );
-        double oversampleWeightedSum = 0;
-        long totalDocs = 0;
-        long largestSegmentDocs = 0;
-        long preconditionTrueDocs = 0;
-        long preconditionFalseDocs = 0;
-        int calibratedSegments = 0;
-
-        for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
-            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-            if (reader instanceof CalibrationAwareReader car) {
-                ESNextDiskBBQVectorsFormat.QuantEncoding enc = car.getQuantEncoding(fieldInfo);
-                if (enc == null) {
-                    continue;
-                }
-                long docs = mergeState.liveDocs[i].length();
-                calibratedSegments++;
-                encodingDocCounts.merge(enc, docs, Long::sum);
-                float oversample = car.getOversampleFactor(fieldInfo);
-                oversampleWeightedSum += oversample * docs;
-                totalDocs += docs;
-                largestSegmentDocs = Math.max(largestSegmentDocs, docs);
-
-                if (car.shouldPrecondition(fieldInfo)) {
-                    preconditionTrueDocs += docs;
-                } else {
-                    preconditionFalseDocs += docs;
-                }
-            }
-        }
-
-        if (calibratedSegments == 0) {
-            return null;
-        }
-
-        if (encodingDocCounts.size() > 1) {
-            long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
-            if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {
-                logger.debug(
-                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), " + "re-calibrating",
-                    (100.0 * maxEncDocs / totalDocs)
-                );
-                return null;
-            }
-        }
-
-        ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = encodingDocCounts.entrySet()
-            .stream()
-            .max(Map.Entry.comparingByValue())
-            .get()
-            .getKey();
-        float avgOversample = (float) (oversampleWeightedSum / totalDocs);
-        boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
-
-        logger.debug(
-            "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] ",
-            bestEncoding,
-            avgOversample,
-            doPreconditionResult,
-            calibratedSegments
-        );
-        return new IvfSegmentConfig(bestEncoding, doPreconditionResult, avgOversample);
     }
 }

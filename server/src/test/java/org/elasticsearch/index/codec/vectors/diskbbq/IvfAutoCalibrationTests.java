@@ -17,17 +17,14 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
@@ -44,8 +41,6 @@ import java.util.Random;
 import static org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Unit tests for {@link IvfAutoCalibration} merge decision logic.
@@ -71,166 +66,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertFalse(config.usePrecondition());
             assertThat(config.rescoreOversample(), equalTo(CODEC_DEFAULT.rescoreOversample()));
-        }
-    }
-
-    public void testSelectFromMergeStateReusesWeightedOversample() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            4f,
-            false
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { segA, segB },
-                new Bits[] { liveDocs(40), liveDocs(60) },
-                backgroundSegmentInfo(dir)
-            );
-
-            IvfAutoCalibration selector = new IvfAutoCalibration();
-            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
-
-            assertThat(reused, notNullValue());
-            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
-            assertThat(reused.rescoreOversample(), equalTo(3.2f));
-            assertFalse(reused.usePrecondition());
-        }
-    }
-
-    public void testTryMergeMetadataReuseFromRealSegments() throws IOException {
-        Random rnd = random();
-        float oversampleA = 2f;
-        float oversampleB = 4f;
-        try (Directory dir = newDirectory()) {
-            try (
-                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
-                    dir,
-                    rnd,
-                    DIM,
-                    32,
-                    oversampleA,
-                    oversampleB,
-                    IvfMergeConfigResolver.useCodecDefault()
-                )
-            ) {
-                assertEquals(2, reader.leaves().size());
-                FieldInfo fieldInfo = reader.leaves()
-                    .get(0)
-                    .reader()
-                    .getFieldInfos()
-                    .fieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                KnnVectorsReader[] readers = new KnnVectorsReader[2];
-                Bits[] liveDocs = new Bits[2];
-                int totalDocs = 0;
-                for (int i = 0; i < 2; i++) {
-                    LeafReader leaf = reader.leaves().get(i).reader();
-                    readers[i] = calibrationReader(leaf);
-                    int maxDoc = leaf.maxDoc();
-                    liveDocs[i] = liveDocs(maxDoc);
-                    totalDocs += maxDoc;
-                }
-
-                MergeState mergeState = mergeState(dir, readers, liveDocs, backgroundSegmentInfo(dir));
-
-                IvfAutoCalibration selector = new IvfAutoCalibration();
-                IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
-
-                assertThat(reused, notNullValue());
-                assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
-                float expectedOversample = (oversampleA * reader.leaves().get(0).reader().maxDoc() + oversampleB * reader.leaves()
-                    .get(1)
-                    .reader()
-                    .maxDoc()) / totalDocs;
-                assertThat(reused.rescoreOversample(), equalTo(expectedOversample));
-            }
-        }
-    }
-
-    public void testSelectFromMergeStateReusesOnPartialEncodingAgreement() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader dominant = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader minority = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            2f,
-            false
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { dominant, minority },
-                new Bits[] { liveDocs(85), liveDocs(15) },
-                backgroundSegmentInfo(dir)
-            );
-            IvfAutoCalibration selector = new IvfAutoCalibration();
-            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
-
-            assertThat(reused, notNullValue());
-            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
-        }
-    }
-
-    public void testSelectFromMergeStateRecalibratesOnWeakEncodingAgreement() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false
-        );
-        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            2f,
-            false
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { segA, segB },
-                new Bits[] { liveDocs(70), liveDocs(30) },
-                backgroundSegmentInfo(dir)
-            );
-
-            IvfAutoCalibration selector = new IvfAutoCalibration();
-            assertThat(selector.selectFromMergeState(fieldInfo, mergeState), nullValue());
-        }
-    }
-
-    public void testSelectFromMergeStateUsesPreconditionMajorityVote() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        StubCalibrationKnnVectorsReader precondTrue = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            true
-        );
-        StubCalibrationKnnVectorsReader precondFalse = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            4f,
-            false
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { precondTrue, precondFalse },
-                new Bits[] { liveDocs(60), liveDocs(40) },
-                backgroundSegmentInfo(dir)
-            );
-
-            IvfAutoCalibration selector = new IvfAutoCalibration();
-            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState);
-
-            assertThat(reused, notNullValue());
-            assertTrue(reused.usePrecondition());
-            assertThat(reused.rescoreOversample(), equalTo(2.8f));
         }
     }
 
@@ -310,22 +145,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    private static SegmentInfo forceMergeSegmentInfo(Directory dir) throws IOException {
-        SegmentInfo info = backgroundSegmentInfo(dir);
-        info.addDiagnostics(Map.of("mergeMaxNumSegments", "1"));
-        return info;
-    }
-
-    private static KnnVectorsReader calibrationReader(LeafReader leaf) throws IOException {
-        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
-        assertNotNull(segmentReader);
-        KnnVectorsReader kvr = segmentReader.getVectorReader();
-        if (kvr instanceof org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat.FieldsReader perField) {
-            return perField.getFieldReader(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        }
-        return kvr;
-    }
-
     private static SegmentInfo backgroundSegmentInfo(Directory dir) throws IOException {
         return new SegmentInfo(
             dir,
@@ -346,7 +165,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
     private MergeState mergeStateWithVectorCount(Directory dir, FieldInfo fieldInfo, int vectorCount) throws IOException {
         KnnVectorsReader reader = heapVectorReader(fieldInfo, randomHeapVectors(vectorCount, DIM));
         return mergeState(
-            dir,
             new KnnVectorsReader[] { reader },
             new Bits[] { liveDocs(vectorCount) },
             backgroundSegmentInfo(dir),
@@ -395,13 +213,8 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         };
     }
 
-    private static MergeState mergeState(
-        Directory dir,
-        KnnVectorsReader[] readers,
-        Bits[] liveDocsBits,
-        SegmentInfo segmentInfo,
-        FieldInfo fieldInfo
-    ) throws IOException {
+    private static MergeState mergeState(KnnVectorsReader[] readers, Bits[] liveDocsBits, SegmentInfo segmentInfo, FieldInfo fieldInfo)
+        throws IOException {
         FieldInfos[] fieldInfos = null;
         if (fieldInfo != null && readers != null) {
             fieldInfos = new FieldInfos[readers.length];
@@ -410,15 +223,10 @@ public class IvfAutoCalibrationTests extends ESTestCase {
                 fieldInfos[i] = vectors != null ? new FieldInfos(new FieldInfo[] { fieldInfo }) : new FieldInfos(new FieldInfo[0]);
             }
         }
-        return mergeState(dir, readers, liveDocsBits, segmentInfo, fieldInfos);
-    }
-
-    private static MergeState mergeState(Directory dir, KnnVectorsReader[] readers, Bits[] liveDocsBits, SegmentInfo segmentInfo) {
-        return mergeState(dir, readers, liveDocsBits, segmentInfo, (FieldInfos[]) null);
+        return mergeState(readers, liveDocsBits, segmentInfo, fieldInfos);
     }
 
     private static MergeState mergeState(
-        Directory dir,
         KnnVectorsReader[] readers,
         Bits[] liveDocsBits,
         SegmentInfo segmentInfo,
@@ -493,77 +301,5 @@ public class IvfAutoCalibrationTests extends ESTestCase {
             vecs.add(v);
         }
         return KMeansFloatVectorValues.build(vecs, null, dim);
-    }
-
-    /**
-     * Minimal {@link KnnVectorsReader} exposing calibration metadata for merge reuse tests.
-     */
-    private static final class StubCalibrationKnnVectorsReader extends KnnVectorsReader implements CalibrationAwareReader {
-
-        private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
-        private final float oversample;
-        private final boolean precondition;
-
-        StubCalibrationKnnVectorsReader(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, float oversample, boolean precondition) {
-            this.encoding = encoding;
-            this.oversample = oversample;
-            this.precondition = precondition;
-        }
-
-        @Override
-        public float getOversampleFactor(FieldInfo fieldInfo) {
-            return oversample;
-        }
-
-        @Override
-        public boolean shouldPrecondition(FieldInfo fieldInfo) {
-            return precondition;
-        }
-
-        @Override
-        public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
-            return encoding;
-        }
-
-        @Override
-        public void checkIntegrity() {}
-
-        @Override
-        public org.apache.lucene.index.FloatVectorValues getFloatVectorValues(String field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public org.apache.lucene.index.ByteVectorValues getByteVectorValues(String field) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void search(
-            String field,
-            float[] target,
-            org.apache.lucene.search.KnnCollector knnCollector,
-            org.apache.lucene.search.AcceptDocs acceptDocs
-        ) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void search(
-            String field,
-            byte[] target,
-            org.apache.lucene.search.KnnCollector knnCollector,
-            org.apache.lucene.search.AcceptDocs acceptDocs
-        ) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-            return Map.of();
-        }
-
-        @Override
-        public void close() {}
     }
 }

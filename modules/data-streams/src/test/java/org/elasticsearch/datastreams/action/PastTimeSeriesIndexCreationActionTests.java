@@ -83,7 +83,7 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         Instant end = Instant.parse("2024-01-17T00:00:00Z");
         ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStream(projectId, DATA_STREAM, List.of(Tuple.tuple(start, end)));
         DataStream existingDs = project.dataStreams().get(DATA_STREAM);
-        DataStream dsWithMixed = existingDs.addNewBackingIndex(nonTsdb.getIndex());
+        DataStream dsWithMixed = existingDs.unsafeAddBackingIndex(nonTsdb.getIndex());
         // Updated project metadata with a mixed backing index data stream
         project = ProjectMetadata.builder(project).put(nonTsdb, false).put(dsWithMixed).build();
 

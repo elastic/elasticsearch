@@ -1101,7 +1101,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(project, index);
 
-        return addNewBackingIndex(index);
+        return unsafeAddBackingIndex(index);
     }
 
     /**
@@ -1111,22 +1111,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *
      * @param index index to add to the data stream
      * @return new {@code DataStream} instance with the added backing index
-     * @throws IllegalArgumentException if {@code index} is ineligible to be a backing index for the data stream
      */
-    public DataStream addNewBackingIndex(Index index) {
-        for (Index backingIndex : backingIndices.indices) {
-            // If we see that there is a backing index with the same name
-            if (backingIndex.getName().equals(index.getName())) {
-                // If the uuid also matches, we return this instant
-                if (backingIndex.equals(index)) {
-                    return this;
-                } else {
-                    // If not we return an error
-                    throw new IllegalArgumentException(
-                        "Index [" + index + "] overlaps with [" + backingIndex + "] in data stream [" + name + "]"
-                    );
-                }
-            }
+    public DataStream unsafeAddBackingIndex(Index index) {
+        // We do not use the contain method of DataStreamIndices because it will create a set,
+        // but we only need to check a single index and then we create a new DataStream.
+        if (backingIndices.indices.contains(index)) {
+            return this;
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);

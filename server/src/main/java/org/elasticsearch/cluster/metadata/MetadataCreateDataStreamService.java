@@ -489,7 +489,7 @@ public class MetadataCreateDataStreamService {
             currentState,
             createIndexRequest,
             false,
-            (builder, indexMetadata) -> builder.put(dataStream.addNewBackingIndex(indexMetadata.getIndex())),
+            (builder, indexMetadata) -> builder.put(dataStream.unsafeAddBackingIndex(indexMetadata.getIndex())),
             rerouteBehavior,
             rerouteListener
         );

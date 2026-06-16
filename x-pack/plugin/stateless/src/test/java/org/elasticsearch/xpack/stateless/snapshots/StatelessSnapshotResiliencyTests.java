@@ -744,6 +744,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 settings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -840,7 +841,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 ActionListener<Void> listener = invocation.getArgument(2);
                 listener.onResponse(null);
                 return null;
-            }).when(hollowShardsService).onMutableOperation(any(), anyBoolean(), anyActionListener());
+            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), anyActionListener());
             when(hollowShardsService.isHollowShard(any(ShardId.class))).thenReturn(false);
             when(hollowShardsService.isHollowableIndexShard(any(IndexShard.class), anyBoolean())).thenReturn(false);
 

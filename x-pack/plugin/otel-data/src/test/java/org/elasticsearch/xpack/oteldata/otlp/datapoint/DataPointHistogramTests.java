@@ -11,6 +11,7 @@ import io.opentelemetry.proto.metrics.v1.Histogram;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -36,11 +37,30 @@ public class DataPointHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histo.isValid(validationErrors), equalTo(true));
+        assertThat(histo.getTemporality(), equalTo(AGGREGATION_TEMPORALITY_DELTA));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
-    public void testHistogramUnsupportedTemporality() {
+    public void testCumulativeHistogramAsExponentialHistogram() {
+        DataPoint.Histogram histo = new DataPoint.Histogram(
+            HistogramDataPoint.newBuilder().build(),
+            Metric.newBuilder()
+                .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_CUMULATIVE).build())
+                .build()
+        );
+        assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
+        assertThat(histo.getTemporality(), equalTo(AGGREGATION_TEMPORALITY_CUMULATIVE));
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(true));
+            assertThat(validationErrors, empty());
+        } else {
+            assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(false));
+            assertThat(validationErrors, contains(containsString("cumulative histogram metrics are not supported")));
+        }
+    }
+
+    public void testCumulativeHistogramUnsupported() {
         DataPoint.Histogram histo = new DataPoint.Histogram(
             HistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
@@ -48,8 +68,15 @@ public class DataPointHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histo.isValid(validationErrors), equalTo(false));
-        assertThat(validationErrors, contains(containsString("cumulative histogram metrics are not supported")));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(
+                validationErrors,
+                contains(containsString("cumulative histogram metrics are only supported when stored as exponential_histogram"))
+            );
+        } else {
+            assertThat(validationErrors, contains(containsString("cumulative histogram metrics are not supported")));
+        }
     }
 
     public void testHistogramSingleBucketWithoutBounds() {
@@ -60,7 +87,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histo.isValid(validationErrors), equalTo(true));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(true));
         assertThat(validationErrors, empty());
     }
 
@@ -72,7 +99,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .build()
         );
         assertThat(histo.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
-        assertThat(histo.isValid(validationErrors), equalTo(false));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
         assertThat(validationErrors, contains(containsString("histogram bucket count must be one greater than explicit bounds count")));
     }
 
@@ -89,7 +116,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(histo.isValid(validationErrors), equalTo(false));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
         assertThat(validationErrors, contains(containsString("histogram bounds are not sorted or not unique")));
     }
 
@@ -106,7 +133,7 @@ public class DataPointHistogramTests extends ESTestCase {
                 .setHistogram(Histogram.newBuilder().setAggregationTemporality(AGGREGATION_TEMPORALITY_DELTA).build())
                 .build()
         );
-        assertThat(histo.isValid(validationErrors), equalTo(false));
+        assertThat(histo.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
         assertThat(validationErrors, contains(containsString("histogram bounds are not sorted or not unique")));
     }
 }

@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.index.fielddata.ProcessedDocValues;
 
 import java.io.IOException;
 
-public interface ExponentialHistogramValuesReader extends ProcessedDocValues {
+public interface ExponentialHistogramValuesReader {
 
     /**
      * Returns the histogram value for the current document. Must be called only after a successful call to {@link #advanceExact(int)}.
@@ -60,9 +61,23 @@ public interface ExponentialHistogramValuesReader extends ProcessedDocValues {
      */
     double maxValue() throws IOException;
 
-    @Override
+    /** Advance the iterator to exactly {@code target} and return whether
+     *  {@code target} has a value.
+     *  {@code target} must be greater than or equal to the current
+     *  doc ID and must be a valid doc ID, ie. &ge; 0 and
+     *  &lt; {@code maxDoc}.*/
+    boolean advanceExact(int target) throws IOException;
+
     default int docValueCount() {
         return 1;
+    }
+
+    /**
+     * @return a doc id iterator over the doc values when available, otherwise null.
+     */
+    @Nullable
+    default DocIdSetIterator docIdIterator() {
+        return null;
     }
 
     // TODO: add accessors for min/max/sum which don't load the entire histogram

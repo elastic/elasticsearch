@@ -19,11 +19,7 @@ public abstract class GoogleAiStudioModel extends RateLimitGroupingModel {
 
     private final GoogleAiStudioServiceSettings serviceSettings;
 
-    public GoogleAiStudioModel(
-        ModelConfigurations configurations,
-        ModelSecrets secrets,
-        GoogleAiStudioServiceSettings serviceSettings
-    ) {
+    public GoogleAiStudioModel(ModelConfigurations configurations, ModelSecrets secrets, GoogleAiStudioServiceSettings serviceSettings) {
         super(configurations, secrets);
 
         this.serviceSettings = Objects.requireNonNull(serviceSettings);

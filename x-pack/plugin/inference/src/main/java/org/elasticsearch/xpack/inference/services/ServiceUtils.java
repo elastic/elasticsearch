@@ -393,6 +393,30 @@ public final class ServiceUtils {
         }
     }
 
+    /**
+     * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
+     */
+    public static void validateRequiredNonEmptyString(@Nullable String value, String settingName) {
+        if (value == null) {
+            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
+        }
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, ModelConfigurations.SERVICE_SETTINGS));
+        }
+    }
+
+    /**
+     * Validates that an optional integer service setting, when present, is strictly positive, throwing an
+     * {@link IllegalArgumentException} otherwise.
+     */
+    public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
+        if (value != null && value <= 0) {
+            throw new IllegalArgumentException(
+                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
+            );
+        }
+    }
+
     public static String extractRequiredString(
         Map<String, Object> map,
         String settingName,

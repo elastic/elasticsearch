@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.core.inference;
 
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -247,31 +245,6 @@ public class InferenceUtils {
 
     public static String mustBeAPositiveIntegerErrorMessage(String settingName, String scope, int value) {
         return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
-    }
-
-    public static void validateRequiredNonEmptyString(@Nullable String value, String settingName) {
-        validateNonNull(value, settingName);
-        validateNonEmpty(value, settingName);
-    }
-
-    public static void validateNonNull(@Nullable Object value, String settingName) {
-        if (value == null) {
-            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
-        }
-    }
-
-    private static void validateNonEmpty(String value, String settingName) {
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, ModelConfigurations.SERVICE_SETTINGS));
-        }
-    }
-
-    public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
-        if (value != null && value <= 0) {
-            throw new IllegalArgumentException(
-                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
-            );
-        }
     }
 
     /**

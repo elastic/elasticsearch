@@ -33,11 +33,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.inference.InferenceUtils.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
@@ -74,8 +74,8 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             this.maxInputTokens = maxInputTokens;
         }
 
-        void setEmbeddingType(String embeddingType) {
-            this.embeddingType = CohereEmbeddingType.fromCohereOrElementType(embeddingType);
+        void setEmbeddingType(CohereEmbeddingType embeddingType) {
+            this.embeddingType = embeddingType;
         }
 
         @Override
@@ -104,7 +104,11 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         parser.declareString(Builder::setSimilarity, ServiceUtils::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
-        parser.declareString(Builder::setEmbeddingType, new ParseField(ServiceFields.EMBEDDING_TYPE));
+        parser.declareString(
+            Builder::setEmbeddingType,
+            CohereEmbeddingType::fromCohereOrElementType,
+            new ParseField(ServiceFields.EMBEDDING_TYPE)
+        );
         return parser;
     }
 

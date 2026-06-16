@@ -213,7 +213,8 @@ public class ParallelTopNOperator implements Operator, Accountable {
             try {
                 worker.finish();
             } catch (Exception ignored) {
-                // best-effort
+                // The failure is already recorded in failureCollector at the call site; swallow
+                // any secondary exception here to avoid masking the root cause.
             }
         }
         try {
@@ -259,7 +260,15 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return mergeDone && mergeTarget.canProduceMoreDataWithoutExtraInput();
+        if (finishCalled == false) {
+            // Workers consume input but produce nothing until finish() signals end-of-input.
+            return false;
+        }
+        if (mergeDone == false) {
+            // Workers are sorting (or done but not yet merged); output will arrive without further external input.
+            return true;
+        }
+        return mergeTarget.canProduceMoreDataWithoutExtraInput();
     }
 
     @Override

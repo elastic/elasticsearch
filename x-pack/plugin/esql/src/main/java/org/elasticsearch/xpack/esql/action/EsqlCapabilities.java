@@ -1367,6 +1367,12 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command with View. The views can be referenced by IN subqueries, and the view
+         * definition can contain IN subqueries.
+         */
+        WHERE_IN_SUBQUERY_WITH_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
@@ -3025,6 +3031,11 @@ public class EsqlCapabilities {
          * Snapshot-only.
          */
         DEDUP_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for VALUES with date_range type.
+         */
+        VALUES_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for COALESCE with date_range type.

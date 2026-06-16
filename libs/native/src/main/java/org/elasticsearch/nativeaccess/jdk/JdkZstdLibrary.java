@@ -71,6 +71,12 @@ class JdkZstdLibrary implements ZstdLibrary {
         LinkerHelperUtil.critical()
     );
 
+    // Linker.Option.critical(true) only exists from JDK 22 onward; on JDK 21 the heap handles above
+    // are plain downcalls that reject heap MemorySegments ("Heap segment not allowed"). When heap
+    // access is unavailable we route the heap byte[] overloads through an off-heap staging copy
+    // instead of handing the heap segment straight in.
+    private static final boolean HEAP_ACCESS_AVAILABLE = LinkerHelperUtil.heapAccessAvailable();
+
     // --- streaming API ---
     private static final MethodHandle createDStream$mh = downcallHandle("ZSTD_createDStream", FunctionDescriptor.of(ADDRESS));
     private static final MethodHandle freeDStream$mh = downcallHandle("ZSTD_freeDStream", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
@@ -98,6 +104,8 @@ class JdkZstdLibrary implements ZstdLibrary {
     private static final VarHandle PTR_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("ptr"));
     private static final VarHandle SIZE_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("size"));
     private static final VarHandle POS_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("pos"));
+    // The FFM API changed the coordinate shape for struct-field VarHandles across supported JDKs.
+    private static final boolean BUFFER_FIELD_HAS_OFFSET_COORDINATE = PTR_VH.coordinateTypes().size() == 2;
 
     @Override
     public long compressBound(int srcLen) {
@@ -105,6 +113,30 @@ class JdkZstdLibrary implements ZstdLibrary {
             return (long) compressBound$mh.invokeExact((long) srcLen);
         } catch (Throwable t) {
             throw new AssertionError(t);
+        }
+    }
+
+    private static void setBufferField(VarHandle handle, MemorySegment segment, MemorySegment value) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            handle.set(segment, 0L, value);
+        } else {
+            handle.set(segment, value);
+        }
+    }
+
+    private static void setBufferField(VarHandle handle, MemorySegment segment, long value) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            handle.set(segment, 0L, value);
+        } else {
+            handle.set(segment, value);
+        }
+    }
+
+    private static long getLongBufferField(VarHandle handle, MemorySegment segment) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            return (long) handle.get(segment, 0L);
+        } else {
+            return (long) handle.get(segment);
         }
     }
 
@@ -195,6 +227,17 @@ class JdkZstdLibrary implements ZstdLibrary {
 
     @Override
     public long decompress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
+        if (HEAP_ACCESS_AVAILABLE == false) {
+            return runViaStaging(
+                dst,
+                dstOffset,
+                dstSize,
+                src,
+                srcOffset,
+                srcSize,
+                (segmentDst, segmentSrc) -> (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize)
+            );
+        }
         // Heap MemorySegments — bounds checked in the Zstd facade. The critical() linker option on
         // decompressHeap$mh tells Panama to pass these heap addresses through without copying,
         // matching the zero-extra-copy behavior the original Phase-1 plan wanted but couldn't have
@@ -210,6 +253,17 @@ class JdkZstdLibrary implements ZstdLibrary {
 
     @Override
     public long compress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
+        if (HEAP_ACCESS_AVAILABLE == false) {
+            return runViaStaging(
+                dst,
+                dstOffset,
+                dstSize,
+                src,
+                srcOffset,
+                srcSize,
+                (segmentDst, segmentSrc) -> (long) compress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize, level)
+            );
+        }
         var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
         var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
         try {
@@ -217,6 +271,48 @@ class JdkZstdLibrary implements ZstdLibrary {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
+    }
+
+    /**
+     * JDK 21 fallback for the heap {@code byte[]} {@code compress} / {@code decompress} overloads: stage the heap input
+     * into a confined off-heap arena, run the supplied off-heap downcall (which accepts native segments without the
+     * {@code critical} option), then copy the produced bytes back into the caller's array. The off-heap segments alias
+     * the same C entry points as the heap handles, so the libzstd return value (length or error code) is identical.
+     */
+    private static long runViaStaging(
+        byte[] dst,
+        int dstOffset,
+        int dstSize,
+        byte[] src,
+        int srcOffset,
+        int srcSize,
+        StagedDowncall downcall
+    ) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment segmentSrc = arena.allocate(srcSize);
+            MemorySegment.copy(src, srcOffset, segmentSrc, JAVA_BYTE, 0L, srcSize);
+            MemorySegment segmentDst = arena.allocate(dstSize);
+            long ret;
+            try {
+                ret = downcall.invoke(segmentDst, segmentSrc);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+            if (ret >= 0 && ret <= dstSize) {
+                MemorySegment.copy(segmentDst, JAVA_BYTE, 0L, dst, dstOffset, (int) ret);
+            }
+            return ret;
+        }
+    }
+
+    /**
+     * Functional interface for off-heap zstd downcalls invoked from {@link #runViaStaging}. Captures the size/level
+     * arguments in the lambda so callers can adapt either the (dst, dstSize, src, srcSize) decompress signature or the
+     * (dst, dstSize, src, srcSize, level) compress signature to a uniform two-segment shape.
+     */
+    @FunctionalInterface
+    private interface StagedDowncall {
+        long invoke(MemorySegment dst, MemorySegment src) throws Throwable;
     }
 
     @Override
@@ -304,8 +400,8 @@ class JdkZstdLibrary implements ZstdLibrary {
                 // Stamp the pointer fields once — they never change across calls, only size and pos
                 // are mutated per-call (size depends on how many input bytes the caller has staged
                 // and how much output room they want this round).
-                PTR_VH.set(inStruct, 0L, inBuf);
-                PTR_VH.set(outStruct, 0L, outBuf);
+                setBufferField(PTR_VH, inStruct, inBuf);
+                setBufferField(PTR_VH, outStruct, outBuf);
             } catch (Throwable t) {
                 // If any of the allocations throws (e.g. OOM mid-arena), drop the libzstd handle
                 // we just got back from ZSTD_createDStream so we don't leak the ~256 KB native
@@ -338,10 +434,10 @@ class JdkZstdLibrary implements ZstdLibrary {
             if (srcAvail > 0) {
                 MemorySegment.copy(src, srcPos, inBuf, JAVA_BYTE, 0L, srcAvail);
             }
-            SIZE_VH.set(inStruct, 0L, (long) srcAvail);
-            POS_VH.set(inStruct, 0L, 0L);
-            SIZE_VH.set(outStruct, 0L, (long) outRoom);
-            POS_VH.set(outStruct, 0L, 0L);
+            setBufferField(SIZE_VH, inStruct, (long) srcAvail);
+            setBufferField(POS_VH, inStruct, 0L);
+            setBufferField(SIZE_VH, outStruct, (long) outRoom);
+            setBufferField(POS_VH, outStruct, 0L);
 
             long hint;
             try {
@@ -350,8 +446,8 @@ class JdkZstdLibrary implements ZstdLibrary {
                 throw new AssertionError(t);
             }
 
-            int srcConsumed = (int) (long) POS_VH.get(inStruct, 0L);
-            int dstProduced = (int) (long) POS_VH.get(outStruct, 0L);
+            int srcConsumed = (int) getLongBufferField(POS_VH, inStruct);
+            int dstProduced = (int) getLongBufferField(POS_VH, outStruct);
             // libzstd guarantees pos ≤ size on return — the size fields we stamped above are the
             // upper bounds here, both already int-typed and bounded by the staging buffer sizes.
             assert srcConsumed >= 0 && srcConsumed <= srcAvail : "srcConsumed " + srcConsumed + " out of [0, " + srcAvail + "]";

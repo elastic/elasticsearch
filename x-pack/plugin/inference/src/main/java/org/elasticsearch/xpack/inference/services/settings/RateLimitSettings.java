@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -38,13 +39,16 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
-    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
+    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(
+        boolean ignoreUnknownFields,
+        @Nullable RateLimitSettings defaultValue
+    ) {
         ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> parser = new ConstructingObjectParser<>(
             "rate_limit",
             ignoreUnknownFields,
             args -> {
                 Long requestsPerMinute = (Long) args[0];
-                return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : null;
+                return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : defaultValue;
             }
         );
         parser.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));

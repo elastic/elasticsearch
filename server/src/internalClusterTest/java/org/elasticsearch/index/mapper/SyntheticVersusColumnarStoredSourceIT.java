@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,9 +42,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void checkFeatureFlag() {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
     }
 

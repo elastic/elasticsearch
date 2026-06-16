@@ -743,6 +743,17 @@ public final class IndexSettings {
     }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
 
     /**
+     * Indicates that slice is validated and can be utilized as configured given the current cluster state
+     */
+    public static final Setting<Boolean> SLICE_VALIDATED = Setting.boolSetting(
+        "index.slice.validated",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    /**
     * The {@link IndexMode "mode"} of the index.
     */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -1132,7 +1143,9 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
         "index.dense_vector.experimental_features",
-        Build.current().isSnapshot(),
+        // snapshot should use new experimental formats
+        // enabling with slice feature as well for ease of testing
+        Build.current().isSnapshot() || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled(),
         Property.IndexScope,
         Property.Final
     );
@@ -1298,6 +1311,7 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
     private volatile boolean earlyTermination;
+    private volatile float postFilterSelectivityThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1509,6 +1523,15 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
+        if (sliceEnabled && SLICE_VALIDATED.get(settings) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "unknown setting [%s] please check that any required plugins are installed.",
+                    SLICE_ENABLED.getKey()
+                )
+            );
+        }
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1533,6 +1556,7 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
+        postFilterSelectivityThreshold = scopedSettings.get(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -2425,6 +2449,14 @@ public final class IndexSettings {
 
     private void setHnswEarlyTermination(boolean earlyTermination) {
         this.earlyTermination = earlyTermination;
+    }
+
+    public float getPostFilterSelectivityThreshold() {
+        return this.postFilterSelectivityThreshold;
+    }
+
+    private void setPostFilterSelectivityThreshold(float postFilterSelectivityThreshold) {
+        this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

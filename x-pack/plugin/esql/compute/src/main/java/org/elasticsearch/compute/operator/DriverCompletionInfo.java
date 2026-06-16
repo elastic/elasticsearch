@@ -28,8 +28,12 @@ import java.util.concurrent.atomic.AtomicLong;
  *                     fields per document. Except {@code null} values don't count.
  *                     And multivalued fields count as many times as there are values.
  * @param rowsEmitted Total rows emitted by source operators across all drivers.
- * @param bytesRead Total pre-decompression bytes pulled from external storage across all drivers.
- *                  Lucene operators contribute 0; only external-source operators populate this.
+ * @param bytesRead Total bytes read across all drivers. Includes pre-decompression bytes pulled from
+ *                  external storage by external-source operators, bytes read by Lucene-source and
+ *                  values-source operators on worker threads, and planner-time Lucene directory I/O
+ *                  on the data node SEARCH thread (query rewriting, weight construction,
+ *                  {@code SearchStats} field lookups, sort builders, etc.).
+ *                  TODO: Enrich/Lookup reads are not included yet here.
  * @param readNanos Total wall time format readers spent reading on producer threads, in nanoseconds.
  *                  Lucene contributes 0; only external-source operators populate this.
  * @param cpuNanos Total CPU time across all drivers (sum of per-driver CPU time).
@@ -71,6 +75,11 @@ public record DriverCompletionInfo(
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers including their profile output.
+     *
+     * @param planningBytesRead Bytes read on the data node SEARCH thread during planner setup
+     *                          (query rewriting, weight construction, {@code SearchStats} lookups,
+     *                          sort builders, etc.) before drivers were dispatched. Added to the
+     *                          aggregate {@code bytesRead}.
      */
     public static DriverCompletionInfo includingProfiles(
         List<Driver> drivers,
@@ -79,12 +88,13 @@ public record DriverCompletionInfo(
         String nodeName,
         String planTree,
         String logicalPlanTree,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        long planningBytesRead
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
-        long bytesRead = 0;
+        long bytesRead = planningBytesRead;
         long readNanos = 0;
         long cpuNanos = 0;
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
@@ -115,12 +125,17 @@ public record DriverCompletionInfo(
 
     /**
      * Build a {@link DriverCompletionInfo} for many drivers excluding their profile output.
+     *
+     * @param planningBytesRead Bytes read on the data node SEARCH thread during planner setup
+     *                          (query rewriting, weight construction, {@code SearchStats} lookups,
+     *                          sort builders, etc.) before drivers were dispatched. Added to the
+     *                          aggregate {@code bytesRead}.
      */
-    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers) {
+    public static DriverCompletionInfo excludingProfiles(List<Driver> drivers, long planningBytesRead) {
         long documentsFound = 0;
         long valuesLoaded = 0;
         long rowsEmitted = 0;
-        long bytesRead = 0;
+        long bytesRead = planningBytesRead;
         long readNanos = 0;
         long cpuNanos = 0;
         for (Driver d : drivers) {

@@ -57,6 +57,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @FunctionInfo(
         returnType = "keyword",
+        briefSummary = "Returns a string representation of a date, in the provided format.",
         description = "Returns a string representation of a date, in the provided format.",
         examples = @Example(file = "date", tag = "docsDateFormat")
     )

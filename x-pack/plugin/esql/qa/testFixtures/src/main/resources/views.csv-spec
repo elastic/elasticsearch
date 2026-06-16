@@ -337,6 +337,7 @@ HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           
 ;
 
 airportsLookupJoinViewAirports
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -353,6 +354,7 @@ LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           |
 ;
 
 airportsLookupJoinViewAirportsStats
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -375,6 +377,7 @@ count:long | duplications:long
 ;
 
 airportsLookupJoinViewAirportsStatsValues
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching

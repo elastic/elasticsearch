@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -324,6 +325,13 @@ public class TopSnippetsStaticTests extends ESTestCase {
     }
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
 
     private List<String> processWithHighlight(
         Object fieldInput,

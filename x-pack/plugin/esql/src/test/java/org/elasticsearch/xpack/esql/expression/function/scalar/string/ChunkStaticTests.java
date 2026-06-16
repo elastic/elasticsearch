@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingS
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,10 +54,6 @@ public class ChunkStaticTests extends ESTestCase {
 
     public void testDefaults() {
         // Default of 300 is huge, only one chunk returned in this case
-        verifyChunks(null, 1);
-    }
-
-    public void testDefaultChunkingSettings() {
         verifyChunks(null, 1);
     }
 
@@ -96,6 +93,13 @@ public class ChunkStaticTests extends ESTestCase {
     }
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
 
     private List<String> process(String str, ChunkingSettings chunkingSettings) {
         MapExpression optionsMap = chunkingSettings == null ? null : createChunkingSettings(chunkingSettings);

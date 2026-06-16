@@ -262,8 +262,8 @@ public final class Automatons {
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < text.length();) {
-            final char c = text.charAt(i);
-            int length = 1;
+            final int c = text.codePointAt(i);
+            int length = Character.charCount(c);
             switch (c) {
                 case WildcardQuery.WILDCARD_STRING:
                     automata.add(Automata.makeAnyString());
@@ -274,8 +274,8 @@ public final class Automatons {
                 case WildcardQuery.WILDCARD_ESCAPE:
                     // add the next codepoint instead, if it exists
                     if (i + length < text.length()) {
-                        final char nextChar = text.charAt(i + length);
-                        length += 1;
+                        final int nextChar = text.codePointAt(i + length);
+                        length += Character.charCount(nextChar);
                         automata.add(Automata.makeChar(nextChar));
                         break;
                     } // else fallthru, lenient parsing with a trailing \

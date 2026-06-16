@@ -13,6 +13,5 @@
   "examples" : [
     "pi()"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

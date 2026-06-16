@@ -20,6 +20,5 @@
   "examples" : [
     "atan(some_metric)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

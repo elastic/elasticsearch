@@ -20,6 +20,5 @@
   "examples" : [
     "year()"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

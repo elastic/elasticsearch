@@ -26,6 +26,5 @@
   "examples" : [
     "clamp_max(http_requests_total, 100)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

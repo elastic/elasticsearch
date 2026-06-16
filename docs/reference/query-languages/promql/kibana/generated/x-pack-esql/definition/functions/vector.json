@@ -20,6 +20,5 @@
   "examples" : [
     "vector(1)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

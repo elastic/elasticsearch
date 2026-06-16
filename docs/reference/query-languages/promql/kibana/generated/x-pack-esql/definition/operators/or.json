@@ -27,6 +27,5 @@
   "examples" : [
     "vector1 or vector2"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

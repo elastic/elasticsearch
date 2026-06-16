@@ -20,6 +20,5 @@
   "examples" : [
     "asin(some_metric)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

@@ -20,6 +20,5 @@
   "examples" : [
     "rad(some_metric)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

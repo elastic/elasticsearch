@@ -20,6 +20,5 @@
   "examples" : [
     "asinh(some_metric)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

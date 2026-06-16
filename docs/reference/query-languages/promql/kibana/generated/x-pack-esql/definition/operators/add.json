@@ -81,6 +81,5 @@
   "examples" : [
     "requests_total + requests_errors"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

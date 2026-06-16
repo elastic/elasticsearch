@@ -20,6 +20,5 @@
   "examples" : [
     "cos(some_metric)"
   ],
-  "preview" : false,
   "snapshot_only" : false
 }

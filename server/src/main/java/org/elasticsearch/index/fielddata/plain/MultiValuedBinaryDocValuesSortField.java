@@ -41,6 +41,11 @@ public final class MultiValuedBinaryDocValuesSortField extends BinarySortField {
 
     private final boolean maxMode;
 
+    /** Returns {@code true} when this field uses the maximum (last) value for multi-valued documents. */
+    boolean isMaxMode() {
+        return maxMode;
+    }
+
     public MultiValuedBinaryDocValuesSortField(String field, boolean reverse, Object missingValue, boolean maxMode) {
         super(field, reverse, missingValue, PROVIDER_NAME);
         this.maxMode = maxMode;

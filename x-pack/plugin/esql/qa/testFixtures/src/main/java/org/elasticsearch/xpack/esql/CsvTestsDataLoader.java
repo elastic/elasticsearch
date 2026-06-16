@@ -204,6 +204,18 @@ public class CsvTestsDataLoader {
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        new TestDataset(
+            "promql_classic_histogram",
+            "mapping-promql-classic-histogram-passthrough.json",
+            "promql_classic_histogram.csv",
+            "promql_classic_histogram-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
+        new TestDataset(
+            "promql_histogram_no_le",
+            "mapping-promql-histogram-no-le-passthrough.json",
+            "promql_histogram_no_le.csv",
+            "promql_histogram_no_le-settings.json"
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.PROMQL_HISTOGRAM_QUANTILE),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -278,6 +290,7 @@ public class CsvTestsDataLoader {
         new TestDataset("flattened_typed").withRequiredCapabilities(EsqlCapabilities.Cap.FLATTENED_DATATYPE),
         new TestDataset("ts_flattened", "mapping-ts_flattened.json", "ts_flattened.csv", "ts_flattened-settings.json"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
+        new TestDataset("host_info_lookup").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",

@@ -428,12 +428,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testNullifyLookupJoinUnknownLeftField() {
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
-                containsString("Unknown column [language_code] in left side of join")
-            );
+    // #149569: an unmapped left join key is nullified, so the join resolves (trivial no-match) instead of
+    // failing with "Unknown column ... in left side of join".
+    public void testNullifyLookupJoinUnmappedLeftKey() {
+        var plan = test().addLanguagesLookup().statement(setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"));
+        assertThat(plan.resolved(), is(true));
     }
 
     public void testNullifyLookupJoinUnknownRightField() {

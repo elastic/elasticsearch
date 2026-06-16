@@ -15,6 +15,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTransformStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
@@ -81,7 +82,7 @@ public final class NumericDecodePipeline {
         final NumericCodecStage[] transforms = new NumericCodecStage[leadingCount];
         for (int i = 0; i < leadingCount; i++) {
             final StageSpec spec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(i)));
-            transforms[i] = StageFactory.newTransformStage(spec);
+            transforms[i] = StageFactory.newTransformStage(spec, blockSize);
         }
         final StageSpec payloadSpec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(stageCount - 1)));
         final PayloadCodecStage payloadStage = StageFactory.newPayloadStage(payloadSpec, blockSize);
@@ -135,6 +136,12 @@ public final class NumericDecodePipeline {
                     case GCD_STAGE -> GcdCodecStage.decodeStatic((GcdCodecStage) transformStages[i], values, count, context);
                     case SPLIT_DELTA_STAGE -> SplitDeltaCodecStage.decodeStatic(
                         (SplitDeltaCodecStage) transformStages[i],
+                        values,
+                        count,
+                        context
+                    );
+                    case ALP_DOUBLE_STAGE -> AlpDoubleTransformStage.decodeStatic(
+                        (AlpDoubleTransformStage) transformStages[i],
                         values,
                         count,
                         context

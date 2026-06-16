@@ -1565,4 +1565,56 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
             )
         );
     }
+
+    public void testGatheringCandidatesForFrozenSkipsDlmCreatedIndices() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int backingIndices = randomIntBetween(3, 10);
+        DataStream dataStreamWithFrozen = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMinutes(1)).build(),
+            now
+        );
+        builder.put(dataStreamWithFrozen);
+        ProjectMetadata projectMetadata = builder.build();
+
+        // Pick the first aged (non-write-index) backing index and mark it as DLM-created
+        Index dlmCreatedIndex = dataStreamWithFrozen.getIndices().getFirst();
+        IndexMetadata originalMeta = projectMetadata.index(dlmCreatedIndex);
+        IndexMetadata dlmCreatedMeta = IndexMetadata.builder(originalMeta)
+            .settings(
+                Settings.builder().put(originalMeta.getSettings()).put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true).build()
+            )
+            .build();
+        ProjectMetadata updatedProjectMetadata = ProjectMetadata.builder(projectMetadata).put(dlmCreatedMeta, false).build();
+
+        long nowPastFrozenAfter = now + TimeValue.timeValueMinutes(2).millis();
+
+        Set<Index> candidates = DataStreamLifecycleService.candidatesForFrozen(
+            updatedProjectMetadata,
+            dataStreamWithFrozen,
+            () -> nowPastFrozenAfter,
+            dataStreamWithFrozen.getIndices()
+        );
+
+        assertFalse(
+            "DLM-created index should not be a frozen candidate",
+            candidates.stream().anyMatch(i -> i.getName().equals(dlmCreatedIndex.getName()))
+        );
+        assertThat(
+            new TreeSet<>(candidates.stream().map(Index::getName).toList()),
+            equalTo(
+                new TreeSet<>(
+                    dataStreamWithFrozen.getIndices()
+                        .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
+                        .stream()
+                        .map(Index::getName)
+                        .filter(name -> name.equals(dlmCreatedIndex.getName()) == false)
+                        .toList()
+                )
+            )
+        );
+    }
 }

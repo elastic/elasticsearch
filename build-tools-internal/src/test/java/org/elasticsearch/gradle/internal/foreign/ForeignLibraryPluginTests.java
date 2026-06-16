@@ -37,20 +37,20 @@ public class ForeignLibraryPluginTests {
 
     private Project rootProject;
     private Project consumer;
-    private Project ffmProject;
+    private Project foreignLibraryProject;
     private Project processorProject;
 
     @Before
     public void setUp() {
         rootProject = ProjectBuilder.builder().withName("root").build();
         Project libsProject = ProjectBuilder.builder().withParent(rootProject).withName("libs").build();
-        ffmProject = ProjectBuilder.builder().withParent(libsProject).withName("ffm").build();
-        processorProject = ProjectBuilder.builder().withParent(ffmProject).withName("processor").build();
+        foreignLibraryProject = ProjectBuilder.builder().withParent(libsProject).withName("foreign-library").build();
+        processorProject = ProjectBuilder.builder().withParent(foreignLibraryProject).withName("processor").build();
         consumer = ProjectBuilder.builder().withParent(rootProject).withName("consumer").build();
 
         // Apply java-library to the stub libs so they expose the api/runtime configurations
         // that the consumer project resolves through.
-        ffmProject.getPluginManager().apply(JavaLibraryPlugin.class);
+        foreignLibraryProject.getPluginManager().apply(JavaLibraryPlugin.class);
         processorProject.getPluginManager().apply(JavaLibraryPlugin.class);
 
         consumer.getPluginManager().apply(ForeignLibraryPlugin.class);
@@ -62,11 +62,11 @@ public class ForeignLibraryPluginTests {
     }
 
     @Test
-    public void declaresFfmAsApiDependency() {
+    public void declaresForeignLibraryAsApiDependency() {
         Configuration api = consumer.getConfigurations().getByName(JavaPlugin.API_CONFIGURATION_NAME);
         Dependency dependency = api.getDependencies().iterator().next();
         assertThat(dependency, instanceOf(ProjectDependency.class));
-        assertThat(((ProjectDependency) dependency).getPath(), equalTo(":libs:ffm"));
+        assertThat(((ProjectDependency) dependency).getPath(), equalTo(":libs:foreign-library"));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class ForeignLibraryPluginTests {
             .getByName(ForeignLibraryPlugin.PROCESSOR_CONFIGURATION_NAME);
         Dependency dependency = processorConfiguration.getDependencies().iterator().next();
         assertThat(dependency, instanceOf(ProjectDependency.class));
-        assertThat(((ProjectDependency) dependency).getPath(), equalTo(":libs:ffm:processor"));
+        assertThat(((ProjectDependency) dependency).getPath(), equalTo(":libs:foreign-library:processor"));
     }
 
     @Test

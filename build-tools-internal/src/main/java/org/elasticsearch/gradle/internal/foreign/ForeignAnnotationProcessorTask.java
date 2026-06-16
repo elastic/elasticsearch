@@ -33,7 +33,7 @@ import java.util.List;
 import javax.inject.Inject;
 
 /**
- * Runs the {@code libs/ffm} annotation processor in {@code -proc:only} mode using an external
+ * Runs the {@code libs/foreign-library} annotation processor in {@code -proc:only} mode using an external
  * {@code javac} from a configurable toolchain JDK.
  *
  * <p>The processor depends on the JDK 24+ {@code java.lang.classfile} API, which the Gradle daemon's

@@ -11,7 +11,7 @@
  * Annotation-driven bindings for native libraries via the Java Foreign Function and Memory (FFM)
  * API. A native library binding is declared as a Java interface annotated with
  * {@link org.elasticsearch.foreign.LibrarySpecification @LibrarySpecification}; the annotation
- * processor in {@code libs/ffm/processor} generates an FFM-backed implementation plus the
+ * processor in {@code libs/foreign-library/processor} generates an FFM-backed implementation plus the
  * {@link org.elasticsearch.foreign.LibraryProvider} that loads it.
  *
  * <p>A minimal example binding two symbols from the system C library:

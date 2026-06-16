@@ -30,7 +30,7 @@ import javax.inject.Inject;
 
 /**
  * Wires up annotation processing and post-compile module-info augmentation for modules that contain
- * {@code @LibrarySpecification} interfaces from {@code libs/ffm}.
+ * {@code @LibrarySpecification} interfaces from {@code libs/foreign-library}.
  *
  * <p>This plugin handles two responsibilities that any consumer of the FFM annotation processor needs:
  * <ul>
@@ -67,12 +67,12 @@ public class ForeignLibraryPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(JavaLibraryPlugin.class);
 
-        // libs/ffm is part of the consumer's public API: annotated interfaces extend types from
+        // libs/foreign-library is part of the consumer's public API: annotated interfaces extend types from
         // org.elasticsearch.foreign (e.g. CloseableByteBuffer), so it must be exposed transitively.
-        project.getDependencies().add(JavaPlugin.API_CONFIGURATION_NAME, project.project(":libs:ffm"));
+        project.getDependencies().add(JavaPlugin.API_CONFIGURATION_NAME, project.project(":libs:foreign-library"));
 
         Configuration processorConfiguration = project.getConfigurations().create(PROCESSOR_CONFIGURATION_NAME);
-        project.getDependencies().add(PROCESSOR_CONFIGURATION_NAME, project.project(":libs:ffm:processor"));
+        project.getDependencies().add(PROCESSOR_CONFIGURATION_NAME, project.project(":libs:foreign-library:processor"));
 
         SourceSet mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
         Configuration compileClasspath = project.getConfigurations().getByName(mainSourceSet.getCompileClasspathConfigurationName());

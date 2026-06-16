@@ -18,6 +18,6 @@ dependencies {
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
-  // :libs:ffm does not depend on server (and so not on lucene)
+  // :libs:foreign-library does not depend on server (and so not on lucene)
   replaceSignatureFiles 'jdk-signatures'
 }

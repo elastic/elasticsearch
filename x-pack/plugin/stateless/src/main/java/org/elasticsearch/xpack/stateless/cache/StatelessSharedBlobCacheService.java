@@ -128,7 +128,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     void fetchRange(
         FileCacheKey cacheKey,
         ByteRange byteRange,
-        long blobLength,
         CacheBlobReader cacheBlobReader,
         Object initiator,
         Supplier<ByteBuffer> writeBufferSupplier,
@@ -140,7 +139,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         fetchRange(
             cacheKey,
             byteRange,
-            blobLength,
+            byteRange.length(),
             cacheBlobReader,
             initiator,
             writeBufferSupplier,

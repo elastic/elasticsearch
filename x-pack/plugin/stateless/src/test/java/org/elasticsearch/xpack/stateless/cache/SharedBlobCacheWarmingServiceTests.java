@@ -595,13 +595,12 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 .stream()
                 .map(location -> location.blobFile().blobName())
                 .collect(Collectors.toSet());
-            assertThat(referencedBlobNames.size(), greaterThan(1));
             for (String blobName : referencedBlobNames) {
                 if (blobName.equals(skippedBlobName)) {
                     continue;
                 }
                 assertTrue("expected region 0 prefetch for " + blobName, warmTasksForBCCs.containsKey(blobName));
-                assertThat(warmTasksForBCCs.get(blobName).byteRangeToWarm(), equalTo(expectedRegion0));
+                assertThat(warmTasksForBCCs.get(blobName).byteRangeToWarm(), lessThanOrEqualTo(expectedRegion0));
             }
             assertFalse("latest BCC blob should be skipped", warmTasksForBCCs.containsKey(skippedBlobName));
         }

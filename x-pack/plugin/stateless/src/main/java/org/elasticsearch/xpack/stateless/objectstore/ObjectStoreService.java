@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -980,7 +981,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Executor bccHeaderReadExecutor,
         boolean readSingleBlobIfHollow,
         @Nullable StatelessCommitService.SourceBlobsInfo blobsInfo,
-        @Nullable SharedBlobCacheWarmingService warmingService,
+        SharedBlobCacheWarmingService warmingService,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -1217,20 +1218,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     /**
      * Computes a map of blobs ({@code BlobFile}) referenced from the passed-in {@param commitFiles} where the map values
-     * contain the set of file names, together with their maximum offset, in the blob file.
+     * contain the set of file names, together with the blob length that include those files.
      */
-    private static Map<BlobFile, ReferencedFilesAndMaxBlobOffset> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {
-        var referencedFilesByBlob = new HashMap<BlobFile, ReferencedFilesAndMaxBlobOffset>();
+    private static Map<BlobFile, ReferencedFilesAndBlobLength> groupReferencedFilesByBlob(Map<String, BlobLocation> commitFiles) {
+        var referencedFilesByBlob = new HashMap<BlobFile, ReferencedFilesAndBlobLength>();
         for (var commitFile : commitFiles.entrySet()) {
             var blobLocation = commitFile.getValue();
             referencedFilesByBlob.compute(blobLocation.blobFile(), (ignored, existing) -> {
-                long maxBlobOffset = blobLocation.offset();
+                long blobLength = blobLocation.offset() + blobLocation.fileLength();
                 if (existing == null) {
-                    return new ReferencedFilesAndMaxBlobOffset(maxBlobOffset, Set.of(commitFile.getKey()));
+                    return new ReferencedFilesAndBlobLength(blobLength, Set.of(commitFile.getKey()));
                 } else {
-                    return new ReferencedFilesAndMaxBlobOffset(
-                        // max offset in the blob to read (header is located before that)
-                        Math.max(existing.maxBlobOffset(), maxBlobOffset),
+                    return new ReferencedFilesAndBlobLength(
+                        // The blob length that includes the files
+                        Math.max(existing.blobLength(), blobLength),
                         // set of files contained in the blob
                         Sets.union(existing.files(), Set.of(commitFile.getKey()))
                     );
@@ -1284,9 +1285,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             directory,
             bccHeaderReadExecutor,
             warmingService,
-            (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
+            (referencedBlob, maxBlobLength) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
-                : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
+                : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobLength),
             referencedCCsConsumer,
             listener
         );
@@ -1312,14 +1313,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 listener
             );
         } else {
-            var maxOffsetPerBlob = referencedFilesByBlob.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().maxBlobOffset()));
             final BlobFile skipBlob = bcc != null ? bcc.toBlobFile() : null;
-            warmingService.prefetchRegion0OfReferencedBccBlobs(
+            final var blobFileRanges = getRegionZeroBlobFileRanges(referencedFilesByBlob, skipBlob, warmingService.getRegionSize());
+            warmingService.warmBlobRangesFromDirectory(
+                blobFileRanges,
                 directory,
-                maxOffsetPerBlob,
-                skipBlob,
                 bccHeaderReadExecutor,
                 listener.delegateFailureAndWrap(
                     (l, ignored) -> readReferencedCompoundCommitHeaders(
@@ -1334,8 +1332,26 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
+    private static Map<BlobFile, ByteRange> getRegionZeroBlobFileRanges(
+        Map<BlobFile, ReferencedFilesAndBlobLength> referencedFilesByBlob,
+        BlobFile skipBlob,
+        int regionSize
+    ) {
+        Map<BlobFile, ByteRange> blobFileRanges = new HashMap<>();
+        for (var entry : referencedFilesByBlob.entrySet()) {
+            final BlobFile blobFile = entry.getKey();
+            if (Objects.equals(skipBlob, blobFile)) {
+                continue;
+            }
+            final long rangeLength = Math.min(entry.getValue().blobLength(), regionSize);
+            final ByteRange range = ByteRange.of(0, rangeLength);
+            blobFileRanges.put(blobFile, range);
+        }
+        return blobFileRanges;
+    }
+
     private static void readReferencedCompoundCommitHeaders(
-        Map<BlobFile, ReferencedFilesAndMaxBlobOffset> referencedFilesByBlob,
+        Map<BlobFile, ReferencedFilesAndBlobLength> referencedFilesByBlob,
         Executor bccHeaderReadExecutor,
         BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
@@ -1348,7 +1364,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 bccHeaderReadExecutor.execute(ActionRunnable.run(listeners.acquire(), () -> {
                     var commitsIterator = getCompoundCommitsIteratorForBlobFile.apply(
                         referencedBlob,
-                        referencedFilesForBlob.getValue().maxBlobOffset()
+                        referencedFilesForBlob.getValue().blobLength()
                     );
                     long offsetInBlob = 0L;
                     // only used for asserts
@@ -1404,17 +1420,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    private record ReferencedFilesAndMaxBlobOffset(long maxBlobOffset, Set<String> files) {}
-
-    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "found latest CC in [{}]: {}",
-                blobContainer.path().buildAsString(),
-                latestBcc.lastCompoundCommit().toLongDescription()
-            );
-        }
-    }
+    private record ReferencedFilesAndBlobLength(long blobLength, Set<String> files) {}
 
     /**
      * Abstract class for commit and files upload tasks.

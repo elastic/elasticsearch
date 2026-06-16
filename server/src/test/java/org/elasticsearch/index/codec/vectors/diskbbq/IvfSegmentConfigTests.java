@@ -7,12 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.diskbbq.next;
+package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class IvfSegmentConfigTests extends ESTestCase {
@@ -34,5 +36,32 @@ public class IvfSegmentConfigTests extends ESTestCase {
         IvfMergeConfigResolver r = IvfMergeConfigResolver.useCodecDefault();
         IvfSegmentConfig def = IvfSegmentConfig.fromCodecDefaults(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, false);
         assertSame(def, r.resolve(null, null, def));
+    }
+
+    public void testEffectiveRescoreOversampleQueryOverrideWins() {
+        assertThat(IvfSegmentConfig.effectiveRescoreOversample(2f, 5f, 3f), equalTo(5f));
+    }
+
+    public void testEffectiveRescoreOversampleUsesPersistedWhenFinite() {
+        assertThat(IvfSegmentConfig.effectiveRescoreOversample(4f, null, 3f), equalTo(4f));
+    }
+
+    public void testEffectiveRescoreOversampleUsesMappingWhenPersistedNaN() {
+        assertThat(IvfSegmentConfig.effectiveRescoreOversample(Float.NaN, null, 3f), equalTo(3f));
+    }
+
+    public void testWithEffectiveRescoreOversampleReplacesNaN() {
+        IvfSegmentConfig raw = new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, true, Float.NaN);
+        IvfSegmentConfig effective = IvfSegmentConfig.withEffectiveRescoreOversample(raw, null, 2.5f);
+        assertThat(effective.rescoreOversample(), equalTo(2.5f));
+        assertThat(effective.usePrecondition(), is(true));
+    }
+
+    public void testLeafCollectorBudget() {
+        assertThat(IvfSegmentConfig.leafCollectorBudget(10, 3f), equalTo(60));
+    }
+
+    public void testShardMergeBudget() {
+        assertThat(IvfSegmentConfig.shardMergeBudget(10, 5f), equalTo(50));
     }
 }

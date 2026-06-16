@@ -20,6 +20,5 @@
   "examples" : [
     "day_of_year()"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

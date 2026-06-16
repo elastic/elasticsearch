@@ -79,8 +79,7 @@ setup:
         index: test-semantic-field-highlight-index
         body:
           query:
-            ids:
-              values: [ "doc_empty" ]
+            match_all: { }
           highlight:
             fields:
               semantic_field:

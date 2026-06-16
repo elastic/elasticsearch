@@ -584,9 +584,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {p0=ml/jobs_get_result_overall_buckets/Test overall buckets given top_n is negative}
   issue: https://github.com/elastic/elasticsearch/issues/151160
-- class: org.elasticsearch.index.mapper.SyntheticVersusColumnarStoredSourceIT
-  method: testStoredIgnoredSource
-  issue: https://github.com/elastic/elasticsearch/issues/151167
 - class: org.elasticsearch.xpack.writeloadforecaster.WriteLoadForecasterIT
   method: testWriteLoadForecastGetsPopulatedDuringRollovers
   issue: https://github.com/elastic/elasticsearch/issues/151173
@@ -635,3 +632,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cluster.coordination.TransportConsistentClusterStateReadIT
   method: testWaitsUntilTheNodeRejoinsTheClusterToReturnAValidClusterState
   issue: https://github.com/elastic/elasticsearch/issues/151402
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:approximation.Approximate stats by with zero variance}
+  issue: https://github.com/elastic/elasticsearch/issues/151409
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testRelocateHollowShards
+  issue: https://github.com/elastic/elasticsearch/issues/151410
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/load four indices with single conversion function TO_IP}
+  issue: https://github.com/elastic/elasticsearch/issues/151413

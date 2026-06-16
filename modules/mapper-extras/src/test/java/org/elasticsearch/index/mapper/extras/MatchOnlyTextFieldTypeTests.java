@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesPrefixQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -608,8 +609,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         // SortedSet DV, case-insensitive: script-backed query
         assertThat(sortedSet.prefixQuery("foo", null, true, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
 
-        // Binary DV: script-backed query
-        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(StringScriptFieldPrefixQuery.class));
+        // Binary DV: SlowCustomBinaryDocValuesPrefixQuery
+        assertThat(binary.prefixQuery("foo", null, false, MOCK_CONTEXT), Matchers.instanceOf(SlowCustomBinaryDocValuesPrefixQuery.class));
 
         // Doc-values only, expensive queries disabled
         ElasticsearchException ee = expectThrows(

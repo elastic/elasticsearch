@@ -85,6 +85,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
@@ -780,7 +781,7 @@ public class StatelessPlugin extends Plugin
         if (projectResolver.get().supportsMultipleProjects()) {
             clusterService.addStateApplier(objectStoreService);
         }
-        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics);
+        var cacheService = createSharedBlobCacheService(nodeEnvironment, settings, threadPool, blobCacheMetrics, clusterService);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
         var cacheBlobReaderService = setAndGet(
@@ -1055,13 +1056,15 @@ public class StatelessPlugin extends Plugin
         NodeEnvironment nodeEnvironment,
         Settings settings,
         ThreadPool threadPool,
-        BlobCacheMetrics blobCacheMetrics
+        BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService
     ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
             blobCacheMetrics,
+            clusterService,
             metricHolder
         );
         statelessSharedBlobCacheService.assertInvariants();
@@ -1334,6 +1337,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             StatelessReaderHeapBreaker.LIMIT_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_EVICTION_POLICY_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
     }
@@ -2005,6 +2009,11 @@ public class StatelessPlugin extends Plugin
                 PersistentTaskParams.class,
                 ObjectStoreGCTask.TASK_NAME,
                 ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                DirectoryMetrics.PluggableMetrics.class,
+                BlobStoreCacheDirectoryMetrics.NAME,
+                BlobStoreCacheDirectoryMetrics::new
             )
         );
     }

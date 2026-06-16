@@ -605,14 +605,16 @@ public class SearchEngine extends Engine {
                 final NewCommitNotification notificationToApply = latestNotification;
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                    if (commitUpdated) {
-                        store.incRef();
-                        try {
+                    if (store.tryIncRef() == false) {
+                        throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+                    }
+                    try {
+                        final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
+                        if (commitUpdated) {
                             updateInternalState(notificationToApply, current);
-                        } finally {
-                            store.decRef();
                         }
+                    } finally {
+                        store.decRef();
                     }
                 }, this::onFailure));
             }

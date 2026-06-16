@@ -746,6 +746,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 settings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 

@@ -248,13 +248,12 @@ public class PlannerSettings {
     /**
      * Hard cap on the number of background worker threads a single
      * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator} may use. The actual
-     * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}, so by default
-     * (Integer.MAX_VALUE) the operator uses half the thread pool, leaving the other half
-     * available for concurrent queries. Lower this to bound per-query thread usage.
+     * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}. Increase this to
+     * exploit more parallelism on large nodes; lower it to bound per-query thread usage.
      */
     public static final Setting<Integer> PARALLEL_TOPN_MAX_WORKERS = Setting.intSetting(
         "esql.parallel_topn_max_workers",
-        Integer.MAX_VALUE,
+        TopNOperator.DEFAULT_MAX_PARALLEL_TOPN_WORKERS,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

@@ -72,6 +72,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
         examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
     )

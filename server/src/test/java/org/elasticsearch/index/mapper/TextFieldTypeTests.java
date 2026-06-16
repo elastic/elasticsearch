@@ -766,6 +766,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testTermQueryWithBinaryDocValues() throws IOException {
+        assertTermQueryWithBinaryDocValues(binaryDocValuesOnly());
+    }
+
     public void testPrefixQueryDocValuesOnly() {
         // SortedSet DV, case-sensitive → PrefixQuery with DOC_VALUES_REWRITE
         TextFieldType ft = sortedSetDocValuesOnly();

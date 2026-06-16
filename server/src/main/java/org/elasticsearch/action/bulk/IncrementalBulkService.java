@@ -24,7 +24,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
@@ -205,11 +204,7 @@ public class IncrementalBulkService {
         }
 
         public void cancel(String reason, Runnable listener) {
-            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.noop());
-        }
-
-        public boolean isCancelled() {
-            return bulkSessionTask.isCancelled();
+            taskManager.cancelTaskAndDescendants(bulkSessionTask, reason, false, ActionListener.running(listener));
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {
@@ -224,10 +219,7 @@ public class IncrementalBulkService {
             assert closed == false;
             assert bulkInProgress == false;
 
-            if (bulkActionLevelFailure != null
-                || bulkSessionTask.notifyIfCancelled(
-                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
-                )) {
+            if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 nextItems.run();
             } else {
@@ -271,12 +263,10 @@ public class IncrementalBulkService {
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
             assert bulkInProgress == false;
-            if (bulkActionLevelFailure != null
-                || bulkSessionTask.notifyIfCancelled(
-                    ActionListener.wrap(ignored -> {}, exception -> handleBulkFailure(incrementalRequestSubmitted == false, exception))
-                )) {
+            if (bulkActionLevelFailure != null) {
                 shortCircuitDueToTopLevelFailure(items, releasable);
                 errorResponse(listener);
+                taskManager.unregister(bulkSessionTask);
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
@@ -303,9 +293,11 @@ public class IncrementalBulkService {
                     }, () -> {
                         toRelease.forEach(Releasable::close);
                         coordinating.close();
+                        taskManager.unregister(bulkSessionTask);
                     }));
                 } else {
                     errorResponse(listener);
+                    taskManager.unregister(bulkSessionTask);
                 }
             }
         }
@@ -317,7 +309,14 @@ public class IncrementalBulkService {
                 incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
-                taskManager.unregister(bulkSessionTask);
+                if (taskManager.getCancellableTask(bulkSessionTask.getId()) != null) {
+                    taskManager.cancelTaskAndDescendants(
+                        bulkSessionTask,
+                        "handler closed",
+                        false,
+                        ActionListener.running(() -> taskManager.unregister(bulkSessionTask))
+                    );
+                }
             }
         }
 
@@ -346,8 +345,7 @@ public class IncrementalBulkService {
 
         private void handleBulkFailure(boolean isFirstRequest, Exception e) {
             assert bulkActionLevelFailure == null;
-            // Task cancellation is not a global failure.
-            globalFailure = isFirstRequest && e instanceof TaskCancelledException == false;
+            globalFailure = isFirstRequest;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
             bulkRequest = null;
@@ -365,22 +363,31 @@ public class IncrementalBulkService {
         }
 
         private boolean internalAddItems(List<DocWriteRequest<?>> items, Releasable releasable) {
-            try {
-                bulkRequest.add(items);
-                releasables.add(releasable);
-                long ramBytesUsed = 0;
-                for (final var item : items) {
-                    ramBytesUsed += item.ramBytesUsed();
-                }
-                incrementalOperation.increment(items.size(), ramBytesUsed);
-                return true;
-            } catch (EsRejectedExecutionException e) {
-                handleBulkFailure(incrementalRequestSubmitted == false, e);
-                incrementalOperation.split().close();
-                releasables.forEach(Releasable::close);
-                releasables.clear();
+            bulkRequest.add(items);
+            releasables.add(releasable);
+            if (bulkSessionTask.isCancelled()) {
+                failAndRelease(bulkSessionTask.getTaskCancelledException());
                 return false;
+            } else {
+                try {
+                    long ramBytesUsed = 0;
+                    for (final var item : items) {
+                        ramBytesUsed += item.ramBytesUsed();
+                    }
+                    incrementalOperation.increment(items.size(), ramBytesUsed);
+                    return true;
+                } catch (EsRejectedExecutionException e) {
+                    failAndRelease(e);
+                    return false;
+                }
             }
+        }
+
+        private void failAndRelease(Exception e) {
+            handleBulkFailure(incrementalRequestSubmitted == false, e);
+            incrementalOperation.split().close();
+            releasables.forEach(Releasable::close);
+            releasables.clear();
         }
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {

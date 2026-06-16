@@ -55,11 +55,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -67,10 +69,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            IngestClientIT.ExtendedIngestTestPlugin.class,
-            MockTransportService.TestPlugin.class
-        );
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -571,8 +570,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         try (Releasable ignored = executorService::shutdown) {
             // Test Case 1: Cancel before the very first client.bulk()
+            // This triggers a global failure.
             IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
             IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
+            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
 
             AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
@@ -600,15 +601,11 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             IndexingPressureStats finalStats = indexingPressure.stats();
             assertThat(finalStats.getCurrentCoordinatingOps(), is(0L));
             assertThat(finalStats.getCurrentCoordinatingBytes(), is(0L));
-            BulkResponse bulkResponse = future.actionGet();
 
-            for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
-                assertThat(rootCause, notNullValue());
-                assertThat(rootCause.getMessage(), is("task cancelled [before-first-addItems()]"));
-            }
+            expectThrows(TaskCancelledException.class, containsString("task cancelled [before-first-addItems()]"), future::actionGet);
+            // lastItems() should unregister BulkSessionTask.
+            assertThat(taskManager.getCancellableTasks().isEmpty(), is(true));
 
-            assertThat(handler.isCancelled(), is(true));
             handler.close();
 
             // Test case 2: Cancel immediately after the first client bulk has successfully completed.
@@ -618,7 +615,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             TransportService primaryService = internalCluster().getInstance(TransportService.class, nodeName);
             final MockTransportService primaryTransportService = (MockTransportService) primaryService;
             PlainActionFuture<BulkResponse> future2 = new PlainActionFuture<>();
-            TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
 
             final CountDownLatch readyForCancellation = new CountDownLatch(1);
             final AtomicBoolean childTaskBanned = new AtomicBoolean(false);
@@ -669,7 +665,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
                 handler2.cancel("after first additem() before second TransportShardBulkAction submit to write thread pool", () -> {});
             });
 
-            bulkResponse = future2.actionGet();
+            BulkResponse bulkResponse = future2.actionGet();
             assertThat(childTaskBanned.get(), is(true));
             assertThat(bulkResponse.getItems().length, is(3));
             assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());

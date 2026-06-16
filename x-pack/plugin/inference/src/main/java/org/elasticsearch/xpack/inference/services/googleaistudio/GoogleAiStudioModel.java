@@ -17,35 +17,31 @@ import java.util.Objects;
 
 public abstract class GoogleAiStudioModel extends RateLimitGroupingModel {
 
-    private final GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings;
+    private final GoogleAiStudioServiceSettings serviceSettings;
 
     public GoogleAiStudioModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings
+        GoogleAiStudioServiceSettings serviceSettings
     ) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.serviceSettings = Objects.requireNonNull(serviceSettings);
     }
 
     public GoogleAiStudioModel(GoogleAiStudioModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
-    }
-
-    public GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+        this.serviceSettings = model.serviceSettings;
     }
 
     @Override
     public int rateLimitGroupingHash() {
-        return rateLimitServiceSettings.modelId().hashCode();
+        return serviceSettings.modelId().hashCode();
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return serviceSettings.rateLimitSettings();
     }
 }

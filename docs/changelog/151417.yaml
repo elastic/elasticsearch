@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 151417
+summary: Add per-operation transport byte metrics for data read/write actions
+type: enhancement

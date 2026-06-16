@@ -60,19 +60,28 @@ import java.util.function.Predicate;
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
 /**
- * Resolves views and {@code InSubquery} expressions in a single pass.
+ * Resolves view references in a logical plan by expanding each view into the plan parsed from its definition. As part of the same
+ * traversal it also rewrites {@code InSubquery} expressions (in {@link Filter} conditions) into {@code SemiJoin}/{@code AntiJoin}/
+ * {@code MarkJoin} nodes, so a single pass fully expands the plan — including views referenced from inside IN subqueries and IN
+ * subqueries nested in view bodies.
  * <p>
- * {@link #replaceViews} handles {@code InSubquery} expressions inline as it traverses the plan: whenever it encounters a
- * {@link Filter} containing an {@code InSubquery}, it rewrites it to a
- * {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin}/{@link org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin}/
- * {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin} and immediately recurses to resolve any view references in the
- * newly created subquery plans. This means a single {@code replaceViews} call fully expands the plan — no fixed-point loop is needed.
+ * Resolution (see {@link #replaceViews}) is a depth-first, top-down (pre-order) traversal of the plan tree. During traversal it
+ * intercepts specific node types:
+ * <ul>
+ *   <li>{@link UnresolvedRelation}: Resolves views and replaces them with their query plans, then recursively processes those
+ *       plans</li>
+ *   <li>{@link Fork}: Recursively processes each child branch</li>
+ *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
+ *   <li>{@link AbstractSubqueryJoin}: Recursively processes the left and right sides</li>
+ *   <li>{@link Filter}: Calls {@link InSubqueryResolver} to expand any {@code InSubquery} into a {@code SemiJoin}/{@code AntiJoin}/
+ *       {@code MarkJoin}, then recurses into the newly created subquery plans to resolve view references nested there</li>
+ *   <li>{@link ViewUnionAll}: Skipped (already the result of view resolution)</li>
+ * </ul>
  * <p>
- * Whether any {@code InSubquery} was rewritten — directly in the query <em>or</em> inside a view definition — is reported back on
- * {@link ViewResolutionResult#hasInSubquery()} so callers (e.g. {@code EsqlSession}) can drive {@code IN_SUBQUERY} telemetry. The
- * pre-resolution plan cannot be used for this because the IN subqueries hidden inside view bodies are not yet visible.
- *
- * TODO: {@code ViewResolver} needs refactor or rename, as it does two tasks - view resolution and IN subquery resolution. Keep the core
+ * View resolution may introduce new nodes that need further processing, so explicit recursive calls are made on newly resolved view
+ * plans. The traversal tracks circular references and enforces the maximum view depth ({@link #MAX_VIEW_DEPTH_SETTING}).
+ * <p>
+ * TODO: {@code ViewResolver} needs rename or refactor, as it does two tasks - view resolution and IN subquery resolution. Keep the core
  *  of view resolution in {@code ViewResolver}, and have a {@code ViewAndSubqueryResolver} drive the plan tree traversal, call
  *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
  */
@@ -138,36 +147,19 @@ public class ViewResolver {
      * Result of view resolution containing the rewritten plan, the view queries, and whether any {@code InSubquery} expression was
      * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution.
      * <p>
-     * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}). It
-     * is {@code true} when an IN subquery appeared anywhere that resolution rewrites it — directly in the query <em>or</em> inside a
-     * view definition — which is why it is reported here rather than detected on the pre-resolution plan (by then the view bodies, and
-     * the IN subqueries they contain, are not yet visible).
+     * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}).
      */
     public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, boolean hasInSubquery) {}
 
     /**
-     * Replaces views in the logical plan with their subqueries recursively.
-     * <p>
-     * This method performs a depth-first, top-down (pre-order) traversal of the plan tree.
-     * During traversal, it intercepts specific node types:
-     * <ul>
-     *   <li>{@code UnresolvedRelation}: Resolves views and replaces them with their query plans,
-     *       then recursively processes those plans</li>
-     *   <li>{@code Fork}: Recursively processes each child branch</li>
-     *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
-     *   <li>{@code AbstractSubqueryJoin} (i.e. {@code SemiJoin}, {@code AntiJoin}, {@code MarkJoin}): Recursively processes the left and
-     *       right sides independently so each side gets its own view resolution context</li>
-     *   <li>{@code Filter}: Calls {@code }InSubqueryResolver} to expand {@code InSubquery}</li>
-     *   <li>{@code ViewUnionAll}: Skipped (already the result of view resolution)</li>
-     * </ul>
-     * <p>
-     * View resolution may introduce new nodes that need further processing, so explicit
-     * recursive calls are made on newly resolved view plans. The method tracks circular
-     * references and enforces maximum view depth limits.
+     * Entry point for view + IN subquery resolution; see the {@link ViewResolver} class documentation for the traversal model and the
+     * node types it intercepts. Produces a {@link ViewResolutionResult} containing the rewritten (uncompacted) plan, the map of
+     * resolved view names to their queries, and — via {@link ViewResolutionResult#hasInSubquery()} — whether any IN subquery was
+     * rewritten during resolution.
      *
      * @param plan the logical plan to process
      * @param parser function to parse view query strings into logical plans
-     * @param listener callback that receives the rewritten plan and a map of view names to their queries
+     * @param listener callback that receives the {@link ViewResolutionResult}
      */
     public void replaceViews(
         LogicalPlan plan,

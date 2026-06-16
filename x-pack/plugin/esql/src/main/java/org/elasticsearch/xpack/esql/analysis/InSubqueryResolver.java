@@ -120,6 +120,9 @@ public class InSubqueryResolver {
      */
     private record MarkJoinSpec(Source source, LogicalPlan subquery, JoinConfig config, Attribute markAttribute) {}
 
+    /**
+     * Make this public, so that {@link org.elasticsearch.xpack.esql.view.ViewResolver} can drive IN subquery resolution.
+     */
     public static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
         Expression condition = filter.condition();
 

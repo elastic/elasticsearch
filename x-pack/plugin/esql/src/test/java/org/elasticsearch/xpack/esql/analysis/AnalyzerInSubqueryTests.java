@@ -2266,7 +2266,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      *           \_EsRelation[test]
      */
     public void testViewContainingInSubquery() {
-        requireInSubqueryViewSupport();
         LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
             .addIndex("employees", "mapping-basic.json")
             .addView("filtered_emps", "FROM employees | WHERE emp_no IN (FROM test | KEEP emp_no) | KEEP emp_no, salary")

@@ -332,7 +332,7 @@ public class EsqlSession {
                 viewName
             ).plan(),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
-                // Validate: no InSubquery expressions should survive ViewAndSubqueryResolution.
+                // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);

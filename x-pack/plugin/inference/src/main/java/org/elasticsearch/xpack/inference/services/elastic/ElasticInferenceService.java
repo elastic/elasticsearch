@@ -322,7 +322,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
                 getCurrentTraceInfo(),
                 request.listener()
                     .delegateFailureAndWrap(
-                        (delegate, action) -> action.execute(new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType), timeout, delegate)
+                        (delegate, action) -> action.execute(
+                            new EmbeddingsInput(request.batch().inputs(), request.batch().ramBytesUsed(), inputType),
+                            timeout,
+                            delegate
+                        )
                     )
             );
         }

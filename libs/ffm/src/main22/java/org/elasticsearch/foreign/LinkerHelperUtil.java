@@ -10,6 +10,7 @@
 package org.elasticsearch.foreign;
 
 import java.lang.foreign.Linker;
+import java.lang.invoke.MethodHandle;
 
 public class LinkerHelperUtil {
 
@@ -21,11 +22,12 @@ public class LinkerHelperUtil {
     }
 
     /**
-     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly via
-     * {@code Linker.Option.critical(boolean)}. Always true on JDK 22+.
+     * Identity adapter on JDK 22+: {@code Linker.Option.critical(true)} already lets the downcall accept heap
+     * {@link java.lang.foreign.MemorySegment}s, so no staging wrapper is needed. The {@code main} (JDK 21) override
+     * of this class returns a heap-staging adapter instead.
      */
-    static boolean heapAccessAvailable() {
-        return true;
+    public static MethodHandle adaptCritical(MethodHandle mh) {
+        return mh;
     }
 
     private LinkerHelperUtil() {}

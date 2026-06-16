@@ -1385,3 +1385,37 @@ decade:integer | r:date_range
 1900           | 1900-01-01..1910-01-01
 1910           | 2000-01-01..2001-01-01
 ;
+
+###############################################
+# VALUES tests
+###############################################
+
+// VALUES on a single-row group returns the one date_range value.
+valuesDateRangeSingleRow
+required_capability: date_range_field_type_v6
+required_capability: values_date_range
+
+FROM decades
+| WHERE decade == 1900
+| STATS r = VALUES(date_range)
+;
+
+r:date_range
+1900-01-01..1910-01-01
+;
+
+// VALUES grouped by decade returns one date_range per group (all distinct).
+valuesDateRangeGrouped
+required_capability: date_range_field_type_v6
+required_capability: values_date_range
+
+FROM decades
+| WHERE decade == 1900 OR decade == 1910
+| STATS r = VALUES(date_range) BY decade
+| SORT decade
+;
+
+r:date_range           | decade:integer
+1900-01-01..1910-01-01 | 1900
+1910-01-01..1920-01-01 | 1910
+;

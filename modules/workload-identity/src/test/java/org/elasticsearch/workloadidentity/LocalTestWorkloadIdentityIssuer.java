@@ -56,13 +56,15 @@ import javax.net.ssl.X509ExtendedTrustManager;
  * Every {@code POST /token} parses the {@code aud} value from the request body and returns the
  * JWT registered for that audience:
  * <pre>{@code
- * { "token": "<jwt-for-aud>", "expires_at": <jwt exp claim, or now + expires-in-seconds> }
+ * { "token": "<jwt-for-aud>", "expires_at": <jwt exp claim> }
  * }</pre>
  * Audience-to-JWT mappings are supplied with one or more repeatable {@code --token-for <aud>=<file>}
  * flags (at least one is required), where {@code <file>} holds a single signed JWT. This lets the
  * fixture serve the real, per-cloud-provider JWTs (e.g. the AWS / GCP / Azure tokens minted by an
- * external IdP) keyed by the audience each datasource plugin requests. A request for an unmapped
- * audience returns {@code 404}, as does anything other than {@code POST /token}.
+ * external IdP) keyed by the audience each datasource plugin requests. Each JWT must carry a
+ * decodable {@code exp} claim (every real IdP mints one); the fixture rejects tokens without one at
+ * startup rather than inventing an expiry. A request for an unmapped audience returns {@code 404}, as
+ * does anything other than {@code POST /token}.
  *
  * <h2>Running</h2>
  * From the {@code modules/workload-identity} project:
@@ -105,7 +107,7 @@ public final class LocalTestWorkloadIdentityIssuer {
             return;
         }
 
-        final Map<String, String> tokensByAudience = parsed.loadTokens();
+        final Map<String, RegisteredToken> tokensByAudience = parsed.loadTokens();
         if (tokensByAudience.isEmpty()) {
             System.err.println("at least one --token-for <aud>=<file> mapping is required\n\n" + Args.helpText());
             return;
@@ -120,7 +122,7 @@ public final class LocalTestWorkloadIdentityIssuer {
         final InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress(), parsed.port);
         final HttpsServer server = MockHttpServer.createHttps(address, 0);
         server.setHttpsConfigurator(new ClientAuthHttpsConfigurator(sslContext));
-        server.createContext("/token", new TokenHandler(tokensByAudience, parsed.expiresInSeconds));
+        server.createContext("/token", new TokenHandler(tokensByAudience));
         server.start();
 
         printStartupBanner(server, tokensByAudience, caCert);
@@ -134,7 +136,7 @@ public final class LocalTestWorkloadIdentityIssuer {
         Thread.currentThread().join();
     }
 
-    private static void printStartupBanner(HttpsServer server, Map<String, String> tokensByAudience, Path caCert) {
+    private static void printStartupBanner(HttpsServer server, Map<String, RegisteredToken> tokensByAudience, Path caCert) {
         final InetSocketAddress bound = server.getAddress();
         final String url = "https://localhost:" + bound.getPort();
         final Path testResources = caCert.getParent();
@@ -142,8 +144,8 @@ public final class LocalTestWorkloadIdentityIssuer {
         final Path nodeKey = testResources.resolve("node").resolve("node.key");
 
         final StringBuilder audiences = new StringBuilder();
-        for (Map.Entry<String, String> entry : tokensByAudience.entrySet()) {
-            audiences.append("\n      - ").append(entry.getKey()).append(" -> exp=").append(decodeExp(entry.getValue()));
+        for (Map.Entry<String, RegisteredToken> entry : tokensByAudience.entrySet()) {
+            audiences.append("\n      - ").append(entry.getKey()).append(" -> exp=").append(entry.getValue().expiresAt());
         }
 
         final String banner = """
@@ -199,29 +201,22 @@ public final class LocalTestWorkloadIdentityIssuer {
         }
     }
 
+    record RegisteredToken(String jwt, long expiresAt) {}
+
     /**
-     * Decodes the {@code exp} (expiry, epoch seconds) claim from a JWT's payload segment. Returns
-     * {@code -1} when the value is not a parseable three-segment JWT or carries no {@code exp}; the
-     * caller then falls back to {@code now + expires-in-seconds}. Best-effort and dependency-free:
-     * the payload is the middle base64url segment, decoded and scanned for the {@code exp} field.
+     * Decodes the {@code exp} (expiry, epoch seconds) claim from a JWT's payload segment.
+     * Dependency-free: the payload is the middle base64url segment, decoded and scanned for the
+     * {@code exp} field.
      */
-    static long decodeExp(String jwt) {
-        if (jwt == null) {
-            return -1;
-        }
+    static long decodeExp(String jwt) throws IOException {
         final String[] segments = jwt.split("\\.");
         if (segments.length != 3) {
-            return -1;
+            throw new IllegalArgumentException("not a three-segment JWT");
         }
-        final byte[] payload;
-        try {
-            payload = Base64.getUrlDecoder().decode(segments[1]);
-        } catch (IllegalArgumentException e) {
-            return -1;
-        }
+        final byte[] payload = Base64.getUrlDecoder().decode(segments[1]);
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, payload)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                return -1;
+                throw new IllegalArgumentException("JWT payload is not a JSON object");
             }
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
@@ -235,29 +230,24 @@ public final class LocalTestWorkloadIdentityIssuer {
                     parser.skipChildren();
                 }
             }
-            return -1;
-        } catch (Exception e) {
-            return -1;
+            throw new IllegalArgumentException("JWT payload has no exp claim");
         }
     }
 
     /**
      * Handler for {@code POST /token}. Logs the requested {@code aud} value, then writes the JWT
-     * registered for that audience. The {@code expires_at} field is taken from the served JWT's
-     * {@code exp} claim so the client's token cache treats the token as fresh for its true lifetime;
-     * when the JWT carries no decodable {@code exp}, it falls back to {@code now + expiresInSeconds}.
-     * An unmapped audience returns {@code 404}.
+     * registered for that audience. The {@code expires_at} field is the served JWT's {@code exp}
+     * claim (validated and decoded at startup) so the client's token cache treats the token as fresh
+     * for its true lifetime. An unmapped audience returns {@code 404}.
      */
     @SuppressForbidden(
         reason = "uses the JDK com.sun.net.httpserver request/response types and prints request diagnostics to stdout for this fixture"
     )
     private static final class TokenHandler implements HttpHandler {
-        private final Map<String, String> tokensByAudience;
-        private final long expiresInSeconds;
+        private final Map<String, RegisteredToken> tokensByAudience;
 
-        TokenHandler(Map<String, String> tokensByAudience, long expiresInSeconds) {
+        TokenHandler(Map<String, RegisteredToken> tokensByAudience) {
             this.tokensByAudience = tokensByAudience;
-            this.expiresInSeconds = expiresInSeconds;
         }
 
         @Override
@@ -271,18 +261,17 @@ public final class LocalTestWorkloadIdentityIssuer {
                 final byte[] requestBody = exchange.getRequestBody().readAllBytes();
                 final String audience = parseAudience(requestBody);
 
-                final String token = tokensByAudience.get(audience);
-                if (token == null) {
+                final RegisteredToken registered = tokensByAudience.get(audience);
+                if (registered == null) {
                     System.out.printf("[workload-identity-issuer] POST /token  aud=%s  -> 404 (no JWT registered)%n", audience);
                     writePlain(exchange, 404, "no JWT registered for audience: " + audience);
                     return;
                 }
 
-                final long decodedExp = decodeExp(token);
-                final long expiresAtSeconds = decodedExp > 0 ? decodedExp : (System.currentTimeMillis() / 1000) + expiresInSeconds;
+                final long expiresAtSeconds = registered.expiresAt();
                 System.out.printf("[workload-identity-issuer] POST /token  aud=%s  -> 200 (expires_at=%d)%n", audience, expiresAtSeconds);
 
-                final String response = "{\"token\":\"" + token + "\",\"expires_at\":" + expiresAtSeconds + "}";
+                final String response = "{\"token\":\"" + registered.jwt() + "\",\"expires_at\":" + expiresAtSeconds + "}";
                 final byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, bytes.length);
@@ -349,7 +338,6 @@ public final class LocalTestWorkloadIdentityIssuer {
      */
     private static final class Args {
         int port = 8443;
-        long expiresInSeconds = 3600;
         // Insertion-ordered so the startup banner lists audiences in the order they were supplied.
         final Map<String, Path> tokenFiles = new LinkedHashMap<>();
         boolean help = false;
@@ -358,14 +346,14 @@ public final class LocalTestWorkloadIdentityIssuer {
          * Reads each registered JWT file into memory once at startup, trimming surrounding
          * whitespace (so a trailing newline in the file does not corrupt the token).
          */
-        Map<String, String> loadTokens() throws IOException {
-            final Map<String, String> tokens = new LinkedHashMap<>();
+        Map<String, RegisteredToken> loadTokens() throws IOException {
+            final Map<String, RegisteredToken> tokens = new LinkedHashMap<>();
             for (Map.Entry<String, Path> entry : tokenFiles.entrySet()) {
                 final String token = Files.readString(entry.getValue(), StandardCharsets.UTF_8).trim();
                 if (token.isEmpty()) {
                     throw new IllegalArgumentException("JWT file is empty: " + entry.getValue());
                 }
-                tokens.put(entry.getKey(), token);
+                tokens.put(entry.getKey(), new RegisteredToken(token, decodeExp(token)));
             }
             return tokens;
         }
@@ -377,7 +365,6 @@ public final class LocalTestWorkloadIdentityIssuer {
                 switch (arg) {
                     case "--help", "-h" -> args.help = true;
                     case "--port" -> args.port = Integer.parseInt(requireValue(argv, ++i, arg));
-                    case "--expires-in-seconds" -> args.expiresInSeconds = Long.parseLong(requireValue(argv, ++i, arg));
                     case "--token-for" -> addTokenFor(args, requireValue(argv, ++i, arg));
                     default -> throw new IllegalArgumentException("unknown argument: " + arg + "\n\n" + helpText());
                 }
@@ -413,7 +400,6 @@ public final class LocalTestWorkloadIdentityIssuer {
 
                 Flags:
                   --port <int>                listen port (default: 8443; 0 picks an ephemeral port)
-                  --expires-in-seconds <long> fallback expires_at = now + this when a JWT has no exp (default: 3600)
                   --token-for <aud>=<file>    serve the JWT in <file> for requests with this aud (repeatable, at least one required)
                   -h, --help                  show this message
                 """;

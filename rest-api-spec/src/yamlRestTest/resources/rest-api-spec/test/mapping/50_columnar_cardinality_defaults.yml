@@ -10,7 +10,7 @@ setup:
       reason: "Columnar mode fields should default to high-cardinality doc values"
 
 ---
-"Keyword sort field uses low-cardinality doc values by default in columnar mode":
+"Keyword sort field uses high-cardinality doc values by default in columnar mode":
   - do:
       indices.create:
         index: test-keyword-sort-cardinality
@@ -31,9 +31,11 @@ setup:
                 type: keyword
 
   - do:
-      indices.get_mapping:
-        index: test-keyword-sort-cardinality
-  - match: { test-keyword-sort-cardinality.mappings.properties.sort_field.doc_values.cardinality: "low" }
+     indices.get_field_mapping:
+       index: test-keyword-sort-cardinality
+       fields: sort_field
+       include_defaults: true
+  - match: { test-keyword-sort-cardinality.mappings.sort_field.mapping.sort_field.doc_values.cardinality: "high" }
 
   - do:
      indices.get_field_mapping:
@@ -43,7 +45,7 @@ setup:
   - match: { test-keyword-sort-cardinality.mappings.data_field.mapping.data_field.doc_values.cardinality: "high" }
 
 ---
-"IP sort field uses low-cardinality doc values by default in columnar mode":
+"IP sort field uses high-cardinality doc values by default in columnar mode":
   - do:
       indices.create:
         index: test-ip-sort-cardinality
@@ -64,9 +66,11 @@ setup:
                 type: ip
 
   - do:
-      indices.get_mapping:
-        index: test-ip-sort-cardinality
-  - match: { test-ip-sort-cardinality.mappings.properties.sort_field.doc_values.cardinality: "low" }
+     indices.get_field_mapping:
+       index: test-ip-sort-cardinality
+       fields: sort_field
+       include_defaults: true
+  - match: { test-ip-sort-cardinality.mappings.sort_field.mapping.sort_field.doc_values.cardinality: "high" }
 
   - do:
      indices.get_field_mapping:

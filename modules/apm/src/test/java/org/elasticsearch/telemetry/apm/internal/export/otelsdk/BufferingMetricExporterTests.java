@@ -92,7 +92,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
 
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
         assertThat(delegate.exportedNames(), hasItems("buf", "trigger"));
-        assertThat(counter("replays"), hasSize(1));
+        assertBusy(() -> assertThat(counter("replays"), hasSize(1)));
     }
 
     public void testDiskCapRotatesOldestToMakeRoom() throws Exception {

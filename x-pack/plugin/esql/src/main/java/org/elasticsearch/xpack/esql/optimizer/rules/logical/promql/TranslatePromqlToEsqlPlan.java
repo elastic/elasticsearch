@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
@@ -60,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
@@ -253,6 +257,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
+            case HistogramQuantile histogramQuantile -> translateHistogramQuantile(histogramQuantile, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
             case WithinSeriesAggregate withinAgg -> translateFunctionCall(withinAgg, currentPlan, ctx);
             case PromqlFunctionCall functionCall -> translateFunctionCall(functionCall, currentPlan, ctx);
@@ -326,9 +331,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * lowered to expressions and folded into the aggregate.
      */
     private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+        // Keep only real labels: an absent label is unresolved (no FieldAttribute) and a metric value is not a label.
+        // Grouping on either would reference a column the plan can't produce or split series by a metric value.
+        List<Attribute> groupings = agg.groupings()
+            .stream()
+            .filter(a -> a instanceof FieldAttribute field && field.isMetric() == false)
+            .toList();
         LabelSetSpec importAggregateLabels = switch (agg.grouping()) {
-            case BY -> LabelSetSpec.of(agg.groupings(), ctx.labelSetSpec.excluded());
-            case WITHOUT -> LabelSetSpec.without(ctx.labelSetSpec, agg.groupings());
+            case BY -> LabelSetSpec.of(groupings, ctx.labelSetSpec.excluded());
+            case WITHOUT -> LabelSetSpec.without(ctx.labelSetSpec, groupings);
             case NONE -> LabelSetSpec.none();
         };
 
@@ -341,8 +352,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         TranslationResult childResult = translateNode(agg.child(), currentPlan, childCtx);
 
         LabelSetSpec exportAggregateLabels = switch (agg.grouping()) {
-            case BY -> LabelSetSpec.by(childResult.labelSetSpec, agg.output());
-            case WITHOUT -> LabelSetSpec.without(childResult.labelSetSpec, agg.groupings());
+            case BY -> LabelSetSpec.by(
+                childResult.labelSetSpec,
+                resolvePromqlLabelReferences(groupings, childResult.labelSetSpec.declared())
+            );
+            case WITHOUT -> LabelSetSpec.without(childResult.labelSetSpec, groupings);
             case NONE -> LabelSetSpec.none();
         };
 
@@ -355,6 +369,111 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             : createInnermostAggregatePlan(ctx, childResult.plan(), exportAggregateLabels, aggExpression);
 
         return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportAggregateLabels);
+    }
+
+    private TranslationResult translateHistogramQuantile(
+        HistogramQuantile histogramQuantile,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        TranslationContext childCtx = new TranslationContext(
+            ctx.promqlCommand,
+            ctx.analyzerContext,
+            ctx.stepBucketAlias,
+            histogramQuantileChildLabels(histogramQuantile)
+        );
+        TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
+
+        LogicalPlan childPlan = childResult.plan();
+        boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
+        Attribute upperBound = childAlreadyAggregated
+            ? findAttributeByPromqlLabelName(childResult.labelSetSpec().declared(), HistogramQuantile.LE_LABEL)
+            : null;
+        if (upperBound == null && childAlreadyAggregated) {
+            upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
+        }
+        LabelSetSpec exportLabels;
+        if (upperBound == null) {
+            // Mirrors Prometheus, which warns and drops series whose `le` bucket label is missing.
+            // The implicit `histogram_quantile(rate(bucket[5m]))` shape is intentionally handled
+            // in a follow-up; this branch only lowers children that explicitly carry `le`.
+            HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
+            exportLabels = preserveTimeseries(childResult.labelSetSpec(), histogramQuantile.child().output());
+            LogicalPlan filteredChild = new Filter(histogramQuantile.source(), childPlan, Literal.FALSE);
+            Expression emptyResult = new Values(histogramQuantile.source(), new Literal(histogramQuantile.source(), null, DataType.DOUBLE));
+            LogicalPlan resultPlan = childAlreadyAggregated
+                ? createOuterAggregatePlan(ctx, filteredChild, exportLabels, emptyResult)
+                : createInnermostAggregatePlan(ctx, filteredChild, exportLabels, emptyResult);
+            return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
+        }
+
+        exportLabels = LabelSetSpec.without(childResult.labelSetSpec(), List.of(upperBound));
+
+        // The aggregator consumes bucket counts as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
+        Expression count = new ToDouble(histogramQuantile.source(), childResult.expression());
+        Expression aggregateExpression = new PromqlHistogramQuantile(
+            histogramQuantile.source(),
+            count,
+            histogramQuantileUpperBound(histogramQuantile.source(), upperBound),
+            histogramQuantile.quantile()
+        );
+
+        LogicalPlan resultPlan = childAlreadyAggregated
+            ? createOuterAggregatePlan(ctx, childPlan, exportLabels, aggregateExpression)
+            : createInnermostAggregatePlan(ctx, childPlan, exportLabels, aggregateExpression);
+
+        return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
+    }
+
+    /**
+     * Ensure {@code _timeseries} survives in the exported labels.
+     * Without `le`, no {@link TimeSeriesWithout} is inserted and concrete-dimension grouping drops
+     * {@code _timeseries} from the output, yet the command wrapper still projects it. Re-add it here
+     * (when the child exposes it) like the le-present path does via excluded dimensions.
+     */
+    private static LabelSetSpec preserveTimeseries(LabelSetSpec labels, List<Attribute> childOutput) {
+        Attribute ts = LabelSetSpec.findAttributeByFieldName(childOutput, MetadataAttribute.TIMESERIES);
+        if (ts != null && LabelSetSpec.findAttributeByFieldName(labels.declared(), MetadataAttribute.TIMESERIES) == null) {
+            return LabelSetSpec.of(LabelSetSpec.unionByFieldName(labels.declared(), List.of(ts)));
+        }
+        return labels;
+    }
+
+    private static LabelSetSpec histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
+        List<Attribute> childLabels = LabelSetSpec.dimensionAttributes(histogramQuantile.child().output());
+        if (childLabels.isEmpty()) {
+            return LabelSetSpec.of(histogramQuantile.child().output());
+        }
+        return LabelSetSpec.of(childLabels);
+    }
+
+    private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {
+        for (Attribute attribute : attributes) {
+            if (promqlLabelKey(attribute).equals(labelName)) {
+                return attribute;
+            }
+        }
+        return null;
+    }
+
+    private static List<Attribute> resolvePromqlLabelReferences(List<Attribute> requested, List<Attribute> available) {
+        List<Attribute> resolved = new ArrayList<>(requested.size());
+        for (Attribute attribute : requested) {
+            Attribute match = findAttributeByPromqlLabelName(available, promqlLabelKey(attribute));
+            resolved.add(match != null ? match : attribute);
+        }
+        return resolved;
+    }
+
+    private static String promqlLabelKey(Attribute attr) {
+        return LabelSetSpec.fieldName(attr);
+    }
+
+    private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {
+        if (upperBound == null) {
+            return Literal.keyword(source, null);
+        }
+        return upperBound;
     }
 
     /** scalar() collapse to one value per step. */
@@ -757,13 +876,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         }
         keys.addAll(spec.matchedAttributes());
         if (spec.missingAttributes().isEmpty() == false) {
-            List<Alias> nullAliases = new ArrayList<>();
+            List<Alias> missingAliases = new ArrayList<>();
             for (var missing : spec.missingAttributes()) {
-                var alias = nullAlias(missing);
-                nullAliases.add(alias);
+                var alias = aliasExistingPromqlLabel(promqlCommand.source(), plan, missing);
+                missingAliases.add(alias);
                 keys.add(alias.toAttribute());
             }
-            plan = new Eval(promqlCommand.source(), plan, nullAliases);
+            plan = new Eval(promqlCommand.source(), plan, missingAliases);
         }
 
         var step = ctx.stepAttr();
@@ -780,8 +899,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static Alias nullAlias(Attribute attribute) {
-        var nullLiteral = new Literal(attribute.source(), null, attribute.dataType());
+        var nullLiteral = new Literal(attribute.source(), null, attribute.resolved() ? attribute.dataType() : DataType.KEYWORD);
         return new Alias(attribute.source(), attribute.name(), nullLiteral, attribute.id());
+    }
+
+    private static Alias aliasExistingPromqlLabel(Source source, LogicalPlan plan, Attribute attribute) {
+        Attribute existing = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(attribute));
+        return existing == null ? nullAlias(attribute) : new Alias(source, attribute.name(), existing, attribute.id());
     }
 
     /** Push label filter down to EsRelation level */

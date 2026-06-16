@@ -42,6 +42,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -65,6 +66,38 @@ import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
+
+    /**
+     * Mapped field names in the "test" index (from mapping-basic.json), ordered alphabetically as
+     * they appear in EsRelation output. Used to compute the exact exclude list added by
+     * {@code DetermineUnmappedFieldsToKeep} to the {@link UnmappedFieldsPattern}.
+     */
+    private static final List<String> TEST_MAPPED_FIELDS = List.of(
+        "_meta_field",
+        "emp_no",
+        "first_name",
+        "gender",
+        "hire_date",
+        "job",
+        "job.raw",
+        "languages",
+        "last_name",
+        "long_noidx",
+        "salary"
+    );
+
+    /**
+     * Builds the expected excludes list for a pattern: {@code extra} names (from KEEP/DROP/RENAME)
+     * followed by the mapped field names, with duplicates removed (preserving insertion order).
+     */
+    private static List<String> excl(String... extra) {
+        LinkedHashSet<String> merged = new LinkedHashSet<>();
+        for (String s : extra) {
+            merged.add(s);
+        }
+        merged.addAll(TEST_MAPPED_FIELDS);
+        return List.copyOf(merged);
+    }
 
     /**
      * Query suffixes that use the unsupported type-conflict field [message] in different commands.
@@ -1585,54 +1618,56 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     public void testUnmappedFieldsPatternNoCommand() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test"));
-        assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl()));
     }
 
     public void testUnmappedFieldsPatternKeepStar() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP *"));
-        assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl()));
     }
 
     public void testUnmappedFieldsPatternKeepWildcard() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of()));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), excl()));
     }
 
     public void testUnmappedFieldsPatternKeepExactName() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP salary"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("salary"), List.of()));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("salary"), excl()));
     }
 
     public void testUnmappedFieldsPatternKeepMultiplePatterns() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*", "salary"), List.of()));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*", "salary"), excl()));
     }
 
     public void testUnmappedFieldsPatternDrop() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | DROP salary"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("salary")));
+        // "salary" from DROP comes first; EsRelation output names are appended without duplicating "salary"
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl("salary")));
     }
 
     public void testUnmappedFieldsPatternRename() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x")));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl("x")));
     }
 
     public void testUnmappedFieldsPatternKeepThenEval() {
         // EVAL uses a literal so it does not reference a field excluded by KEEP
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name* | EVAL z = 1"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), excl("z")));
     }
 
     public void testUnmappedFieldsPatternEvalThenKeep() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | EVAL z = 1 | KEEP first_name*"));
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), excl("z")));
     }
 
     public void testUnmappedFieldsPatternDropThenRename() {
         LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | DROP salary | RENAME last_name AS x"));
-        // RENAME is the outer node: its excludes ([x]) come first, then DROP's ([salary])
-        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x", "salary")));
+        // RENAME is the outer node: its excludes ([x]) come first, then DROP's ([salary]),
+        // then EsRelation output names without duplicating "salary"
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl("x", "salary")));
     }
 
     /** Finds the single non-LOOKUP EsRelation in the plan and asserts its unmapped-fields pattern. */

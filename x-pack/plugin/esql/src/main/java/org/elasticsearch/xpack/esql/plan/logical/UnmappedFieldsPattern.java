@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -42,12 +43,12 @@ public record UnmappedFieldsPattern(List<String> includes, List<String> excludes
         excludes = List.copyOf(excludes);
     }
 
-    /** Returns a new pattern with {@code names} appended to the excludes list. */
+    /** Returns a new pattern with {@code names} appended to the excludes list, deduplicating. */
     public UnmappedFieldsPattern withAdditionalExcludes(List<String> names) {
         if (names.isEmpty()) return this;
-        List<String> merged = new ArrayList<>(excludes.size() + names.size());
+        LinkedHashSet<String> merged = new LinkedHashSet<>(excludes.size() + names.size());
         merged.addAll(excludes);
         merged.addAll(names);
-        return new UnmappedFieldsPattern(includes, merged);
+        return new UnmappedFieldsPattern(includes, new ArrayList<>(merged));
     }
 }

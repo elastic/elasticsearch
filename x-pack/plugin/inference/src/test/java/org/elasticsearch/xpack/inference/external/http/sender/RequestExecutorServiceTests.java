@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -840,7 +839,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         verify(mockExecutorService, times(1)).submit(any(Runnable.class));
     }
 
-    public void testExecute_RequestRejected_WhenCircuitBreakerTrips(){
+    public void testExecute_RequestRejected_WhenCircuitBreakerTrips() {
         // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
         var circuitBreaker = new TestCircuitBreaker();
         var requestSender = mock(RequestSender.class);
@@ -869,7 +868,17 @@ public class RequestExecutorServiceTests extends ESTestCase {
         service.execute(requestManager, EMBEDDING_INPUT, null, listener);
 
         var exception = assertThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is(eq(format("Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight", INFERENCE_ID))));
+        assertThat(
+            exception.getMessage(),
+            is(
+                eq(
+                    format(
+                        "Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight",
+                        INFERENCE_ID
+                    )
+                )
+            )
+        );
     }
 
     // TODO: circuit breaker trips, rejects, accepts again, doesn't reject

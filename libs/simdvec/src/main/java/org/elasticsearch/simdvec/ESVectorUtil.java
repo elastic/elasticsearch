@@ -116,9 +116,9 @@ public class ESVectorUtil {
     }
 
     /**
-     * L2-normalizes {@code v} in place. When {@code length == v.length}, delegates to
-     * {@link VectorUtil#l2normalize(float[])} and rejects a zero vector. When {@code length &lt; v.length},
-     * only the prefix is scaled and a zero prefix is a no-op.
+     * L2-normalizes the prefix {@code v[0..length)} in place. Elements at indices {@code length} and
+     * beyond are left unchanged. A zero prefix is a no-op; unlike {@link VectorUtil#l2normalize(float[])},
+     * this method does not throw on a zero vector.
      */
     public static void l2Normalize(float[] v, int length) {
         if (length <= 0) {

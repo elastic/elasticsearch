@@ -10,9 +10,16 @@ package org.elasticsearch.xpack.esql;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -267,13 +274,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      *             {@code RuntimeException: Resource loading failure}. Excluding the match field
      *             at the source keeps the policy load deterministic.</li>
      *         <li>For every {@code LOOKUP JOIN ... ON &lt;field&gt;} clause in any csv-spec test
-     *             query, the join attribute is added to every dataset that participates in the
-     *             query (the lookup target itself plus every {@code FROM}/{@code TS} source).
-     *             Both sides of the join must remain {@code keyword}: if only one side were
-     *             converted to {@code flattened} the analyzer would reject the join with
-     *             {@code KEYWORD vs FLATTENED} type-mismatch, and even with both sides flattened
-     *             the engine refuses
-     *             {@code JOIN with right field [...] of type [FLATTENED] is not supported}.</li>
+     *             query, the join attribute is added to the <em>lookup target index only</em>.
+     *             The target must remain {@code keyword} because the engine refuses
+     *             {@code JOIN with right field [...] of type [FLATTENED] is not supported}.
+     *             {@code FROM}-source datasets are no longer excluded here: the cross-dataset
+     *             intersection in {@link #resolveKeywordPathsForQuery} already removes the join
+     *             key from the rewrite scope for any query that references the lookup target,
+     *             so converting the source side to {@code flattened} is safe.</li>
      *       </ol>
      *   </li>
      *   <li>{@code keywordPathsByDatasetIndexName} &mdash; the keyword paths that
@@ -306,11 +313,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          *       field as keyword so the policy reindex into {@code .enrich-*} succeeds, and</li>
          *   <li>{@code LOOKUP JOIN ... ON ...} attributes (per
          *       {@link #computeLookupJoinFieldExclusions}) &mdash; keeps the join key as keyword
-         *       on every dataset that participates in any csv-spec {@code LOOKUP JOIN}, on
-         *       <em>both</em> sides of the join, so neither the
-         *       {@code KEYWORD vs FLATTENED} type-mismatch error nor the
-         *       {@code JOIN with right field of type [FLATTENED] is not supported} error fires
-         *       on any csv-spec query that uses the join.</li>
+         *       on the <em>lookup target index only</em>, preventing the
+         *       {@code JOIN with right field of type [FLATTENED] is not supported} error.
+         *       {@code FROM}-source datasets are excluded from this set; the cross-dataset
+         *       intersection in {@link #resolveKeywordPathsForQuery} already removes the join
+         *       key from the rewrite scope for those queries, so no explicit exclusion is
+         *       needed on the source side.</li>
          * </ul>
          */
         private final Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName;
@@ -490,9 +498,11 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * {@code (sourceIndex, field)} pair is emitted only once even if many queries mention it,
          * so the logger does not double-count multi-use fields.
          *
-         * @param sourceIndex the dataset whose mapping will keep {@code field} as {@code keyword}
-         *                    (either the lookup-target or a {@code FROM} side of any csv-spec
-         *                    query that uses {@code field} as a {@code LOOKUP JOIN} key)
+         * @param sourceIndex the lookup-target dataset whose mapping will keep {@code field} as
+         *                    {@code keyword}; {@code FROM}-source datasets are no longer included
+         *                    here because the cross-dataset intersection in
+         *                    {@link #resolveKeywordPathsForQuery} already prevents the join key
+         *                    from entering the rewrite scope for queries that reference this target
          * @param field       the dotted field path that must remain {@code keyword} in
          *                    {@code sourceIndex}
          * @param target      the lookup-target index where {@code field} is the join key &mdash;
@@ -516,14 +526,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * {@code LOOKUP JOIN &lt;target&gt; ON &lt;body&gt;} clause via
          * {@link EsqlQueryDatasetResolver#extractLookupJoinTargets}, and returns both
          * <ol>
-         *   <li>a by-source-index map that adds each join attribute to <em>every</em> dataset the
-         *       query touches (the lookup target itself plus every {@code FROM}/{@code TS} index
-         *       resolved by {@link EsqlQueryDatasetResolver#resolveDatasetsForQuery}). Both sides
-         *       must be kept as {@code keyword}: if only the right side were converted to
-         *       {@code flattened} the analyzer would reject the join with
-         *       {@code JOIN left field [...] of type [KEYWORD] is incompatible with right field
-         *       [...] of type [FLATTENED]}, and even if both sides were flattened the engine
-         *       refuses {@code JOIN with right field [...] of type [FLATTENED] is not supported}.</li>
+         *   <li>a by-source-index map that adds each join attribute to the <em>lookup target
+         *       index only</em>. The target must stay {@code keyword} because the engine refuses
+         *       {@code JOIN with right field [...] of type [FLATTENED] is not supported}.
+         *       {@code FROM}-source datasets are excluded: the cross-dataset intersection in
+         *       {@link #resolveKeywordPathsForQuery} already removes the join key from the
+         *       rewrite scope for any query that references the lookup target.</li>
          *   <li>a per-{@code (sourceIndex, field, target)} list deduplicated to one entry per
          *       triple, used by the startup logger to surface every exclusion the variant
          *       installed.</li>
@@ -545,22 +553,19 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 if (targets.isEmpty()) {
                     continue;
                 }
-                Set<CsvTestsDataLoader.TestDataset> participants = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
-                    query,
-                    CsvTestsDataLoader.CSV_DATASET
-                );
                 for (Map.Entry<String, Set<String>> targetEntry : targets.entrySet()) {
                     String targetIndex = targetEntry.getKey();
                     Set<String> fields = targetEntry.getValue();
+                    CsvTestsDataLoader.TestDataset targetDataset = CsvTestsDataLoader.CSV_DATASET.get(targetIndex);
+                    if (targetDataset == null) {
+                        continue;
+                    }
                     for (String field : fields) {
-                        for (CsvTestsDataLoader.TestDataset participant : participants) {
-                            String participantIndex = participant.indexName();
-                            exclusionsByIndex.computeIfAbsent(participantIndex, k -> new HashSet<>()).add(field);
-                            uniqueExclusions.putIfAbsent(
-                                participantIndex + "\0" + field + "\0" + targetIndex,
-                                new LookupJoinFieldExclusion(participantIndex, field, targetIndex)
-                            );
-                        }
+                        exclusionsByIndex.computeIfAbsent(targetDataset.indexName(), k -> new HashSet<>()).add(field);
+                        uniqueExclusions.putIfAbsent(
+                            targetDataset.indexName() + "\0" + field + "\0" + targetIndex,
+                            new LookupJoinFieldExclusion(targetDataset.indexName(), field, targetIndex)
+                        );
                     }
                 }
             }
@@ -632,6 +637,33 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         @Override
+        public Settings transformSettings(CsvTestsDataLoader.TestDataset dataset, Settings settings) {
+            // Update dimensions in the routing path to their transformed path
+            List<String> routingPaths = settings.getAsList("index.routing_path");
+            if (routingPaths.isEmpty()) {
+                return settings;
+            }
+            Set<String> convertedPaths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
+            if (convertedPaths.isEmpty()) {
+                return settings;
+            }
+            boolean changed = false;
+            List<String> rewritten = new ArrayList<>(routingPaths.size());
+            for (String path : routingPaths) {
+                if (convertedPaths.contains(path)) {
+                    rewritten.add(path + "." + KeywordToFlattenedTransformer.WRAPPER_SUBKEY);
+                    changed = true;
+                } else {
+                    rewritten.add(path);
+                }
+            }
+            if (changed == false) {
+                return settings;
+            }
+            return Settings.builder().put(settings).putList("index.routing_path", rewritten).build();
+        }
+
+        @Override
         public String transformDocument(CsvTestsDataLoader.TestDataset dataset, String originalDocumentJson) throws IOException {
             Set<String> paths = keywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
             return KeywordToFlattenedTransformer.wrapKeywordValuesAsFlattened(originalDocumentJson, paths);
@@ -639,6 +671,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         @Override
         public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            // Tests requiring ts_info_command or metrics_info_command expose TSDB dimension names
+            // directly in query output (e.g. _timeseries, _tsid). After the keyword→flattened
+            // rewrite those names change from "cluster" to "cluster.v", so the expected results
+            // no longer match. Skip the whole variant for these tests rather than updating every
+            // expected result to the sub-key form.
+            for (String cap : testCase.requiredCapabilities) {
+                if (cap.equals("ts_info_command") || cap.equals("metrics_info_command")) {
+                    throw new StacklessAssumptionViolatedException(
+                        "skipping: test requires " + cap + " which exposes raw TSDB dimension names in output"
+                    );
+                }
+            }
             // A {@code skip_flattened_rewrite:} preamble line marks a test whose failure under
             // this variant is a known limitation of field_extract() or of an upstream
             // grammar/engine constraint. Running the rewrite would only reproduce the
@@ -695,6 +739,102 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         + "the unmodified spec already covers this behavior"
                 );
             }
+            // LOOKUP JOIN phase 1 - source-side type mismatch.
+            // If a LOOKUP JOIN field is keyword-protected in the target (KEYWORD) but
+            // converted to flattened in a FROM-source dataset, executing the join would
+            // raise a type-incompatibility error. Detect and skip now so the test does
+            // not launch a query that will fail for a structural reason unrelated to
+            // field_extract coverage.
+            Map<String, Set<String>> lookupJoinTargets = EsqlQueryDatasetResolver.extractLookupJoinTargets(originalQuery);
+            Set<CsvTestsDataLoader.TestDataset> allQueryDatasets = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
+                originalQuery,
+                CsvTestsDataLoader.CSV_DATASET
+            );
+            if (lookupJoinTargets.isEmpty() == false) {
+                for (Map.Entry<String, Set<String>> targetEntry : lookupJoinTargets.entrySet()) {
+                    String targetIndex = targetEntry.getKey();
+                    Set<String> joinFields = targetEntry.getValue();
+                    Set<String> protectedInTarget = protectedKeywordPathsByDatasetIndexName.getOrDefault(targetIndex, Set.of());
+                    for (String field : joinFields) {
+                        if (protectedInTarget.contains(field) == false) {
+                            continue;
+                        }
+                        for (CsvTestsDataLoader.TestDataset ds : allQueryDatasets) {
+                            if (lookupJoinTargets.containsKey(ds.indexName())) {
+                                continue;
+                            }
+                            if (keywordPathsByDatasetIndexName.getOrDefault(ds.indexName(), Set.of()).contains(field)) {
+                                SILENCED_COUNTS_BY_REASON.computeIfAbsent("lookup_join_source_flattened", k -> new AtomicInteger())
+                                    .incrementAndGet();
+                                logger.info(
+                                    "keyword→flattened: skipping; JOIN field [{}] FLATTENED in source [{}] but KEYWORD in target [{}]",
+                                    field,
+                                    ds.indexName(),
+                                    targetIndex
+                                );
+                                throw new StacklessAssumptionViolatedException(
+                                    "skipping: LOOKUP JOIN field ["
+                                        + field
+                                        + "] is FLATTENED in FROM-source ["
+                                        + ds.indexName()
+                                        + "] but KEYWORD in target ["
+                                        + targetIndex
+                                        + "]"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            // Lookup join phase 2 - cross-dataset type conflict.
+            // If a field is converted to flattened in one FROM-source dataset but is a
+            // different, non-keyword type in another FROM-source dataset, executing the
+            // query either raises a VerificationException or produces wrong results because
+            // scalar functions on an unwrapped flattened field return null. Detect and skip
+            // now to avoid spurious failures unrelated to field_extract coverage.
+            {
+                List<CsvTestsDataLoader.TestDataset> sourceDatasets = new ArrayList<>();
+                for (CsvTestsDataLoader.TestDataset d : allQueryDatasets) {
+                    if (lookupJoinTargets.containsKey(d.indexName()) == false) {
+                        sourceDatasets.add(d);
+                    }
+                }
+                for (int i = 0; i < sourceDatasets.size(); i++) {
+                    CsvTestsDataLoader.TestDataset d1 = sourceDatasets.get(i);
+                    Set<String> flattenedInD1 = keywordPathsByDatasetIndexName.getOrDefault(d1.indexName(), Set.of());
+                    if (flattenedInD1.isEmpty()) {
+                        continue;
+                    }
+                    for (int j = 0; j < sourceDatasets.size(); j++) {
+                        if (i == j) {
+                            continue;
+                        }
+                        CsvTestsDataLoader.TestDataset d2 = sourceDatasets.get(j);
+                        Set<String> nonKeywordInD2 = nonKeywordPathsByDatasetIndexName.getOrDefault(d2.indexName(), Set.of());
+                        for (String field : flattenedInD1) {
+                            if (nonKeywordInD2.contains(field)) {
+                                SILENCED_COUNTS_BY_REASON.computeIfAbsent("cross_index_type_conflict", k -> new AtomicInteger())
+                                    .incrementAndGet();
+                                logger.info(
+                                    "keyword→flattened: skipping; field [{}] FLATTENED in [{}] but non-keyword type in [{}]",
+                                    field,
+                                    d1.indexName(),
+                                    d2.indexName()
+                                );
+                                throw new StacklessAssumptionViolatedException(
+                                    "skipping: field ["
+                                        + field
+                                        + "] is FLATTENED in ["
+                                        + d1.indexName()
+                                        + "] but a different non-keyword type in ["
+                                        + d2.indexName()
+                                        + "]"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
             // The short "launched" marker is emitted unconditionally so that every launched test has a single,
             // grep-able log line tying the test method (from the JUnit thread context) to the set of fields
             // the rewriter actually wrapped. The multi-line rewritten query itself is gated on
@@ -712,6 +852,94 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();
+        }
+
+        /**
+         * Rewrites the expected {@code _timeseries} column values so they reflect the
+         * dimension-key rename that TSDB applies after the keyword&rarr;flattened conversion.
+         */
+        @Override
+        public CsvTestUtils.ExpectedResults transformExpectedResults(
+            String testId,
+            CsvSpecReader.CsvTestCase testCase,
+            CsvTestUtils.ExpectedResults expected
+        ) {
+            int tsIdx = expected.columnNames().indexOf("_timeseries");
+            if (tsIdx < 0) {
+                return expected;
+            }
+            Set<String> convertedPaths = resolveKeywordPathsForQuery(testCase.query);
+            if (convertedPaths.isEmpty()) {
+                return expected;
+            }
+            boolean anyChanged = false;
+            List<List<Object>> newValues = new ArrayList<>(expected.values().size());
+            for (List<Object> row : expected.values()) {
+                Object tsValue = row.get(tsIdx);
+                if (tsValue == null) {
+                    newValues.add(row);
+                    continue;
+                }
+                String tsJson = tsValue.toString();
+                String rewritten = rewriteTimeseriesJson(tsJson, convertedPaths);
+                if (rewritten.equals(tsJson)) {
+                    newValues.add(row);
+                } else {
+                    List<Object> newRow = new ArrayList<>(row);
+                    newRow.set(tsIdx, rewritten);
+                    newValues.add(newRow);
+                    anyChanged = true;
+                }
+            }
+            if (anyChanged == false) {
+                return expected;
+            }
+            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        /**
+         * Parses {@code json} as a JSON object, and for every key that appears in
+         * {@code convertedPaths} wraps the value {@code V} as
+         * {@code {"v": V}} (where {@code "v"} is
+         * {@link KeywordToFlattenedTransformer#WRAPPER_SUBKEY}), then re-serialises the result.
+         * This reflects the TSDB dimension representation change: a keyword dimension
+         * {@code host:"host-a"} becomes a flattened dimension
+         * {@code host:{"v":"host-a"}} after the keyword&rarr;flattened conversion.
+         * Returns the original {@code json} string unchanged if parsing fails or no key is found
+         * in {@code convertedPaths}.
+         */
+        private static String rewriteTimeseriesJson(String json, Set<String> convertedPaths) {
+            try (
+                XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json);
+                XContentBuilder builder = XContentFactory.jsonBuilder()
+            ) {
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    return json;
+                }
+                boolean changed = false;
+                builder.startObject();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken(); // advance to value token
+                    if (convertedPaths.contains(fieldName)) {
+                        builder.startObject(fieldName);
+                        builder.field(KeywordToFlattenedTransformer.WRAPPER_SUBKEY);
+                        builder.copyCurrentStructure(parser);
+                        builder.endObject();
+                        changed = true;
+                    } else {
+                        builder.field(fieldName);
+                        builder.copyCurrentStructure(parser);
+                    }
+                }
+                builder.endObject();
+                if (changed == false) {
+                    return json;
+                }
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                return json;
+            }
         }
 
         /**

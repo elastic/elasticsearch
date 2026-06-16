@@ -90,6 +90,14 @@ public class BenchmarkTest extends ESTestCase {
         assumeTrue("Native scorers only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
     }
 
+    protected List<VectorImplementation> implementations() {
+        return List.of(VectorImplementation.values());
+    }
+
+    protected List<VectorImplementation> queryImplementations() {
+        return implementations().stream().filter(i -> i != VectorImplementation.SCALAR).toList();
+    }
+
     public <V> void testSequential(
         Supplier<V> vectorData,
         CheckedBiFunction<V, VectorImplementation, VectorScorerBulkBenchmark, IOException> createBenchmark,
@@ -97,7 +105,7 @@ public class BenchmarkTest extends ESTestCase {
     ) throws Exception {
         V data = vectorData.get();
         assertResultsEqual(
-            List.of(VectorImplementation.values()),
+            implementations(),
             impl -> createBenchmark.apply(data, impl),
             List.of(VectorScorerBulkBenchmark::scoreMultipleSequential, VectorScorerBulkBenchmark::scoreMultipleSequentialBulk),
             delta
@@ -111,7 +119,7 @@ public class BenchmarkTest extends ESTestCase {
     ) throws IOException {
         V data = vectorData.get();
         assertResultsEqual(
-            List.of(VectorImplementation.values()),
+            implementations(),
             impl -> createBenchmark.apply(data, impl),
             List.of(VectorScorerBulkBenchmark::scoreMultipleRandom, VectorScorerBulkBenchmark::scoreMultipleRandomBulk),
             delta
@@ -126,7 +134,7 @@ public class BenchmarkTest extends ESTestCase {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
         V data = vectorData.get();
         assertResultsEqual(
-            List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE),
+            queryImplementations(),
             impl -> createBenchmark.apply(data, impl),
             List.of(VectorScorerBulkBenchmark::scoreQueryMultipleRandom, VectorScorerBulkBenchmark::scoreQueryMultipleRandomBulk),
             delta

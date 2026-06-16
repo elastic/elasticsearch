@@ -37,6 +37,7 @@ public class Acos extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the arccosine of a number.",
         description = "Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an angle, expressed in radians.",
         examples = { @Example(file = "floats", tag = "acos") }
     )

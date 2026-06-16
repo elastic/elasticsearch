@@ -100,6 +100,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },
+        briefSummary = "Computes y-axis values of a sparkline graph for an aggregation over time.",
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
         preview = true,

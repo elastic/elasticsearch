@@ -95,7 +95,7 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
     @Override
     public String toString(String field) {
         return "SlowCustomBinaryDocValuesWildcardQuery(fieldName="
-            + field
+            + fieldName
             + ",pattern="
             + pattern
             + ",caseInsensitive="

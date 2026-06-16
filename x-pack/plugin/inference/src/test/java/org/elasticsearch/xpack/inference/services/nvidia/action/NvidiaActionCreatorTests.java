@@ -755,7 +755,13 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model);
 
@@ -803,7 +809,13 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    NO_RETRY_SETTINGS,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model);
 

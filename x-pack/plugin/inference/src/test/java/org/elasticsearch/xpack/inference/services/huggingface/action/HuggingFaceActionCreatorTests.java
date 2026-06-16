@@ -160,7 +160,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model);
 
@@ -265,7 +271,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model);
 
@@ -319,7 +331,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceRerankModelTests.createModel(getUrl(webServer), "secret", "model", 8, true);
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
             var action = actionCreator.create(model);
 
@@ -534,7 +552,13 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
+                new ServiceComponents(
+                    threadPool,
+                    mockThrottlerManager(),
+                    settings,
+                    TruncatorTests.createTruncator(),
+                    new TestCircuitBreaker()
+                )
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

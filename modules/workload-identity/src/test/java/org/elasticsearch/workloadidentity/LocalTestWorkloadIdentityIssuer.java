@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.xcontent.XContentParser;
@@ -247,6 +248,9 @@ public final class LocalTestWorkloadIdentityIssuer {
      * when the JWT carries no decodable {@code exp}, it falls back to {@code now + expiresInSeconds}.
      * An unmapped audience returns {@code 404}.
      */
+    @SuppressForbidden(
+        reason = "uses the JDK com.sun.net.httpserver request/response types and prints request diagnostics to stdout for this manual fixture"
+    )
     private static final class TokenHandler implements HttpHandler {
         private final Map<String, String> tokensByAudience;
         private final long expiresInSeconds;
@@ -391,9 +395,9 @@ public final class LocalTestWorkloadIdentityIssuer {
             if (eq <= 0 || eq == spec.length() - 1) {
                 throw new IllegalArgumentException("--token-for expects <aud>=<file>, got: " + spec + "\n\n" + helpText());
             }
-            final String audience = spec.substring(0, eq);
-            final Path file = Path.of(spec.substring(eq + 1));
-            args.tokenFiles.put(audience, file);
+        final String audience = spec.substring(0, eq);
+        final Path file = PathUtils.get(spec.substring(eq + 1));
+        args.tokenFiles.put(audience, file);
         }
 
         private static String requireValue(String[] argv, int i, String flag) {

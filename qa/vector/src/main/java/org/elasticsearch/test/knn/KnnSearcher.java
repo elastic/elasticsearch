@@ -62,6 +62,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -351,9 +352,23 @@ public class KnnSearcher {
     public record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
-    void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup)
-        throws IOException {
-        doSearch(finalResults, searchParameters, dir, setup.floatQueries(), setup.byteQueries(), setup.provider(), setup.consumer());
+    void search(
+        KnnIndexTester.Results finalResults,
+        SearchParameters searchParameters,
+        Directory dir,
+        SearchSetup setup,
+        TestConfiguration testConfiguration
+    ) throws IOException {
+        doSearch(
+            finalResults,
+            searchParameters,
+            dir,
+            setup.floatQueries(),
+            setup.byteQueries(),
+            setup.provider(),
+            setup.consumer(),
+            testConfiguration
+        );
     }
 
     /**
@@ -368,7 +383,8 @@ public class KnnSearcher {
         float[][] floatQueries,
         byte[][] byteQueries,
         FilterQueryProvider filterProvider,
-        ResultsConsumer resultsConsumer
+        ResultsConsumer resultsConsumer,
+        TestConfiguration testConfiguration
     ) throws IOException {
         if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
             logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
@@ -424,7 +440,7 @@ public class KnnSearcher {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
                     }
                 }
 
@@ -436,7 +452,14 @@ public class KnnSearcher {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
+                            results[searchIdx] = doVectorQuery(
+                                floatQueries[qIdx],
+                                searcher,
+                                filter,
+                                searchParameters,
+                                partition,
+                                testConfiguration
+                            );
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -761,27 +784,43 @@ public class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters, BytesRef partition)
-        throws IOException {
+    TopDocs doVectorQuery(
+        float[] vector,
+        IndexSearcher searcher,
+        Query filterQuery,
+        SearchParameters searchParameters,
+        BytesRef partition,
+        TestConfiguration testConfiguration
+    ) throws IOException {
         Query knnQuery;
-        int overSampledTopK = searchParameters.topK();
+        final int resultK = searchParameters.topK();
+        int overSampledTopK = resultK;
         if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            overSampledTopK = (int) Math.ceil(overSampledTopK * searchParameters.overSamplingFactor());
+            overSampledTopK = (int) Math.ceil(resultK * searchParameters.overSamplingFactor());
         }
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
+            float mappingOversample = searchParameters.overSamplingFactor() > 0f
+                ? searchParameters.overSamplingFactor()
+                : DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+            int quantBits = testConfiguration.quantizeBits() != null ? testConfiguration.quantizeBits() : 4;
+            var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                testConfiguration.autoCalibrate(),
+                doPrecondition,
+                quantBits,
+                mappingOversample,
+                null // we don't differentiate between mapping and query oversample here
+            );
             if (sliced) {
                 knnQuery = new IVFKnnFloatSlicedVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
-                    searchParameters.overSamplingFactor(),
+                    ivfQueryConfigResolver,
                     PARTITION_ID_FIELD,
                     partition
                 );
@@ -789,12 +828,11 @@ public class KnnSearcher {
                 knnQuery = new IVFKnnFloatVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
-                    searchParameters.overSamplingFactor()
+                    ivfQueryConfigResolver
                 );
             }
         } else {
@@ -818,9 +856,8 @@ public class KnnSearcher {
                 PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD
             );
         }
-        if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, searchParameters.topK(), overSampledTopK, knnQuery);
+        if (searchParameters.overSamplingFactor() > 1f && testConfiguration.autoCalibrate() == false) {
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());

@@ -42,6 +42,7 @@ public class Atan2 extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        briefSummary = "Returns the two-argument arctangent of y and x coordinates.",
         description = "The {wikipedia}/Atan2[angle] between the positive x-axis and the ray from the\n"
             + "origin to the point (x , y) in the Cartesian plane, expressed in radians.",
         examples = @Example(file = "floats", tag = "atan2")

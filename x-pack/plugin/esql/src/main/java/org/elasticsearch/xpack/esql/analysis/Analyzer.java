@@ -2181,18 +2181,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Annotates each non-LOOKUP {@link EsRelation} with the {@link UnmappedFieldsPattern} that
-     * describes which additional (currently unmapped) source fields would survive to the query output
-     * if {@code SET unmapped_fields="LOAD_ALL"} were in effect.
+     * When {@code SET unmapped_fields="LOAD_ALL"} is in effect, annotates each non-LOOKUP
+     * {@link EsRelation} with the {@link UnmappedFieldsPattern} that describes which additional
+     * (currently unmapped) source fields would survive to the query output.
      *
      * <p>The rule runs in the Finish Analysis batch <em>before</em> {@link ResolvedProjects}, so
      * {@link ResolvingProject} nodes — which carry the original wildcard patterns — are still present.
-     * This is hardcoded as always-on for now; a future change will gate it on
-     * {@code SET unmapped_fields="LOAD_ALL"}.
+     * For any other {@link UnmappedResolution} the rule is a no-op.
      */
-    private static class DetermineUnmappedFieldsToKeep extends Rule<LogicalPlan, LogicalPlan> {
+    private static class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.unmappedResolution() != UnmappedResolution.LOAD_ALL) {
+                return plan;
+            }
             UnmappedFieldsPattern pattern;
             try {
                 pattern = plan.unmappedFieldsToKeep();

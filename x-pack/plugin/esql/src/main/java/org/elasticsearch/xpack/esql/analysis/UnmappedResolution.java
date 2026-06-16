@@ -28,5 +28,11 @@ public enum UnmappedResolution {
     /**
      * In case the query references a field that's not present in the index mapping, attempt to load it from {@code _source}.
      */
-    LOAD
+    LOAD,
+
+    /**
+     * Load all source fields that are not present in the index mapping into a synthetic {@code _unmapped_fields} column,
+     * without requiring individual unmapped fields to be referenced in the query.
+     */
+    LOAD_ALL
 }

@@ -1584,53 +1584,53 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     // -----------------------------------------------------------------------
 
     public void testUnmappedFieldsPatternNoCommand() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test"));
         assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
     }
 
     public void testUnmappedFieldsPatternKeepStar() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP *"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP *"));
         assertEsRelationPattern(plan, UnmappedFieldsPattern.ALL);
     }
 
     public void testUnmappedFieldsPatternKeepWildcard() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name*"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of()));
     }
 
     public void testUnmappedFieldsPatternKeepExactName() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP salary"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP salary"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("salary"), List.of()));
     }
 
     public void testUnmappedFieldsPatternKeepMultiplePatterns() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name*, salary"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name*, salary"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*", "salary"), List.of()));
     }
 
     public void testUnmappedFieldsPatternDrop() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | DROP salary"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | DROP salary"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("salary")));
     }
 
     public void testUnmappedFieldsPatternRename() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | RENAME last_name AS x"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | RENAME last_name AS x"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x")));
     }
 
     public void testUnmappedFieldsPatternKeepThenEval() {
         // EVAL uses a literal so it does not reference a field excluded by KEEP
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | KEEP first_name* | EVAL z = 1"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | KEEP first_name* | EVAL z = 1"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
     }
 
     public void testUnmappedFieldsPatternEvalThenKeep() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | EVAL z = 1 | KEEP first_name*"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | EVAL z = 1 | KEEP first_name*"));
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first_name*"), List.of("z")));
     }
 
     public void testUnmappedFieldsPatternDropThenRename() {
-        LogicalPlan plan = test().statement(setUnmappedLoad("FROM test | DROP salary | RENAME last_name AS x"));
+        LogicalPlan plan = test().statement(setUnmappedLoadAll("FROM test | DROP salary | RENAME last_name AS x"));
         // RENAME is the outer node: its excludes ([x]) come first, then DROP's ([salary])
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), List.of("x", "salary")));
     }

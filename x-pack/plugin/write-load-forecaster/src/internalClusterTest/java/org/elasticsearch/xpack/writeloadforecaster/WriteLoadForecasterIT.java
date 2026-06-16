@@ -78,7 +78,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         final WriteLoadForecaster writeLoadForecaster = internalCluster().getCurrentMasterNodeInstance(WriteLoadForecaster.class);
         final OptionalDouble forecastedWriteLoad = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
 
-        assertThat(forecastedWriteLoad.isPresent(), is(true));
+        assertThat(forecastedWriteLoad.isPresent(), is(equalTo(true)));
         assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(indexMetadataForecastedWriteLoad.getAsDouble())));
 
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
@@ -87,7 +87,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
-        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
+        assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
     }
 
     public void testWriteLoadForecastDoesNotGetPopulatedWithInvalidLicense() throws Exception {

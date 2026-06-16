@@ -30,10 +30,8 @@ public abstract class AbstractLicenseCheckingWriteLoadForecaster implements Writ
         this.hasValidLicenseSupplier = licenseSupplier;
     }
 
-    /**
-     * Used to atomically {@code getAndSet()} the {@link #hasValidLicense} field. This is better than an
-     * {@link java.util.concurrent.atomic.AtomicBoolean} because it takes one less pointer dereference on each read.
-     */
+    /// Used to atomically `compareAndSet()` the [#hasValidLicense] field. This is better than an
+    /// [AtomicBoolean][java.util.concurrent.atomic.AtomicBoolean] because it takes one less pointer dereference on each read.
     private static final VarHandle VH_HAS_VALID_LICENSE_FIELD;
 
     static {

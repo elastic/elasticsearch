@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * This test was originally based on the tests for sub-classes of EsField, like InvalidMappedFieldTests.
@@ -191,5 +192,20 @@ public class MultiTypeEsFieldTests extends AbstractEsFieldTypeTests<MultiTypeEsF
         assertThat(((ToLong) shortIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
         assertThat(intIndexExpression, instanceOf(ToLong.class));
         assertThat(((ToLong) intIndexExpression).field().dataType().widenSmallNumeric(), equalTo(DataType.INTEGER));
+    }
+
+    public void testGetConversionExpressionForLocalClusterQualifiedIndexName() {
+        String fieldName = randomAlphaOfLength(4);
+        Expression conversion = testConvertExpression(fieldName, DataType.INTEGER, DataType.LONG);
+        MultiTypeEsField field = new MultiTypeEsField(
+            fieldName,
+            DataType.LONG,
+            false,
+            Map.of("apps_short", conversion),
+            EsField.TimeSeriesFieldType.NONE,
+            null
+        );
+
+        assertThat(field.getConversionExpressionForIndex("local:apps_short"), sameInstance(conversion));
     }
 }

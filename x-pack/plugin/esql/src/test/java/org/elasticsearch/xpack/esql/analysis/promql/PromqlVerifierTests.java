@@ -179,6 +179,39 @@ public class PromqlVerifierTests extends ESTestCase {
             );
     }
 
+    // PROMQL is a collapsing aggregate, so a missing field after the pipe isn't nullified (as after a non-grouping STATS).
+    public void testNullifyMissingFieldOutsidePromqlFails() {
+        // tsdb is NULLIFY mode.
+        tsdb.error(
+            "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = does_not_exist",
+            containsString("Unknown column [does_not_exist]")
+        );
+    }
+
+    // The invariant: a nullified field is no more visible than a mapped one. A mapped field collapsed by PROMQL is
+    // equally unreferenceable after the pipe, so nullify isn't treating the missing field any worse.
+    public void testMappedFieldOutsidePromqlFailsUnderNullify() {
+        // tsdb is NULLIFY mode.
+        tsdb.error(
+            "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = network.bytes_in",
+            containsString("Unknown column [network.bytes_in]")
+        );
+    }
+
+    // Pairs with testNullifyMissingFieldOutsidePromqlFails: identical failure in default mode, so nullify changes nothing here.
+    public void testMissingFieldOutsidePromqlFailsInDefaultMode() {
+        tsdb.unmappedResolution(UnmappedResolution.DEFAULT)
+            .error(
+                "PROMQL index=test step=5m v=(sum(network.bytes_in)) | EVAL x = does_not_exist",
+                containsString("Unknown column [does_not_exist]")
+            );
+    }
+
+    // nullify doesn't change PROMQL's own handling of unmapped fields inside the command: an absent metric still resolves.
+    public void testNullifyMissingFieldInsidePromqlResolves() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m sum(does_not_exist)").resolved());
+    }
+
     public void testCounterMetricWithUnsupportedFunction() {
         // network.bytes_in is a counter metric; avg_over_time auto-wraps counters with to_gauge()
         var plan = tsdb.query("PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])");

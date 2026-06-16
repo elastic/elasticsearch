@@ -11,7 +11,7 @@ In 9.4, `PROMQL` command is available as a preview feature. Current limitations 
 
 - Group modifiers such as `on(chip) group_left(chip_name)` are not supported.
 - Set operators such as `or`, `and`, and `unless` are not supported.
-- Some functions including `histogram_quantile`, `predict_linear`, and `label_join` are not supported.
+- Some functions including `predict_linear` and `label_join` are not supported.
 - Time buckets align to fixed calendar boundaries rather than the query start time. This can cause slight differences from Prometheus, especially for short ranges or large step sizes.
 ::::
 

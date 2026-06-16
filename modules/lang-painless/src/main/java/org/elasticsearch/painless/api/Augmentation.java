@@ -27,20 +27,41 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
+import java.util.OptionalLong;
+import java.util.PrimitiveIterator;
 import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.DoubleConsumer;
+import java.util.function.DoublePredicate;
 import java.util.function.Function;
+import java.util.function.IntBinaryOperator;
+import java.util.function.IntConsumer;
+import java.util.function.IntPredicate;
+import java.util.function.LongBinaryOperator;
+import java.util.function.LongConsumer;
+import java.util.function.LongPredicate;
+import java.util.function.ObjDoubleConsumer;
 import java.util.function.ObjIntConsumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 /** Additional methods added to classes. These must be static methods with receiver as first argument */
@@ -1042,32 +1063,607 @@ public class Augmentation {
         }
     }
 
+    // Wrap a primitive consumer so it polls _pollCancellation() once per element before delegating, or return it
+    // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
+    // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
+
+    private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return i -> {
+            script._pollCancellation();
+            action.accept(i);
+        };
+    }
+
+    private static LongConsumer wrap(PainlessScript script, LongConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return l -> {
+            script._pollCancellation();
+            action.accept(l);
+        };
+    }
+
+    private static DoubleConsumer wrap(PainlessScript script, DoubleConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return d -> {
+            script._pollCancellation();
+            action.accept(d);
+        };
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    // stream terminal wrappers for cancellation-aware iteration
+    //
+    // Each wrapper takes the user's functional-interface argument and wraps it in a polling lambda so
+    // the JDK's terminal-op iteration drives the pipeline while {@link PainlessScript#_pollCancellation()}
+    // fires once per element. Intermediate operations (filter/map/flatMap/peek) are not wrapped:
+    // polling at the terminal op covers the whole pipeline because terminal ops pull elements through
+    // all upstream stages. Fast path delegates straight to the JDK call when no cancellation check is
+    // installed. Painless does not expose Stream#parallel(), so the wrapping lambdas only have to be
+    // correct for sequential streams.
+
+    /** Cancellation-aware wrapper around {@link Stream#forEach}. */
+    public static <T> void forEach(PainlessScript script, Stream<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        receiver.forEach(t -> {
+            consumer.accept(t);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#forEachOrdered}. */
+    public static <T> void forEachOrdered(PainlessScript script, Stream<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachOrdered(consumer);
+            return;
+        }
+        receiver.forEachOrdered(t -> {
+            consumer.accept(t);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#allMatch}. */
+    public static <T> boolean allMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.allMatch(predicate);
+        }
+        return receiver.allMatch(t -> {
+            boolean result = predicate.test(t);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#anyMatch}. */
+    public static <T> boolean anyMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.anyMatch(predicate);
+        }
+        return receiver.anyMatch(t -> {
+            boolean result = predicate.test(t);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#noneMatch}. */
+    public static <T> boolean noneMatch(PainlessScript script, Stream<T> receiver, Predicate<T> predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.noneMatch(predicate);
+        }
+        return receiver.noneMatch(t -> {
+            boolean result = predicate.test(t);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#reduce(BinaryOperator)}. */
+    public static <T> Optional<T> reduce(PainlessScript script, Stream<T> receiver, BinaryOperator<T> op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(op);
+        }
+        return receiver.reduce((a, b) -> {
+            T result = op.apply(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#reduce(Object, BinaryOperator)}. */
+    public static <T> T reduce(PainlessScript script, Stream<T> receiver, T identity, BinaryOperator<T> op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(identity, op);
+        }
+        return receiver.reduce(identity, (a, b) -> {
+            T result = op.apply(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#reduce(Object, BiFunction, BinaryOperator)}. */
+    public static <T, U> U reduce(
+        PainlessScript script,
+        Stream<T> receiver,
+        U identity,
+        BiFunction<U, ? super T, U> accumulator,
+        BinaryOperator<U> combiner
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(identity, accumulator, combiner);
+        }
+        return receiver.reduce(identity, (u, t) -> {
+            U result = accumulator.apply(u, t);
+            script._pollCancellation();
+            return result;
+        }, combiner);
+    }
+
+    /** Cancellation-aware wrapper around {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}. */
+    public static <T, R> R collect(
+        PainlessScript script,
+        Stream<T> receiver,
+        Supplier<R> supplier,
+        BiConsumer<R, ? super T> accumulator,
+        BiConsumer<R, R> combiner
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(supplier, accumulator, combiner);
+        }
+        return receiver.collect(supplier, (r, t) -> {
+            accumulator.accept(r, t);
+            script._pollCancellation();
+        }, combiner);
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Stream#collect(Collector)}.  Unlike the other stream
+     * terminals there is no per-element argument to wrap directly — the accumulator is bundled inside
+     * the {@link Collector} — so this decomposes the collector and rebuilds an equivalent one whose
+     * accumulator also polls {@link PainlessScript#_pollCancellation()} once per element.  Painless does
+     * not expose {@link Stream#parallel()}, so the stream is always sequential: the accumulator runs once
+     * per element and the combiner is never invoked.  The original characteristics (including
+     * {@code IDENTITY_FINISH}) and finisher are preserved unchanged, so the result is identical to the JDK.
+     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     */
+    public static <T, A, R> R collect(PainlessScript script, Stream<T> receiver, Collector<? super T, A, R> collector) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(collector);
+        }
+        BiConsumer<A, ? super T> accumulator = collector.accumulator();
+        Collector<T, A, R> polling = Collector.of(collector.supplier(), (a, t) -> {
+            accumulator.accept(a, t);
+            script._pollCancellation();
+        }, collector.combiner(), collector.finisher(), collector.characteristics().toArray(new Collector.Characteristics[0]));
+        return receiver.collect(polling);
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#forEach}. */
+    public static void forEach(PainlessScript script, IntStream receiver, IntConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        receiver.forEach(i -> {
+            consumer.accept(i);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#forEachOrdered}. */
+    public static void forEachOrdered(PainlessScript script, IntStream receiver, IntConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachOrdered(consumer);
+            return;
+        }
+        receiver.forEachOrdered(i -> {
+            consumer.accept(i);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#allMatch}. */
+    public static boolean allMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.allMatch(predicate);
+        }
+        return receiver.allMatch(i -> {
+            boolean result = predicate.test(i);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#anyMatch}. */
+    public static boolean anyMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.anyMatch(predicate);
+        }
+        return receiver.anyMatch(i -> {
+            boolean result = predicate.test(i);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#noneMatch}. */
+    public static boolean noneMatch(PainlessScript script, IntStream receiver, IntPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.noneMatch(predicate);
+        }
+        return receiver.noneMatch(i -> {
+            boolean result = predicate.test(i);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#reduce(IntBinaryOperator)}. */
+    public static OptionalInt reduce(PainlessScript script, IntStream receiver, IntBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(op);
+        }
+        return receiver.reduce((a, b) -> {
+            int result = op.applyAsInt(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#reduce(int, IntBinaryOperator)}. */
+    public static int reduce(PainlessScript script, IntStream receiver, int identity, IntBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(identity, op);
+        }
+        return receiver.reduce(identity, (a, b) -> {
+            int result = op.applyAsInt(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link IntStream#collect(Supplier, ObjIntConsumer, BiConsumer)}. */
+    public static <R> R collect(
+        PainlessScript script,
+        IntStream receiver,
+        Supplier<R> supplier,
+        ObjIntConsumer<R> accumulator,
+        BiConsumer<R, R> combiner
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(supplier, accumulator, combiner);
+        }
+        return receiver.collect(supplier, (r, i) -> {
+            accumulator.accept(r, i);
+            script._pollCancellation();
+        }, combiner);
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#forEach}. */
+    public static void forEach(PainlessScript script, LongStream receiver, LongConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        receiver.forEach(l -> {
+            consumer.accept(l);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#forEachOrdered}. */
+    public static void forEachOrdered(PainlessScript script, LongStream receiver, LongConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachOrdered(consumer);
+            return;
+        }
+        receiver.forEachOrdered(l -> {
+            consumer.accept(l);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#allMatch}. */
+    public static boolean allMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.allMatch(predicate);
+        }
+        return receiver.allMatch(l -> {
+            boolean result = predicate.test(l);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#anyMatch}. */
+    public static boolean anyMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.anyMatch(predicate);
+        }
+        return receiver.anyMatch(l -> {
+            boolean result = predicate.test(l);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#noneMatch}. */
+    public static boolean noneMatch(PainlessScript script, LongStream receiver, LongPredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.noneMatch(predicate);
+        }
+        return receiver.noneMatch(l -> {
+            boolean result = predicate.test(l);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#reduce(LongBinaryOperator)}. */
+    public static OptionalLong reduce(PainlessScript script, LongStream receiver, LongBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(op);
+        }
+        return receiver.reduce((a, b) -> {
+            long result = op.applyAsLong(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#reduce(long, LongBinaryOperator)}. */
+    public static long reduce(PainlessScript script, LongStream receiver, long identity, LongBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(identity, op);
+        }
+        return receiver.reduce(identity, (a, b) -> {
+            long result = op.applyAsLong(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link LongStream#collect(Supplier, ObjLongConsumer, BiConsumer)}. */
+    public static <R> R collect(
+        PainlessScript script,
+        LongStream receiver,
+        Supplier<R> supplier,
+        ObjLongConsumer<R> accumulator,
+        BiConsumer<R, R> combiner
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(supplier, accumulator, combiner);
+        }
+        return receiver.collect(supplier, (r, l) -> {
+            accumulator.accept(r, l);
+            script._pollCancellation();
+        }, combiner);
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#forEach}. */
+    public static void forEach(PainlessScript script, DoubleStream receiver, DoubleConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return;
+        }
+        receiver.forEach(d -> {
+            consumer.accept(d);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#forEachOrdered}. */
+    public static void forEachOrdered(PainlessScript script, DoubleStream receiver, DoubleConsumer consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEachOrdered(consumer);
+            return;
+        }
+        receiver.forEachOrdered(d -> {
+            consumer.accept(d);
+            script._pollCancellation();
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#allMatch}. */
+    public static boolean allMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.allMatch(predicate);
+        }
+        return receiver.allMatch(d -> {
+            boolean result = predicate.test(d);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#anyMatch}. */
+    public static boolean anyMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.anyMatch(predicate);
+        }
+        return receiver.anyMatch(d -> {
+            boolean result = predicate.test(d);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#noneMatch}. */
+    public static boolean noneMatch(PainlessScript script, DoubleStream receiver, DoublePredicate predicate) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.noneMatch(predicate);
+        }
+        return receiver.noneMatch(d -> {
+            boolean result = predicate.test(d);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#reduce(DoubleBinaryOperator)}. */
+    public static OptionalDouble reduce(PainlessScript script, DoubleStream receiver, DoubleBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(op);
+        }
+        return receiver.reduce((a, b) -> {
+            double result = op.applyAsDouble(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#reduce(double, DoubleBinaryOperator)}. */
+    public static double reduce(PainlessScript script, DoubleStream receiver, double identity, DoubleBinaryOperator op) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.reduce(identity, op);
+        }
+        return receiver.reduce(identity, (a, b) -> {
+            double result = op.applyAsDouble(a, b);
+            script._pollCancellation();
+            return result;
+        });
+    }
+
+    /** Cancellation-aware wrapper around {@link DoubleStream#collect(Supplier, ObjDoubleConsumer, BiConsumer)}. */
+    public static <R> R collect(
+        PainlessScript script,
+        DoubleStream receiver,
+        Supplier<R> supplier,
+        ObjDoubleConsumer<R> accumulator,
+        BiConsumer<R, R> combiner
+    ) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(supplier, accumulator, combiner);
+        }
+        return receiver.collect(supplier, (r, d) -> {
+            accumulator.accept(r, d);
+            script._pollCancellation();
+        }, combiner);
+    }
+
     // CharSequence augmentation
     /**
-     * Replace all matches. Similar to {@link Matcher#replaceAll(String)} but allows you to customize the replacement based on the match.
+     * Cancellation-aware {@code replaceAll(Pattern, Function)}.  Similar to {@link Matcher#replaceAll(String)} but lets the script
+     * customise the replacement per match.  Two protections layered on top of the JDK call:
+     * <ul>
+     *   <li>The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     *       {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor}
+     *       setting (closing the gap that previously left {@code String.replaceAll(Pattern, Function)}
+     *       unprotected against catastrophic backtracking).</li>
+     *   <li>When the script has a cancellation check installed, polls
+     *       {@link PainlessScript#_pollCancellation()} once per match so a many-match sweep honours
+     *       the search timeout.</li>
+     * </ul>
      */
-    public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
-        Matcher m = pattern.matcher(receiver);
+    public static String replaceAll(
+        PainlessScript script,
+        CharSequence receiver,
+        int limitFactor,
+        Pattern pattern,
+        Function<Matcher, String> replacementBuilder
+    ) {
+        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
+        Matcher m = pattern.matcher(input);
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
-        do {
-            m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
-        } while (m.find());
+        if (script._getCancellationCheck() == null) {
+            do {
+                m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+            } while (m.find());
+        } else {
+            do {
+                m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+                script._pollCancellation();
+            } while (m.find());
+        }
         m.appendTail(result);
         return result.toString();
     }
 
     /**
-     * Replace the first match. Similar to {@link Matcher#replaceFirst(String)} but allows you to customize the replacement based on the
-     * match.
+     * Regex-limited {@code replaceFirst(Pattern, Function)}.  Similar to {@link Matcher#replaceFirst(String)} but lets the script
+     * customise the replacement based on the match.  The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     * {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor} setting (same protection as
+     * {@link #replaceAll(PainlessScript, CharSequence, int, Pattern, Function)}).  Per-match polling is not added because at most
+     * one match is performed.
      */
-    public static String replaceFirst(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
-        Matcher m = pattern.matcher(receiver);
+    public static String replaceFirst(
+        CharSequence receiver,
+        int limitFactor,
+        Pattern pattern,
+        Function<Matcher, String> replacementBuilder
+    ) {
+        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
+        Matcher m = pattern.matcher(input);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
@@ -1133,8 +1729,122 @@ public class Augmentation {
     }
 
     /**
-     * The initial size of the {@link StringBuilder} used for {@link #replaceFirst(CharSequence, Pattern, Function)} and
-     * {@link #replaceAll(CharSequence, Pattern, Function)} for a particular sequence. We ape
+     * Cancellation-aware {@link String#indexOf(String)}.  Reimplements the search with an explicit O(n*m) outer-position scan so the
+     * augmentation can poll {@link PainlessScript#_pollCancellation()} between candidate starting positions.  This guards against a
+     * malicious haystack/needle pair (lots of false-positive prefix matches) running uninterrupted past the search timeout.
+     * Delegates to the JDK call when no cancellation check is installed.
+     */
+    public static int indexOf(PainlessScript script, String receiver, String search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.indexOf(search);
+        }
+        return indexOfWithPolling(script, receiver, search, 0);
+    }
+
+    /**
+     * Cancellation-aware {@link String#indexOf(String, int)}.  Same as {@link #indexOf(PainlessScript, String, String)} but starts
+     * the search at {@code fromIndex}.  Matches the JDK's clamping behaviour for {@code fromIndex} outside the receiver's bounds.
+     */
+    public static int indexOf(PainlessScript script, String receiver, String search, int fromIndex) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.indexOf(search, fromIndex);
+        }
+        return indexOfWithPolling(script, receiver, search, fromIndex);
+    }
+
+    /**
+     * Cancellation-aware {@link String#lastIndexOf(String)}.  Symmetric to {@link #indexOf(PainlessScript, String, String)}: scans
+     * candidate starting positions backwards from the end of the receiver, polling between each.
+     */
+    public static int lastIndexOf(PainlessScript script, String receiver, String search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.lastIndexOf(search);
+        }
+        return lastIndexOfWithPolling(script, receiver, search, receiver.length());
+    }
+
+    /**
+     * Cancellation-aware {@link String#lastIndexOf(String, int)}.  Same as {@link #lastIndexOf(PainlessScript, String, String)} but
+     * starts the backward search no later than {@code fromIndex}.
+     */
+    public static int lastIndexOf(PainlessScript script, String receiver, String search, int fromIndex) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.lastIndexOf(search, fromIndex);
+        }
+        return lastIndexOfWithPolling(script, receiver, search, fromIndex);
+    }
+
+    /**
+     * Cancellation-aware {@link String#contains(CharSequence)}.  Delegates to the indexOf augmentation, which polls between candidate
+     * positions, so the contains check honours the search timeout even when the haystack and needle pathologically interact.
+     */
+    public static boolean contains(PainlessScript script, String receiver, CharSequence search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.contains(search);
+        }
+        return indexOfWithPolling(script, receiver, search.toString(), 0) >= 0;
+    }
+
+    /**
+     * Naive forward scan with cancellation polling between candidate starting positions.  Matches the JDK's documented behaviour for
+     * edge cases: empty {@code search} returns {@code min(fromIndex, length)}; negative {@code fromIndex} is clamped to zero; if the
+     * needle cannot fit anywhere starting at or after {@code fromIndex}, returns {@code -1}.
+     */
+    private static int indexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        int searchStart = Math.max(0, fromIndex);
+        if (searchLength == 0) {
+            return Math.min(searchStart, receiverLength);
+        }
+        int lastStart = receiverLength - searchLength;
+        for (int start = searchStart; start <= lastStart; start++) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
+            }
+            if (offset == searchLength) {
+                return start;
+            }
+            script._pollCancellation();
+        }
+        return -1;
+    }
+
+    /**
+     * Naive backward scan with cancellation polling between candidate starting positions.  Matches the JDK's documented behaviour
+     * for edge cases: a negative {@code fromIndex} returns {@code -1}; empty {@code search} returns {@code min(fromIndex, length)};
+     * if there is no room for the needle anywhere on or before {@code fromIndex}, returns {@code -1}.
+     */
+    private static int lastIndexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        if (fromIndex < 0) {
+            return -1;
+        }
+        if (searchLength == 0) {
+            return Math.min(fromIndex, receiverLength);
+        }
+        int searchStart = Math.min(fromIndex, receiverLength - searchLength);
+        if (searchStart < 0) {
+            return -1;
+        }
+        for (int start = searchStart; start >= 0; start--) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
+            }
+            if (offset == searchLength) {
+                return start;
+            }
+            script._pollCancellation();
+        }
+        return -1;
+    }
+
+    /**
+     * The initial size of the {@link StringBuilder} used for {@link #replaceFirst(CharSequence, int, Pattern, Function)} and
+     * {@link #replaceAll(PainlessScript, CharSequence, int, Pattern, Function)} for a particular sequence. We ape
      * {{@link StringBuilder#StringBuilder(CharSequence)} here and add 16 extra chars to the buffer to have a little room for growth.
      */
     private static int initialBufferForReplaceWith(CharSequence seq) {

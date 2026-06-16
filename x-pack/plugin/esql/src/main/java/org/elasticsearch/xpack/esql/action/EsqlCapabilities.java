@@ -3077,6 +3077,12 @@ public class EsqlCapabilities {
          */
         PROMQL_HISTOGRAM_QUANTILE,
 
+        /**
+         * Tests for {@code DATE_EXTRACT} with a non-constant first argument (the date-part/chrono field).
+         * The function has supported this since its introduction; this capability gates the new test cases.
+         */
+        FN_DATE_PART,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

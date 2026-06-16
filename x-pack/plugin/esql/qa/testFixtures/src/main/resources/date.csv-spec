@@ -1107,6 +1107,36 @@ FROM sample_data
 // end::docsDateExtractBusinessHours-result[]
 ;
 
+dateExtractFromFields
+required_capability: fn_date_part
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, date_val)
+| KEEP date_part, date_val, result
+| SORT date_part;
+
+date_part:keyword | date_val:date            | result:long
+day_of_month      | 2022-05-06T14:30:00.000Z | 6
+hour_of_day       | 2022-05-06T14:30:00.000Z | 14
+month_of_year     | 2022-05-06T14:30:00.000Z | 5
+year              | 2022-05-06T14:30:00.000Z | 2022
+;
+
+dateExtractFieldDatePart
+required_capability: fn_date_part
+
+FROM date_extract_fields
+| EVAL result = DATE_EXTRACT(date_part, "2022-05-06T14:30:00.000Z"::date)
+| KEEP date_part, result
+| SORT date_part;
+
+date_part:keyword | result:long
+day_of_month      | 6
+hour_of_day       | 14
+month_of_year     | 5
+year              | 2022
+;
+
 docsDateFormat
 // tag::docsDateFormat[]
 FROM employees

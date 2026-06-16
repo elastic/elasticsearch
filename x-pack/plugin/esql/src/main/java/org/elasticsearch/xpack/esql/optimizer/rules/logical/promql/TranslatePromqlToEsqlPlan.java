@@ -240,7 +240,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         plan = applyNullOutputFilter(cmd, plan);
 
-        plan = withTimestampFilter(cmd, plan, context.configuration());
+        if (result.constFolded() == false) {
+            plan = withTimestampFilter(cmd, plan, context.configuration());
+        }
 
         return plan;
     }
@@ -374,6 +376,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             histogramQuantileChildLabels(histogramQuantile)
         );
         TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
+
+        if (childResult.constFolded()) {
+            return childResult;
+        }
 
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;

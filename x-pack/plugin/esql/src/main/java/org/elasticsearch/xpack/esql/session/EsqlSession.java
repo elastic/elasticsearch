@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -136,7 +135,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -317,11 +315,10 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        // Collect IN_SUBQUERY telemetry from the original plan before view+subquery resolution begins. The listener receives the
-        // pre-resolution plan so InSubquery expressions are still visible. Mirroring how view telemetry is collected before view resolution
-        // discards view-specific nodes. The WHERE counter is set by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
-        // SemiJoin/AntiJoin/MarkJoin too.
-        AtomicBoolean inSubqueryMetricCounted = new AtomicBoolean();
+        // View + IN-subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
+        // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
+        // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
+        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         viewAndSubqueryResolver.resolve(
             statement.plan(),
             projectRouting(request, statement),
@@ -332,7 +329,6 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            afterViews -> gatherInSubqueryMetrics(afterViews, inSubqueryMetricCounted),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
@@ -352,6 +348,7 @@ public class EsqlSession {
 
         // this is stack telemetry
         gatherViewMetrics(viewResolution);
+        gatherInSubqueryMetrics(viewResolution);
 
         // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
@@ -1077,23 +1074,21 @@ public class EsqlSession {
     }
 
     /**
-     * Increments the {@code IN_SUBQUERY} counter at most once per query when the original (pre-resolution) plan
-     * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
-     * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}.
+     * Increments the {@code IN_SUBQUERY} counter once per query when view + subquery resolution rewrote any
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery} into a
+     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}.
      * <p>
-     * {@link ViewAndSubqueryResolver} calls this with the original plan before view and subquery resolution begins,
-     * so the originating {@code InSubquery} expressions are still in place. {@code alreadyCounted} keeps the increment
-     * to once per query; it is an {@link AtomicBoolean} for consistency with concurrent callers. Mirrors
-     * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter is handled by the
-     * analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin.
+     * The decision comes from {@link ViewResolver.ViewResolutionResult#hasInSubquery()} rather than the pre-resolution plan,
+     * because an IN subquery may live only inside a view definition: it is not visible in the original plan and is rewritten away
+     * during resolution. Mirrors {@link #gatherViewMetrics}: direct increment, once per query, on successful resolution. The
+     * {@code WHERE} counter is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
+     * SemiJoin/AntiJoin/MarkJoin.
      */
-    private void gatherInSubqueryMetrics(LogicalPlan plan, AtomicBoolean alreadyCounted) {
-        if (metrics == null) {
+    private void gatherInSubqueryMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.hasInSubquery() == false) {
             return;
         }
-        if (InSubqueryResolver.hasInSubqueryInFilter(plan) && alreadyCounted.compareAndSet(false, true)) {
-            metrics.inc(FeatureMetric.IN_SUBQUERY);
-        }
+        metrics.inc(FeatureMetric.IN_SUBQUERY);
     }
 
     /**

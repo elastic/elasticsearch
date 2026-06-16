@@ -248,4 +248,25 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             | KEEP emp_no
             """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
     }
+
+    public void testMainFromAndNotInSubqueryEachReferenceMultipleViewSubqueries() {
+        requireInSubqueryViewSupport();
+        runGoldenTest(
+            """
+                FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
+                | WHERE emp_no NOT IN (FROM (FROM in_view_a | KEEP emp_no), (FROM in_view_b | KEEP emp_no) | KEEP emp_no)
+                """,
+            STAGES,
+            Map.of(
+                "main_view_a",
+                "FROM employees | KEEP emp_no",
+                "main_view_b",
+                "FROM employees | WHERE salary > 50000 | KEEP emp_no",
+                "in_view_a",
+                "FROM employees | KEEP emp_no",
+                "in_view_b",
+                "FROM employees | WHERE salary > 60000 | KEEP emp_no"
+            )
+        );
+    }
 }

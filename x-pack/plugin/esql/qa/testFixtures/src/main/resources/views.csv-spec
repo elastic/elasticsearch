@@ -1986,6 +1986,7 @@ qa              | 10797
 ;
 
 tsMainQueryInSubqueryReferencingView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -2004,6 +2005,7 @@ prod            | 10277
 ;
 
 tsMainQueryNotInSubqueryReferencingView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -2023,6 +2025,7 @@ staging         | 7403
 ;
 
 tsMainQueryInSubqueryReferencingMaxBytesView
+skip_flattened_rewrite: view_in_subquery_flattened
 required_capability: views_with_no_branching
 required_capability: views_crud_as_index_actions
 required_capability: where_in_subquery_with_view
@@ -2113,4 +2116,24 @@ FROM employees
 
 emp_no:integer | first_name:keyword
 10001          | Georgi
+;
+
+mainFromAndInSubqueryEachReferenceMultipleViewSubqueries
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_with_view
+
+FROM (FROM employees_all | WHERE emp_no <= 10002 | KEEP emp_no, first_name),
+     (FROM employees_all | WHERE emp_no >= 10004 AND emp_no <= 10005 | KEEP emp_no, first_name)
+| WHERE emp_no IN (FROM (FROM employees_all | WHERE emp_no == 10002 | KEEP emp_no),
+                        (FROM employees_all | WHERE emp_no == 10005 | KEEP emp_no)
+                   | KEEP emp_no)
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10002          | Bezalel
+10005          | Kyoichi
 ;

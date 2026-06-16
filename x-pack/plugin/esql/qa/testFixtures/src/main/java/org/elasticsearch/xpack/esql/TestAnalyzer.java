@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -75,10 +76,6 @@ import static org.hamcrest.Matchers.instanceOf;
  * </ul>
  */
 public class TestAnalyzer {
-    // Mirrors the default of ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING; a safety bound for the
-    // view / IN-subquery resolution loop in resolveViewsAndInSubqueries.
-    private static final int MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS = 10;
-
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -511,76 +508,97 @@ public class TestAnalyzer {
     }
 
     /**
-     * Resolves views and IN subquery expressions to a fixed point, mirroring the production pipeline driven by
-     * {@code ViewAndSubqueryResolver} in {@code EsqlSession#execute}: each round expands views (which may reveal new IN subqueries) and
-     * then rewrites IN subqueries into Semi/Anti/LeftSemiJoins (which may expose views previously hidden inside an IN subquery's plan).
-     * The loop stops once an IN-subquery pass makes no further change.
+     * Resolves views and IN subquery expressions in a single traversal, mirroring the production pipeline driven by
+     * {@code ViewAndSubqueryResolver} in {@code EsqlSession#execute}.
+     * <p>
+     * Like {@code ViewResolver#replaceViews}, {@link #resolveViews} expands view references and rewrites IN subqueries (in
+     * {@link Filter} conditions) into Semi/Anti/MarkJoins <em>inline</em> as it descends the plan: rewriting an IN subquery exposes its
+     * subquery plan as a join child, which the same traversal then descends into to resolve any views nested there; expanding a view
+     * likewise exposes any IN subqueries hidden in its body for the same traversal to rewrite.
+     * <p>
+     * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
+     * such as EVAL or SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
+            // No views to expand, so view resolution is a no-op; resolve (and validate) IN subqueries directly, just as
+            // ViewResolver#replaceViews does inline when the project defines no views.
             return InSubqueryResolver.resolve(plan);
         }
-        LogicalPlan current = plan;
-        for (int iteration = 0; iteration < MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS; iteration++) {
-            LogicalPlan afterViews = resolveViews(current);
-            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
-            // No InSubquery was rewritten this round, so no new view references can have been exposed: fixed point reached.
-            if (afterInSubquery == afterViews) {
-                return afterInSubquery;
-            }
-            current = afterInSubquery;
-        }
-        throw new IllegalStateException(
-            "view/IN subquery resolution did not reach a fixed point within " + MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS + " iterations"
-        );
+        LogicalPlan resolved = resolveViews(plan);
+        InSubqueryResolver.verify(resolved);
+        return resolved;
     }
 
     // This most primitive view resolution only works for the simple cases being tested
     private LogicalPlan resolveViews(LogicalPlan parsed) {
-        var viewDefinitions = resolveViews(views);
-        return parsed.transformDown(UnresolvedRelation.class, ur -> {
-            List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
-                var view = viewDefinitions.get(indexPattern);
-                return view == null
-                    ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
-                    : new NamedSubquery(view.source(), view, indexPattern);
-            }).toList();
-            if (resolved.size() == 1) {
-                var subplan = resolved.get(0);
-                if (subplan instanceof NamedSubquery n) {
-                    return n.child();
-                }
-                return subplan;
+        return resolveViews(parsed, resolveViews(views));
+    }
+
+    /**
+     * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
+     * <p>
+     * Because {@code transformDown} applies its rule to the children of a replacement subtree but not to the replacement's root, we
+     * recurse explicitly into every view body / rewritten subquery so that references exposed only after an expansion (including ones
+     * sitting at the root of a view body) are resolved within this same pass.
+     */
+    private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
+        return parsed.transformDown(p -> {
+            if (p instanceof Filter filter) {
+                LogicalPlan resolved = InSubqueryResolver.resolveInSubqueryInFilter(filter);
+                // If an IN subquery was rewritten to a Semi/Anti/MarkJoin, recurse so views nested inside the now-exposed subquery
+                // plans (and any IN subqueries those views in turn contain) get resolved too.
+                return resolved == filter ? filter : resolveViews(resolved, viewDefinitions);
             }
-            List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
-            List<NamedSubquery> namedSubqueries = new ArrayList<>();
-            for (LogicalPlan l : resolved) {
-                if (l instanceof UnresolvedRelation u) {
-                    unresolvedRelations.add(u);
-                } else if (l instanceof NamedSubquery n) {
-                    namedSubqueries.add(n);
-                } else {
-                    throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
-                }
+            if (p instanceof UnresolvedRelation ur) {
+                LogicalPlan resolved = resolveViewReference(ur, viewDefinitions);
+                // Recurse into the expanded view body so IN subqueries / nested views anywhere in it (including its root) are resolved.
+                return resolved.equals(ur) ? ur : resolveViews(resolved, viewDefinitions);
             }
-            LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
-            if (unresolvedRelations.size() == 1) {
-                subplans.put(null, unresolvedRelations.get(0));
-            } else if (unresolvedRelations.size() > 1) {
-                String indexPattern = unresolvedRelations.stream()
-                    .map(u -> u.indexPattern().indexPattern())
-                    .collect(Collectors.joining(","));
-                subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
-            }
-            for (NamedSubquery namedSubquery : namedSubqueries) {
-                subplans.put(namedSubquery.name(), namedSubquery.child());
-            }
-            if (subplans.size() == 1) {
-                return namedSubqueries.get(0).child();
-            } else {
-                return new ViewUnionAll(ur.source(), subplans, List.of());
-            }
+            return p;
         });
+    }
+
+    private LogicalPlan resolveViewReference(UnresolvedRelation ur, Map<String, LogicalPlan> viewDefinitions) {
+        List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
+            var view = viewDefinitions.get(indexPattern);
+            return view == null
+                ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
+                : new NamedSubquery(view.source(), view, indexPattern);
+        }).toList();
+        if (resolved.size() == 1) {
+            var subplan = resolved.get(0);
+            if (subplan instanceof NamedSubquery n) {
+                return n.child();
+            }
+            return subplan;
+        }
+        List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
+        List<NamedSubquery> namedSubqueries = new ArrayList<>();
+        for (LogicalPlan l : resolved) {
+            if (l instanceof UnresolvedRelation u) {
+                unresolvedRelations.add(u);
+            } else if (l instanceof NamedSubquery n) {
+                namedSubqueries.add(n);
+            } else {
+                throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+            }
+        }
+        LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
+        if (unresolvedRelations.size() == 1) {
+            subplans.put(null, unresolvedRelations.get(0));
+        } else if (unresolvedRelations.size() > 1) {
+            String indexPattern = unresolvedRelations.stream().map(u -> u.indexPattern().indexPattern()).collect(Collectors.joining(","));
+            subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
+        }
+        for (NamedSubquery namedSubquery : namedSubqueries) {
+            subplans.put(namedSubquery.name(), namedSubquery.child());
+        }
+        if (subplans.size() == 1) {
+            return namedSubqueries.get(0).child();
+        } else {
+            return new ViewUnionAll(ur.source(), subplans, List.of());
+        }
     }
 
     private static UnresolvedRelation makeUnresolvedRelation(UnresolvedRelation plan, String indexPattern) {

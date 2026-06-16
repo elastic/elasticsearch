@@ -35,6 +35,13 @@ class JdkZstdLibrary implements ZstdLibrary {
         LoaderHelper.loadLibrary("zstd");
     }
 
+    // The size_t parameters below are bound as JAVA_LONG because libzstd's one-shot entry points
+    // take/return C `size_t` (8 bytes on every 64-bit target we ship). Binding them as JAVA_INT
+    // (as they originally were, until #150130) leaves the upper 32 bits of the argument register
+    // undefined, which libzstd reads as part of the size_t: most calls see zeroed high bits and
+    // succeed, but under some JIT/register states (observed intermittently on JDK 26) the garbage
+    // high bits make libzstd see a bogus size and fail the page compress/decompress.
+    // See #150015, #150019 and #150077.
     private static final MethodHandle compressBound$mh = downcallHandle("ZSTD_compressBound", FunctionDescriptor.of(JAVA_LONG, JAVA_LONG));
     private static final MethodHandle compress$mh = downcallHandle(
         "ZSTD_compress",

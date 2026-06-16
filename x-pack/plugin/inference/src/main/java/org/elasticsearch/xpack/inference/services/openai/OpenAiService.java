@@ -242,7 +242,7 @@ public class OpenAiService extends SenderService<OpenAiModel> {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, request.taskSettings());
-        action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+        action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, listener);
     }
 
     @Override

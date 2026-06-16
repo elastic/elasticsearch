@@ -268,7 +268,6 @@ public class InferencePlugin extends Plugin
         .getMem()
         .getHeapMax()
         .getBytes());
-    // TODO: Should probably be exposed as a setting
     private static final double DEFAULT_INFERENCE_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
     /**
@@ -296,6 +295,7 @@ public class InferencePlugin extends Plugin
       * Used to limit the amount of memory mainly in-flight request objects
      *  (e.g. {@link org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput} can allocate.
       */
+    // TODO: add telemetry (how often do we trip)
     private final SetOnce<CircuitBreaker> inferenceCircuitBreaker = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {

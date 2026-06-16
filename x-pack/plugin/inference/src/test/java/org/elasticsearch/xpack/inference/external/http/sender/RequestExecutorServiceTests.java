@@ -12,6 +12,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -51,6 +53,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -62,6 +65,7 @@ import static org.mockito.Mockito.when;
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private static final String INFERENCE_ID = "id";
+    private static final InferenceInputs EMBEDDING_INPUT = new EmbeddingsInput(List.of(), InputType.UNSPECIFIED);
 
     private ThreadPool threadPool;
 
@@ -835,6 +839,40 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         verify(mockExecutorService, times(1)).submit(any(Runnable.class));
     }
+
+    public void testExecute_RequestRejected_WhenCircuitBreakerTrips(){
+        // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
+        var circuitBreaker = new TestCircuitBreaker();
+        var requestSender = mock(RequestSender.class);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID);
+
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            circuitBreaker
+        );
+
+        // First request succeeds
+        service.execute(requestManager, EMBEDDING_INPUT, null, new PlainActionFuture<>());
+
+        // Circuit breaker breaks
+        circuitBreaker.startBreaking();
+
+        // Execution of second request should be rejected
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, EMBEDDING_INPUT, null, listener);
+
+        var exception = assertThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(exception.getMessage(), is(eq(format("Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight", INFERENCE_ID))));
+    }
+
+    // TODO: circuit breaker trips, rejects, accepts again, doesn't reject
 
     private Future<?> submitShutdownRequest(
         CountDownLatch waitToShutdown,

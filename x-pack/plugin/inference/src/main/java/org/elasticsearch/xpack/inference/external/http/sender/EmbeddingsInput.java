@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
 
@@ -50,6 +51,11 @@ public class EmbeddingsInput extends InferenceInputs {
         this.inputListSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
         this.estimatedSizeInBytes = estimatedSizeInBytes;
+    }
+
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType, boolean stream) {
+        var ramBytesUsed = input.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
+        return new EmbeddingsInput(() -> input.stream().map(InferenceStringGroup::new).collect(Collectors.toList()), ramBytesUsed, inputType, stream);
     }
 
     private static long estimateSizeInBytes(List<InferenceStringGroup> input) {

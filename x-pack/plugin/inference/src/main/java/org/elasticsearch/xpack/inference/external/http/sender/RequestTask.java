@@ -80,6 +80,7 @@ class RequestTask implements RejectableTask {
         return circuitBreaker;
     }
 
+    // TODO: test release
     private static ActionListener<InferenceServiceResults> releaseInflightBytesOnceListener(
         ActionListener<InferenceServiceResults> listener,
         CircuitBreaker circuitBreaker,

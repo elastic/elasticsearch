@@ -539,6 +539,7 @@ public class RequestExecutorService implements RequestExecutor {
         try {
             circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamBytesUsed, inferenceEntityId);
         } catch (CircuitBreakingException e) {
+            // TODO: add to telemetry
             listener.onFailure(
                 new EsRejectedExecutionException(
                     format(

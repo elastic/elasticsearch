@@ -240,7 +240,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
                     var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
                     ExecutableAction action = jinaAIModel.accept(actionCreator, request.taskSettings());
-                    action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+                    action.execute(new EmbeddingsInput(request.inputs(), request.inputType()), timeout, listener);
                 }
             }
         } else {

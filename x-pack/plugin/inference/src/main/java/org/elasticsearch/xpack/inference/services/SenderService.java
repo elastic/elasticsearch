@@ -255,7 +255,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
                 validationException.throwIfValidationErrorsExist();
-                yield new EmbeddingsInput(input, inputType, stream);
+                yield EmbeddingsInput.fromStrings(input, inputType, stream);
             }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),

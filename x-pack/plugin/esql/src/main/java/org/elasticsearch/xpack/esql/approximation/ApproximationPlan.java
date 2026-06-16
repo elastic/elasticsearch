@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -37,7 +37,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -161,14 +164,20 @@ public class ApproximationPlan {
     private static final int MIN_ROW_COUNT_FOR_RESULT_INCLUSION = 10;
 
     /**
-     * These numerical scalar functions produce multivalued output. This means that
-     * confidence intervals cannot be computed anymore and are dropped.
+     * These numerical scalar functions may produce multivalued output. This means
+     * that confidence intervals cannot be computed anymore and are dropped.
      * <p>
      * Numerical scalar functions that produce multivalued output should be added
      * here. Forgetting to do so leads to confidence intervals columns for the
      * multivalued fields, that are filled with nulls.
      */
-    private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
+    private static final Set<Class<? extends ScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(
+        MvAppend.class,
+        MvDifference.class,
+        MvIntersection.class,
+        MvSlice.class,
+        MvUnion.class
+    );
 
     /**
      * A placeholder expression in the main approximation plan, that is replaced
@@ -294,10 +303,30 @@ public class ApproximationPlan {
      * sampling the source rows and a normal {@code STATS} (with sample corrections applied
      * to intermediate state), or pushed down to Lucene without any sampling (if possible).
      */
-    public static LogicalPlan get(LogicalPlan logicalPlan, ApproximationSettings settings) {
+    public static LogicalPlan get(
+        LogicalPlan logicalPlan,
+        ApproximationVerifier.QueryProperties queryProperties,
+        ApproximationSettings settings
+    ) {
         logger.debug("generating approximation plan");
 
         Double confidenceLevel = settings.confidenceLevel();
+
+        // Collect all plans inside FORK branches that cannot be approximated
+        // (as indicated by: queryProperties.forkBranchProperties[i] == null).
+        // When rewriting the query, don't rewrite any such plans.
+        Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
+        if (queryProperties.forkBranchProperties() != null) {
+            List<Fork> forks = logicalPlan.collect(Fork.class);
+            assert forks.size() == 1;
+            Fork fork = forks.getFirst();
+            assert fork.children().size() == queryProperties.forkBranchProperties().size();
+            for (int i = 0; i < fork.children().size(); i++) {
+                if (queryProperties.forkBranchProperties().get(i) == null) {
+                    fork.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
+                }
+            }
+        }
 
         // Logical plans that have STATS somewhere in their children.
         Set<LogicalPlan> plansThatEncounteredStats = new HashSet<>();
@@ -318,6 +347,10 @@ public class ApproximationPlan {
         Holder<Integer> sampleProbabilityId = new Holder<>(0);
 
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
+            boolean inNonApproximableForkBranch = plansInNonApproximableForkBranch.contains(plan);
+            if (inNonApproximableForkBranch) {
+                return plan;
+            }
             boolean encounteredStats = plan.children().stream().anyMatch(plansThatEncounteredStats::contains);
             if (encounteredStats == false) {
                 if (plan instanceof Aggregate == false) {
@@ -333,7 +366,7 @@ public class ApproximationPlan {
                     return plan;
                 }
             } else {
-                // After the STATS function, any processing of fields that have buckets, should
+                // After the STATS command, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
                 plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);

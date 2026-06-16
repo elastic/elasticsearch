@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -126,6 +127,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
+import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -144,6 +146,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryReloc
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
@@ -384,6 +387,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
+            res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             return Set.copyOf(res);
         }
@@ -742,6 +746,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 settings,
                 threadPool,
                 new BlobCacheMetrics(MeterRegistry.NOOP),
+                clusterService,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );
 
@@ -838,7 +843,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 ActionListener<Void> listener = invocation.getArgument(2);
                 listener.onResponse(null);
                 return null;
-            }).when(hollowShardsService).onMutableOperation(any(), anyBoolean(), anyActionListener());
+            }).when(hollowShardsService).beforeMutableOperation(any(), anyBoolean(), anyActionListener());
             when(hollowShardsService.isHollowShard(any(ShardId.class))).thenReturn(false);
             when(hollowShardsService.isHollowableIndexShard(any(IndexShard.class), anyBoolean())).thenReturn(false);
 
@@ -1082,7 +1087,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheService,
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
-                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings())
+                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
+                        new NoopCircuitBreaker("stateless_reader_heap"),
+                        StatelessReaderHeapMetrics.NOOP,
+                        new ReshardSearchFilters(Settings.EMPTY)
                     );
                 }
             });

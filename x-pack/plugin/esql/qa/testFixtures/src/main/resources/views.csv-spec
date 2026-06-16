@@ -337,6 +337,7 @@ HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           
 ;
 
 airportsLookupJoinViewAirports
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -353,6 +354,7 @@ LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           |
 ;
 
 airportsLookupJoinViewAirportsStats
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -375,6 +377,7 @@ count:long | duplications:long
 ;
 
 airportsLookupJoinViewAirportsStatsValues
+skip_flattened_rewrite: lookup_join_in_view_flattened_source
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
@@ -670,7 +673,7 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees* should not trigger a false circular view reference error.
-FROM *,-employees*, -view*row*
+FROM *,-employees*, -view*row*, -view_k8s_*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -687,7 +690,7 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
-FROM *,-employees_extra,-employees_all, -view*row*
+FROM *,-employees_extra,-employees_all, -view*row*, -view_k8s_*, -employees_in_subquery*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -974,4 +977,388 @@ FROM (FROM sample_data, view_row_eval | WHERE multiplier IS NOT NULL OR client_i
 
 total:long | tr:long
 8          | 1
+;
+
+###############################################
+# Views whose body uses TS (time-series) as the source command.
+# The view body's TS pipeline is resolved like any other view body, so
+# `FROM <ts-view>` exposes the view's aggregated output as a regular relation.
+###############################################
+
+tsViewPlain
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+tsViewFiltered
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster
+| WHERE max_bytes > 10000
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+tsViewMaxRate
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_rate
+;
+
+max_rate:double
+13.173725
+;
+
+tsViewDownsampled
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_downsampled_low_tx_count
+| SORT cluster
+;
+ignoreOrder:true
+
+count:long | cluster:keyword
+3          | prod
+2          | qa
+2          | staging
+;
+
+tsViewWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_*
+| SORT cluster NULLS FIRST
+| KEEP cluster, max_bytes, max_rate
+;
+
+cluster:keyword | max_bytes:long | max_rate:double
+null            | null           | 13.173725
+prod            | 10277          | null
+qa              | 10797          | null
+staging         | 7403           | null
+;
+
+tsViewBranching
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| SORT cluster, max_bytes NULLS LAST
+| KEEP cluster, max_bytes, count
+;
+
+cluster:keyword | max_bytes:long | count:long
+prod            | 10277          | null
+prod            | null           | 3
+qa              | 10797          | null
+qa              | null           | 2
+staging         | 7403           | null
+staging         | null           | 2
+;
+
+tsViewBranchingStats
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_max_bytes_by_cluster, view_k8s_downsampled_low_tx_count
+| STATS bytes=MAX(max_bytes), low_tx=SUM(count) BY cluster
+| SORT cluster
+;
+
+bytes:long | low_tx:long | cluster:keyword
+10277      | 3           | prod
+10797      | 2           | qa
+7403       | 2           | staging
+;
+
+tsViewInSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_max_bytes_by_cluster)
+| STATS sd = COUNT(client_ip), tv = COUNT(max_bytes), total = COUNT()
+;
+
+sd:long | tv:long | total:long
+7       | 3       | 10
+;
+
+tsViewInSubqueryMultipleRows
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_max_bytes_by_cluster)
+| STATS total = COUNT() BY cluster
+| SORT total DESC, cluster ASC
+;
+
+total:long | cluster:keyword
+7          | null
+1          | prod
+1          | qa
+1          | staging
+;
+
+tsViewMixedWithStandardView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+// Combines a standard FROM-based view (employees_all) with a TS-based view in
+// a subquery. The aggregate captures the row contribution of each branch.
+FROM employees_all, (FROM view_k8s_max_bytes_by_cluster)
+| STATS employees = COUNT(emp_no), clusters = COUNT(cluster), total = COUNT()
+;
+
+employees:long | clusters:long | total:long
+100            | 3             | 103
+;
+
+tsView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| KEEP @timestamp, cluster, network.bytes_in
+| SORT @timestamp, cluster
+;
+
+@timestamp:datetime      | cluster:keyword | network.bytes_in:long
+2024-05-10T00:00:29.000Z | staging         | 699
+2024-05-10T00:00:33.000Z | staging         | 473
+2024-05-10T00:00:51.000Z | prod            | 113
+2024-05-10T00:00:57.000Z | prod            | 677
+;
+
+tsViewWithFilterAndStats
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| WHERE cluster == "staging"
+| STATS bytes = SUM(network.bytes_in)
+;
+
+bytes:long
+1172
+;
+
+tsViewWithStatsAndSort
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+2      | prod
+2      | staging
+;
+
+tsViewDownsampledWithStatsAndSort
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_downsampled_first_bucket
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+3      | prod
+3      | qa
+3      | staging
+;
+
+tsViewsWithStatsAndSort
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM view_k8s_early_window, view_k8s_downsampled_first_bucket
+| STATS c = COUNT(network.bytes_in) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+5      | prod
+3      | qa
+5      | staging
+;
+
+tsViewAndIndexPatternWithStats
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_early_window)
+| STATS sd = COUNT(client_ip), tv = COUNT(network.bytes_in), total = COUNT()
+;
+
+sd:long | tv:long | total:long
+7       | 4       | 11
+;
+
+tsViewAndIndexPatternWithStatsAndSort
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+
+FROM sample_data, (FROM view_k8s_early_window)
+| STATS total = COUNT() BY cluster
+| SORT cluster NULLS FIRST
+;
+
+total:long | cluster:keyword
+7          | null
+2          | prod
+2          | staging
+;
+
+mixedSubqueriesViewPlan
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+null                     | null         | synthetic       | 99999
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+mixedSubqueriesViewFiltered
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| WHERE max_bytes > 8000
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+synthetic       | 99999
+;
+
+mixedSubqueriesViewStats
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| STATS rows = COUNT(), clusters = COUNT(cluster), ips = COUNT(client_ip), max_b = MAX(max_bytes)
+;
+
+rows:long | clusters:long | ips:long | max_b:long
+5         | 4             | 1        | 99999
+;
+
+mixedSubqueriesViewInFromSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM (FROM view_k8s_mixed_subqueries | WHERE max_bytes IS NOT NULL)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+staging         | 7403
+synthetic       | 99999
+;
+
+viewContainingInSubquery
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+
+// employees_in_subquery is a view: FROM employees | WHERE emp_no IN (FROM employees | SORT emp_no ASC | LIMIT 3 | KEEP emp_no)
+// The view definition itself contains an IN subquery.
+FROM employees_in_subquery
+| SORT emp_no
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+10002          | Bezalel
+10003          | Parto
 ;

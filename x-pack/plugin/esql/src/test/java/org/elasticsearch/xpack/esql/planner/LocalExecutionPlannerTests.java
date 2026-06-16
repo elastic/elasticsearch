@@ -663,7 +663,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
             PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
-            PlannerSettings.PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY)
+            PlannerSettings.PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY),
+            PlannerSettings.IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -874,7 +875,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            PlannerSettings.DEFAULTS
+            PlannerSettings.DEFAULTS,
+            () -> 0L
         );
     }
 

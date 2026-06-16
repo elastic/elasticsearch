@@ -35,16 +35,23 @@ class JdkZstdLibrary implements ZstdLibrary {
         LoaderHelper.loadLibrary("zstd");
     }
 
-    private static final MethodHandle compressBound$mh = downcallHandle("ZSTD_compressBound", FunctionDescriptor.of(JAVA_LONG, JAVA_INT));
+    // The size_t parameters below are bound as JAVA_LONG because libzstd's one-shot entry points
+    // take/return C `size_t` (8 bytes on every 64-bit target we ship). Binding them as JAVA_INT
+    // (as they originally were, until #150130) leaves the upper 32 bits of the argument register
+    // undefined, which libzstd reads as part of the size_t: most calls see zeroed high bits and
+    // succeed, but under some JIT/register states (observed intermittently on JDK 26) the garbage
+    // high bits make libzstd see a bogus size and fail the page compress/decompress.
+    // See #150015, #150019 and #150077.
+    private static final MethodHandle compressBound$mh = downcallHandle("ZSTD_compressBound", FunctionDescriptor.of(JAVA_LONG, JAVA_LONG));
     private static final MethodHandle compress$mh = downcallHandle(
         "ZSTD_compress",
-        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT)
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_INT)
     );
     private static final MethodHandle isError$mh = downcallHandle("ZSTD_isError", FunctionDescriptor.of(JAVA_BOOLEAN, JAVA_LONG));
     private static final MethodHandle getErrorName$mh = downcallHandle("ZSTD_getErrorName", FunctionDescriptor.of(ADDRESS, JAVA_LONG));
     private static final MethodHandle decompress$mh = downcallHandle(
         "ZSTD_decompress",
-        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG)
     );
 
     // Heap-array overloads bound with critical() so they accept heap MemorySegments directly —
@@ -55,12 +62,12 @@ class JdkZstdLibrary implements ZstdLibrary {
     // Same C entry points as the off-heap handles above; only the linker option differs.
     private static final MethodHandle decompressHeap$mh = downcallHandle(
         "ZSTD_decompress",
-        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT),
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG),
         LinkerHelperUtil.critical()
     );
     private static final MethodHandle compressHeap$mh = downcallHandle(
         "ZSTD_compress",
-        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_LONG, ADDRESS, JAVA_LONG, JAVA_INT),
         LinkerHelperUtil.critical()
     );
 
@@ -95,7 +102,7 @@ class JdkZstdLibrary implements ZstdLibrary {
     @Override
     public long compressBound(int srcLen) {
         try {
-            return (long) compressBound$mh.invokeExact(srcLen);
+            return (long) compressBound$mh.invokeExact((long) srcLen);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -112,7 +119,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
         var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) compress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, compressionLevel);
+            return (long) compress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize, compressionLevel);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -148,7 +155,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
         var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+            return (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -164,7 +171,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
         var segmentSrc = MemorySegment.ofBuffer(src);
         try {
-            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+            return (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -180,7 +187,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = MemorySegment.ofBuffer(dst.duplicate().clear()).asSlice(dstOffset, dstSize);
         var segmentSrc = MemorySegment.ofBuffer(src.duplicate().clear()).asSlice(srcOffset, srcSize);
         try {
-            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+            return (long) decompress$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -195,7 +202,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
         var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
         try {
-            return (long) decompressHeap$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+            return (long) decompressHeap$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -206,7 +213,7 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
         var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
         try {
-            return (long) compressHeap$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, level);
+            return (long) compressHeap$mh.invokeExact(segmentDst, (long) dstSize, segmentSrc, (long) srcSize, level);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

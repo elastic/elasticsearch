@@ -13,10 +13,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -62,7 +63,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
-    static EsField timeSeriesField() {
+    public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
     }
 
@@ -197,7 +198,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                 && MetadataAttribute.isTimeSeriesAttributeName(name())) {
                 if (this instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
                     out.writeBoolean(true);
-                    out.writeStringCollection(timeSeriesMetadataAttribute.withoutFields());
+                    out.writeStringCollection(timeSeriesMetadataAttribute.excludedFields());
                 } else {
                     out.writeBoolean(false);
                 }
@@ -243,21 +244,21 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     }
 
     public boolean hasTypeConflicts() {
-        return field instanceof InvalidMappedField;
+        return field instanceof TypeConflictedField;
     }
 
     /**
-     * If the underlying field is an {@link InvalidMappedField} (ambiguous type across indices),
+     * If the underlying field is a {@link TypeConflictedField} (ambiguous type across indices),
      * converts this attribute into an {@link UnsupportedAttribute} with a descriptive error message
      * so the analyzer can surface a clear user-facing error.
      */
     public Attribute flagTypeConflicts() {
-        if (field instanceof InvalidMappedField imf) {
+        if (field instanceof TypeConflictedField tcf) {
             // Field has conflicting types across indices — build a user-facing error message.
-            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + imf.errorMessage();
-            List<String> types = imf.getTypesToIndices().keySet().stream().toList();
+            String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
+            List<String> types = tcf.getTypesToIndices().keySet().stream().toList();
             // Preserve the original NameId so downstream attribute-resolution stays consistent.
-            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(imf.getName(), types), unresolvedMessage, id());
+            return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), types), unresolvedMessage, id());
         }
         return this;
     }
@@ -345,20 +346,23 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return field;
     }
 
+    /**
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
+     */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        switch (format) {
-            case FULL -> {
-                sb.append(qualifiedName()).append("{").append(label());
-                if (field.getNodeStringName().isEmpty() == false) {
-                    sb.append("(").append(field.getNodeStringName()).append(")");
-                }
-                if (synthetic()) {
-                    sb.append("$");
-                }
-                sb.append("}#").append(id());
-            }
-            case LIMITED -> super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (qualifier() != null) {
+            sb.append(mapper.column(qualifier())).append('.');
         }
+        sb.append(mapper.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
     }
 }

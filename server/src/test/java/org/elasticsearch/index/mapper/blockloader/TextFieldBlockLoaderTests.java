@@ -70,7 +70,9 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
             // TODO ideally this logic should be in some kind of KeywordFieldSyntheticSourceTest that uses same infra as
             // KeywordFieldBlockLoaderTest
             // It is here since KeywordFieldBlockLoaderTest does not really need it
-            if (params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false && usingSyntheticSourceDelegate) {
+            if ((params.syntheticSource() || params.isColumnarStored())
+                && testContext.forceFallbackSyntheticSource() == false
+                && usingSyntheticSourceDelegate) {
                 var nullValue = (String) keywordMultiFieldMapping.get("null_value");
 
                 if (value == null) {
@@ -115,7 +117,7 @@ public class TextFieldBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
         }
 
         // Loading from binary doc values
-        if (params.syntheticSource() && useBinaryDocValues) {
+        if ((params.syntheticSource() || params.isColumnarStored()) && useBinaryDocValues) {
             return valuesInSortedOrder(value);
         }
 

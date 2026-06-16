@@ -100,6 +100,17 @@ public class SemanticFieldContentTests extends ESTestCase {
         expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
     }
 
+    public void testUnparseableMapValue() {
+        Map<String, String> badMap = Map.of("foo", "bar");
+        SemanticFieldContent content = new SemanticFieldContent(List.of(badMap));
+
+        assertEquals(badMap, content.getMapValue(0));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> content.getInferenceStringValue(0));
+        assertThat(e.getMessage(), containsString("Cannot parse value [{foo=bar}] to an InferenceString"));
+        assertThat(e.getCause().getMessage(), containsString("[InferenceString] unknown field [foo]"));
+    }
+
     private static void assertSemanticFieldContent(List<Object> inputs, SemanticFieldContent content) throws IOException {
         int i = 0;
         int cursor = 0;

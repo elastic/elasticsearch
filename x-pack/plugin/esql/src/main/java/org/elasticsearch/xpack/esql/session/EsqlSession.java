@@ -136,7 +136,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -216,6 +215,7 @@ public class EsqlSession {
      * failure listener an atomic, all-or-nothing view of the snapshot.
      */
     private record PlanSnapshot(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+
         static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null);
 
         PlanSnapshot withParsed(LogicalPlan p) {
@@ -315,13 +315,9 @@ public class EsqlSession {
         planSnapshot = planSnapshot.withParsed(statement.plan());
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
+        gatherInSubqueryMetrics(statement.plan());
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        // Collect IN_SUBQUERY telemetry from the original plan before view+subquery resolution begins. The listener receives the
-        // pre-resolution plan so InSubquery expressions are still visible. Mirroring how view telemetry is collected before view resolution
-        // discards view-specific nodes. The WHERE counter is set by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
-        // SemiJoin/AntiJoin/MarkJoin too.
-        AtomicBoolean inSubqueryMetricCounted = new AtomicBoolean();
         viewAndSubqueryResolver.resolve(
             statement.plan(),
             projectRouting(request, statement),
@@ -332,7 +328,6 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            afterViews -> gatherInSubqueryMetrics(afterViews, inSubqueryMetricCounted),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
@@ -1077,21 +1072,18 @@ public class EsqlSession {
     }
 
     /**
-     * Increments the {@code IN_SUBQUERY} counter at most once per query when the original (pre-resolution) plan
-     * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
-     * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}.
-     * <p>
-     * {@link ViewAndSubqueryResolver} calls this with the original plan before view and subquery resolution begins,
-     * so the originating {@code InSubquery} expressions are still in place. {@code alreadyCounted} keeps the increment
-     * to once per query; it is an {@link AtomicBoolean} for consistency with concurrent callers. Mirrors
-     * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter is handled by the
-     * analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin.
+     * Increments the {@code IN_SUBQUERY} counter once per query when the parsed plan contains any
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery} inside a
+     * {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}. Called before view and subquery
+     * resolution, while {@code InSubquery} expressions are still visible. Mirrors {@link #gatherViewMetrics}.
+     * The {@code WHERE} counter is handled separately by the analyzer/verifier plan walk via
+     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin.
      */
-    private void gatherInSubqueryMetrics(LogicalPlan plan, AtomicBoolean alreadyCounted) {
+    private void gatherInSubqueryMetrics(LogicalPlan plan) {
         if (metrics == null) {
             return;
         }
-        if (InSubqueryResolver.hasInSubqueryInFilter(plan) && alreadyCounted.compareAndSet(false, true)) {
+        if (InSubqueryResolver.hasInSubqueryInFilter(plan)) {
             metrics.inc(FeatureMetric.IN_SUBQUERY);
         }
     }

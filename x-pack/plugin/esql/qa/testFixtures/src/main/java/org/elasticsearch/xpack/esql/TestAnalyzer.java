@@ -75,8 +75,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * </ul>
  */
 public class TestAnalyzer {
-    // Mirrors the default of ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING; a safety bound for the
-    // view / IN-subquery resolution loop in resolveViewsAndInSubqueries.
+    // Safety bound for the iterative view/IN-subquery resolution loop in resolveViewsAndInSubqueries.
+    // Matches the default of ViewResolver.MAX_VIEW_DEPTH_SETTING.
     private static final int MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS = 10;
 
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
@@ -511,10 +511,13 @@ public class TestAnalyzer {
     }
 
     /**
-     * Resolves views and IN subquery expressions to a fixed point, mirroring the production pipeline driven by
-     * {@code ViewAndSubqueryResolver} in {@code EsqlSession#execute}: each round expands views (which may reveal new IN subqueries) and
-     * then rewrites IN subqueries into Semi/Anti/LeftSemiJoins (which may expose views previously hidden inside an IN subquery's plan).
-     * The loop stops once an IN-subquery pass makes no further change.
+     * Resolves views and IN subquery expressions to a fixed point. Production resolves both inline in a single recursive traversal
+     * ({@code ViewResolver} rewrites {@code InSubquery} expressions as it encounters them and immediately recurses to expand any newly
+     * exposed view references). This test helper uses a simpler iterative approach because its {@link #resolveViews} only performs a
+     * plain {@code transformDown} over {@link UnresolvedRelation} nodes and cannot interleave IN-subquery rewriting inline: each round
+     * expands view references (which may reveal new IN subqueries in view bodies) and then rewrites IN subqueries into
+     * Semi/Anti/LeftSemiJoins (which exposes subquery plans as proper plan children so the next view-resolution pass can reach them).
+     * The loop stops once the IN-subquery pass makes no further change.
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {

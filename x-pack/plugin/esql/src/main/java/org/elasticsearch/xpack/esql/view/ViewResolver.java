@@ -302,7 +302,6 @@ public class ViewResolver {
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
                             if (updatedSubplansInner == null) {
-
                                 updatedSubplansInner = new ArrayList<>(currentSubplans);
                             }
                             updatedSubplansInner.set(index, newPlan);

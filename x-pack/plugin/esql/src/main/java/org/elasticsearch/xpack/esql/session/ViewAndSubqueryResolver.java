@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 /**
  * Resolves views and {@code InSubquery} expressions in a single pass.
@@ -23,11 +22,6 @@ import java.util.function.Consumer;
  * {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin}/{@link org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin}/
  * {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin} and immediately recurses to resolve any view references in the
  * newly created subquery plans. This means a single {@code replaceViews} call fully expands the plan — no fixed-point loop is needed.
- * <p>
- * The {@code viewResolvedListener} consumer is invoked with the <em>original</em> (pre-resolution) plan so callers can inspect
- * {@code InSubquery} expressions that appear directly in the query before they are rewritten. Callers wanting to detect
- * {@code InSubquery} usage should check the original plan via
- * {@link InSubqueryResolver#hasInSubqueryInFilter(LogicalPlan)}.
  */
 public final class ViewAndSubqueryResolver {
 
@@ -39,20 +33,13 @@ public final class ViewAndSubqueryResolver {
 
     /**
      * Resolves views and IN subqueries in the plan.
-     *
-     * @param viewResolvedListener invoked with the original (pre-resolution) plan so callers can check for {@code InSubquery} expressions
-     *                             before they are rewritten.
      */
     public void resolve(
         LogicalPlan plan,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> viewParser,
-        Consumer<LogicalPlan> viewResolvedListener,
         ActionListener<ViewResolver.ViewResolutionResult> listener
     ) {
-        // Surface the original plan before resolution so callers can detect InSubquery usage.
-        viewResolvedListener.accept(plan);
-
         viewResolver.replaceViews(plan, projectRouting, viewParser, listener.delegateFailureAndWrap((l, viewResult) -> {
             // Validate: no InSubquery expressions should survive view+subquery resolution.
             InSubqueryResolver.verify(viewResult.plan());

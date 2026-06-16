@@ -34,9 +34,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -170,33 +168,29 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     // ---- helpers ----
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
-        return resolve(query, plan -> {});
-    }
-
-    private ViewResolver.ViewResolutionResult resolve(String query, Consumer<LogicalPlan> viewResolvedListener) {
         ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewResolver);
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.resolve(query(query), null, this::parse, viewResolvedListener, future);
+        resolver.resolve(query(query), null, this::parse, future);
         return future.actionGet();
     }
 
     /**
-     * Collects the {@code IN_SUBQUERY} feature metric exactly as {@code EsqlSession.execute} does: the resolver surfaces every
-     * view-resolution pass and the collector de-duplicates with an {@link AtomicBoolean}. {@code passesWithInSubquery} records how many
-     * passes still contained an InSubquery in a {@code WHERE} filter, so callers can assert the expression was visible across iterations.
+     * Collects the {@code IN_SUBQUERY} feature metric exactly as {@code EsqlSession.execute} does: check the original
+     * (pre-resolution) plan for {@code InSubquery} expressions before resolution rewrites them away.
+     * {@code passesWithInSubquery} records whether the original plan contained an InSubquery in a {@code WHERE} filter.
      * Returns the resulting {@code IN_SUBQUERY} counter value.
      */
     private long inSubqueryMetric(String query, AtomicInteger passesWithInSubquery) {
         Metrics metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
-        AtomicBoolean alreadyCounted = new AtomicBoolean();
-        resolve(query, afterViews -> {
-            if (InSubqueryResolver.hasInSubqueryInFilter(afterViews)) {
-                passesWithInSubquery.incrementAndGet();
-                if (alreadyCounted.compareAndSet(false, true)) {
-                    metrics.inc(FeatureMetric.IN_SUBQUERY);
-                }
-            }
-        });
+        LogicalPlan plan = query(query);
+        if (InSubqueryResolver.hasInSubqueryInFilter(plan)) {
+            passesWithInSubquery.incrementAndGet();
+            metrics.inc(FeatureMetric.IN_SUBQUERY);
+        }
+        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewResolver);
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        resolver.resolve(plan, null, this::parse, future);
+        future.actionGet();
         return metrics.stats().get("features." + FeatureMetric.IN_SUBQUERY);
     }
 

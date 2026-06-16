@@ -131,6 +131,18 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
     }
 
+    public void testRejectsViewSubqueryWithMultipleColumns() {
+        assumeTrue("Requires views in cluster state", EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE.isEnabled());
+        assumeTrue("Requires IN subquery view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+        installView("multi_col_view", "FROM test | KEEP id, name");
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM multi_col_view) | KEEP id"));
+            assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found [id, name]"));
+        } finally {
+            deleteViews("multi_col_view");
+        }
+    }
+
     public void testRejectsSubqueryWithEmptyMapping() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM empty_mapping) | KEEP id"));
         assertThat(e.getMessage(), containsString("IN subquery cannot reference an index with empty mapping"));

@@ -1670,6 +1670,28 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("*"), excl("x", "salary")));
     }
 
+    public void testUnmappedFieldsPatternKeepWildcardThenEvalShadow() {
+        // EVAL introduces first_name which is the same name as a mapped field.
+        // Eval.unmappedFieldsToKeep() adds it to excludes first; then esr.output() names are merged
+        // (first_name deduplicated to stay at front via LinkedHashSet).
+        LogicalPlan plan = test().statement(setUnmappedLoadAll(
+            "FROM test | KEEP first* | EVAL first_name = to_upper(first_name)"
+        ));
+        assertEsRelationPattern(plan, new UnmappedFieldsPattern(List.of("first*"), excl("first_name")));
+    }
+
+    public void testLoadAllUnmappedFieldsColumnNotDirectlyReferenceable() {
+        // _unmapped_fields is a synthetic column; it must not be explicitly referenceable by name.
+        // TODO: the correct error is "Unknown column [_unmapped_fields]", but currently
+        // ResolveUnmapped resolves _unmapped_fields as an ordinary unmapped keyword field,
+        // then DetermineUnmappedFieldsToKeep adds a second _unmapped_fields attribute —
+        // resulting in a "duplicate output attribute" verifier error instead.
+        test().statementError(
+            setUnmappedLoadAll("FROM test | KEEP @timestamp, _unmapped_fields"),
+            containsString("_unmapped_fields")
+        );
+    }
+
     /** Finds the single non-LOOKUP EsRelation in the plan and asserts its unmapped-fields pattern. */
     private static void assertEsRelationPattern(LogicalPlan plan, UnmappedFieldsPattern expected) {
         List<EsRelation> relations = plan.collect(EsRelation.class);

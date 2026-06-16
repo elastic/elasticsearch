@@ -97,6 +97,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            @Nullable Map<BlobFile, Long> timestampsPerBlob,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -112,7 +113,7 @@ public final class SearchShardCacheWarmingITPlugin extends TestUtils.StatelessPl
                     }
                 }
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, listener);
+            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, preWarmForIdLookup, listener);
         }
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -60,6 +61,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean statelessCacheBoostPreferenceEnabled;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -73,6 +75,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.statelessCacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     // for tests
@@ -96,6 +99,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+        this.statelessCacheBoostPreferenceEnabled = STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings);
     }
 
     static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
@@ -114,6 +118,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
+        long timestampMillis,
         ActionListener<Void> listener,
         String... threadPools
     ) {
@@ -147,6 +152,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     ),
                     fetchExecutor,
                     force,
+                    timestampMillis,
                     listeners.acquire().map(populated -> null)
                 );
             }
@@ -173,6 +179,33 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             bytesCopiedConsumer,
             fetchExecutor,
             force,
+            UNKNOWN_TIMESTAMP,
+            listener
+        );
+    }
+
+    void fetchRange(
+        FileCacheKey cacheKey,
+        ByteRange byteRange,
+        CacheBlobReader cacheBlobReader,
+        Object initiator,
+        Supplier<ByteBuffer> writeBufferSupplier,
+        IntConsumer bytesCopiedConsumer,
+        Executor fetchExecutor,
+        boolean force,
+        long timestampMillis,
+        ActionListener<Void> listener
+    ) {
+        fetchRange(
+            cacheKey,
+            byteRange,
+            cacheBlobReader,
+            initiator,
+            writeBufferSupplier,
+            bytesCopiedConsumer,
+            fetchExecutor,
+            force,
+            timestampMillis,
             listener,
             StatelessPlugin.PREWARM_THREAD_POOL,
             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
@@ -214,5 +247,26 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     public PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder() {
         return metricsHolder;
+    }
+
+    public boolean isCacheBoostPreferenceEnabled() {
+        return statelessCacheBoostPreferenceEnabled;
+    }
+
+    /**
+     * Backfills the timestamp of the cache regions covering the blob byte range {@code [offset, offset + length)} with
+     * {@code timestampMillis}, using a full override. Only regions that are already cached are updated; absent regions are
+     * left untouched.
+     */
+    public void backfillTimestamp(ShardId shardId, long primaryTerm, String blobName, long offset, long length, long timestampMillis) {
+        if (timestampMillis == UNKNOWN_TIMESTAMP) {
+            return;
+        }
+        var cacheKey = new FileCacheKey(shardId, primaryTerm, blobName);
+        int startRegion = getRegion(offset);
+        int endRegion = getEndingRegion(offset + length);
+        for (int region = startRegion; region <= endRegion; region++) {
+            updateRegionTimestamp(cacheKey, region, timestampMillis, true);
+        }
     }
 }

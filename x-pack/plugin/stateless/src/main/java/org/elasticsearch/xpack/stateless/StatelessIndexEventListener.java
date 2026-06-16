@@ -13,6 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -450,10 +450,14 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
-                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
-                    if (useInternalFilesReplicatedContentForSearchShards) {
+                SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
+                    if (useInternalFilesReplicatedContentForSearchShards || cacheService.isCacheBoostPreferenceEnabled()) {
+                        if (batchedCompoundCommit != null && cacheService.isCacheBoostPreferenceEnabled()) {
+                            backfillBccHeaderTimestamps(indexShard.shardId(), batchedCompoundCommit);
+                        }
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> timestampsPerBlob = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -469,20 +473,34 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                offsetsToWarm.compute(
-                                    referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                    (blobFile, maxOffsetToWarm) -> {
-                                        var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
-                                    }
-                                );
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                offsetsToWarm.compute(bccBlobFile, (blobFile, maxOffsetToWarm) -> {
+                                    var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                    return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
+                                });
+                                if (cacheService.isCacheBoostPreferenceEnabled()) {
+                                    long ccTimestamp = BlobFileRanges.midpointMillisOrUnknown(
+                                        referencedCompoundCommit.statelessCompoundCommitReference()
+                                            .compoundCommit()
+                                            .getTimestampFieldValueRange()
+                                    );
+                                    timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
+                                    cacheService.backfillTimestamp(
+                                        searchDirectory.getShardId(),
+                                        bccBlobFile.primaryTerm(),
+                                        bccBlobFile.blobName(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                        referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit().headerSizeInBytes(),
+                                        ccTimestamp
+                                    );
+                                }
                             },
-                            l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
+                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, offsetsToWarm, timestampsPerBlob))
                         );
                     } else {
                         l2.onResponse(null);
                     }
-                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
                     final var resumeRecovery = new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
@@ -497,8 +515,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         }
                     };
 
-                    if (blobFileRangesAndOffsetsToWarm != null) {
-                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
+                    if (warmingInputs != null) {
+                        searchDirectory.updateCommit(compoundCommit, warmingInputs.blobFileRanges());
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
                     }
@@ -507,13 +525,40 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        blobFileRangesAndOffsetsToWarm != null ? blobFileRangesAndOffsetsToWarm.v2() : null,
+                        warmingInputs != null ? warmingInputs.offsetsToWarm() : null,
+                        warmingInputs != null ? warmingInputs.timestampsPerBlob() : null,
                         resumeRecovery
                     );
                 }));
             })
         );
     }
+
+    // Stamps the header regions of every CC packed in the recovery BCC blob with that CC's midpoint timestamp. Whether the
+    // BCC is read through the cache is controlled by CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING; we ignore that here and let
+    // the caching-infra boost flag (checked in backfillTimestamp) decide.
+    private void backfillBccHeaderTimestamps(ShardId shardId, BatchedCompoundCommit bcc) {
+        final long primaryTerm = bcc.primaryTermAndGeneration().primaryTerm();
+        final String blobName = StatelessCompoundCommit.blobNameFromGeneration(bcc.primaryTermAndGeneration().generation());
+        long offsetInBlob = 0L;
+        for (var cc : bcc.compoundCommits()) {
+            cacheService.backfillTimestamp(
+                shardId,
+                primaryTerm,
+                blobName,
+                offsetInBlob,
+                cc.headerSizeInBytes(),
+                BlobFileRanges.midpointMillisOrUnknown(cc.getTimestampFieldValueRange())
+            );
+            offsetInBlob += BlobCacheUtils.toPageAlignedSize(cc.sizeInBytes());
+        }
+    }
+
+    private record SearchRecoveryWarmingInputs(
+        Map<String, BlobFileRanges> blobFileRanges,
+        Map<BlobFile, Long> offsetsToWarm,
+        Map<BlobFile, Long> timestampsPerBlob
+    ) {}
 
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {

@@ -117,6 +117,7 @@ public class SearchEngine extends Engine {
     private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
+    private final StatelessSharedBlobCacheService cacheService;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     // The current primary term/generation is updated on initialization and after new commit notifications from the indexing shard.
@@ -145,6 +146,7 @@ public class SearchEngine extends Engine {
         assert config.isPromotableToPrimary() == false;
         this.reshardSearchFilters = reshardSearchFilters;
         this.closedShardService = closedShardService;
+        this.cacheService = statelessSharedBlobCacheService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
@@ -258,6 +260,7 @@ public class SearchEngine extends Engine {
                 searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
+                searchDirectory::getTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
@@ -412,7 +415,8 @@ public class SearchEngine extends Engine {
                 }
 
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
-                if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
+                if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()
+                    || cacheService.isCacheBoostPreferenceEnabled()) {
                     var newCommitFiles = new HashMap<>(latestCommit.commitFiles());
                     newCommitFiles.keySet().removeAll(searchDirectory.getKnownFileNames());
                     Map<String, BlobFileRanges> newBlobFileRanges = ConcurrentCollections.newConcurrentMap();
@@ -423,14 +427,26 @@ public class SearchEngine extends Engine {
                         IOContext.DEFAULT,
                         DIRECT_EXECUTOR_SERVICE,
                         referencedCompoundCommit -> {
+                            var ref = referencedCompoundCommit.statelessCompoundCommitReference();
                             newBlobFileRanges.putAll(
                                 computeBlobFileRanges(
                                     true,
-                                    referencedCompoundCommit.statelessCompoundCommitReference().compoundCommit(),
-                                    referencedCompoundCommit.statelessCompoundCommitReference().headerOffsetInTheBccBlobFile(),
+                                    ref.compoundCommit(),
+                                    ref.headerOffsetInTheBccBlobFile(),
                                     referencedCompoundCommit.referencedInternalFiles()
                                 )
                             );
+                            if (cacheService.isCacheBoostPreferenceEnabled()) {
+                                // Backfill the timestamp of the CC header regions just faulted into cache by this read.
+                                cacheService.backfillTimestamp(
+                                    shardId,
+                                    ref.bccBlobFile().primaryTerm(),
+                                    ref.bccBlobFile().blobName(),
+                                    ref.headerOffsetInTheBccBlobFile(),
+                                    ref.compoundCommit().headerSizeInBytes(),
+                                    BlobFileRanges.midpointMillisOrUnknown(ref.compoundCommit().getTimestampFieldValueRange())
+                                );
+                            }
                         },
                         listenableFuture.map(aVoid -> newBlobFileRanges)
                     );

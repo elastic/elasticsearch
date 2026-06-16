@@ -372,11 +372,21 @@ public class BlobCacheMetricsIT extends AbstractStatelessPluginIntegTestCase {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, subscribableListener);
+                    super.warmCache(
+                        type,
+                        indexShard,
+                        commit,
+                        directory,
+                        endOffsetsToWarm,
+                        timestampsPerBlob,
+                        preWarmForIdLookup,
+                        subscribableListener
+                    );
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

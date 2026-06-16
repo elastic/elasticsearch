@@ -89,6 +89,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ShardId shardId();
     }
 
+    /**
+     * Sentinel used when the data timestamp for a cache region is unknown or unavailable. It is a plain {@code long} at the cache layer:
+     * the cache assigns no semantic meaning to it beyond "unknown".
+     */
+    public static final long UNKNOWN_TIMESTAMP = -1L;
+
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
     public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = new Setting<>(
@@ -323,7 +329,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     private interface Cache<K, T> extends Releasable {
-        CacheEntry<T> get(K cacheKey, long fileLength, int region);
+        CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis);
 
         /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
         /// (i.e. its IO slot has been assigned), or `null` otherwise.
@@ -331,6 +337,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         /// Unlike [#get], this method will not allocate a new region slot if the entry does not exist.
         @Nullable
         CacheEntry<T> getIfPresent(K cacheKey, int region);
+
+        /// Updates the timestamp of an already-present region without promoting, allocating, or evicting.
+        /// Returns `true` if the region was present and updated, `false` otherwise.
+        boolean updateRegionTimestamp(K cacheKey, int region, long timestampMillis, boolean force);
 
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
@@ -558,7 +568,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region) {
-        return cache.get(cacheKey, fileLength, region).chunk;
+        return get(cacheKey, fileLength, region, UNKNOWN_TIMESTAMP);
+    }
+
+    CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
+        return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
+    }
+
+    /**
+     * Updates the timestamp of an already-cached region without promoting, allocating, or evicting it.
+     *
+     * @return {@code true} if the region was present and updated, {@code false} otherwise.
+     */
+    public boolean updateRegionTimestamp(KeyType cacheKey, int region, long timestampMillis, boolean force) {
+        return cache.updateRegionTimestamp(cacheKey, region, timestampMillis, force);
     }
 
     /**
@@ -588,7 +611,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, false, listener);
+        maybeFetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
+    }
+
+    public void maybeFetchRegion(
+        final KeyType cacheKey,
+        final int region,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final long timestampMillis,
+        final ActionListener<Boolean> listener
+    ) {
+        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, false, timestampMillis, listener);
     }
 
     /**
@@ -625,8 +660,26 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
+        fetchRegion(cacheKey, region, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
+    }
+
+    public void fetchRegion(
+        final KeyType cacheKey,
+        final int region,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final boolean force,
+        final long timestampMillis,
+        final ActionListener<Boolean> listener
+    ) {
         if (force == false && freeRegions.isEmpty()) {
-            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            var incoming = new CacheFileRegion<>(
+                this,
+                new RegionKey<>(cacheKey, region),
+                computeCacheFileRegionSize(blobLength, region),
+                timestampMillis
+            );
             if (maybeEvictLeastUsed(incoming) == false) {
                 // no free page available and no old enough unused region to be evicted
                 logger.info("No free regions, skipping loading region [{}]", region);
@@ -640,7 +693,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
+            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
             entry.populate(regionRange, writer, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -676,7 +729,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final Executor fetchExecutor,
         final ActionListener<Boolean> listener
     ) {
-        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, listener);
+        maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, UNKNOWN_TIMESTAMP, listener);
+    }
+
+    public void maybeFetchRange(
+        final KeyType cacheKey,
+        final int region,
+        final ByteRange range,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final long timestampMillis,
+        final ActionListener<Boolean> listener
+    ) {
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, false, timestampMillis, listener);
     }
 
     /**
@@ -714,8 +780,27 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
+        fetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, force, UNKNOWN_TIMESTAMP, listener);
+    }
+
+    public void fetchRange(
+        final KeyType cacheKey,
+        final int region,
+        final ByteRange range,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final boolean force,
+        final long timestampMillis,
+        final ActionListener<Boolean> listener
+    ) {
         if (force == false && freeRegions.isEmpty()) {
-            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            var incoming = new CacheFileRegion<>(
+                this,
+                new RegionKey<>(cacheKey, region),
+                computeCacheFileRegionSize(blobLength, region),
+                timestampMillis
+            );
             if (maybeEvictLeastUsed(incoming) == false) {
                 // no free page available and no old enough unused region to be evicted
                 logger.debug("No free regions, skipping loading region [{}]", region);
@@ -729,7 +814,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
+            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
             entry.populate(
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
@@ -793,7 +878,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     // used by tests
     boolean maybeEvictLeastUsed(KeyType cacheKey, long length, int region) {
         if (cache instanceof LFUCache lfuCache) {
-            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(length, region));
+            var incoming = new CacheFileRegion<>(
+                this,
+                new RegionKey<>(cacheKey, region),
+                computeCacheFileRegionSize(length, region),
+                UNKNOWN_TIMESTAMP
+            );
             return lfuCache.maybeEvictLeastUsed(incoming);
         }
         return false;
@@ -872,6 +962,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return lfuCache.getFreq(cacheFileRegion);
         }
         return -1;
+    }
+
+    // used by tests
+    long getTimestamp(CacheFileRegion<KeyType> cacheFileRegion) {
+        return cacheFileRegion.timestampMillis();
+    }
+
+    // used by tests
+    protected long getRegionTimestampOrUnknown(KeyType cacheKey, int region) {
+        final var entry = cache.getIfPresent(cacheKey, region);
+        return entry == null ? UNKNOWN_TIMESTAMP : entry.chunk.timestampMillis();
     }
 
     @Override
@@ -967,6 +1068,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         final RegionKey<KeyType> regionKey;
         final SparseFileTracker tracker;
+        // Representative data timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
+        // Mutable so that it can be backfilled after the region is created.
+        private volatile long timestampMillis;
         // io can be null when not init'ed or after evict/take
         // io does not need volatile access on the read path, since it goes from null to a single value (and then possbily back to null).
         // "cache.get" never returns a `CacheFileRegion` without checking the value is non-null (with a volatile read, ensuring the value is
@@ -976,9 +1080,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // side effects
         private SharedBytes.IO io = null;
 
-        CacheFileRegion(SharedBlobCacheService<KeyType> blobCacheService, RegionKey<KeyType> regionKey, int regionSize) {
+        CacheFileRegion(
+            SharedBlobCacheService<KeyType> blobCacheService,
+            RegionKey<KeyType> regionKey,
+            int regionSize,
+            long timestampMillis
+        ) {
             this.blobCacheService = blobCacheService;
             this.regionKey = regionKey;
+            assert timestampMillis > 0L || timestampMillis == UNKNOWN_TIMESTAMP;
+            this.timestampMillis = timestampMillis;
             assert regionSize > 0;
             // NOTE we use a constant string for description to avoid consume extra heap space
             tracker = new SparseFileTracker("file", regionSize);
@@ -1085,6 +1196,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public KeyType key() {
             return regionKey.file();
+        }
+
+        /**
+         * Representative timestamp (epoch millis) of the content in this region, or UNKNOWN_TIMESTAMP when unknown.
+         */
+        long timestampMillis() {
+            return timestampMillis;
+        }
+
+        /**
+         * Updates the region timestamp in place, without promoting, evicting, or allocating. An incoming {@link #UNKNOWN_TIMESTAMP} is
+         * always ignored. When {@code force} is {@code true} the timestamp is fully overridden; otherwise we only override unknown.
+         */
+        void updateTimestamp(long newTimestampMillis, boolean force) {
+            assert newTimestampMillis > 0L || newTimestampMillis == UNKNOWN_TIMESTAMP;
+            if (newTimestampMillis == UNKNOWN_TIMESTAMP) {
+                return;
+            }
+            // Note: Non-CAS for UNKNOWN_TIMESTAMP
+            if (force || timestampMillis == UNKNOWN_TIMESTAMP) {
+                timestampMillis = newTimestampMillis;
+            }
         }
 
         /**
@@ -1383,16 +1516,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final KeyType cacheKey;
         private final long length;
         private final CacheMissHandler cacheMissMetricHandler;
+        private final long timestampMillis;
         private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 
-        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler) {
+        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler, long timestampMillis) {
             this.cacheKey = cacheKey;
             this.length = length;
             this.cacheMissMetricHandler = cacheMissMetricHandler;
+            this.timestampMillis = timestampMillis;
         }
 
         public CacheFile copy() {
-            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy());
+            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy(), timestampMillis);
         }
 
         public long getLength() {
@@ -1673,7 +1808,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) {
             final CacheFileRegion<KeyType> fileRegion;
             try {
-                fileRegion = get(cacheKey, length, region);
+                fileRegion = get(cacheKey, length, region, timestampMillis);
             } catch (Exception e) {
                 assert e instanceof AlreadyClosedException : e;
                 listener.onFailure(e);
@@ -1712,7 +1847,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
                     ActionListener<Integer> regionListener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
-                        final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+                        final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region, timestampMillis);
                         regions.add(fileRegion);
                         final long regionStart = getRegionStart(region);
                         fileRegion.populateAndRead(
@@ -1854,7 +1989,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler) {
-        return new CacheFile(cacheKey, length, cacheMissHandler);
+        return getCacheFile(cacheKey, length, cacheMissHandler, UNKNOWN_TIMESTAMP);
+    }
+
+    public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler, long timestampMillis) {
+        return new CacheFile(cacheKey, length, cacheMissHandler, timestampMillis);
     }
 
     @FunctionalInterface
@@ -2049,7 +2188,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         @Override
-        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region) {
+        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
             final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
@@ -2060,7 +2199,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry = keyMapping.computeIfAbsent(
                     cacheKey.shardId(),
                     regionKey,
-                    key -> new LFUCacheEntry(new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize), now)
+                    key -> new LFUCacheEntry(
+                        new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize, timestampMillis),
+                        now
+                    )
                 );
             }
             // checks using volatile, double locking is fine, as long as we assign io last.
@@ -2103,6 +2245,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             return entry;
+        }
+
+        @Override
+        public boolean updateRegionTimestamp(KeyType cacheKey, int region, long timestampMillis, boolean force) {
+            final var entry = keyMapping.get(cacheKey.shardId(), new RegionKey<>(cacheKey, region));
+            if (entry == null) {
+                return false;
+            }
+            entry.chunk.updateTimestamp(timestampMillis, force);
+            return true;
         }
 
         @Override

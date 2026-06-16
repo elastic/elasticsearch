@@ -838,7 +838,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         );
         var dir = directory.createNewBlobStoreCacheDirectoryForWarming();
         dir.updateMetadata(
-            Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength))),
+            Map.of(blobName, new BlobFileRanges(new BlobLocation(new BlobFile(blobName, blobTermAndGen), 0L, maxBlobLength), null)),
             maxBlobLength
         );
 

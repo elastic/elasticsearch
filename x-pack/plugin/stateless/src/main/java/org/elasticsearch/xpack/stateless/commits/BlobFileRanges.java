@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -33,14 +34,29 @@ public class BlobFileRanges {
 
     private final BlobLocation blobLocation;
     private final NavigableMap<Long, ReplicatedByteRange> replicatedRanges;
+    /**
+     * The document timestamp range of the compound commit that produced this file, or {@code null} if unknown
+     * (e.g. no {@code @timestamp} field, or this instance was constructed without a commit context).
+     */
+    @Nullable
+    private final StatelessCompoundCommit.TimestampFieldValueRange timestampRange;
 
     public BlobFileRanges(BlobLocation blobLocation) {
-        this(blobLocation, Collections.emptyNavigableMap());
+        this(blobLocation, Collections.emptyNavigableMap(), null);
     }
 
-    private BlobFileRanges(BlobLocation blobLocation, NavigableMap<Long, ReplicatedByteRange> replicatedRanges) {
+    public BlobFileRanges(BlobLocation blobLocation, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {
+        this(blobLocation, Collections.emptyNavigableMap(), timestampRange);
+    }
+
+    private BlobFileRanges(
+        BlobLocation blobLocation,
+        NavigableMap<Long, ReplicatedByteRange> replicatedRanges,
+        @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
+    ) {
         this.blobLocation = Objects.requireNonNull(blobLocation);
         this.replicatedRanges = Objects.requireNonNull(replicatedRanges);
+        this.timestampRange = timestampRange;
     }
 
     public BlobLocation blobLocation() {
@@ -65,6 +81,11 @@ public class BlobFileRanges {
 
     public long fileLength() {
         return blobLocation.fileLength();
+    }
+
+    @Nullable
+    public StatelessCompoundCommit.TimestampFieldValueRange timestampRange() {
+        return timestampRange;
     }
 
     /**
@@ -131,28 +152,50 @@ public class BlobFileRanges {
         }
         assert assertNoOverlappingReplicatedRanges(replicatedRanges);
 
+        final var timestampRange = compoundCommit.getTimestampFieldValueRange();
         var blobFileRanges = HashMap.<String, BlobFileRanges>newHashMap(internalFiles.size());
         for (var internalFile : internalFiles) {
             var blobLocation = compoundCommit.commitFiles().get(internalFile);
             assert blobLocation != null : internalFile;
             if (useReplicatedRanges == false || replicatedRanges.isEmpty()) {
-                blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation));
+                blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation, Collections.emptyNavigableMap(), timestampRange));
                 continue;
             }
 
             var header = replicatedRanges.floorKey(blobLocation.offset());
             var footer = replicatedRanges.floorKey(blobLocation.offset() + blobLocation.fileLength() - 1);
             if (header == null || footer == null) {
-                blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation));
+                blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation, Collections.emptyNavigableMap(), timestampRange));
                 continue;
             }
 
             blobFileRanges.put(
                 internalFile,
-                new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedRanges.subMap(header, true, footer, true)))
+                new BlobFileRanges(
+                    blobLocation,
+                    unmodifiableNavigableMap(replicatedRanges.subMap(header, true, footer, true)),
+                    timestampRange
+                )
             );
         }
         return blobFileRanges;
+    }
+
+    public static long midpointMillisOrUnknown(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+        if (range == null) {
+            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        }
+        return range.midpointMillis();
+    }
+
+    public static long mostRecentKnownTimestamp(long timestampMillisA, long timestampMillisB) {
+        if (timestampMillisA == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return timestampMillisB;
+        }
+        if (timestampMillisB == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return timestampMillisA;
+        }
+        return Math.max(timestampMillisA, timestampMillisB);
     }
 
     public boolean hasReplicatedRanges() {
@@ -172,12 +215,14 @@ public class BlobFileRanges {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         BlobFileRanges that = (BlobFileRanges) o;
-        return Objects.equals(blobLocation, that.blobLocation) && Objects.equals(replicatedRanges, that.replicatedRanges);
+        return Objects.equals(blobLocation, that.blobLocation)
+            && Objects.equals(replicatedRanges, that.replicatedRanges)
+            && Objects.equals(timestampRange, that.timestampRange);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(blobLocation, replicatedRanges);
+        return Objects.hash(blobLocation, replicatedRanges, timestampRange);
     }
 
     public String toString() {

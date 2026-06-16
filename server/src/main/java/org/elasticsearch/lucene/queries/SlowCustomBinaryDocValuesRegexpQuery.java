@@ -29,6 +29,11 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
     private final int matchFlags;
     private final int maxDeterminizedStates;
 
+    /**
+     * @param pattern the regexp pattern to match; callers must pre-process it with
+     *                {@link org.elasticsearch.common.lucene.search.AutomatonQueries#collapseConsecutiveQuantifiers}
+     *                to avoid determinization complexity blowup on patterns like {@code a**}.
+     */
     public SlowCustomBinaryDocValuesRegexpQuery(
         String fieldName,
         String pattern,

@@ -95,6 +95,7 @@ import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.isT
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PromqlAttributesTranslationContext.canonicalName;
 
 /**
  * Translates PromQL logical plan into ESQL plan.
@@ -346,10 +347,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
         Attribute upperBound = childAlreadyAggregated
-            ? findAttributeByPromqlLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
+            ? findAttributeByLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
             : null;
         if (upperBound == null && childAlreadyAggregated) {
-            upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
+            upperBound = findAttributeByLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
         }
         SynthesizedAttributes exportLabels;
         if (upperBound == null) {
@@ -402,22 +403,30 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static InheritedAttributes histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
-        List<Attribute> childLabels = PromqlAttributesTranslationContext.dimensionAttributes(histogramQuantile.child().output());
+        List<Attribute> childLabels = PromqlAttributesTranslationContext.filterDimensionAttributes(histogramQuantile.child().output());
         List<Attribute> demand = childLabels.isEmpty() ? histogramQuantile.child().output() : childLabels;
         return InheritedAttributes.unconstrained().including(demand);
     }
 
-    private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {
-        for (Attribute attribute : attributes) {
-            if (promqlLabelKey(attribute).equals(labelName)) {
-                return attribute;
+    private static Attribute findAttributeByLabelName(List<Attribute> attributes, String labelName) {
+        // Prometheus passthrough dimensions surface under two names: the concrete field (e.g. `labels.pod`) and a short
+        // alias (`pod`). `canonicalName` strips the passthrough prefix, so both match `labelName`. The `_timeseries`
+        // block loader excludes by the concrete dimension field name, so we must resolve to the concrete (prefixed)
+        // attribute and never to the bare alias - otherwise the exclusion name never matches and the label leaks. The
+        // bare attribute is the right answer only when no prefixed variant exists (a top-level dimension), so keep it
+        // as a fallback. Without this preference the result depended on the alphabetical order of `attributes`: labels
+        // sorting after `labels.` (e.g. `pod`) happened to hit the concrete field first, while earlier ones (`cluster`,
+        // `job`, `instance`) hit the alias and leaked.
+        Attribute bareMatch = null;
+        for (var attr : attributes) {
+            if (canonicalName(attr).equals(labelName)) {
+                if (attr.name().equals(labelName) == false) {
+                    return attr;
+                }
+                bareMatch = attr;
             }
         }
-        return null;
-    }
-
-    private static String promqlLabelKey(Attribute attr) {
-        return PromqlAttributesTranslationContext.fieldName(attr);
+        return bareMatch;
     }
 
     private static Expression histogramQuantileUpperBound(Source source, Attribute upperBound) {
@@ -740,7 +749,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             // the label leaks into the output. A label absent from the child stays unresolved and is simply a no-op.
             List<Expression> excluded = new ArrayList<>(translation.excludedDimensions().size());
             for (Attribute label : translation.excludedDimensions()) {
-                Attribute resolved = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(label));
+                Attribute resolved = findAttributeByLabelName(plan.output(), canonicalName(label));
                 excluded.add(resolved != null ? resolved : label);
             }
             var function = new TimeSeriesWithout(source, excluded);
@@ -890,7 +899,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     private static Alias aliasExistingPromqlLabel(Source source, LogicalPlan plan, Attribute attribute) {
-        Attribute existing = findAttributeByPromqlLabelName(plan.output(), promqlLabelKey(attribute));
+        Attribute existing = findAttributeByLabelName(plan.output(), canonicalName(attribute));
         return existing == null ? nullAlias(attribute) : new Alias(source, attribute.name(), existing, attribute.id());
     }
 

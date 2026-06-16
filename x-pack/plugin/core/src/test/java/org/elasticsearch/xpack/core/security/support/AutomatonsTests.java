@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
-import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -196,7 +195,7 @@ public class AutomatonsTests extends ESTestCase {
         final Automaton partitioned = Automatons.buildPatternsAutomaton(patterns, true);
         assertTrue(
             "literal partition diverged from the general builder for " + patterns,
-            AutomatonTestUtil.sameLanguage(original, partitioned)
+            Operations.sameLanguage(original, partitioned)
         );
         // CharacterRunAutomaton matching requires a deterministic automaton.
         assertTrue("literal partition produced a non-deterministic automaton for " + patterns, partitioned.isDeterministic());

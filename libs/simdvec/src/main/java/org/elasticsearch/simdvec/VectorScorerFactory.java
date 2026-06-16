@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -56,6 +57,11 @@ public interface VectorScorerFactory {
 
     ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
         throws IOException;
+
+    /**
+     * Create a new {@code FlatVectorsScorer} for scoring arbitrary flat vectors.
+     */
+    FlatVectorsScorer newFlatVectorsScorer();
 
     /**
      * Returns an optional containing a float vector score supplier

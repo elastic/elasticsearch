@@ -1861,7 +1861,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var alias = as(optimizedEval.fields().get(0), Alias.class);
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
-        assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+        assertThat(optimizedAttr.excludedFields(), equalTo(Set.of()));
     }
 
     public void testTemporalityInjection() {

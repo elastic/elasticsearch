@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.rerank;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -19,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class CohereRerankTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereRerankTaskSettings> {
+public class CohereRerankTaskSettingsTests extends AbstractBWCSerializationTestCase<CohereRerankTaskSettings> {
 
     private final boolean supportsUnknownFields = randomBoolean();
 
@@ -205,5 +206,10 @@ public class CohereRerankTaskSettingsTests extends AbstractXContentSerializingTe
     @Override
     protected boolean supportsUnknownFields() {
         return supportsUnknownFields;
+    }
+
+    @Override
+    protected CohereRerankTaskSettings mutateInstanceForVersion(CohereRerankTaskSettings instance, TransportVersion version) {
+        return instance;
     }
 }

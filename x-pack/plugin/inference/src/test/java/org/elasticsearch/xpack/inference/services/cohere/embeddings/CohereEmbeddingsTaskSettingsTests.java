@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithoutUnsp
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializingTestCase<CohereEmbeddingsTaskSettings> {
+public class CohereEmbeddingsTaskSettingsTests extends AbstractBWCSerializationTestCase<CohereEmbeddingsTaskSettings> {
 
     private final boolean supportsUnknownFields = randomBoolean();
 
@@ -189,5 +190,10 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractXContentSerializi
         }
 
         return map;
+    }
+
+    @Override
+    protected CohereEmbeddingsTaskSettings mutateInstanceForVersion(CohereEmbeddingsTaskSettings instance, TransportVersion version) {
+        return instance;
     }
 }

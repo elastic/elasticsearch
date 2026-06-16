@@ -549,6 +549,7 @@ public class RequestExecutorService implements RequestExecutor {
                     false
                 )
             );
+            return;
         }
 
         var task = new RequestTask(

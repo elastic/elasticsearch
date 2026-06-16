@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -388,7 +387,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -502,7 +501,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 new PlainActionFuture<>(),
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -513,7 +512,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 new PlainActionFuture<>(),
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -527,7 +526,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -760,7 +759,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -779,7 +778,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 null,
                 threadPool,
                 listener,
-                null,
+                new TestCircuitBreaker(),
                 0L
             )
         );
@@ -802,7 +801,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             requestSender,
             Clock.systemUTC(),
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
-            null
+            new TestCircuitBreaker()
         );
 
         service.shutdown();
@@ -839,7 +838,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         verify(mockExecutorService, times(1)).submit(any(Runnable.class));
     }
 
-    public void testExecute_RequestRejected_WhenCircuitBreakerTrips() {
+    public void testExecute_RequestRejected_WhenCircuitBreakerBreaks() {
         // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
         var circuitBreaker = new TestCircuitBreaker();
         var requestSender = mock(RequestSender.class);
@@ -859,6 +858,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         // First request succeeds
         service.execute(requestManager, EMBEDDING_INPUT, null, new PlainActionFuture<>());
+        // Successful requests should be enqueued
+        assertThat(service.queueSize(), is(1));
 
         // Circuit breaker breaks
         circuitBreaker.startBreaking();
@@ -866,6 +867,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         // Execution of second request should be rejected
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(requestManager, EMBEDDING_INPUT, null, listener);
+        // Failed request should not be enqueued
+        assertThat(service.queueSize(), is(1));
 
         var exception = assertThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(
@@ -879,7 +882,57 @@ public class RequestExecutorServiceTests extends ESTestCase {
         );
     }
 
-    // TODO: circuit breaker trips, rejects, accepts again, doesn't reject
+    public void testExecute_AcceptsAgainWhenCircuitBreakerStopsBreaking() {
+        // TestCircuitBreaker is a NoopCircuitBreaker allowing to specify when it should break
+        var circuitBreaker = new TestCircuitBreaker();
+        var requestSender = mock(RequestSender.class);
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
+        var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID);
+
+        var service = new RequestExecutorService(
+            threadPool,
+            RequestExecutorService.DEFAULT_QUEUE_CREATOR,
+            null,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            circuitBreaker
+        );
+
+        // First request succeeds
+        service.execute(requestManager, EMBEDDING_INPUT, null, new PlainActionFuture<>());
+        // Successful requests should be enqueued
+        assertThat(service.queueSize(), is(1));
+
+        // Circuit breaker breaks
+        circuitBreaker.startBreaking();
+
+        // Execution of second request should be rejected
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        service.execute(requestManager, EMBEDDING_INPUT, null, listener);
+        // Failed request should not be enqueued
+        assertThat(service.queueSize(), is(1));
+
+        var exception = assertThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            is(
+                format(
+                    "Failed to enqueue request task for inference id [%s] because too many inference requests are in-flight",
+                    INFERENCE_ID
+                )
+            )
+        );
+
+        // Circuit breaker stops breaking
+        circuitBreaker.stopBreaking();
+
+        // Third request succeeds again (should not throw)
+        service.execute(requestManager, EMBEDDING_INPUT, null, new PlainActionFuture<>());
+        // Successful requests should be enqueued
+        assertThat(service.queueSize(), is(2));
+    }
 
     private Future<?> submitShutdownRequest(
         CountDownLatch waitToShutdown,
@@ -905,6 +958,12 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     private RequestExecutorService createRequestExecutorService(@Nullable CountDownLatch startupLatch, RetryingHttpSender requestSender) {
-        return new RequestExecutorService(threadPool, startupLatch, createRequestExecutorServiceSettingsEmpty(), requestSender, null);
+        return new RequestExecutorService(
+            threadPool,
+            startupLatch,
+            createRequestExecutorServiceSettingsEmpty(),
+            requestSender,
+            new TestCircuitBreaker()
+        );
     }
 }

@@ -121,8 +121,13 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         return switch (serviceState) {
             case READY -> {
                 if (metadata == null) {
-                    yield createIndicator(GREEN, "Cluster state encryption is configured; awaiting first key install.",
-                        detailsBuilder(null, serviceState), List.of(), List.of());
+                    yield createIndicator(
+                        GREEN,
+                        "Cluster state encryption is configured; awaiting first key install.",
+                        detailsBuilder(null, serviceState),
+                        List.of(),
+                        List.of()
+                    );
                 }
                 yield createIndicator(GREEN, GREEN_HEALTHY, detailsBuilder(metadata, serviceState), List.of(), List.of());
             }

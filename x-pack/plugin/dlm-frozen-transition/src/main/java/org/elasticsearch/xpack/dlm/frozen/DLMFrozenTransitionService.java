@@ -23,6 +23,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DLM_CREATED_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
 
@@ -111,7 +112,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                 if (Thread.currentThread().isInterrupted() || isClosing()) {
                     return;
                 }
-                if (DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
+                if (DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
                     continue;
                 }
                 if (indexMarkedForFrozen(indexMetadata) == false) {

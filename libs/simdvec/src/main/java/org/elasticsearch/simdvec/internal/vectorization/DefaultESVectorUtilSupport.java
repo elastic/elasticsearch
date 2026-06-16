@@ -75,10 +75,6 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public void l2Normalize(float[] v, int length) {
-        if (length == v.length) {
-            VectorUtil.l2normalize(v);
-            return;
-        }
         double normSq = 0;
         for (int j = 0; j < length; j++) {
             double t = v[j];

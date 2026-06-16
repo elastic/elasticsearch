@@ -183,11 +183,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
     @Override
     public void l2Normalize(float[] v, int length) {
-        if (length == v.length) {
-            VectorUtil.l2normalize(v);
-            return;
-        }
-        double normSq = 0;
+        double normSq;
         int i = 0;
         final int vectorEnd = FLOAT_SPECIES.loopBound(length);
         FloatVector acc = FloatVector.zero(FLOAT_SPECIES);

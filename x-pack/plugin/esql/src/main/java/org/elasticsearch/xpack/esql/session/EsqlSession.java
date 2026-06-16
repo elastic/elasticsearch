@@ -100,8 +100,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -332,10 +332,10 @@ public class EsqlSession {
                 // an IN subquery are not handled here yet — that requires alternating the two resolvers,
                 // which will be reintroduced in a follow-up.
                 // Collect IN_SUBQUERY telemetry from the pre-resolution plan before the resolver
-                // rewrites the originating InSubquery expressions into SemiJoin/AntiJoin/LeftSemiJoin
+                // rewrites the originating InSubquery expressions into SemiJoin/AntiJoin/MarkJoin
                 // — mirroring how view telemetry is collected before view resolution discards the
                 // view-specific plan nodes. The WHERE counter is set by the analyzer/verifier plan
-                // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/LeftSemiJoin too.
+                // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
                 gatherInSubqueryMetrics(viewResolution.plan());
                 // InSubqueryResolver.resolve is synchronous; any VerificationException it throws
                 // propagates out of this lambda and is caught by delegateFailureAndWrap, which
@@ -832,18 +832,18 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof SemiJoin) {
-            SemiJoin.LogicalPlanTuple semiJoinTuple = SemiJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (firstJoin instanceof AbstractSubqueryJoin) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
             if (semiJoinTuple != null) {
                 AtomicReference<Page> localRelationPage = new AtomicReference<>();
                 subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
                     LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // SemiJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
                     // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
                     // below releases the right one at end of main plan execution.
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
-                    return SemiJoin.newMainPlan(
+                    return AbstractSubqueryJoin.newMainPlan(
                         mainPlan,
                         semiJoinTuple,
                         resultWrapper,
@@ -896,9 +896,9 @@ public class EsqlSession {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking SemiJoin or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
             // joins whose right child haven't been evaluated yet
-            if (p instanceof SemiJoin sj) {
+            if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
@@ -1091,11 +1091,11 @@ public class EsqlSession {
      * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
      * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}. Called before
      * {@link InSubqueryResolver} so the check sees the originating expressions still in place —
-     * the resolver replaces them with {@code SemiJoin}/{@code AntiJoin}/{@code LeftSemiJoin} and
+     * the resolver replaces them with {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} and
      * the source expression is no longer visible to plan traversals afterwards. Mirrors
      * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter
      * is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
-     * SemiJoin/AntiJoin/LeftSemiJoin (which only originate from a {@code WHERE x IN (sub)}).
+     * SemiJoin/AntiJoin/MarkJoin (which only originate from a {@code WHERE x IN (sub)}).
      */
     private void gatherInSubqueryMetrics(LogicalPlan plan) {
         if (metrics == null) {
@@ -1302,11 +1302,10 @@ public class EsqlSession {
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 executionInfo.queryProfile().inferenceResolutionMarker().start();
-                inferenceService.inferenceResolver(functionRegistry)
-                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
-                        executionInfo.queryProfile().inferenceResolutionMarker().stop();
-                        ll.onResponse(r.withInferenceResolution(inferenceResolution));
-                    }));
+                inferenceService.resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                    executionInfo.queryProfile().inferenceResolutionMarker().stop();
+                    ll.onResponse(r.withInferenceResolution(inferenceResolution));
+                }));
             })
             .<Versioned<LogicalPlan>>andThen((l, r) -> {
                 analyzeWithRetry(
@@ -1490,7 +1489,7 @@ public class EsqlSession {
         // Collect resolved clusters from the index resolution, verify that each cluster has a single resolution for the lookup index
         Map<String, String> clustersWithResolvedIndices = new HashMap<>(lookupIndexResolution.resolvedIndices().size());
         lookupIndexResolution.get().indexNameWithModes().forEach((indexName, indexMode) -> {
-            String clusterAlias = RemoteClusterAware.parseClusterAlias(indexName);
+            String clusterAlias = RemoteClusterAware.splitIndexName(indexName).getClusterGroupingKey();
             // Check that all indices are in lookup mode
             if (indexMode != IndexMode.LOOKUP) {
                 skipClusterOrError(
@@ -1564,7 +1563,7 @@ public class EsqlSession {
     ) {
         // If all indices resolve to the same name, we can use that for BWC
         // Older clusters only can handle one name in LOOKUP JOIN
-        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n)[1]).collect(toSet());
+        var localIndexNames = indexNames.stream().map(n -> RemoteClusterAware.splitIndexName(n).indexExpression()).collect(toSet());
         if (localIndexNames.size() == 1) {
             String indexName = localIndexNames.iterator().next();
             EsIndex newIndex = new EsIndex(

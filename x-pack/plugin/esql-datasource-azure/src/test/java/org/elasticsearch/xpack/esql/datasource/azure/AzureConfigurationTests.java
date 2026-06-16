@@ -247,4 +247,43 @@ public class AzureConfigurationTests extends ESTestCase {
         assertNull(result.value());
         assertEquals(Set.of(), result.consumedKeys());
     }
+
+    public void testKeylessAuthWithAllFields() {
+        AzureConfiguration config = AzureConfiguration.fromMap(
+            Map.of("tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "api://AzureADTokenExchange")
+        );
+
+        assertNotNull(config);
+        assertEquals("my-tenant", config.tenantId());
+        assertEquals("my-client", config.clientId());
+        assertEquals("api://AzureADTokenExchange", config.jwtAudience());
+        assertTrue(config.hasKeylessAuth());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testKeylessAuthRequiresAllFields() {
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("tenant_id", "my-tenant")));
+        assertThat(e.getMessage(), containsString("client_id is required when keyless authentication settings are configured"));
+        assertThat(e.getMessage(), containsString("jwt_audience is required when keyless authentication settings are configured"));
+    }
+
+    public void testKeylessAuthConflictsWithExplicitCredentials() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("account", "acc", "key", "k", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("explicit credentials cannot be combined with keyless authentication settings"));
+    }
+
+    public void testKeylessAuthConflictsWithAuthNone() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> AzureConfiguration.fromMap(
+                Map.of("auth", "none", "tenant_id", "my-tenant", "client_id", "my-client", "jwt_audience", "aud")
+            )
+        );
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with keyless authentication settings"));
+    }
 }

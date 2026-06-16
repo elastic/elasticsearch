@@ -397,6 +397,9 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();
+        private final boolean enforceSingleValue = docValues
+            && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+            && randomBoolean();
 
         private final Function<Number, Number> round;
         private final boolean ignoreMalformed;
@@ -414,8 +417,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         }
 
         @Override
+        public boolean enforcesSingleValue() {
+            return enforceSingleValue;
+        }
+
+        @Override
         public SyntheticSourceExample example(int maxVals) {
-            if (randomBoolean()) {
+            // When multi_value is disabled a document may only have a single value, so never take the multi-valued branch below.
+            if (enforceSingleValue || randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (preservesExactSource()) {
                     var rawInput = v.v1();
@@ -482,6 +491,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             }
             if (docValues == false) {
                 b.field("doc_values", "false");
+            } else if (enforceSingleValue) {
+                b.startObject("doc_values");
+                b.field("multi_value", false);
+                b.endObject();
             }
         }
 

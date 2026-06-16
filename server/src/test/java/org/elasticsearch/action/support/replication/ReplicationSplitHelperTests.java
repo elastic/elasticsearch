@@ -37,6 +37,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -630,6 +631,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         @Override
         protected void shardOperationOnPrimary(
+            Task task,
             TestReplicationRequest shardRequest,
             IndexShard primary,
             ActionListener<PrimaryResult<TestReplicationRequest, TestResponse>> listener

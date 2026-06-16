@@ -102,8 +102,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private volatile int numReducePhases;
 
     /**
-     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
-     * as shard results are consumed.
+     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,

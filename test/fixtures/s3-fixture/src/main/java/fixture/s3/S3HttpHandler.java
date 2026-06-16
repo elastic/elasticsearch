@@ -60,6 +60,10 @@ import static org.w3c.dom.Node.ELEMENT_NODE;
 public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
+    public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
+    public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
+    public static final String COPY_SOURCE_HEADER = "X-amz-copy-source";
+    public static final Pattern SHA256_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final String bucket;
     private final String basePath;
@@ -156,6 +160,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    verifyContentSha256Header(exchange, blob.v2());
                     upload.addPart(blob.v1(), blob.v2());
                     exchange.getResponseHeaders().add("ETag", blob.v1());
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -202,6 +207,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isPutObjectRequest()) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                verifyContentSha256Header(exchange, blob.v2());
                 blobs.put(request.path(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -337,80 +343,22 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
+    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-fA-F]+)(;chunk-signature=[^\\r\\n]*)?$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {
-            final BytesReference bytesReference;
-
             final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+            final var encodedRequestBody = Streams.readFully(exchange.getRequestBody());
+            final BytesReference decodedRequestBody;
             if (headerDecodedContentLength == null) {
-                bytesReference = Streams.readFully(exchange.getRequestBody());
+                decodedRequestBody = encodedRequestBody;
             } else {
-                BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
-                int chunkIndex = 0;
-                final List<BytesReference> chunks = new ArrayList<>();
-
-                while (true) {
-                    chunkIndex += 1;
-
-                    final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
-                    if (headerLength == 0) {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
-                    }
-                    if (headerLength > 150) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (headerLength < 3) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
-                    final Matcher matcher = chunkSignaturePattern.matcher(header);
-                    if (matcher.find() == false) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]"
-                        );
-                    }
-                    final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-
-                    if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
-                        throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    if (chunkSize != 0) {
-                        chunks.add(requestBody.slice(headerLength, chunkSize));
-                    }
-
-                    final int toSkip = headerLength + chunkSize + 2;
-                    requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
-
-                    if (chunkSize == 0) {
-                        break;
-                    }
-                }
-
-                bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
-
-                if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
-                    throw new IllegalStateException(
-                        "Something went wrong when parsing the chunked request "
-                            + "[bytes read="
-                            + bytesReference.length()
-                            + ", expected="
-                            + headerDecodedContentLength
-                            + "]"
-                    );
-                }
+                decodedRequestBody = parseAmzChunkedRequestBody(Integer.parseInt(headerDecodedContentLength), encodedRequestBody);
             }
-            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+            return Tuple.tuple(
+                MessageDigests.toHexString(MessageDigests.digest(decodedRequestBody, MessageDigests.md5())),
+                decodedRequestBody
+            );
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
@@ -420,6 +368,67 @@ public class S3HttpHandler implements HttpHandler {
             }
             throw e;
         }
+    }
+
+    static BytesReference parseAmzChunkedRequestBody(int headerDecodedContentLength, BytesReference encodedRequestBody) {
+        int chunkIndex = 0;
+        final List<BytesReference> chunks = new ArrayList<>();
+
+        while (true) {
+            chunkIndex += 1;
+
+            final int headerLength = encodedRequestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+            if (headerLength == 0) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
+            }
+            if (headerLength > 150) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
+            }
+            if (headerLength < 3) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
+            }
+            if (encodedRequestBody.get(headerLength - 1) != '\n' || encodedRequestBody.get(headerLength - 2) != '\r') {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            final String header = encodedRequestBody.slice(0, headerLength - 2).utf8ToString();
+            final Matcher matcher = chunkSignaturePattern.matcher(header);
+            if (matcher.find() == false) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
+            }
+            final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+            if (chunkSize == 0) {
+                // ignore any trailers (e.g. checksum)
+                break;
+            }
+
+            final int chunkTerminatorIndex = headerLength + chunkSize;
+            if (chunkTerminatorIndex + 2 > encodedRequestBody.length()
+                || encodedRequestBody.get(chunkTerminatorIndex) != '\r'
+                || encodedRequestBody.get(chunkTerminatorIndex + 1) != '\n') {
+                throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
+
+            final int toSkip = headerLength + chunkSize + 2;
+            encodedRequestBody = encodedRequestBody.slice(toSkip, encodedRequestBody.length() - toSkip);
+        }
+
+        final BytesReference decodedRequestBody = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+
+        if (decodedRequestBody.length() != headerDecodedContentLength) {
+            throw new IllegalStateException(
+                "Something went wrong when parsing the chunked request "
+                    + "[bytes read="
+                    + decodedRequestBody.length()
+                    + ", expected="
+                    + headerDecodedContentLength
+                    + "]"
+            );
+        }
+        return decodedRequestBody;
     }
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {
@@ -469,6 +478,15 @@ public class S3HttpHandler implements HttpHandler {
 
     MultipartUpload getUpload(String uploadId) {
         return uploads.get(uploadId);
+    }
+
+    private static void verifyContentSha256Header(final HttpExchange exchange, BytesReference body) {
+        final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+        if (contentSha256Header != null && SHA256_PATTERN.asMatchPredicate().test(contentSha256Header)) {
+            // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
+            // if it's a real SHA256 checksum then it must match the request's contents.
+            assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

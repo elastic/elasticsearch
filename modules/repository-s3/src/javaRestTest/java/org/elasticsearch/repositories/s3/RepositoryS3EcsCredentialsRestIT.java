@@ -43,7 +43,7 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
             .alternativeCredentialsEndpoints(Set.of("/ecs_credentials_endpoint"))
     );
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, null, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

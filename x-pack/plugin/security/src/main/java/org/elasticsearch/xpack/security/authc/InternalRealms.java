@@ -155,7 +155,7 @@ public final class InternalRealms {
             config -> new PkiRealm(config, resourceWatcherService, userRoleMapper),
             // SAML realm
             SamlRealmSettings.TYPE,
-            config -> SamlRealm.create(config, sslService, resourceWatcherService, userRoleMapper),
+            config -> SamlRealm.create(config, threadPool, sslService, resourceWatcherService, userRoleMapper),
             // Kerberos realm
             KerberosRealmSettings.TYPE,
             config -> new KerberosRealm(config, userRoleMapper, threadPool),

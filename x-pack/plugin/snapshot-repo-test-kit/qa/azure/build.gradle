@@ -16,6 +16,7 @@ dependencies {
   clusterModules project(xpackModule('snapshot-repo-test-kit'))
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
   javaRestTestImplementation project(':test:fixtures:azure-fixture')
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 boolean useFixture = false

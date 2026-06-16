@@ -148,6 +148,13 @@ public class RecordingOtelMeter implements Meter {
         }
 
         @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
+        }
+
+        @Override
         public void add(long value) {
             assert value >= 0;
             super.add(value);
@@ -227,6 +234,13 @@ public class RecordingOtelMeter implements Meter {
     private class DoubleRecorder extends DoubleUpDownRecorder implements DoubleCounter, OtelInstrument {
         DoubleRecorder(String name) {
             super(name, InstrumentType.DOUBLE_COUNTER);
+        }
+
+        @Override
+        public boolean isEnabled() {
+            // This is goofy: LongCounter and LongUpDownCounter both offer default isEnabled methods,
+            // so we're forced to implement this, yet we're not forced to choose one.
+            return super.isEnabled();
         }
 
         @Override

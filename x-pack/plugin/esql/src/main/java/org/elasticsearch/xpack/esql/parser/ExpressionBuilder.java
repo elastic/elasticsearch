@@ -15,6 +15,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -116,8 +117,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
      * Even though we didn't manage to reproduce the problem in real conditions, we decided
      * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     * <p>
+     * With JDK 26 on Linux, ANTLR stack overflow was observed at 398 nested function calls, so the limit
+     * was reduced to 300 to provide a safety margin across JVM versions and platforms.
      */
-    public static final int MAX_EXPRESSION_DEPTH = 400;
+    public static final int MAX_EXPRESSION_DEPTH = 300;
 
     protected final ParsingContext context;
 
@@ -131,7 +135,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         expressionDepth++;
         if (expressionDepth > MAX_EXPRESSION_DEPTH) {
             throw new ParsingException(
-                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                "ES|QL statement exceeded the maximum expression depth allowed ({}): [{}]",
                 MAX_EXPRESSION_DEPTH,
                 ctx.getParent().getText()
             );
@@ -452,12 +456,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
             }
             // use the fast run variant
-            result = new UnresolvedNamePattern(
-                src,
-                new CharacterRunAutomaton(Operations.concatenate(list)),
-                patternString.toString(),
-                nameString.toString()
-            );
+            try {
+                result = new UnresolvedNamePattern(
+                    src,
+                    new CharacterRunAutomaton(Operations.concatenate(list)),
+                    patternString.toString(),
+                    nameString.toString()
+                );
+            } catch (TooComplexToDeterminizeException e) {
+                throw new ParsingException("Pattern was too complex to determinize", e);
+            }
         } else {
             result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
         }

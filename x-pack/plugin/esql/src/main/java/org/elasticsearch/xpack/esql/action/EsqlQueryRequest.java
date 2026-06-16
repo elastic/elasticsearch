@@ -252,7 +252,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = onSnapshotBuild;
     }
 
-    void acceptedPragmaRisks(boolean accepted) {
+    public EsqlQueryRequest acceptedPragmaRisks(boolean accepted) {
         this.acceptedPragmaRisks = accepted;
+        return this;
     }
 }

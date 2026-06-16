@@ -40,6 +40,10 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -238,9 +242,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             if (attr != null) {
                 groupRefsBuilder.add(attr);
             }
-            if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
-            }
+            checkUnsupportedStatsGroupingType(e, failures);
         });
         var groupRefs = groupRefsBuilder.build();
 
@@ -266,6 +268,22 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         }
         checkCategorizeGrouping(failures);
         checkMultipleScoreAggregations(failures);
+    }
+
+    static void checkUnsupportedGroupingType(Expression e, Failures failures) {
+        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
+            || e.dataType() == AGGREGATE_METRIC_DOUBLE
+            || e.dataType() == DATE_PERIOD
+            || e.dataType() == TIME_DURATION) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
+    }
+
+    private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {
+        checkUnsupportedGroupingType(e, failures);
+        if (e.dataType() == DENSE_VECTOR) {
+            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        }
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {

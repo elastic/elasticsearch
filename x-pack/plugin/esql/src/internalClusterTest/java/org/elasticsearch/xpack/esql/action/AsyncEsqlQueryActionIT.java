@@ -42,7 +42,6 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -275,6 +274,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             .keepAlive(keepAlive);
         final String asyncId;
         long currentExpiration;
+        scriptPermits.drainPermits();
         try {
             try (EsqlQueryResponse initialResponse = request.execute().actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
@@ -327,18 +327,44 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     public void testCancelOnExpiry() throws Exception {
-        TimeValue keepAlive = timeValueMillis(between(1000, 2000));
-        var request = asyncEsqlQueryRequest();
-        request.query("from test | stats sum(pause_me)");
-        request.waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)));
-        request.keepOnCompletion(randomBoolean());
-        request.keepAlive(keepAlive);
+        var request = EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
+            .query("from test | stats sum(pause_me)")
+            .pragmas(queryPragmas())
+            // small interval so that we can return quickly on submission
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+            .keepOnCompletion(randomBoolean())
+            .allowPartialResults(false)
+            // large interval so that the tasks won't be cancelled until it has started
+            .keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
         final String asyncId;
+        scriptPermits.drainPermits();
         try {
-            try (EsqlQueryResponse initialResponse = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(60, TimeUnit.SECONDS)) {
+            try (EsqlQueryResponse initialResponse = request.execute().actionGet(60, TimeUnit.SECONDS)) {
                 assertThat(initialResponse.isRunning(), is(true));
                 assertTrue(initialResponse.asyncExecutionId().isPresent());
                 asyncId = initialResponse.asyncExecutionId().get();
+            }
+            // make sure at least one data node driver has started
+            assertBusy(() -> {
+                List<TaskInfo> driverTasks = client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setDetailed(true)
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(d -> d.status().toString().contains("Lucene"))
+                    .toList();
+                assertThat(driverTasks, not(empty()));
+                for (TaskInfo driveTask : driverTasks) {
+                    assertFalse(driveTask.cancelled());
+                }
+            });
+            var getRequest = new GetAsyncResultRequest(asyncId).setWaitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+                .setKeepAlive(timeValueMillis(randomIntBetween(1, 100)));
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertTrue(resp.isRunning());
             }
             // all the started drivers were canceled
             assertBusy(() -> {
@@ -390,7 +416,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     private static long getExpirationFromDoc(String asyncId) {
         String docId = AsyncExecutionId.decode(asyncId).getDocId();
-        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).get();
+        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).setRealtime(true).get();
         assertTrue(doc.isExists());
         return ((Number) doc.getSource().get(AsyncTaskIndexService.EXPIRATION_TIME_FIELD)).longValue();
     }

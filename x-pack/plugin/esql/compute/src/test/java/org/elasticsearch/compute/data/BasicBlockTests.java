@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -753,27 +754,34 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            BytesRef originalValue = BytesRef.deepCopyOf(value);
             BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
+            // modify the value after creating the constant block
+            for (int b = 0; b < value.length; b++) {
+                if (randomBoolean()) {
+                    value.bytes[b] = randomByte();
+                }
+            }
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             assertSingleValueDenseBlock(block);
             if (positionCount > 2) {
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
+                    List.of(List.of(originalValue), List.of(originalValue), List.of(originalValue, originalValue))
                 );
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
+                    List.of(List.of(originalValue), List.of(originalValue)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
                 );
             }
@@ -1440,6 +1448,67 @@ public class BasicBlockTests extends ESTestCase {
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testFilterOrdinalBytesRefBlock() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                int valueCount = randomIntBetween(0, 2);
+                switch (valueCount) {
+                    case 0 -> ordinalBuilder.appendNull();
+                    case 1 -> ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                    default -> {
+                        ordinalBuilder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                        }
+                        ordinalBuilder.endPositionEntry();
+                    }
+                }
+            }
+            try (var block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = block.filter(masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                }
+            }
+        }
+    }
+
+    public void testFilterOrdinalBytesRefVector() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntVectorBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+            }
+            try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = vector.filter(masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                }
+            }
+        }
     }
 
     /**

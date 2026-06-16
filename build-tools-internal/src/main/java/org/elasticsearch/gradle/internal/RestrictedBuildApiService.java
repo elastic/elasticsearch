@@ -52,7 +52,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:third-party:slack");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search:qa:rest");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:ccs-rolling-upgrade");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:correctness");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:eql:qa:mixed-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:basic-multi-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ml:qa:disabled");
@@ -80,7 +79,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:text-structure:qa:text-structure-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-cluster-tests-with-security");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:multi-node-tests");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:transform:qa:single-node-tests");
         return map;
     }
 

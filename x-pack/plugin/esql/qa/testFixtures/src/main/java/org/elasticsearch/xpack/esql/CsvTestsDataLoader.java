@@ -57,6 +57,7 @@ public class CsvTestsDataLoader {
         LogConfigurator.configureESLogging();
     }
 
+    private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -83,6 +84,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
     private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
     private static final TestDataset MV_SAMPLE_DATA = new TestDataset("mv_sample_data");
+    private static final TestDataset EVENT_ALERTS = new TestDataset("event_alerts");
+    private static final TestDataset EVENT_LOGS = new TestDataset("event_logs");
+    private static final TestDataset EVENT_EMPTY = new TestDataset("event_empty").noData();
     private static final TestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
     private static final TestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
@@ -146,6 +150,9 @@ public class CsvTestsDataLoader {
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
+        Map.entry(EVENT_ALERTS.indexName, EVENT_ALERTS),
+        Map.entry(EVENT_LOGS.indexName, EVENT_LOGS),
+        Map.entry(EVENT_EMPTY.indexName, EVENT_EMPTY),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
@@ -318,10 +325,26 @@ public class CsvTestsDataLoader {
         });
     }
 
+    /**
+     * Load only the named datasets into ES. The names must be keys in {@link #CSV_DATASET_MAP}.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> datasetNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String name : datasetNames) {
+            TestDataset dataset = CSV_DATASET_MAP.get(name);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Unknown dataset: " + name);
+            }
+            load(client, dataset, logger, (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+            });
+            loadedDatasets.add(dataset.indexName);
+        }
+        forceMerge(client, loadedDatasets, logger);
+    }
+
     private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
         throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-
         Set<String> loadedDatasets = new HashSet<>();
         for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup)) {
             load(client, dataset, logger, indexCreator);
@@ -471,15 +494,16 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/data/" + dataset.dataFileName;
-        URL data = CsvTestsDataLoader.class.getResource(dataName);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + dataName);
-        }
-
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        if (dataset.dataFileName != null) {
+            final String dataName = "/data/" + dataset.dataFileName;
+            URL data = CsvTestsDataLoader.class.getResource(dataName);
+            if (data == null) {
+                throw new IllegalArgumentException("Cannot find resource " + dataName);
+            }
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        }
     }
 
     private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
@@ -774,6 +798,18 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 false,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset noData() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                null,
+                settingFileName,
+                allowSubFields,
                 typeMapping,
                 requiresInferenceEndpoint
             );

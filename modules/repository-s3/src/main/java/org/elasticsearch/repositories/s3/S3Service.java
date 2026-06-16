@@ -15,12 +15,9 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -29,6 +26,7 @@ import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.internal.plugins.S3OverrideAuthSchemePropertiesPlugin;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsWebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.utils.SdkAutoCloseable;
@@ -109,13 +107,6 @@ class S3Service extends AbstractLifecycleComponent {
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     private final S3DefaultRegionHolder defaultRegionHolder;
-
-    /**
-     * Use a signer that does not require to pre-read (and checksum) the body of PutObject and UploadPart requests since we can rely on
-     * TLS for equivalent protection.
-     */
-    @SuppressWarnings("deprecation")
-    private static final Signer signer = AwsS3V4Signer.create();
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
@@ -280,6 +271,10 @@ class S3Service extends AbstractLifecycleComponent {
             s3clientBuilder.endpointOverride(URI.create(endpoint));
         }
 
+        if (clientSettings.alwaysSignRequests) {
+            s3clientBuilder.addPlugin(S3OverrideAuthSchemePropertiesPlugin.builder().payloadSigningEnabled(true).build());
+        }
+
         return s3clientBuilder;
     }
 
@@ -375,7 +370,6 @@ class S3Service extends AbstractLifecycleComponent {
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
-        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, signer);
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()
             .maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);

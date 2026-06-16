@@ -11,12 +11,23 @@ import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 public abstract class AbstractStringPattern implements StringPattern {
 
     private Automaton automaton;
 
-    public abstract Automaton createAutomaton(boolean ignoreCase);
+    public final Automaton createAutomaton(boolean ignoreCase) {
+        try {
+            return doCreateAutomaton(ignoreCase);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        } catch (StackOverflowError e) {
+            throw new IllegalArgumentException("Pattern nesting is too deep to evaluate", e);
+        }
+    }
+
+    protected abstract Automaton doCreateAutomaton(boolean ignoreCase);
 
     private Automaton automaton() {
         if (automaton == null) {

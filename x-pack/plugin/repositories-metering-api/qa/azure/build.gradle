@@ -14,6 +14,7 @@ dependencies {
   clusterModules project(':modules:repository-azure')
   javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 boolean useFixture = false

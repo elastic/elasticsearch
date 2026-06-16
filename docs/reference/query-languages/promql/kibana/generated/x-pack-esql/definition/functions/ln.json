@@ -20,6 +20,5 @@
   "examples" : [
     "ln(memory_usage_bytes)"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

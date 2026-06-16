@@ -50,7 +50,20 @@ import java.util.TreeSet;
  */
 class ColumnarStoredLeafReader extends LeafReader {
 
+    private static final FieldInfos EMPTY_FIELD_INFOS = new FieldInfos(new FieldInfo[0]) {
+
+        @Override
+        public FieldInfo fieldInfo(String fieldName) {
+            // It is ok to return null here, since this will be used by DocValues#checkField(...) to return an empty doc values instance.
+            return null;
+        }
+
+    };
     private final Map<String, List<IndexableField>> fieldsByName;
+    // Dedicated maps for doc values types that are by nature single valued:
+    private final Map<String, IndexableField> binaryDocValuesName;
+    private final Map<String, IndexableField> numericDocValuesName;
+    private final Map<String, IndexableField> sortedDocValuesName;
 
     /**
      * Constructs a reader over the given document.
@@ -58,11 +71,24 @@ class ColumnarStoredLeafReader extends LeafReader {
      * calls are efficient.
      */
     ColumnarStoredLeafReader(LuceneDocument document) {
-        Map<String, List<IndexableField>> map = new HashMap<>();
+        this.fieldsByName = new HashMap<>(document.getFields().size());
+        this.binaryDocValuesName = new HashMap<>(document.getFields().size());
+        this.sortedDocValuesName = new HashMap<>(document.getFields().size());
+        this.numericDocValuesName = new HashMap<>(document.getFields().size());
         for (IndexableField field : document.getFields()) {
-            map.computeIfAbsent(field.name(), k -> new ArrayList<>()).add(field);
+            if (field.fieldType().docValuesType() == DocValuesType.BINARY) {
+                var prev = binaryDocValuesName.put(field.name(), field);
+                assert prev == null;
+            } else if (field.fieldType().docValuesType() == DocValuesType.NUMERIC) {
+                var prev = numericDocValuesName.put(field.name(), field);
+                assert prev == null;
+            } else if (field.fieldType().docValuesType() == DocValuesType.SORTED) {
+                var prev = sortedDocValuesName.put(field.name(), field);
+                assert prev == null;
+            } else {
+                fieldsByName.computeIfAbsent(field.name(), k -> new ArrayList<>(4)).add(field);
+            }
         }
-        this.fieldsByName = map;
     }
 
     // -------------------------------------------------------------------------
@@ -70,39 +96,33 @@ class ColumnarStoredLeafReader extends LeafReader {
     // -------------------------------------------------------------------------
 
     @Override
-    public NumericDocValues getNumericDocValues(String field) throws IOException {
-        List<IndexableField> fields = fieldsByName.getOrDefault(field, List.of());
-        List<Number> values = new ArrayList<>();
-        for (IndexableField f : fields) {
-            if (f.fieldType().docValuesType() == DocValuesType.NUMERIC) {
-                values.add(f.numericValue());
-            }
+    public NumericDocValues getNumericDocValues(String fieldName) throws IOException {
+        IndexableField field = numericDocValuesName.get(fieldName);
+        if (field != null) {
+            return SingleDocLeafReaderUtils.numericDocValues(field.numericValue());
+        } else {
+            return null;
         }
-        return SingleDocLeafReaderUtils.numericDocValues(values);
     }
 
     @Override
-    public BinaryDocValues getBinaryDocValues(String field) throws IOException {
-        List<IndexableField> fields = fieldsByName.getOrDefault(field, List.of());
-        List<BytesRef> values = new ArrayList<>();
-        for (IndexableField f : fields) {
-            if (f.fieldType().docValuesType() == DocValuesType.BINARY) {
-                values.add(f.binaryValue());
-            }
+    public BinaryDocValues getBinaryDocValues(String fieldName) throws IOException {
+        IndexableField field = binaryDocValuesName.get(fieldName);
+        if (field != null) {
+            return SingleDocLeafReaderUtils.binaryDocValues(field.binaryValue());
+        } else {
+            return null;
         }
-        return SingleDocLeafReaderUtils.binaryDocValues(values);
     }
 
     @Override
-    public SortedDocValues getSortedDocValues(String field) throws IOException {
-        List<IndexableField> fields = fieldsByName.getOrDefault(field, List.of());
-        List<BytesRef> values = new ArrayList<>();
-        for (IndexableField f : fields) {
-            if (f.fieldType().docValuesType() == DocValuesType.SORTED) {
-                values.add(f.binaryValue());
-            }
+    public SortedDocValues getSortedDocValues(String fieldName) throws IOException {
+        IndexableField field = sortedDocValuesName.get(fieldName);
+        if (field != null) {
+            return SingleDocLeafReaderUtils.sortedDocValues(field.binaryValue());
+        } else {
+            return null;
         }
-        return SingleDocLeafReaderUtils.sortedDocValues(values);
     }
 
     @Override
@@ -186,7 +206,7 @@ class ColumnarStoredLeafReader extends LeafReader {
 
     @Override
     public FieldInfos getFieldInfos() {
-        return new FieldInfos(new FieldInfo[0]);
+        return EMPTY_FIELD_INFOS;
     }
 
     @Override

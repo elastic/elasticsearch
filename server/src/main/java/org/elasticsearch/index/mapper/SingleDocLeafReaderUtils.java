@@ -58,15 +58,12 @@ class SingleDocLeafReaderUtils {
         );
     }
 
-    static NumericDocValues numericDocValues(List<Number> values) {
-        if (values.isEmpty()) {
-            return null;
-        }
+    static NumericDocValues numericDocValues(Number value) {
         DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new NumericDocValues() {
             @Override
             public long longValue() {
-                return values.get(0).longValue();
+                return value.longValue();
             }
 
             @Override
@@ -146,15 +143,12 @@ class SingleDocLeafReaderUtils {
         };
     }
 
-    static BinaryDocValues binaryDocValues(List<BytesRef> values) {
-        if (values.isEmpty()) {
-            return null;
-        }
+    static BinaryDocValues binaryDocValues(BytesRef value) {
         DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new BinaryDocValues() {
             @Override
             public BytesRef binaryValue() {
-                return values.get(0);
+                return value;
             }
 
             @Override
@@ -184,10 +178,7 @@ class SingleDocLeafReaderUtils {
         };
     }
 
-    static SortedDocValues sortedDocValues(List<BytesRef> values) {
-        if (values.isEmpty()) {
-            return null;
-        }
+    static SortedDocValues sortedDocValues(BytesRef value) {
         DocIdSetIterator disi = DocIdSetIterator.all(1);
         return new SortedDocValues() {
 
@@ -198,12 +189,12 @@ class SingleDocLeafReaderUtils {
 
             @Override
             public BytesRef lookupOrd(int ord) {
-                return values.get(0);
+                return value;
             }
 
             @Override
             public int getValueCount() {
-                return values.size();
+                return 1;
             }
 
             @Override

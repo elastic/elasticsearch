@@ -83,7 +83,7 @@ class DocumentLeafReader extends LeafReader {
             .map(IndexableField::numericValue)
             .sorted()
             .toList();
-        return SingleDocLeafReaderUtils.numericDocValues(values);
+        return SingleDocLeafReaderUtils.numericDocValues(values.get(0));
     }
 
     @Override
@@ -96,7 +96,7 @@ class DocumentLeafReader extends LeafReader {
             .map(IndexableField::binaryValue)
             .sorted()
             .toList();
-        return SingleDocLeafReaderUtils.binaryDocValues(values);
+        return SingleDocLeafReaderUtils.binaryDocValues(values.get(0));
     }
 
     @Override
@@ -109,7 +109,7 @@ class DocumentLeafReader extends LeafReader {
             .map(IndexableField::binaryValue)
             .sorted()
             .toList();
-        return SingleDocLeafReaderUtils.sortedDocValues(values);
+        return SingleDocLeafReaderUtils.sortedDocValues(values.get(0));
     }
 
     @Override

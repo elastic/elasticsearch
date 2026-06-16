@@ -526,6 +526,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }, SourceFieldMetrics.NOOP, mapping.ignoredSourceFormat());
             cachedColumnarSourceLoader = sourceLoader;
         }
+        // TODO: in columnar there shouldn't exist any store fields and so we can use StoredFieldLoader.empty() here.
         var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
         storedFieldLoader.advanceTo(docId);
         try (var b = XContentFactory.jsonBuilder()) {

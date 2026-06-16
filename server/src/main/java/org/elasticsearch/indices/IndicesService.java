@@ -997,7 +997,7 @@ public class IndicesService extends AbstractLifecycleComponent
         throttlingRecoveryService.enqueue(
             recoveryListener,
             recoveryState,
-            (listener) -> projectResolver.executeOnProject(
+            listener -> projectResolver.executeOnProject(
                 projectId,
                 () -> indexShard.startRecovery(
                     recoveryState,

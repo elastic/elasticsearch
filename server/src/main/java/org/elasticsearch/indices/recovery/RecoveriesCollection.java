@@ -110,8 +110,8 @@ public class RecoveriesCollection {
      * @return newly created RecoveryTarget
      */
     public RecoveryTarget resetRecovery(final long recoveryId) {
-        RecoveryTarget oldRecoveryTarget;
-        RecoveryTarget newRecoveryTarget;
+        final RecoveryTarget oldRecoveryTarget;
+        final RecoveryTarget newRecoveryTarget;
 
         synchronized (onGoingRecoveries) {
             // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
@@ -124,7 +124,7 @@ public class RecoveriesCollection {
             startRecoveryInternal(newRecoveryTarget);
         }
 
-        boolean successfulReset;
+        final boolean successfulReset;
         try {
             // Closes the current recovery target
             successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());

@@ -78,6 +78,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
@@ -183,12 +184,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     private static final int SHARD_COUNT_1 = 1;
     private static final int REPLICA_COUNT_0 = 0;
 
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestAnalysisPlugin.class);
-        plugins.add(MockIndexEventListener.TestPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopyNoNullElements(
+            super.nodePlugins(),
+            MockIndexEventListener.TestPlugin.class,
+            TestAnalysisPlugin.class
+        );
     }
 
     @Override

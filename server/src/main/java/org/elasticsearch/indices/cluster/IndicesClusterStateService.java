@@ -1466,8 +1466,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Creates a shard for the specified shard routing and starts recovery.
-         * Recovery might execute asynchronously, in which case this method might return
-         * before recovery has finished.
          *
          * @param projectId              the project for the shard
          * @param shardRouting           the shard routing

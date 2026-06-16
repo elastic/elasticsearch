@@ -28,6 +28,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -38,7 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -117,9 +118,15 @@ public class ViewResolver {
     }
 
     /**
-     * Result of view resolution containing both the rewritten plan and the view queries.
+     * Result of view resolution containing the rewritten plan, the view queries, and whether any {@code InSubquery} expression was
+     * rewritten into a {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin} during resolution.
+     * <p>
+     * {@code hasInSubquery} drives the {@code IN_SUBQUERY} telemetry counter (see {@code EsqlSession#gatherInSubqueryMetrics}). It
+     * is {@code true} when an IN subquery appeared anywhere that resolution rewrites it — directly in the query <em>or</em> inside a
+     * view definition — which is why it is reported here rather than detected on the pre-resolution plan (by then the view bodies, and
+     * the IN subqueries they contain, are not yet visible).
      */
-    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries) {}
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries, boolean hasInSubquery) {}
 
     /**
      * Replaces views in the logical plan with their subqueries recursively.
@@ -131,9 +138,9 @@ public class ViewResolver {
      *       then recursively processes those plans</li>
      *   <li>{@code Fork}: Recursively processes each child branch</li>
      *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
-     *   <li>{@code SemiJoin} (and subclasses {@code AntiJoin}, {@code LeftSemiJoin}): Recursively
-     *       processes the left and right sides independently so each side gets its own view
-     *       resolution context</li>
+     *   <li>{@code AbstractSubqueryJoin} (i.e. {@code SemiJoin}, {@code AntiJoin}, {@code MarkJoin}): Recursively processes the left and
+     *       right sides independently so each side gets its own view resolution context</li>
+     *   <li>{@code Filter}: Calls {@code }InSubqueryResolver} to expand {@code InSubquery}</li>
      *   <li>{@code ViewUnionAll}: Skipped (already the result of view resolution)</li>
      * </ul>
      * <p>
@@ -152,9 +159,14 @@ public class ViewResolver {
         ActionListener<ViewResolutionResult> listener
     ) {
         Map<String, String> viewQueries = new HashMap<>();
+        // Set when the traversal below rewrites an InSubquery (in the query or in a view body) into a Semi/Anti/MarkJoin; reported in
+        // the result so the session can count IN_SUBQUERY telemetry even for IN subqueries that only exist inside a view definition.
+        // A Holder (not a plain boolean) because it is written from inside the async resolution callbacks; cross-thread visibility is
+        // provided by the ActionListener plumbing, the same way the viewQueries map threaded through these callbacks is.
+        Holder<Boolean> hasInSubquery = new Holder<>(false);
         boolean noViews = viewsFeatureEnabled() == false || getMetadata().views().isEmpty();
         if (noViews && InSubqueryResolver.hasInSubqueryInFilter(plan) == false) {
-            listener.onResponse(new ViewResolutionResult(plan, viewQueries));
+            listener.onResponse(new ViewResolutionResult(plan, viewQueries, false));
             return;
         }
         // Note: this returns the uncompacted nested plan. Compaction (UnionAll/ViewUnionAll
@@ -170,8 +182,11 @@ public class ViewResolver {
             parser,
             new LinkedHashSet<>(),
             viewQueries,
+            hasInSubquery,
             0,
-            listener.delegateFailureAndWrap((l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
+            listener.delegateFailureAndWrap(
+                (l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries, hasInSubquery.get()))
+            )
         );
     }
 
@@ -181,6 +196,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -211,6 +227,7 @@ public class ViewResolver {
                     parser,
                     seenInner,
                     viewQueries,
+                    hasInSubquery,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
@@ -224,14 +241,16 @@ public class ViewResolver {
                         // No InSubquery in this filter — let transformDown process its children normally.
                         planListener.onResponse(filter);
                     } else {
-                        // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — now resolve any view
+                        // InSubquery rewritten to SemiJoin/AntiJoin/MarkJoin — record it for telemetry, then resolve any view
                         // references introduced in the subquery plans.
+                        hasInSubquery.set(true);
                         replaceViews(
                             resolved,
                             projectRouting,
                             parser,
                             seenInner,
                             viewQueries,
+                            hasInSubquery,
                             depth,
                             planListener.delegateFailureAndWrap((l, result) -> {
                                 result.forEachDown(resolvedPlans::add);
@@ -240,12 +259,13 @@ public class ViewResolver {
                         );
                     }
                 }
-                case SemiJoin semiJoin -> replaceViewsSemiJoin(
-                    semiJoin,
+                case AbstractSubqueryJoin subqueryJoin -> replaceViewsSubqueryJoin(
+                    subqueryJoin,
                     projectRouting,
                     parser,
                     seenInner,
                     viewQueries,
+                    hasInSubquery,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
@@ -259,6 +279,7 @@ public class ViewResolver {
                     seenInner,
                     seenWildcards,
                     viewQueries,
+                    hasInSubquery,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
@@ -279,6 +300,7 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -294,6 +316,7 @@ public class ViewResolver {
                     parser,
                     seenViews,
                     viewQueries,
+                    hasInSubquery,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -321,17 +344,18 @@ public class ViewResolver {
         }).addListener(listener);
     }
 
-    private void replaceViewsSemiJoin(
-        SemiJoin semiJoin,
+    private void replaceViewsSubqueryJoin(
+        AbstractSubqueryJoin subqueryJoin,
         String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        LogicalPlan origLeft = semiJoin.left();
-        LogicalPlan origRight = semiJoin.right();
+        LogicalPlan origLeft = subqueryJoin.left();
+        LogicalPlan origRight = subqueryJoin.right();
         SubscribableListener<LogicalPlan> leftChain = SubscribableListener.newForked(
             l -> replaceViews(
                 origLeft,
@@ -339,6 +363,7 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                hasInSubquery,
                 depth + 1,
                 l.delegateFailureAndWrap((sl, newLeft) -> {
                     if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
@@ -355,15 +380,16 @@ public class ViewResolver {
                 parser,
                 seenViews,
                 viewQueries,
+                hasInSubquery,
                 depth + 1,
                 l.delegateFailureAndWrap((sl, newRight) -> {
                     if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                         newRight = named;
                     }
                     if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
-                        sl.onResponse(semiJoin.replaceChildren(newLeft, newRight));
+                        sl.onResponse(subqueryJoin.replaceChildren(newLeft, newRight));
                     } else {
-                        sl.onResponse(semiJoin);
+                        sl.onResponse(subqueryJoin);
                     }
                 })
             )
@@ -377,6 +403,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
+        Holder<Boolean> hasInSubquery,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
@@ -475,6 +502,7 @@ public class ViewResolver {
                         parser,
                         branchSeenViews,
                         viewQueries,
+                        hasInSubquery,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);

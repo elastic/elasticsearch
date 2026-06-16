@@ -88,7 +88,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertFalse(semiJoin.isAntiJoin());
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(semiJoin.config().rightFields().size(), equalTo(1));
@@ -112,7 +111,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertTrue(antiJoin.isAntiJoin());
         assertThat(antiJoin.config().leftFields().size(), equalTo(1));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(antiJoin.config().rightFields().size(), equalTo(1));
@@ -136,7 +134,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertFalse(semiJoin.isAntiJoin());
 
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
@@ -3168,6 +3165,65 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertUnionAllOfPlainEmployeesViewAndFromTestEmpNoSubquery(unionAll);
     }
 
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_SemiJoin[SEMI,[emp_no],[emp_no]]
+     *   |_UnionAll[[emp_no]]                              // main FROM: two view-referencing subqueries
+     *   | |_Project[[emp_no]]
+     *   | | \_Subquery[]
+     *   | |   \_Project[[emp_no]]
+     *   | |     \_Project[[emp_no]]
+     *   | |       \_EsRelation[employees]                 // main_view_a
+     *   | \_Project[[emp_no]]
+     *   |   \_Subquery[]
+     *   |     \_Project[[emp_no]]
+     *   |       \_Project[[emp_no]]
+     *   |         \_Filter[salary > 50000[INTEGER]]
+     *   |           \_EsRelation[employees]               // main_view_b
+     *   \_Project[[emp_no]]
+     *     \_UnionAll[[emp_no]]                            // IN subquery: two view-referencing subqueries
+     *       |_Project[[emp_no]]
+     *       | \_Subquery[]
+     *       |   \_Project[[emp_no]]
+     *       |     \_Project[[emp_no]]
+     *       |       \_EsRelation[employees]               // in_view_a
+     *       \_Project[[emp_no]]
+     *         \_Subquery[]
+     *           \_Project[[emp_no]]
+     *             \_Project[[emp_no]]
+     *               \_Filter[salary > 60000[INTEGER]]
+     *                 \_EsRelation[employees]             // in_view_b
+     */
+    public void testMainFromAndInSubqueryEachReferenceMultipleViewSubqueries() {
+        requireInSubqueryViewSupport();
+        requireSubqueryInFromSupport();
+        LogicalPlan plan = analyzer().addIndex("test", "mapping-basic.json")
+            .addIndex("employees", "mapping-basic.json")
+            .addView("main_view_a", "FROM employees | KEEP emp_no")
+            .addView("main_view_b", "FROM employees | WHERE salary > 50000 | KEEP emp_no")
+            .addView("in_view_a", "FROM employees | KEEP emp_no")
+            .addView("in_view_b", "FROM employees | WHERE salary > 60000 | KEEP emp_no")
+            .query("""
+                FROM (FROM main_view_a | KEEP emp_no), (FROM main_view_b | KEEP emp_no)
+                | WHERE emp_no IN (FROM (FROM in_view_a | KEEP emp_no), (FROM in_view_b | KEEP emp_no) | KEEP emp_no)
+                """);
+
+        Limit limit = as(plan, Limit.class);
+        SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("emp_no"));
+
+        // Left side: the main FROM is a UnionAll of two view-referencing subqueries (main_view_a unfiltered, main_view_b salary > 50000).
+        UnionAll mainFrom = as(semiJoin.left(), UnionAll.class);
+        assertUnionAllOfPlainAndSalaryFilteredEmployeesSubqueries(mainFrom, 50000);
+
+        // Right side: the IN subquery is also a UnionAll of two view-referencing subqueries (in_view_a unfiltered, in_view_b > 60000).
+        Project rightProject = as(semiJoin.right(), Project.class);
+        UnionAll inSubquery = as(rightProject.child(), UnionAll.class);
+        assertUnionAllOfPlainAndSalaryFilteredEmployeesSubqueries(inSubquery, 60000);
+    }
+
     // -- tests with TS source inside IN subquery --
 
     /*
@@ -3471,7 +3527,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
         SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertFalse(semiJoin.isAntiJoin());
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
 
@@ -3864,6 +3919,32 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertEquals("salary", innerProj.output().get(0).name());
         assertEquals(DataType.INTEGER, innerProj.output().get(0).dataType());
         assertEquals("employees", as(innerProj.child(), EsRelation.class).indexPattern());
+    }
+
+    /**
+     * Asserts {@code unionAll} has exactly two {@code emp_no} branches, each a FROM subquery over a view of {@code employees}: the
+     * first an unfiltered view, the second a {@code salary > filteredMinSalary} view. Used for the UnionAlls produced both by the
+     * main FROM command and by the IN/NOT IN subquery when each lists several view-referencing subqueries. Leading {@link Project}s
+     * (from the chained KEEPs of the FROM subquery and the view body) are skipped via {@link #unwrapProjects}.
+     */
+    private static void assertUnionAllOfPlainAndSalaryFilteredEmployeesSubqueries(UnionAll unionAll, int filteredMinSalary) {
+        assertEquals(2, unionAll.children().size());
+        assertUnionAllSingleIntegerColumn(unionAll, "emp_no");
+
+        Project plainBranch = as(unionAll.children().get(0), Project.class);
+        assertUnionAllBranchMatchesUnionOutput(unionAll, plainBranch);
+        Subquery plainSub = as(unwrapProjects(plainBranch), Subquery.class);
+        assertEquals("employees", as(unwrapProjects(plainSub.child()), EsRelation.class).indexPattern());
+
+        Project filteredBranch = as(unionAll.children().get(1), Project.class);
+        assertUnionAllBranchMatchesUnionOutput(unionAll, filteredBranch);
+        Subquery filteredSub = as(unwrapProjects(filteredBranch), Subquery.class);
+        Filter salaryFilter = as(unwrapProjects(filteredSub.child()), Filter.class);
+        GreaterThan gt = as(salaryFilter.condition(), GreaterThan.class);
+        assertEquals("salary", as(gt.left(), FieldAttribute.class).name());
+        assertEquals(filteredMinSalary, as(gt.right(), Literal.class).value());
+        assertEquals(DataType.INTEGER, as(gt.right(), Literal.class).dataType());
+        assertEquals("employees", as(salaryFilter.child(), EsRelation.class).indexPattern());
     }
 
     private static void assertUnionAllBranchMatchesUnionOutput(UnionAll unionAll, Project branch) {

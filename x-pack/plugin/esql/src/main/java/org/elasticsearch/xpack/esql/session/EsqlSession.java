@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -100,8 +99,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -315,9 +314,12 @@ public class EsqlSession {
         planSnapshot = planSnapshot.withParsed(statement.plan());
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
-        gatherInSubqueryMetrics(statement.plan());
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
+        // View + IN-subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
+        // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
+        // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
+        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
         viewAndSubqueryResolver.resolve(
             statement.plan(),
             projectRouting(request, statement),
@@ -347,6 +349,7 @@ public class EsqlSession {
 
         // this is stack telemetry
         gatherViewMetrics(viewResolution);
+        gatherInSubqueryMetrics(viewResolution);
 
         // this is APM
         gatherPlanTelemetry(viewResolution.plan(), statement.settings());
@@ -817,18 +820,18 @@ public class EsqlSession {
         // are resolved before outer ones that depend on them.
         LogicalPlan firstJoin = findFirstSubPlanJoin(mainPlan, subPlansResults);
 
-        if (firstJoin instanceof SemiJoin) {
-            SemiJoin.LogicalPlanTuple semiJoinTuple = SemiJoin.firstSubPlan(mainPlan, subPlansResults);
+        if (firstJoin instanceof AbstractSubqueryJoin) {
+            AbstractSubqueryJoin.LogicalPlanTuple semiJoinTuple = AbstractSubqueryJoin.firstSubPlan(mainPlan, subPlansResults);
             if (semiJoinTuple != null) {
                 AtomicReference<Page> localRelationPage = new AtomicReference<>();
                 subPlanAndCallback = new SubPlanAndCallback(semiJoinTuple.subPlan(), result -> {
                     LocalRelation resultWrapper = resultToPlan(semiJoinTuple.subPlan().source(), result);
-                    // SemiJoin.inlineData may release this page eagerly (filter / empty paths) or swap
+                    // AbstractSubqueryJoin.inlineData may release this page eagerly (filter / empty paths) or swap
                     // it for a smaller, breaker-tracked dedup page (hash-join path) so the cleanup
                     // below releases the right one at end of main plan execution.
                     localRelationPage.set(resultWrapper.supplier().get());
                     subPlansResults.add(resultWrapper);
-                    return SemiJoin.newMainPlan(
+                    return AbstractSubqueryJoin.newMainPlan(
                         mainPlan,
                         semiJoinTuple,
                         resultWrapper,
@@ -881,9 +884,9 @@ public class EsqlSession {
             if (result.get() != null) {
                 return;
             }
-            // Whether checking SemiJoin or InlineJoin first does not matter, the plan is processed bottom up, looking for
+            // Whether checking the subquery join or InlineJoin first does not matter, the plan is processed bottom up, looking for
             // joins whose right child haven't been evaluated yet
-            if (p instanceof SemiJoin sj) {
+            if (p instanceof AbstractSubqueryJoin sj) {
                 if (sj.right() instanceof LocalRelation lr && subPlansResults.contains(lr)) {
                     return; // already processed
                 }
@@ -1072,20 +1075,21 @@ public class EsqlSession {
     }
 
     /**
-     * Increments the {@code IN_SUBQUERY} counter once per query when the parsed plan contains any
-     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery} inside a
-     * {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}. Called before view and subquery
-     * resolution, while {@code InSubquery} expressions are still visible. Mirrors {@link #gatherViewMetrics}.
-     * The {@code WHERE} counter is handled separately by the analyzer/verifier plan walk via
-     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/MarkJoin.
+     * Increments the {@code IN_SUBQUERY} counter once per query when view + subquery resolution rewrote any
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery} into a
+     * {@code SemiJoin}/{@code AntiJoin}/{@code MarkJoin}.
+     * <p>
+     * The decision comes from {@link ViewResolver.ViewResolutionResult#hasInSubquery()} rather than the pre-resolution plan,
+     * because an IN subquery may live only inside a view definition: it is not visible in the original plan and is rewritten away
+     * during resolution. Mirrors {@link #gatherViewMetrics}: direct increment, once per query, on successful resolution. The
+     * {@code WHERE} counter is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
+     * SemiJoin/AntiJoin/MarkJoin.
      */
-    private void gatherInSubqueryMetrics(LogicalPlan plan) {
-        if (metrics == null) {
+    private void gatherInSubqueryMetrics(ViewResolver.ViewResolutionResult viewResolution) {
+        if (metrics == null || viewResolution.hasInSubquery() == false) {
             return;
         }
-        if (InSubqueryResolver.hasInSubqueryInFilter(plan)) {
-            metrics.inc(FeatureMetric.IN_SUBQUERY);
-        }
+        metrics.inc(FeatureMetric.IN_SUBQUERY);
     }
 
     /**

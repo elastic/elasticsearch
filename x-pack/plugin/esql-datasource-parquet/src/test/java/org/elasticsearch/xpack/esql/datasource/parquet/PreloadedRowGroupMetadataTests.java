@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.DictionaryPage;
@@ -24,7 +25,12 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -42,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Verifies that {@link PreloadedRowGroupMetadata#preload(ParquetFileReader, StorageObject, Set)}
+ * Verifies that {@link PreloadedRowGroupMetadata#preload(ParquetFileReader, StorageObject, Set, BufferAllocator)}
  * pre-fetches dictionary page bytes for predicate columns into a coalesced batch fetch and that
  * the resulting {@code preWarmedChunks} map can be installed on the adapter so subsequent reads
  * are served from memory.
@@ -52,9 +58,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class PreloadedRowGroupMetadataTests extends ESTestCase {
 
+    private BlockFactory blockFactory;
+    private BufferAllocator allocator;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        allocator = blockFactory.arrowAllocator();
         ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
@@ -77,11 +88,11 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage), options)) {
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
             int rgCount = reader.getRowGroups().size();
             assertTrue("Test setup must produce at least one row group", rgCount >= 1);
 
-            PreloadedRowGroupMetadata withPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"));
+            PreloadedRowGroupMetadata withPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), allocator);
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = withPrewarm.preWarmedChunks();
 
             // Count how many of the row groups actually have a dictionary page; only those
@@ -116,6 +127,33 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     }
 
     /**
+     * Calling {@link PreloadedRowGroupMetadata#close()} twice must be a no-op. The underlying
+     * releasable wraps refcounted {@link org.apache.arrow.memory.ArrowBuf}s whose
+     * {@code close()} throws when the reference count reaches zero a second time; we want
+     * callers (e.g. an iterator with overlapping cleanup paths) to be able to close defensively
+     * without tripping on that.
+     */
+    public void testCloseIsIdempotent() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        int rows = 65_536;
+        long[] values = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), allocator);
+            assertFalse("Pre-warm map must be populated to exercise the ArrowBuf-backed releasable", metadata.preWarmedChunks().isEmpty());
+            metadata.close();
+            // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
+            metadata.close();
+        }
+    }
+
+    /**
      * Without predicate column names, pre-warm chunks must remain empty so the optimization is
      * disabled — this preserves the existing behavior for callers that don't have a filter.
      */
@@ -125,15 +163,18 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         StorageObject storage = createRangeReadStorageObject(parquetData);
 
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage), options)) {
-            PreloadedRowGroupMetadata withoutPrewarm = PreloadedRowGroupMetadata.preload(reader, storage);
-            assertTrue("Default preload must not pre-warm dictionary pages", withoutPrewarm.preWarmedChunks().isEmpty());
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            try (PreloadedRowGroupMetadata withoutPrewarm = PreloadedRowGroupMetadata.preload(reader, storage, allocator)) {
+                assertTrue("Default preload must not pre-warm dictionary pages", withoutPrewarm.preWarmedChunks().isEmpty());
+            }
 
-            PreloadedRowGroupMetadata withEmptyPredicates = PreloadedRowGroupMetadata.preload(reader, storage, Set.of());
-            assertTrue("Empty predicate set must disable pre-warm", withEmptyPredicates.preWarmedChunks().isEmpty());
+            try (PreloadedRowGroupMetadata withEmptyPredicates = PreloadedRowGroupMetadata.preload(reader, storage, Set.of(), allocator)) {
+                assertTrue("Empty predicate set must disable pre-warm", withEmptyPredicates.preWarmedChunks().isEmpty());
+            }
 
-            PreloadedRowGroupMetadata withNullPredicates = PreloadedRowGroupMetadata.preload(reader, storage, null);
-            assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
+            try (PreloadedRowGroupMetadata withNullPredicates = PreloadedRowGroupMetadata.preload(reader, storage, null, allocator)) {
+                assertTrue("Null predicate set must disable pre-warm", withNullPredicates.preWarmedChunks().isEmpty());
+            }
         }
     }
 
@@ -156,7 +197,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
         try (
             ParquetFileReader reader = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData)),
+                new ParquetStorageObjectAdapter(createRangeReadStorageObject(parquetData), allocator),
                 options
             )
         ) {
@@ -188,35 +229,36 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             }
         });
 
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorage, allocator);
         try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
             // Pre-fetch + install: exactly the production wiring.
-            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, countingStorage, Set.of("v"));
-            assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
-            int dictReadsAfterPreload = dictionaryRangeReads.get();
+            try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, countingStorage, Set.of("v"), allocator)) {
+                assertFalse("Pre-warm map must be populated", metadata.preWarmedChunks().isEmpty());
+                int dictReadsAfterPreload = dictionaryRangeReads.get();
 
-            adapter.installPreWarmedChunks(metadata.preWarmedChunks());
+                adapter.installPreWarmedChunks(metadata.preWarmedChunks());
 
-            // Trigger reads of every row group's dictionary page through parquet-mr's reader.
-            // This mirrors what RowGroupFilter does internally during DICTIONARY-level filtering.
-            ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumns().get(0);
-            for (int rg = 0; rg < reader.getRowGroups().size(); rg++) {
-                var col = reader.getRowGroups().get(rg).getColumns().get(0);
-                if (col.hasDictionaryPage() == false) {
-                    continue;
+                // Trigger reads of every row group's dictionary page through parquet-mr's reader.
+                // This mirrors what RowGroupFilter does internally during DICTIONARY-level filtering.
+                ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumns().get(0);
+                for (int rg = 0; rg < reader.getRowGroups().size(); rg++) {
+                    var col = reader.getRowGroups().get(rg).getColumns().get(0);
+                    if (col.hasDictionaryPage() == false) {
+                        continue;
+                    }
+                    try (DictionaryPageReadStore dictStore = reader.getDictionaryReader(reader.getRowGroups().get(rg))) {
+                        DictionaryPage dictPage = dictStore.readDictionaryPage(desc);
+                        assertNotNull("Dictionary page must be readable for rg " + rg, dictPage);
+                    }
                 }
-                try (DictionaryPageReadStore dictStore = reader.getDictionaryReader(reader.getRowGroups().get(rg))) {
-                    DictionaryPage dictPage = dictStore.readDictionaryPage(desc);
-                    assertNotNull("Dictionary page must be readable for rg " + rg, dictPage);
-                }
+
+                // The pre-warm install must catch all subsequent dictionary reads.
+                assertEquals(
+                    "After installing the pre-warm map, dictionary reads must not trigger any new range GETs",
+                    dictReadsAfterPreload,
+                    dictionaryRangeReads.get()
+                );
             }
-
-            // The pre-warm install must catch all subsequent dictionary reads.
-            assertEquals(
-                "After installing the pre-warm map, dictionary reads must not trigger any new range GETs",
-                dictReadsAfterPreload,
-                dictionaryRangeReads.get()
-            );
         }
     }
 
@@ -251,35 +293,36 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             StorageObject asyncStorage = createAsyncRangeReadStorageObject(parquetData, ioPool, asyncReadCount);
 
             ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
-            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage);
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage, allocator);
             try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
-                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"));
-                NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = metadata.preWarmedChunks();
-                assertFalse("Pre-warm map must contain dictionary chunks even when reads complete async", chunks.isEmpty());
-                assertTrue("Async reads must have been dispatched", asyncReadCount.get() > 0);
+                try (PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"), allocator)) {
+                    NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = metadata.preWarmedChunks();
+                    assertFalse("Pre-warm map must contain dictionary chunks even when reads complete async", chunks.isEmpty());
+                    assertTrue("Async reads must have been dispatched", asyncReadCount.get() > 0);
 
-                int asyncReadsAfterPreload = asyncReadCount.get();
-                adapter.installPreWarmedChunks(chunks);
+                    int asyncReadsAfterPreload = asyncReadCount.get();
+                    adapter.installPreWarmedChunks(chunks);
 
-                // Every dictionary page should now be served from the pre-warm map — no new
-                // async reads should be dispatched for those byte ranges.
-                ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumns().get(0);
-                for (int rg = 0; rg < reader.getRowGroups().size(); rg++) {
-                    var col = reader.getRowGroups().get(rg).getColumns().get(0);
-                    if (col.hasDictionaryPage() == false) {
-                        continue;
+                    // Every dictionary page should now be served from the pre-warm map — no new
+                    // async reads should be dispatched for those byte ranges.
+                    ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumns().get(0);
+                    for (int rg = 0; rg < reader.getRowGroups().size(); rg++) {
+                        var col = reader.getRowGroups().get(rg).getColumns().get(0);
+                        if (col.hasDictionaryPage() == false) {
+                            continue;
+                        }
+                        try (DictionaryPageReadStore dictStore = reader.getDictionaryReader(reader.getRowGroups().get(rg))) {
+                            DictionaryPage dictPage = dictStore.readDictionaryPage(desc);
+                            assertNotNull("Dictionary page must be readable from pre-warm for rg " + rg, dictPage);
+                        }
                     }
-                    try (DictionaryPageReadStore dictStore = reader.getDictionaryReader(reader.getRowGroups().get(rg))) {
-                        DictionaryPage dictPage = dictStore.readDictionaryPage(desc);
-                        assertNotNull("Dictionary page must be readable from pre-warm for rg " + rg, dictPage);
-                    }
+
+                    assertEquals(
+                        "Dictionary reads after pre-warm install must not trigger any new async range reads",
+                        asyncReadsAfterPreload,
+                        asyncReadCount.get()
+                    );
                 }
-
-                assertEquals(
-                    "Dictionary reads after pre-warm install must not trigger any new async range reads",
-                    asyncReadsAfterPreload,
-                    asyncReadCount.get()
-                );
             }
         } finally {
             ioPool.shutdownNow();
@@ -396,8 +439,9 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
+                DirectBufferFactory factory,
                 java.util.concurrent.Executor ignored,
-                ActionListener<ByteBuffer> listener
+                ActionListener<DirectReadBuffer> listener
             ) {
                 asyncReadCount.incrementAndGet();
                 pool.execute(() -> {
@@ -406,7 +450,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
                         int len = (int) Math.min(length, data.length - position);
                         byte[] slice = new byte[len];
                         System.arraycopy(data, pos, slice, 0, len);
-                        listener.onResponse(ByteBuffer.wrap(slice));
+                        listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(slice), () -> {}));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }

@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -185,7 +186,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs2");
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+        // The view source (logs2) must remain as a separate branch from the wildcard pattern (logs*,-logs3)
+        // because logs* also matches logs2 directly — merging would deduplicate logs2 and lose one copy.
+        // The exclusion -logs3 is preserved in the wildcard branch for correct index resolution.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs2), logs*,-logs3")));
     }
 
     /**
@@ -422,6 +426,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*")));
     }
 
+    public void testCCSRemoteExclusionExpressionNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view*,-remote:view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*,-remote:view1")));
+    }
+
     public void testReplaceViewPlans() {
         addView("view1", "FROM emp | WHERE emp.age > 30");
         addView("view2", "FROM view1 | WHERE emp.age < 40");
@@ -487,7 +497,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM *");
         // The * wildcard is preserved because concrete indices from setupTest() (emp, emp1, emp2, emp3, logs)
         // also match *, so hasNonView=true and * passes through for later field caps resolution.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+        // The view sources (emp1, emp2, emp3) are kept as a separate branch from the wildcard * because
+        // * also matches emp1/emp2/emp3 directly — merging would deduplicate those indices and collapse
+        // what should be two independent data copies (one from the view, one from the direct index) into one.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *, (FROM emp1,emp2,emp3)")));
     }
 
     public void testReplaceViewsWildcardAllNoReferencedIndices() {
@@ -517,7 +530,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM *");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+        // Same as testReplaceViewsWildcardAll: the view sources are kept separate from the wildcard
+        // because * also covers emp1/emp2/emp3 directly.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *, (FROM emp1,emp2,emp3)")));
     }
 
     public void testReplaceViewsWildcardWithIndex() {
@@ -1133,7 +1148,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1141,7 +1156,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -1581,6 +1596,34 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     /**
+     * Regression test for wildcard-based view resolution where both an index and a view sourcing
+     * that same index match the wildcard. The wildcard should produce two independent copies of the
+     * underlying index data — one via the direct wildcard match and one via the view — mirroring
+     * the behaviour of an explicit {@code FROM logs-1, logs-2} query.
+     * <p>
+     * Setup: index {@code logs-1}, view {@code logs-2 = FROM logs-1}.
+     * <ul>
+     *   <li>{@code FROM logs-1, logs-2} — explicit form: the view resolves to {@code FROM logs-1},
+     *       and since the explicit pattern also names {@code logs-1}, the two share the same source
+     *       index. They must remain as separate branches to preserve the duplicate.</li>
+     *   <li>{@code FROM logs-*} — wildcard form: the wildcard matches both {@code logs-1} (index)
+     *       and {@code logs-2} (view). The view's resolved {@code UnresolvedRelation("logs-1")} must
+     *       NOT be merged with the retained {@code UnresolvedRelation("logs-*")} pattern, because
+     *       {@code logs-*} matches {@code logs-1} and merging would cause index-resolution to
+     *       deduplicate the overlap, silently dropping one copy.</li>
+     * </ul>
+     */
+    public void testWildcardAndViewSharingSourceIndexProduceTwoCopies() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("logs-1");
+        addView("logs-2", "FROM logs-1");
+        // Explicit form: already worked correctly before the fix — kept as a regression guard.
+        assertThat(replaceViews(query("FROM logs-1, logs-2")), matchesPlan(query("FROM logs-1, (FROM logs-1)")));
+        // Wildcard form: was broken before the fix — wildcard and view's source were incorrectly merged.
+        assertThat(replaceViews(query("FROM logs-*")), matchesPlan(query("FROM (FROM logs-1), logs-*")));
+    }
+
+    /**
      * Further testing of the de-duplication fix.
      * This test is designed to mimic the test csv-spec:views.compactedNestedViewWithIndexGivesTripleCopies
      */
@@ -1997,10 +2040,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
      * Walk the plan tree and collect each {@link ViewShadowRelation}'s applicable exclusions,
      * keyed by view name.
      */
-    private static Map<String, List<String>> collectShadowExclusions(LogicalPlan plan) {
-        Map<String, List<String>> exclusions = new java.util.LinkedHashMap<>();
-        plan.forEachDown(ViewShadowRelation.class, sh -> exclusions.put(sh.viewName(), sh.exclusions()));
-        return exclusions;
+    private static Map<String, ViewShadowRelation> collectViewShadowRelations(LogicalPlan plan) {
+        Map<String, ViewShadowRelation> vsrs = new LinkedHashMap<>();
+        plan.forEachDown(ViewShadowRelation.class, vsr -> vsrs.put(vsr.viewName(), vsr));
+        return vsrs;
     }
 
     private static void assertNoPlanConsistencyFailures(LogicalPlan plan, String context) {
@@ -2035,7 +2078,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(vua.namedSubqueries().get("v"), instanceOf(UnresolvedRelation.class));
         assertThat(vua.namedSubqueries().get("v#shadow"), instanceOf(ViewShadowRelation.class));
         assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).viewName(), equalTo("v"));
-        assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).exclusions(), equalTo(List.of()));
+        assertThat(
+            ((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(),
+            equalTo("v")
+        );
     }
 
     /**
@@ -2136,20 +2182,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_a", "FROM emp1");
         addView("v_b", "FROM emp2");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_*"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        // CPS preserves the wildcard pattern alongside the matched view bodies in the merged
-        // strict UR. The original test (non-CPS) saw just "emp1,emp2"; under CPS the wildcard
-        // "v_*" rides along to drive the lenient lookup against linked projects.
-        UnresolvedRelation strict = vua.namedSubqueries()
-            .values()
-            .stream()
-            .filter(p -> p instanceof UnresolvedRelation)
-            .map(p -> (UnresolvedRelation) p)
-            .findFirst()
-            .orElseThrow();
+        // in cps resolved pattern should contain coalesced views patterns (emp1 and emp2)
+        // as well as v_* pattern in case it could be resolved on linked projects
+        assertThat(resolved, instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation strict = (UnresolvedRelation) resolved;
         assertThat(List.of(strict.indexPattern().indexPattern().split(",")), containsInAnyOrder("emp1", "emp2", "v_*"));
-        assertThat(collectShadowNames(resolved), containsInAnyOrder("v_a", "v_b"));
+        assertThat(collectShadowNames(resolved), empty());
     }
 
     /**
@@ -2188,14 +2226,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v0", "FROM v1");
 
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v0"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
 
         // v0 referenced from outer "FROM v0" — no later exclusions.
-        assertThat(shadowExclusions.get("v0"), equalTo(List.of()));
+        assertThat(vsrs.get("v0").linkedIndexPattern().pattern().indexPattern(), equalTo("v0"));
         // v1 referenced from v0's body "FROM v1" — no later exclusions.
-        assertThat(shadowExclusions.get("v1"), equalTo(List.of()));
+        assertThat(vsrs.get("v1").linkedIndexPattern().pattern().indexPattern(), equalTo("v1"));
         // v2 referenced from v1's body "FROM v2,metrics*,-*2025" — -*2025 follows v2 → applies.
-        assertThat(shadowExclusions.get("v2"), equalTo(List.of("-*2025")));
+        assertThat(vsrs.get("v2").linkedIndexPattern().pattern().indexPattern(), equalTo("v2,-*2025"));
     }
 
     /**
@@ -2207,9 +2245,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_a", "FROM emp");
         addView("v_b", "FROM emp");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_a,-staleA-*,v_b,-staleB-*"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("-staleA-*", "-staleB-*")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of("-staleB-*")));
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-staleA-*,-staleB-*"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b,-staleB-*"));
     }
 
     /**
@@ -2229,20 +2267,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Cluster-prefixed exclusion (cluster:-name): attaches to shadows positioned before it.
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-data,my_linked_project:-my-data"));
-        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("my-data"), equalTo(List.of("my_linked_project:-my-data")));
+        Map<String, ViewShadowRelation> vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("my-data").linkedIndexPattern().pattern().indexPattern(), equalTo("my-data,my_linked_project:-my-data"));
 
         // *:-name form (exclusion across all remotes): same handling.
         resolved = replaceViewsWithoutCompaction(query("FROM v_a,*:-stale,v_b"));
-        shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("*:-stale")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+        vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,*:-stale"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
 
         // Cluster-level exclusion (-cluster:*): also propagates.
         resolved = replaceViewsWithoutCompaction(query("FROM v_a,-stale_cluster:*,v_b"));
-        shadowExclusions = collectShadowExclusions(resolved);
-        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("-stale_cluster:*")));
-        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+        vsrs = collectViewShadowRelations(resolved);
+        assertThat(vsrs.get("v_a").linkedIndexPattern().pattern().indexPattern(), equalTo("v_a,-stale_cluster:*"));
+        assertThat(vsrs.get("v_b").linkedIndexPattern().pattern().indexPattern(), equalTo("v_b"));
     }
 
     // -------------------------------------------------------------------------------------------
@@ -2531,7 +2569,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, this::parse, future);
+        resolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
     }
 

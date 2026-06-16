@@ -119,7 +119,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.CachePopulationSource.BlobStore;
 import static org.elasticsearch.blobcache.CachePopulationSource.Peer;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -137,7 +136,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1611,7 +1609,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         safeAwait(threadCounter);
     }
 
-    public void testSearchTriggeredDownloadsTelemetry() {
+    public void testSearchTriggeredDownloadsTelemetry() throws Exception {
         startMasterAndIndexNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         String searchNode = startSearchNode();
@@ -1623,22 +1621,34 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
         }
         flush(indexName);
 
-        evictSearchShardCache(indexName);
-        SearchResponse searchResponse = null;
-        try {
-            searchResponse = prepareSearch(indexName).setQuery(matchAllQuery()).get();
-        } finally {
-            if (searchResponse != null) {
-                searchResponse.decRef();
-            }
-        }
-
+        // OBJECT_STORE_PREFETCH_FEATURE_FLAG is enabled by default on snapshot builds (all CI runs).
+        // When enabled, Lucene read-ahead hints (BlobCacheIndexInput.prefetch) schedule async blob-store
+        // downloads that can complete before the actual readInternal call for the same range. If that
+        // race is lost, tryRead() succeeds (fast path) and CacheFileReader.read() — the only site that
+        // records SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME — is never called. Retry the
+        // eviction+search cycle (resetting the meter each time) until the slow path is exercised.
         TestTelemetryPlugin telemetryPlugin = getTelemetryPlugin(searchNode);
+        assertBusy(() -> {
+            telemetryPlugin.resetMeter();
+            evictSearchShardCache(indexName);
+            SearchResponse searchResponse = null;
+            try {
+                searchResponse = prepareSearch(indexName).setQuery(matchAllQuery()).get();
+            } finally {
+                if (searchResponse != null) {
+                    searchResponse.decRef();
+                }
+            }
+            assertThat(
+                telemetryPlugin.getLongHistogramMeasurement(BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME).size(),
+                greaterThan(0)
+            );
+        });
+
         List<Measurement> searchOriginMeasurement = telemetryPlugin.getLongHistogramMeasurement(
             BlobCacheMetrics.SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME
         );
-        assertThat(searchOriginMeasurement.size(), greaterThan(0));
-        Measurement measurement = searchOriginMeasurement.stream().findFirst().get();
+        Measurement measurement = searchOriginMeasurement.stream().findFirst().orElseThrow();
         assertThat(measurement.getLong(), greaterThanOrEqualTo(0L));
         assertThat(
             measurement.attributes().get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY),
@@ -1681,12 +1691,12 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
                         Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeOne),
                         indexName
                     );
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeOne))));
+                    internalCluster().awaitNodeVacated(indexName, searchNodeOne);
                     updateIndexSettings(
                         Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeTwo),
                         indexName
                     );
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeTwo))));
+                    internalCluster().awaitNodeVacated(indexName, searchNodeTwo);
                 }
                 handler.messageReceived(request, channel, task);
             });
@@ -1897,7 +1907,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
             {
                 logger.info("--> moving shards in index [{}] away from node [{}]", indexName, searchNodeA);
                 updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+                internalCluster().awaitNodeVacated(indexName, searchNodeA);
                 logger.info("--> shards in index [{}] have been moved off of node [{}]", indexName, searchNodeA);
             }
             assertBusy(() -> assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(1)));

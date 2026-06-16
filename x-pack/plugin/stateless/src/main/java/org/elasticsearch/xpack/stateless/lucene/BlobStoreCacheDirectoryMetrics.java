@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -14,11 +16,20 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.PluggableMetrics<BlobStoreCacheDirectoryMetrics> {
+
+    public static final String NAME = "blob_store_cache";
+
     private long waitTime;
     private long waits;
     private long waitBytes;
 
     public BlobStoreCacheDirectoryMetrics() {}
+
+    public BlobStoreCacheDirectoryMetrics(StreamInput in) throws IOException {
+        this.waitTime = in.readLong();
+        this.waits = in.readLong();
+        this.waitBytes = in.readLong();
+    }
 
     private BlobStoreCacheDirectoryMetrics(long waitTime, long waits, long waitBytes) {
         this.waitTime = waitTime;
@@ -65,5 +76,22 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
 
     public long getWaitBytes() {
         return waitBytes;
+    }
+
+    @Override
+    public BlobStoreCacheDirectoryMetrics merge(BlobStoreCacheDirectoryMetrics other) {
+        return new BlobStoreCacheDirectoryMetrics(waitTime + other.waitTime, waits + other.waits, waitBytes + other.getWaitBytes());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(waitTime);
+        out.writeLong(waits);
+        out.writeLong(waitBytes);
     }
 }

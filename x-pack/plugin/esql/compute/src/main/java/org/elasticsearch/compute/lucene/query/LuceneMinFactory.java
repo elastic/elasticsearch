@@ -25,6 +25,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Factory that generates an operator that finds the min value of a field using the {@link LuceneMinMaxOperator}.
@@ -123,7 +124,8 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
         int taskConcurrency,
         String fieldName,
         NumberType numberType,
-        int limit
+        int limit,
+        LongSupplier directoryBytesRead
     ) {
         super(
             contexts,
@@ -134,7 +136,8 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             taskConcurrency,
             limit,
             false,
-            shardContext -> ScoreMode.COMPLETE_NO_SCORES
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES,
+            directoryBytesRead
         );
         this.shardRefCounters = contexts;
         this.fieldName = fieldName;
@@ -150,7 +153,8 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             fieldName,
             numberType,
             limit,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            directoryBytesRead
         );
     }
 

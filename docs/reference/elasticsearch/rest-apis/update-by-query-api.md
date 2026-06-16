@@ -21,7 +21,7 @@ You can learn how to:
 
 ## Run basic updates
 
-The simplest usage of `_update_by_query` just performs an update on every document in the data stream or index without changing the source. This is useful to [pick up a new property](#pick-up-a-new-property) or some other online mapping change. 
+The simplest usage of `_update_by_query` performs an update on every document in the data stream or index without changing the source. This is useful to [pick up a new property](#pick-up-a-new-property) or some other online mapping change.
 
 To update selected documents, specify a query in the request body:
 
@@ -233,7 +233,7 @@ POST _update_by_query/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_seco
 
 The task ID can be found using the [Task API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks).
 
-Just like when setting it on the `_update_by_query` API, `requests_per_second` can be either `-1` to disable throttling or any decimal number like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the query takes effect immediately, but rethrotting that slows down the query will take effect after completing the current batch. This prevents scroll timeouts.
+Similarly to setting `requests_per_second` in the `_update_by_query` request, `requests_per_second` can be either `-1` to turn off throttling or any decimal number like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the query takes effect immediately, but rethrotting that slows down the query will take effect after completing the current batch. This prevents scroll timeouts.
 
 ## Slice manually
 

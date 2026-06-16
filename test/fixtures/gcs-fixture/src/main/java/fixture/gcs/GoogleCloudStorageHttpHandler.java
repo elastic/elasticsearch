@@ -32,7 +32,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -74,6 +73,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     private static final int MAX_DELETE_FAILURES = 3;
 
     private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
+
+    /** ISO-8601 formatter with millisecond precision, always UTC — used for the {@code updated} field in JSON responses. */
+    private static final DateTimeFormatter ISO_MILLIS_UTC = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+        .withZone(ZoneOffset.UTC);
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -327,11 +330,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     final String key = decodedPath.substring(("/" + bucket + "/").length());
                     final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
                     if (blob != null) {
-                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
                         exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
-                        exchange.getResponseHeaders().add("Last-Modified", lastModified);
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     } else {
@@ -364,9 +370,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                                 .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blob.contents().length());
                             statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                         }
-                        final String lastModified = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC));
                         exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
-                        exchange.getResponseHeaders().add("Last-Modified", lastModified);
+                        exchange.getResponseHeaders()
+                            .add(
+                                "Last-Modified",
+                                DateTimeFormatter.RFC_1123_DATE_TIME.format(blob.lastModified().atOffset(ZoneOffset.UTC))
+                            );
                         exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.sendResponseHeaders(statusCode, response.length());
@@ -547,6 +556,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
+        builder.field("updated", ISO_MILLIS_UTC.format(blobVersion.lastModified()));
         builder.endObject();
     }
 

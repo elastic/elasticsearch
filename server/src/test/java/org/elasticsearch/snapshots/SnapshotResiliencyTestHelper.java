@@ -125,10 +125,12 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.StatusInfo;
@@ -179,6 +181,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -420,7 +423,11 @@ public class SnapshotResiliencyTestHelper {
             );
 
             private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                Stream.concat(ClusterModule.getNamedWriteables().stream(), NetworkModule.getNamedWriteables().stream()).toList()
+                Stream.of(
+                    ClusterModule.getNamedWriteables().stream(),
+                    IndicesModule.getNamedWriteables().stream(),
+                    NetworkModule.getNamedWriteables().stream()
+                ).flatMap(Function.identity()).toList()
             );
 
             private final TransportInterceptorFactory transportInterceptorFactory;
@@ -756,7 +763,8 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     clusterService,
                     recoverySettings,
-                    PeerOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE,
+                    RecoveryMetricsCollector.NOOP
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -794,7 +802,8 @@ public class SnapshotResiliencyTestHelper {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    client
+                    client,
+                    RecoveryMetricsCollector.NOOP
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -842,6 +851,7 @@ public class SnapshotResiliencyTestHelper {
                             client,
                             null,
                             UserAgentParserRegistry.NOOP,
+                            IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {

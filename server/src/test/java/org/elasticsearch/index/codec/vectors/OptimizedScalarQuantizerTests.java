@@ -191,6 +191,175 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
         }
     }
 
+    public void testByteQuantizationQuality() {
+        int dims = 16;
+        int numVectors = 32;
+        byte[][] vectors = new byte[numVectors][];
+        float[] floatCentroid = new float[dims];
+        for (int i = 0; i < numVectors; ++i) {
+            vectors[i] = new byte[dims];
+            random().nextBytes(vectors[i]);
+            for (int j = 0; j < dims; ++j) {
+                floatCentroid[j] += (float) vectors[i][j];
+            }
+        }
+        byte[] centroid = new byte[dims];
+        for (int j = 0; j < dims; ++j) {
+            floatCentroid[j] /= numVectors;
+            centroid[j] = (byte) Math.clamp(Math.round(floatCentroid[j]), -128, 127);
+        }
+        OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(VectorSimilarityFunction.DOT_PRODUCT);
+        float[] scratch = new float[dims];
+        for (byte bit : ALL_BITS) {
+            float eps = (1f / (float) (1 << (bit)));
+            // byte range is [-128,127], so max component magnitude after centering is ~256
+            // scale eps by range to get a meaningful bound
+            float scaledEps = eps * 256;
+            int[] destination = new int[dims];
+            for (int i = 0; i < numVectors; ++i) {
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vectors[i], scratch, destination, bit, centroid);
+                assertValidResults(result);
+                assertValidQuantizedRange(destination, bit);
+
+                // Verify reconstruction quality — deQuantize expects float centroid
+                float[] floatVec = new float[dims];
+                float[] centroidAsFloat = new float[dims];
+                for (int j = 0; j < dims; j++) {
+                    floatVec[j] = vectors[i][j];
+                    centroidAsFloat[j] = centroid[j];
+                }
+                float[] dequantized = deQuantize(
+                    destination,
+                    bit,
+                    new float[] { result.lowerInterval(), result.upperInterval() },
+                    centroidAsFloat
+                );
+                float mae = 0;
+                for (int k = 0; k < dims; ++k) {
+                    mae += Math.abs(dequantized[k] - floatVec[k]);
+                }
+                mae /= dims;
+                assertTrue("bits: " + bit + " mae: " + mae + " > scaledEps: " + scaledEps, mae <= scaledEps);
+            }
+        }
+    }
+
+    public void testByteMultiQuantization() {
+        int dims = randomIntBetween(2, 256);
+        byte[] byteVector = new byte[dims];
+        random().nextBytes(byteVector);
+        byte[] centroid = new byte[dims];
+        for (int i = 0; i < dims; i++) {
+            centroid[i] = (byte) randomIntBetween(-128, 127);
+        }
+
+        for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
+            if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                continue;
+            }
+            OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(similarityFunction);
+
+            float[] residual = new float[dims];
+            int[][] destinations = new int[ALL_BITS.length][dims];
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                byteVector,
+                residual,
+                destinations,
+                ALL_BITS,
+                centroid
+            );
+
+            assertEquals(ALL_BITS.length, results.length);
+            assertValidResults(results);
+            for (int i = 0; i < ALL_BITS.length; i++) {
+                assertValidQuantizedRange(destinations[i], ALL_BITS[i]);
+            }
+        }
+    }
+
+    public void testByteQuantizationMathematicalConsistency() {
+        int dims = randomIntBetween(2, 256);
+        byte[] byteVector = new byte[dims];
+        random().nextBytes(byteVector);
+        byte[] centroid = new byte[dims];
+        for (int i = 0; i < dims; i++) {
+            centroid[i] = (byte) randomIntBetween(-128, 127);
+        }
+
+        for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
+            if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                continue;
+            }
+            OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(similarityFunction);
+
+            // Single-level: verify valid results and residual centering
+            for (byte bit : ALL_BITS) {
+                float[] residual = new float[dims];
+                int[] destination = new int[dims];
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(byteVector, residual, destination, bit, centroid);
+                assertValidResults(result);
+                assertValidQuantizedRange(destination, bit);
+
+                // Verify residual is correctly centered (vector - centroid)
+                for (int i = 0; i < dims; i++) {
+                    assertEquals(
+                        "residual[" + i + "] should be vector - centroid",
+                        (float) (byteVector[i] - centroid[i]),
+                        residual[i],
+                        1e-5f
+                    );
+                }
+            }
+
+            // Multi-level: verify all results are valid
+            float[] residual = new float[dims];
+            int[][] destinations = new int[ALL_BITS.length][dims];
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                byteVector,
+                residual,
+                destinations,
+                ALL_BITS,
+                centroid
+            );
+            assertValidResults(results);
+            for (int i = 0; i < ALL_BITS.length; i++) {
+                assertValidQuantizedRange(destinations[i], ALL_BITS[i]);
+            }
+        }
+    }
+
+    public void testByteAbusiveEdgeCases() {
+        // large zero byte array
+        for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
+            if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                continue;
+            }
+            byte[] vector = new byte[4096];
+            float[] scratch = new float[4096];
+            byte[] centroid = new byte[4096];
+            OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(similarityFunction);
+            int[][] destinations = new int[MINIMUM_MSE_GRID.length][4096];
+            OptimizedScalarQuantizer.QuantizationResult[] results = osq.multiScalarQuantize(
+                vector,
+                scratch,
+                destinations,
+                ALL_BITS,
+                centroid
+            );
+            assertEquals(MINIMUM_MSE_GRID.length, results.length);
+            assertValidResults(results);
+            for (int[] destination : destinations) {
+                assertArrayEquals(new int[4096], destination);
+            }
+            int[] destination = new int[4096];
+            for (byte bit : ALL_BITS) {
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(vector, scratch, destination, bit, centroid);
+                assertValidResults(result);
+                assertArrayEquals(new int[4096], destination);
+            }
+        }
+    }
+
     static void assertValidQuantizedRange(int[] quantized, byte bits) {
         for (int b : quantized) {
             if (bits < 8) {

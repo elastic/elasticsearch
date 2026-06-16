@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 149339
+summary: DiskBBQ - add symmetric 1-bit OSQ vector scorer
+type: enhancement

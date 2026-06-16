@@ -75,6 +75,7 @@ import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -2382,7 +2383,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
-        if (lambdaScope.usesInstanceMethod()) {
+        boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
+
+        if (needsScriptCapture) {
             semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);
         }
 
@@ -2405,7 +2408,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         // desugar lambda body into a synthetic method
         String name = scriptScope.getNextSyntheticName("lambda");
-        boolean isStatic = lambdaScope.usesInstanceMethod() == false;
+        boolean isStatic = needsScriptCapture == false;
         scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, isStatic);
 
         Class<?> valueType;
@@ -2414,7 +2417,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             valueType = String.class;
             semanticScope.putDecoration(
                 userLambdaNode,
-                EncodingDecoration.of(true, lambdaScope.usesInstanceMethod(), "this", name, capturedVariables.size())
+                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size())
             );
         } else {
             FunctionRef ref = FunctionRef.create(
@@ -2426,7 +2429,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 name,
                 capturedVariables.size(),
                 scriptScope.getCompilerSettings().asMap(),
-                lambdaScope.usesInstanceMethod()
+                needsScriptCapture
             );
             valueType = targetType.targetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));
@@ -2492,6 +2495,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     scriptScope.getCompilerSettings().asMap(),
                     isInstanceReference
                 );
+
+                if (ref.isScriptAware) {
+                    semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                }
+
                 valueType = targetType.targetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
             }
@@ -2545,6 +2553,11 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         scriptScope.getCompilerSettings().asMap(),
                         false
                     );
+
+                    if (ref.isScriptAware) {
+                        semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
+                    }
+
                     semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
                 }
             }
@@ -3311,9 +3324,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 : targetType.targetType();
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
+
+            if (semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
+                semanticScope.setUsesInstanceMethod();
+            }
         } else {
             Objects.requireNonNull(method);
             semanticScope.getScriptScope().markNonDeterministic(method.annotations().containsKey(NonDeterministicAnnotation.class));
+
+            if (method.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                semanticScope.setUsesInstanceMethod();
+            }
 
             for (int argument = 0; argument < userArgumentsSize; ++argument) {
                 AExpression userArgumentNode = userArgumentNodes.get(argument);

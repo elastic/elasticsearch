@@ -53,6 +53,7 @@ import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.shard.MutableOperationGate;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -135,7 +136,16 @@ public final class IndexModule {
     // whether to use the query cache
     public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.queries.cache.enabled",
-        true,
+        settings -> {
+            if (settings == null) {
+                return Boolean.TRUE.toString();
+            }
+            // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
+            // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
+            // a circular static initialization that results in a NullPointerException at boot time.
+            String mode = settings.get("index.mode");
+            return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
+        },
         Property.IndexScope
     );
 
@@ -180,6 +190,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final SetOnce<MutableOperationGate> mutableOperationGate = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
@@ -410,6 +421,11 @@ public final class IndexModule {
         this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
+    public void setMutableOperationGate(MutableOperationGate gate) {
+        ensureNotFrozen();
+        this.mutableOperationGate.set(Objects.requireNonNull(gate));
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -561,6 +577,7 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
+                mutableOperationGate.get(),
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,

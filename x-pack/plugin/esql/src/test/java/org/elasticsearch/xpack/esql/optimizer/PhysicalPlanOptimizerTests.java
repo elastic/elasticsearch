@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -702,6 +703,79 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var extract = as(eval.child(), FieldExtractExec.class);
         var query = source(extract.child());
         assertThat(query.limit(), is(l(42)));
+    }
+
+    /**
+     * Asserts that {@code EVAL TOP_SNIPPETS(...)} is placed on the coordinator side of the
+     * coordinator/data-node split (i.e. <em>above</em> the remote {@link ExchangeExec}).
+     *
+     * Unlike {@link Score} in {@link #testEvalWithScoreImplicitLimit()}, which is pushed down
+     * into the data-node fragment (it needs per-shard Lucene scoring), {@code TOP_SNIPPETS}
+     * has no rule to push it past the exchange and is therefore evaluated on the coordinator
+     * after field values have been streamed up from the shards. Any analyzer resolution that
+     * depends on per-index mappings must happen either (a) pre-planning via the coordinator's
+     * {@code AnalysisRegistry} or (b) by a future rule that pushes {@code TOP_SNIPPETS} into
+     * the fragment; this test guards against accidental silent changes to that placement.
+     *
+     * Expected shape:
+     * EvalExec[[TOP_SNIPPETS(gender{f}#..,foo[KEYWORD]) AS s#..]]
+     * \_LimitExec[1000[INTEGER], ...]
+     *   \_ExchangeExec[...,false]
+     *     \_ProjectExec[...]
+     *       \_FieldExtractExec[...]
+     *         \_EsQueryExec[test], ...
+     */
+    public void testEvalWithTopSnippetsRunsOnCoordinator() {
+        var plan = physicalPlan("""
+            FROM test
+            | EVAL s = TOP_SNIPPETS(gender, "foo")
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var eval = as(optimized, EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        assertThat(eval.fields().get(0).child(), isA(TopSnippets.class));
+        var limit = as(eval.child(), LimitExec.class);
+        assertThat(limit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(limit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = source(fieldExtract.child());
+        assertThat(query.limit(), is(l(1000)));
+    }
+
+    /**
+     * Sibling of {@link #testEvalWithTopSnippetsRunsOnCoordinator()} for the filter path.
+     * Unlike the EVAL case, {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0} is pushed
+     * <em>below</em> the remote {@link ExchangeExec} into the data-node fragment: the
+     * filter predicate references only {@code gender}, so the optimizer treats it like any
+     * other scalar filter and evaluates it on the data node. This means the runtime site
+     * that must resolve {@code TOP_SNIPPETS}' analyzer is
+     * {@code LocalExecutionPlanner.planFilter} on the <em>data node</em>, whose
+     * {@code physicalOperationProviders} carries the node-level {@code AnalysisRegistry}
+     * wired in {@code ComputeService} from {@code searchService.getIndicesService().getAnalysis()}.
+     * This test guards the placement so any future change that moves {@code TOP_SNIPPETS}
+     * through a different planner path is flagged.
+     */
+    public void testWhereWithTopSnippetsPushedToDataNode() {
+        var plan = physicalPlan("""
+            FROM test
+            | WHERE mv_count(TOP_SNIPPETS(gender, "foo")) > 0
+            """);
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        assertThat(topLimit.limit(), is(l(1000)));
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtractOuter = as(project.child(), FieldExtractExec.class);
+        var innerLimit = as(fieldExtractOuter.child(), LimitExec.class);
+        assertThat(innerLimit.limit(), is(l(1000)));
+        var filter = as(innerLimit.child(), FilterExec.class);
+        assertThat(filter.condition().anyMatch(TopSnippets.class::isInstance), is(true));
+        var fieldExtractInner = as(filter.child(), FieldExtractExec.class);
+        var query = source(fieldExtractInner.child());
+        assertNull(query.limit());
     }
 
     /**
@@ -8982,7 +9056,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "::long"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -8997,7 +9071,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9012,7 +9086,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + expression));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9027,7 +9101,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(query + "(" + expression + ")"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9048,7 +9122,38 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + prefix + expression + suffix));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs() {
+        int depth = 20000;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_maxAllowed() {
+        // Last depth that succeeds: each abs() adds 1 to the expression depth counter, plus a base
+        // overhead of 2 from the ROW field context (visitField -> expression() then
+        // visitOperatorExpressionDefault -> expression()). So for N calls: depth = N + 2.
+        // At N=MAX_EXPRESSION_DEPTH-2: depth = MAX_EXPRESSION_DEPTH, check is >, so false -> passes.
+        int depth = MAX_EXPRESSION_DEPTH - 2;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        physicalPlan(query); // must not throw
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_minOverflow() {
+        // First depth at which the visitor rejects: at N=MAX_EXPRESSION_DEPTH-1, depth = MAX_EXPRESSION_DEPTH+1.
+        int depth = MAX_EXPRESSION_DEPTH - 1;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -9059,7 +9164,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
         physicalPlan(from.toString());
         var e = expectThrows(ParsingException.class, () -> physicalPlan(from + (randomBoolean() ? "| sort a" : " | eval c = 10")));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     public void testMaxQueryDepthPlusExpressionDepth() {
@@ -9077,11 +9182,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + "::int"));
         assertThat(
             e.getMessage(),
-            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+            containsString("ES|QL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
         );
 
         e = expectThrows(ParsingException.class, () -> physicalPlan(mainQuery + cast + " | eval x = 10"));
-        assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
+        assertThat(e.getMessage(), containsString("ES|QL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
     @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
@@ -9556,7 +9661,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            new EsPhysicalOperationProviders(
+                FoldContext.small(),
+                EmptyIndexedByShardId.instance(),
+                null,
+                PlannerSettings.DEFAULTS,
+                () -> 0L
+            ),
             null  // OperatorFactoryRegistry - not needed for these tests
         );
 
@@ -10319,6 +10430,159 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(sorts.size(), equalTo(1));
         assertThat(as(sorts.getFirst().child(), FieldAttribute.class).field().getName(), equalTo("last_name"));
         var esRelation = as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * {@snippet lang="text":
+     * ProjectExec[[]]
+     * \_LimitExec[1000[INTEGER],1]
+     *   \_MergeExec[[]]
+     *     \_ProjectExec[[]]
+     *       \_LimitExec[1000[INTEGER],1]
+     *         \_ExchangeExec[[],false]
+     *           \_ProjectExec[[]]
+     *             \_EsQueryExec[test], ...]
+     * }
+     */
+    public void testForkWithEmptyOutput() {
+        String query = """
+            from test
+            | FORK (WHERE true)
+            | KEEP first_name
+            | DROP first_name
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var project = as(plan, ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var limit = as(project.child(), LimitExec.class);
+        var merge = as(limit.child(), MergeExec.class);
+
+        var branchProject = as(merge.children().getFirst(), ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+        var branchLimit = as(branchProject.child(), LimitExec.class);
+        var branchExchange = as(branchLimit.child(), ExchangeExec.class);
+        assertThat(branchExchange.output().size(), equalTo(0));
+
+        branchProject = as(branchExchange.child(), ProjectExec.class);
+        assertThat(project.projections().size(), equalTo(0));
+
+        var branchEsQuery = as(branchProject.child(), EsQueryExec.class);
+        assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * LimitExec[10000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#10],SINGLE,[$$y$count{r}#46, $$y$seen{r}#47],8]
+     *   \_MergeExec[[]]
+     *     \_ProjectExec[[]]
+     *       \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],4]
+     *         \_ExchangeExec[[x{r}#4],false]
+     *           \_ProjectExec[[x{r}#4]]
+     *             \_TopNExec[[Order[x{r}#4,ASC,LAST]],10[INTEGER],24]
+     *               \_EvalExec[[1[INTEGER] AS x#4]]
+     *                 \_EsQueryExec[test], ...]
+     * }
+     */
+    public void testForkWithSortAndFinalAggregation() {
+        String query = """
+            FROM test
+            | EVAL x = 1
+            | FORK (SORT x | LIMIT 10) (WHERE true)
+            | WHERE _fork == "fork1"
+            | STATS y = COUNT(*)
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var merge = as(aggregate.child(), MergeExec.class);
+        assertThat(merge.output().size(), equalTo(0));
+
+        // only the first branch is kept
+        assertThat(merge.children().size(), equalTo(1));
+        var branchProject = as(merge.children().getFirst(), ProjectExec.class);
+        assertThat(branchProject.projections().size(), equalTo(0));
+        var branchTopN = as(branchProject.children().getFirst(), TopNExec.class);
+        assertThat(branchTopN.limit(), is(l(10)));
+        var branchExchange = as(branchTopN.child(), ExchangeExec.class);
+        branchProject = as(branchExchange.child(), ProjectExec.class);
+        assertThat(names(branchProject.projections()), equalTo(List.of("x")));
+
+        branchTopN = as(branchProject.child(), TopNExec.class);
+        assertThat(branchTopN.limit(), is(l(10)));
+
+        var branchEval = as(branchTopN.child(), EvalExec.class);
+        var branchEsQuery = as(branchEval.child(), EsQueryExec.class);
+        assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
+    }
+
+    /**
+     * {@snippet lang="text":
+     * LimitExec[10000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
+     *   \_MergeExec[[]]
+     *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
+     *     | \_ExchangeExec[[first_name{f}#16],true]
+     *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]
+     *     |     \_FieldExtractExec[first_name{f}#16]<[],[],[]>
+     *     |       \_EsQueryExec[test], ...]
+     *     |_ProjectExec[[]]
+     *     | \_TopNExec[[Order[emp_no{f}#26,ASC,LAST]],10[INTEGER],4]
+     *     |   \_ExchangeExec[[emp_no{f}#26],false]
+     *     |     \_ProjectExec[[emp_no{f}#26]]
+     *     |       \_FieldExtractExec[emp_no{f}#26]<[],[],[]>
+     *     |         \_EsQueryExec[test],...]
+     *     \_ProjectExec[[]]
+     *       \_LocalSourceExec[[x{r}#9],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     * }
+     */
+    public void testForkWithMultipleBranchesAndFinalStats() {
+        String query = """
+             from test
+             | fork (stats z = count(*) by first_name)
+                    (where emp_no > 10000 | SORT emp_no | LIMIT 10)
+                    (stats x = count(*))
+             | stats y = count(*)
+            """;
+        var plan = optimizedPlan(physicalPlan(query, testData, false));
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var merge = as(aggregate.child(), MergeExec.class);
+        assertThat(merge.output().size(), equalTo(0));
+        assertThat(merge.children().size(), equalTo(3));
+
+        // first branch
+        var firstBranchAggregate = as(merge.children().getFirst(), AggregateExec.class);
+        assertThat(firstBranchAggregate.output().size(), equalTo(0));
+        var firstBranchExchange = as(firstBranchAggregate.child(), ExchangeExec.class);
+        firstBranchAggregate = as(firstBranchExchange.child(), AggregateExec.class);
+        var firstBranchFieldExtract = as(firstBranchAggregate.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(firstBranchFieldExtract.attributesToExtract()), equalTo(List.of("first_name")));
+        var firstBranchEsQuery = as(firstBranchFieldExtract.child(), EsQueryExec.class);
+        assertThat(names(firstBranchEsQuery.output()), equalTo(List.of("_doc")));
+
+        // second branch
+        var secondBranchProject = as(merge.children().get(1), ProjectExec.class);
+        assertThat(secondBranchProject.projections().size(), equalTo(0));
+        var secondBranchTopN = as(secondBranchProject.child(), TopNExec.class);
+        var secondBranchExchange = as(secondBranchTopN.child(), ExchangeExec.class);
+        secondBranchProject = as(secondBranchExchange.child(), ProjectExec.class);
+        assertThat(names(secondBranchProject.projections()), equalTo(List.of("emp_no")));
+        var secondBranchFieldExtract = as(secondBranchProject.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(secondBranchFieldExtract.attributesToExtract()), equalTo(List.of("emp_no")));
+        var secondBranchEsQuery = as(secondBranchFieldExtract.child(), EsQueryExec.class);
+        assertThat(names(secondBranchEsQuery.output()), contains("_doc"));
+        assertThat(secondBranchEsQuery.sorts().size(), equalTo(1));
+        assertThat(secondBranchEsQuery.sorts().getFirst().field().name(), equalTo("emp_no"));
+
+        // third branch
+        var thirdBranchProject = as(merge.children().get(2), ProjectExec.class);
+        assertThat(thirdBranchProject.projections().size(), equalTo(0));
+        var thirdBranchLocalSource = as(thirdBranchProject.child(), LocalSourceExec.class);
+        assertThat(names(thirdBranchLocalSource.output()), equalTo(List.of("x")));
     }
 
     @Override

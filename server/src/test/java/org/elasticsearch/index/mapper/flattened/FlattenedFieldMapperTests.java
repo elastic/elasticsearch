@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -974,6 +973,37 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         // The unmapped key should NOT produce a sub-field
         List<IndexableField> unmappedSubFields = parsedDoc.rootDoc().getFields("field.other");
         assertEquals(0, unmappedSubFields.size());
+    }
+
+    /**
+     * The {@code field_extract} block-loader fuse must not fire for an explicitly mapped sub-key: the
+     * keyed channel never stores mapped sub-fields, so a fused keyed load would return null while the
+     * per-row evaluator over the merged root returns the value. The flattened root therefore advertises
+     * {@code ExtractFlattenedSubfieldConfig} as supported only for unmapped (keyed) sub-keys, keeping
+     * {@code field_extract}'s result the same regardless of which path the optimizer picks.
+     */
+    public void testSupportsBlockLoaderConfigExcludesMappedSubfield() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+        RootFlattenedFieldType ft = (RootFlattenedFieldType) mapperService.fieldType("field");
+
+        assertTrue("the declared sub-field must be recognised as mapped", ft.isMappedSubField("host.name"));
+        assertFalse("an unmapped keyed sub-key must not be recognised as mapped", ft.isMappedSubField("other"));
+
+        assertFalse(
+            "the fuse must be refused for a mapped sub-key so field_extract falls back to the evaluator",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("host.name"), MappedFieldType.FieldExtractPreference.NONE)
+        );
+        assertTrue(
+            "the fuse stays available for an unmapped keyed sub-key",
+            ft.supportsBlockLoaderConfig(new ExtractFlattenedSubfieldConfig("other"), MappedFieldType.FieldExtractPreference.NONE)
+        );
     }
 
     public void testPropertiesNestedObjectNotation() throws Exception {
@@ -2004,14 +2034,14 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
-        assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
-        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(null);
-        assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
-
         MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
         when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
         when(blContext.ordinalsByteSize()).thenReturn(ByteSizeValue.ofMb(1));
+
+        MappedFieldType unmappedKeyType = mapperService.fieldType("field.unmapped_key");
+        assertThat(unmappedKeyType, instanceOf(KeyedFlattenedFieldType.class));
+        BlockLoader unmappedBlockLoader = unmappedKeyType.blockLoader(blContext);
+        assertThat(unmappedBlockLoader, instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
 
         MappedFieldType statusFieldType = mapperService.fieldType("field.status");
         assertEquals("keyword", statusFieldType.typeName());
@@ -2089,9 +2119,12 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+
         MappedFieldType fieldType = mapperService.fieldType("field");
         assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
-        BlockLoader blockLoader = fieldType.blockLoader(null);
+        BlockLoader blockLoader = fieldType.blockLoader(blContext);
         assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
 
         withLuceneIndex(mapperService, iw -> {
@@ -2119,12 +2152,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 BytesRef bytesRef = (BytesRef) block.get(0);
                 assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
 
-                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
-                    .v2();
-
-                assertThat("mapped keyword property must be present", parsed.get("status"), equalTo("ok"));
-                assertThat("mapped long property must be present", parsed.get("code"), equalTo(200));
-                assertThat("unmapped key must be present", parsed.get("unmapped_key"), equalTo("some_value"));
+                assertThat(
+                    "fields must be returned in alphabetical order",
+                    bytesRef.utf8ToString(),
+                    equalTo("{\"code\":200,\"status\":\"ok\",\"unmapped_key\":\"some_value\"}")
+                );
             } finally {
                 columnReader.close();
             }
@@ -2141,7 +2173,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(null);
+        MappedFieldType.BlockLoaderContext blContext = mock(MappedFieldType.BlockLoaderContext.class);
+        when(blContext.fieldExtractPreference()).thenReturn(MappedFieldType.FieldExtractPreference.DOC_VALUES);
+
+        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(blContext);
 
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(
@@ -2158,10 +2193,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
                 BytesRef bytesRef = (BytesRef) block.get(0);
                 assertNotNull("block loader should not return null when only mapped properties have values", bytesRef);
 
-                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
-                    .v2();
-
-                assertThat(parsed.get("status"), equalTo("active"));
+                assertThat("fields must be returned in alphabetical order", bytesRef.utf8ToString(), equalTo("{\"status\":\"active\"}"));
             } finally {
                 columnReader.close();
             }

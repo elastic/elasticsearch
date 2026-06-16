@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -17,14 +18,17 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -43,7 +47,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -52,6 +58,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
+    private final Executor executor;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
@@ -74,6 +81,7 @@ public class ViewResolver {
      * Public constructor for NOOP instance (in release mode, when component is not registered, but TransportEsqlQueryAction still needs it)
      */
     public ViewResolver() {
+        this.executor = null;
         this.clusterService = null;
         this.projectResolver = null;
         this.crossProjectModeDecider = CrossProjectModeDecider.NOOP;
@@ -82,11 +90,13 @@ public class ViewResolver {
     }
 
     public ViewResolver(
+        ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
+        this.executor = threadPool != null ? threadPool.executor(ThreadPool.Names.SEARCH) : null;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = crossProjectModeDecider;
@@ -95,7 +105,7 @@ public class ViewResolver {
     }
 
     ViewMetadata getMetadata() {
-        return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        return projectResolver.getProjectMetadata(clusterService.state()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -130,6 +140,7 @@ public class ViewResolver {
      */
     public void replaceViews(
         LogicalPlan plan,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         ActionListener<ViewResolutionResult> listener
     ) {
@@ -147,6 +158,7 @@ public class ViewResolver {
         // esql-planning #543, #472.
         replaceViews(
             plan,
+            projectRouting,
             parser,
             new LinkedHashSet<>(),
             viewQueries,
@@ -157,6 +169,7 @@ public class ViewResolver {
 
     private void replaceViews(
         LogicalPlan plan,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -179,48 +192,48 @@ public class ViewResolver {
                 return;
             }
             switch (p) {
-                case ViewUnionAll viewUnion -> {
+                case ViewUnionAll viewUnion ->
                     // ViewUnionAll is the result of view resolution, so we skip it.
                     // Plain UnionAll (from user-written subqueries) matches the Fork case below
                     // and its children are recursed into with proper seen-set scoping.
                     planListener.onResponse(viewUnion);
-                    return;
-                }
-                case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                case Fork fork -> replaceViewsFork(
+                    fork,
+                    projectRouting,
+                    parser,
+                    seenInner,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
-                    }));
-                    return;
-                }
-                case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(
-                        ur,
-                        parser,
-                        seenInner,
-                        seenWildcards,
-                        viewQueries,
-                        depth,
-                        planListener.delegateFailureAndWrap((l, result) -> {
-                            plan.forEachDown(resolvedPlans::add);
-                            // Also mark the resolved result subtree so transformDown does not
-                            // re-process view-body nodes the UnresolvedRelation was replaced with.
-                            result.forEachDown(resolvedPlans::add);
-                            l.onResponse(result);
-                        })
-                    );
-                    return;
-                }
-                default -> {
-                }
+                    })
+                );
+                case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
+                    ur,
+                    projectRouting,
+                    parser,
+                    seenInner,
+                    seenWildcards,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
+                        plan.forEachDown(resolvedPlans::add);
+                        // Also mark the resolved result subtree so transformDown does not
+                        // re-process view-body nodes the UnresolvedRelation was replaced with.
+                        result.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    })
+                );
+                default -> planListener.onResponse(p);
             }
-            planListener.onResponse(p);
         }, listener);
     }
 
     private void replaceViewsFork(
         Fork fork,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
@@ -235,6 +248,7 @@ public class ViewResolver {
             chain = chain.andThen(
                 (l, updatedSubplans) -> replaceViews(
                     subplan,
+                    projectRouting,
                     parser,
                     seenViews,
                     viewQueries,
@@ -267,6 +281,7 @@ public class ViewResolver {
 
     private void replaceViewsUnresolvedRelation(
         UnresolvedRelation unresolvedRelation,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
         HashSet<String> seenWildcards,
@@ -297,30 +312,21 @@ public class ViewResolver {
         // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
         // the resolver behaves as if shadows are simply not part of the tree.
         boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
-
-        // For each position in the parent UnresolvedRelation's pattern list, the exclusions that
-        // appear strictly after it. Used to attach position-aware exclusions to each
-        // {@link ViewShadowRelation} so the lenient field-caps target mirrors the local exclusion
-        // scope exactly. Index resolution is left-to-right: an exclusion only narrows what's
-        // already been accumulated, so a view referenced at position i is only affected by
-        // exclusions at positions > i. See esql-planning #543.
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
-        List<List<String>> exclusionsAfter = cpsEnabled ? computeExclusionsAfterByPosition(urPatterns) : List.of();
 
-        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
+        var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT, cpsEnabled);
+        req.setProjectRouting(projectRouting);
         req.indices(patterns);
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
+                listener.onResponse(
+                    crossProjectModeDecider.crossProjectEnabled()
+                        ? unresolvedRelation
+                        : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
+                );
                 return;
             }
-
-            // Map each resolved view name to the earliest position in urPatterns at which it was
-            // matched (broadest applicable-exclusion set). Earliest-position wins so we don't drop
-            // exclusions that the user wrote after a wildcard match of the same view. Only used
-            // for shadow exclusion attribution, so we skip the work entirely outside CPS.
-            Map<String, Integer> viewToEarliestPosition = cpsEnabled ? computeViewToEarliestPosition(urPatterns, response) : Map.of();
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final HashMap<String, ViewShadowRelation> viewShadows = new HashMap<>();
@@ -332,18 +338,49 @@ public class ViewResolver {
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
                     if (cpsEnabled) {
-                        // Build the per-view {@link ViewShadowRelation} once, alongside the resolved
-                        // body. Lives at the same plan-tree level as the strict resolution so the
-                        // post-resolution rule can find the pair structurally.
-                        Integer pos = viewToEarliestPosition.get(view.name());
-                        List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
-                        viewShadows.putIfAbsent(
-                            view.name(),
-                            new ViewShadowRelation(unresolvedRelation.source(), view.name(), applicableExclusions)
-                        );
+                        // find pattern referencing current view
+                        var patternPosition = findMatchingPattern(view.name(), urPatterns, response);
+                        assert patternPosition >= 0 : "Pattern must be found";
+                        // cluster alias : index pattern
+                        var clusterAndPattern = RemoteClusterAware.splitIndexName(urPatterns[patternPosition]);
+                        var isConcreteExpression = clusterAndPattern.indexExpression().contains("*") == false;
+                        if (isConcreteExpression) {
+                            var isFlat = clusterAndPattern.clusterAlias() == null;
+                            var isRequiredOnEveryProject = clusterAndPattern.clusterAlias() != null
+                                && clusterAndPattern.clusterAlias().contains("*");
+                            if (isFlat) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(view.name());
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
+                                    view.name(),
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.OPTIONAL,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            } else if (isRequiredOnEveryProject) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(urPatterns[patternPosition]);
+                                pattern.add("-_origin:*");
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
+                                    view.name(),
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.REQUIRED,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            }
+                        }
                     }
                     replaceViews(
                         resolve(view, parser, viewQueries),
+                        projectRouting,
                         parser,
                         branchSeenViews,
                         viewQueries,
@@ -378,53 +415,30 @@ public class ViewResolver {
     }
 
     /**
-     * For each position {@code i} in {@code urPatterns}, computes the list of exclusion patterns at
-     * positions {@code j > i}, preserving original order. Used to attach position-aware exclusions
-     * to each {@link ViewShadowRelation}.
+     * Finds a position of the pattern that resolved to the given view.
      */
-    private static List<List<String>> computeExclusionsAfterByPosition(String[] urPatterns) {
-        List<List<String>> exclusionsAfter = new ArrayList<>(urPatterns.length);
-        List<String> later = new ArrayList<>();
-        for (int i = urPatterns.length - 1; i >= 0; i--) {
-            // Snapshot what's accumulated so far before potentially adding the current pattern.
-            exclusionsAfter.add(0, List.copyOf(later));
-            if (patternIsExclusion(urPatterns[i])) {
-                later.add(0, urPatterns[i]);
+    private static int findMatchingPattern(String viewName, String[] patterns, EsqlResolveViewAction.Response response) {
+        for (int p = 0; p < patterns.length; p++) {
+            String pattern = patterns[p];
+            for (var expression : response.getResolvedIndexExpressions().expressions()) {
+                // find resolved expression for the current pattern that resolves to the given view name
+                if (Objects.equals(pattern, expression.original()) && expression.localExpressions().indices().contains(viewName)) {
+                    return p;
+                }
             }
         }
-        return exclusionsAfter;
+        return -1;
     }
 
-    /**
-     * Maps each resolved view name to the earliest position in {@code urPatterns} at which it was
-     * matched. When a view appears at multiple positions (e.g. matched both by a wildcard pattern
-     * earlier in the list and by an explicit name later), earliest wins, giving the broadest set of
-     * later exclusions — the most conservative reading for the lenient lookup.
-     */
-    private static Map<String, Integer> computeViewToEarliestPosition(String[] urPatterns, EsqlResolveViewAction.Response response) {
-        Set<String> resolvedViewNames = new HashSet<>();
-        for (var view : response.views()) {
-            resolvedViewNames.add(view.name());
-        }
-        Map<String, Integer> viewToEarliestPosition = new HashMap<>();
-        for (var expr : response.getResolvedIndexExpressions().expressions()) {
-            int position = -1;
-            for (int i = 0; i < urPatterns.length; i++) {
-                if (urPatterns[i].equals(expr.original())) {
-                    position = i;
-                    break;
-                }
-            }
-            if (position < 0) {
-                continue;
-            }
-            for (String index : expr.localExpressions().indices()) {
-                if (resolvedViewNames.contains(index)) {
-                    viewToEarliestPosition.merge(index, position, Math::min);
-                }
+    private static List<String> collectExclusionsAfterPosition(int position, String[] patterns) {
+        var exclusions = new ArrayList<String>();
+        for (int p = position + 1; p < patterns.length; p++) {
+            String pattern = patterns[p];
+            if (patternIsExclusion(pattern)) {
+                exclusions.add(pattern);
             }
         }
-        return viewToEarliestPosition;
+        return exclusions;
     }
 
     /**
@@ -487,8 +501,9 @@ public class ViewResolver {
             });
             result.addAll(exprViews);
 
-            // Non-view indices or CPS wildcards pass through as unresolved
-            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(expr.original()))) {
+            // Non-view indices or CPS index expression wildcards pass through as unresolved
+            var localIndexExpression = RemoteClusterAware.splitIndexName(expr.original()).indexExpression();
+            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(localIndexExpression))) {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
@@ -566,8 +581,8 @@ public class ViewResolver {
         if (pattern.startsWith("-")) {
             return true;
         }
-        String[] split = RemoteClusterAware.splitIndexName(pattern);
-        return split[0] != null && split[1].startsWith("-");
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
     }
 
     /**
@@ -612,8 +627,10 @@ public class ViewResolver {
         EsqlResolveViewAction.Request request,
         ActionListener<EsqlResolveViewAction.Response> listener
     ) {
-        client.execute(EsqlResolveViewAction.TYPE, request, listener);
+        client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
     }
+
+    protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
 
     record ViewPlan(String name, LogicalPlan plan) {}
 
@@ -687,23 +704,8 @@ public class ViewResolver {
         plans.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names. */
     private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
-            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
-                if (mainPattern.equals(otherPattern)) {
-                    return null;
-                }
-            }
-        }
-        return new UnresolvedRelation(
-            main.source(),
-            new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),
-            main.frozen(),
-            main.metadataFields(),
-            main.indexMode(),
-            main.unresolvedMessage()
-        );
+        return ViewCompaction.mergeIfPossible(main, other);
     }
 
     private static void assertNamesMatch(String message, String left, String right) {
@@ -772,4 +774,5 @@ public class ViewResolver {
         }
         return false;
     }
+
 }

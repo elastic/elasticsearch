@@ -26,6 +26,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +46,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
@@ -66,6 +69,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -298,7 +302,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().<FieldMapper>map(MockFieldMapper::new).toList();
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(
@@ -564,6 +568,308 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals(2, context.getMatchingFieldNames("runtime*").size());
         assertEquals(2, context.getMatchingFieldNames("*cat").size());
         assertThat(getFieldNames(context.getAllFields()), containsInAnyOrder("pig", "cat", "runtimecat", "runtime"));
+    }
+
+    public void testDefaultFieldsStandardModeReturnsWildcard() {
+        SearchExecutionContext context = createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("field")), List.of()),
+            Map.of()
+        );
+        assertThat(context.defaultFields(), equalTo(List.of("*")));
+    }
+
+    public void testDefaultFieldsColumnarModeReturnsOnlyIndexedFields() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        MappedFieldType indexedField = new MockFieldMapper.FakeFieldType("indexed");
+        MappedFieldType nonIndexedField = new MappedFieldType("non_indexed", IndexType.NONE, false, Collections.emptyMap()) {
+            @Override
+            public String typeName() {
+                return "fake_non_indexed";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        };
+
+        List<FieldMapper> mappers = List.of(new MockFieldMapper(indexedField), new MockFieldMapper(nonIndexedField));
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, Collections.emptyList(), IndexMode.COLUMNAR);
+
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, mappingLookup, null);
+        SearchExecutionContext context = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            mappingLookup,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
+
+        assertThat(context.defaultFields(), containsInAnyOrder("indexed"));
+    }
+
+    public void testDefaultFieldsColumnarModeWithExplicitDefaultField() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), "explicit_field")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, MappingLookup.EMPTY, null);
+        SearchExecutionContext context = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
+
+        assertThat(context.defaultFields(), equalTo(List.of("explicit_field")));
+    }
+
+    // ------------------------------------------------------------------
+    // addCircuitBreakerMemory reservation-swap semantics (#147428)
+    // ------------------------------------------------------------------
+
+    public void testAddCircuitBreakerMemorySingleArgChargesAndReleases() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "label");
+        assertEquals(100L, breaker.used);
+        assertEquals(100L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testAddCircuitBreakerMemorySwapsReservationForActual() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        // Charge the pre-flight reservation.
+        context.addCircuitBreakerMemory(1000L, "reservation");
+        assertEquals(1000L, breaker.used);
+        assertEquals(1000L, context.getQueryConstructionMemoryUsed());
+
+        // Swap the reservation for the (smaller) actual charge.
+        context.addCircuitBreakerMemory(250L, 1000L, "actual");
+        assertEquals(250L, breaker.used);
+        assertEquals(250L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+    }
+
+    public void testAddCircuitBreakerMemorySwapWhenActualExceedsReservation() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "reservation");
+        context.addCircuitBreakerMemory(500L, 100L, "actual");
+
+        assertEquals(500L, breaker.used);
+        assertEquals(500L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testAddCircuitBreakerMemoryThreeArgWithZeroHeldMatchesSingleArg() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(200L, 0L, "label");
+        assertEquals(200L, breaker.used);
+        assertEquals(200L, context.getQueryConstructionMemoryUsed());
+        assertEquals(0, breaker.refundCalls);
+    }
+
+    public void testAddCircuitBreakerMemoryIgnoresNegativeHeld() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(50L, -1000L, "label");
+        assertEquals(50L, breaker.used);
+        assertEquals(50L, context.getQueryConstructionMemoryUsed());
+        assertEquals("negative held bytes must not trigger a refund", 0, breaker.refundCalls);
+    }
+
+    public void testAddCircuitBreakerMemoryWithNullBreakerIsNoOp() {
+        // The factory wires no circuit breaker by default; the swap must remain a no-op.
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
+        assertNull("precondition: context has no circuit breaker", context.getCircuitBreaker());
+
+        context.addCircuitBreakerMemory(123L, "label");
+        context.addCircuitBreakerMemory(456L, 123L, "label");
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+        // releaseQueryConstructionMemory must also stay a no-op.
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleaseRefundsResidualReservationAfterConstructionFailure() {
+        // Models the failure path: reservation is charged, then construction throws before the swap runs.
+        // The request-end release must refund the reservation so neither the breaker nor the request
+        // counter leak.
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(1000L, "reservation");
+        // No swap call happens because construction threw.
+        context.releaseQueryConstructionMemory();
+
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testSwapLeavesReservationHeldWhenDeltaChargeTrips() {
+        // Under the delta-based swap, a trip on the net charge (bytes - held) leaves the
+        // previously charged reservation in place on both the breaker and the request counter.
+        // The request-end release is what refunds it.
+        long limit = 500L;
+        TrippingCircuitBreaker breaker = new TrippingCircuitBreaker(limit);
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(400L, "reservation");
+        assertEquals(400L, breaker.used);
+
+        // Actual=600, held=400 → delta=+200; 400+200>limit trips on the delta charge.
+        expectThrows(CircuitBreakingException.class, () -> context.addCircuitBreakerMemory(600L, 400L, "actual"));
+
+        // Reservation residual remains until request-end release.
+        assertEquals("reservation residual must remain on the breaker after a trip", 400L, breaker.used);
+        assertEquals(400L, context.getQueryConstructionMemoryUsed());
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    /**
+     * Minimal in-process breaker that tracks {@code used} and counts refund calls. Sufficient for
+     * exercising the swap accounting in {@link SearchExecutionContext#addCircuitBreakerMemory(long, long, String)};
+     * not a substitute for {@link org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService} in
+     * integration tests.
+     */
+    private static class TrackingCircuitBreaker implements CircuitBreaker {
+        long used = 0L;
+        int refundCalls = 0;
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {}
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            used += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            if (bytes < 0) {
+                refundCalls++;
+            }
+            used += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+
+        @Override
+        public long getLimit() {
+            return Long.MAX_VALUE;
+        }
+
+        @Override
+        public double getOverhead() {
+            return 1.0;
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return 0;
+        }
+
+        @Override
+        public String getName() {
+            return CircuitBreaker.REQUEST;
+        }
+
+        @Override
+        public Durability getDurability() {
+            return Durability.TRANSIENT;
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {}
+    }
+
+    /**
+     * Breaker that trips {@link #addEstimateBytesAndMaybeBreak} when {@code used + bytes} would exceed
+     * {@link #limit}. Used to verify swap accounting when the delta charge trips rather than succeeds.
+     * On a trip the breaker state is left unchanged, matching production breaker semantics.
+     */
+    private static class TrippingCircuitBreaker extends TrackingCircuitBreaker {
+        private final long limit;
+
+        TrippingCircuitBreaker(long limit) {
+            this.limit = limit;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (used + bytes > limit) {
+                throw new CircuitBreakingException("test trip", bytes, limit, Durability.TRANSIENT);
+            }
+            used += bytes;
+        }
     }
 
     private static List<String> getFieldNames(Iterable<Map.Entry<String, MappedFieldType>> fields) {

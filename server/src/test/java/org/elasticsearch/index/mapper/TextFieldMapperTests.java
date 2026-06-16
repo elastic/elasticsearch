@@ -543,6 +543,53 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTrue(textMapper.fieldType().usesBinaryDocValues());
     }
 
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 and an interleaved null: sorted-deduped doc-values order would reorder/collapse them and drop the null; the offsets
+        // sidecar must restore arrival order, the duplicate, and the null position.
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", v2, v1, null, v3, v2)),
+            containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",null,\"" + v3 + "\",\"" + v2 + "\"]")
+        );
+    }
+
+    /**
+     * A value longer than Lucene's max term length is stored directly in the binary doc values in columnar mode rather than spilling to the
+     * fallback field, so it keeps its position in the array (alongside a null) instead of being reordered relative to the shorter values.
+     */
+    public void testColumnarArrayOrderWithValueExceedMaxTermLength() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "text field doc_values feature must be enabled",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "text").field("doc_values", true).endObject())
+        ).documentMapper();
+
+        String shortValue = randomAlphanumericOfLength(4);
+        String longValue = randomAlphanumericOfLength(40000); // exceeds IndexWriter.MAX_TERM_LENGTH (32766)
+        assertThat(
+            syntheticSource(mapper, b -> b.array("field", longValue, null, shortValue)),
+            containsString("\"field\":[\"" + longValue + "\",null,\"" + shortValue + "\"]")
+        );
+    }
+
     public void testDocValuesEnabledWithoutIndexing() throws IOException {
         assumeTrue(
             "text field doc_values feature must be enabled",
@@ -2530,7 +2577,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // given
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName());
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName());
         Settings indexSettings = indexSettingsBuilder.build();
 
         XContentBuilder mapping = mapping(b -> {
@@ -2919,5 +2966,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
+    }
+
+    @Override
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
     }
 }

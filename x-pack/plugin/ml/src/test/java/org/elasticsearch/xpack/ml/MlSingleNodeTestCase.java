@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.wildcard.Wildcard;
+import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -112,14 +113,10 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         );
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        try {
-            logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        } finally {
-            super.tearDown();
-        }
+    @After
+    public void cleanupMlFeatures() throws Exception {
+        logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     protected void waitForMlTemplates() throws Exception {

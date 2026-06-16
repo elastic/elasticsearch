@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.compute.data.HistogramBlock.Component;
 
 /**
  * Similar to {@link Max}, but it is used to calculate the maximum value over a time series of values from the given field.
@@ -40,8 +42,8 @@ import static java.util.Collections.emptyList;
 public class MaxOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
-        AggregateMetricDoubleNativeSupport,
         SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -59,6 +61,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
 
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
+        briefSummary = "Calculates the maximum value of a field over a time window.",
         description = "Calculates the maximum over time value of a field.",
         type = FunctionType.TIME_SERIES_AGGREGATE,
         appliesTo = {
@@ -136,13 +139,20 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier() {
-        return perTimeSeriesAggregation().supplier();
+    public Expression surrogate() {
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return ExtractHistogramComponent.create(
+                source(),
+                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
+                Component.MAX
+            );
+        }
+        return null;
     }
 
     @Override

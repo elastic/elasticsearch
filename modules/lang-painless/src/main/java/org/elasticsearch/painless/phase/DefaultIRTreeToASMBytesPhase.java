@@ -97,14 +97,17 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
@@ -133,6 +136,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceBinding;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDInstanceType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDIterableType;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
@@ -240,12 +244,69 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             );
         }
 
+        boolean needsCancelPollField = irClassNode.getFunctionsNodes()
+            .stream()
+            .anyMatch(f -> f.hasCondition(IRCInstanceCancellationCheck.class));
+
+        if (needsCancelPollField) {
+            classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.CANCEL_POLL_FIELD, "I", null, null).visitEnd();
+
+            MethodWriter pollCancellation = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.POLL_CANCELLATION);
+            pollCancellation.visitCode();
+            Label noRunnable = new Label();
+            pollCancellation.loadThis();
+            pollCancellation.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
+            pollCancellation.dup();
+            pollCancellation.visitVarInsn(Opcodes.ASTORE, 1);
+            pollCancellation.ifNull(noRunnable);
+            pollCancellation.writeCancellationPoll(0, 1);
+            pollCancellation.mark(noRunnable);
+            pollCancellation.returnValue();
+            pollCancellation.endMethod();
+        }
+
+        boolean needsAllocBytesField = irClassNode.getFunctionsNodes()
+            .stream()
+            .anyMatch(f -> f.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L) > 0L);
+
+        if (needsAllocBytesField) {
+            // private long $allocBytes — the running heuristic allocation total, accessed only by the generated
+            // $incAllocBytes/getAllocBytes overrides below and reset at the execute entry.
+            classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.ALLOC_BYTES_FIELD, "J", null, null).visitEnd();
+
+            // public long $incAllocBytes(long bytes) { return this.$allocBytes += bytes; }
+            MethodWriter incAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.INC_ALLOC_BYTES);
+            incAllocBytes.visitCode();
+            incAllocBytes.loadThis();
+            incAllocBytes.dup();
+            incAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            incAllocBytes.loadArg(0);
+            incAllocBytes.math(MethodWriter.ADD, Type.LONG_TYPE);
+            incAllocBytes.visitInsn(Opcodes.DUP2_X1);
+            incAllocBytes.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            incAllocBytes.returnValue();
+            incAllocBytes.endMethod();
+
+            // public long getAllocBytes() { return this.$allocBytes; }
+            MethodWriter getAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.GET_ALLOC_BYTES);
+            getAllocBytes.visitCode();
+            getAllocBytes.loadThis();
+            getAllocBytes.getField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
+            getAllocBytes.returnValue();
+            getAllocBytes.endMethod();
+        }
+
         // Write the constructor:
         MethodWriter constructor = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, init);
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
         constructor.invokeConstructor(Type.getType(scriptClassInfo.getBaseClass()), init);
+        if (needsCancelPollField) {
+            constructor.loadThis();
+            constructor.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+            constructor.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+        }
         constructor.returnValue();
         constructor.endMethod();
 
@@ -318,22 +379,39 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // Initialize the loop-guard locals once. The runtime branch in writeBranchedLoopGuard
-        // picks between cancellation and legacy at each backedge based on the cancelRunnable
-        // value, which can change per execution via _setCancellationCheck.
-        boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
+        boolean instanceCancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
+        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
-        if (cancellation) {
-            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
-            Variable poll = writeScope.defineInternalVariable(int.class, "poll");
+        if (instanceCancellation || staticCancellation) {
+            Variable scriptThis;
+            if (instanceCancellation) {
+                scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
+                methodWriter.loadThis();
+                methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
+            } else {
+                scriptThis = writeScope.getInternalVariable("scriptThis");
+            }
 
-            methodWriter.loadThis();
+            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+            methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
 
-            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
+            Label skipEntry = new Label();
+            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+            methodWriter.ifNull(skipEntry);
+            methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
+            methodWriter.mark(skipEntry);
+        }
+
+        // Reset the per-instance allocation counter at the entry of the execute method so each execution starts fresh.
+        // The entry method is the single non-static method named "execute"; user functions are mangled and lambdas are static.
+        long maxAllocationBytes = irFunctionNode.getDecorationValueOrDefault(IRDMaxAllocationBytes.class, -1L);
+        if (maxAllocationBytes > 0L && irFunctionNode.hasCondition(IRCStatic.class) == false && "execute".equals(method.getName())) {
+            methodWriter.loadThis();
+            methodWriter.push(0L);
+            methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.ALLOC_BYTES_FIELD, Type.LONG_TYPE);
         }
 
         if (maxLoopCounter > 0) {
@@ -347,58 +425,22 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.endMethod();
     }
 
-    /** Per-iteration guard for for/while/do-while. See {@link #writeBranchedLoopGuard}. */
-    private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeBranchedLoopGuard(writeScope, methodWriter, location, true);
-    }
-
-    /**
-     * Per-iteration guard for for-each. Same as {@link #writeLoopGuard} for opted-in functions;
-     * emits nothing for non-opted-in (preserves historical for-each-uncovered behavior so
-     * existing filter/ingest/etc. scripts iterating large collections aren't broken).
-     */
-    private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeBranchedLoopGuard(writeScope, methodWriter, location, false);
-    }
-
-    /**
-     * Shared loop-guard emission. Opted-in functions emit
-     * {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter} so the
-     * inactive counter pays no per-iteration cost (important: an int counter pre-set to
-     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
-     * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
-     * false — used by for-each).
-     */
-    private static void writeBranchedLoopGuard(
-        WriteScope writeScope,
-        MethodWriter methodWriter,
-        Location location,
-        boolean legacyForNonOptedIn
-    ) {
+    private static void writeBranchedLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location, boolean legacy) {
         Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (cancelRunnable == null) {
-            if (legacyForNonOptedIn && loop != null) {
+            if (legacy && loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), location);
             }
             return;
         }
 
-        Variable poll = writeScope.getInternalVariable("poll");
-
         if (loop == null) {
-            // No legacy fallback to choose between — just skip the cancellation check when
-            // the runnable is null.
             Label skip = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skip);
-            methodWriter.writeCancellationCheck(
-                cancelRunnable.getSlot(),
-                poll.getSlot(),
-                WriterConstants.CANCELLATION_POLL_INTERVAL,
-                location
-            );
+            methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
             methodWriter.mark(skip);
             return;
         }
@@ -408,7 +450,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
         methodWriter.ifNull(legacyPath);
-        methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
+        methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
         methodWriter.goTo(end);
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
@@ -483,7 +525,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irWhileLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irWhileLoopNode.getLocation(), true);
 
         BlockNode irBlockNode = irWhileLoopNode.getBlockNode();
 
@@ -518,7 +560,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irDoWhileLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irDoWhileLoopNode.getLocation(), true);
 
         methodWriter.goTo(start);
         methodWriter.mark(end);
@@ -555,7 +597,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irForLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForLoopNode.getLocation(), true);
 
         boolean allEscape = false;
 
@@ -616,7 +658,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.arrayLength();
         methodWriter.ifICmp(MethodWriter.GE, end);
 
-        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation(), false);
 
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
@@ -666,7 +708,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
-        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation(), false);
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         if (painlessMethod != null || variable.getType().isPrimitive() == false) {
@@ -1754,6 +1796,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         // add an Object class as a placeholder type for the receiver
         typeParameters.add(Object.class);
 
+        boolean pushScriptThis = irInvokeCallDefNode.hasCondition(IRCScriptAware.class);
+        if (pushScriptThis) {
+            methodWriter.loadThis();
+            defCallRecipe.append('S');
+            typeParameters.add(ScriptThis.class);
+        }
+
         for (int i = 0; i < irInvokeCallDefNode.getArgumentNodes().size(); ++i) {
             ExpressionNode irArgumentNode = irInvokeCallDefNode.getArgumentNodes().get(i);
             visit(irArgumentNode, writeScope);
@@ -1818,6 +1867,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (irInvokeCallNode.getBox().isPrimitive()) {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
+        }
+
+        if (irInvokeCallNode.getMethod().annotations().containsKey(ScriptAwareAnnotation.class)) {
+            methodWriter.loadThis();
         }
 
         for (ExpressionNode irArgumentNode : irInvokeCallNode.getArgumentNodes()) {

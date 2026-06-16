@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -180,6 +181,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.includeIndexNames(),
             request.states()
         ).runOperation(listener);
+    }
+
+    /// Log a snapshot-info fetch failure (which will be swallowed because {@code ignore_unavailable=true}) at the correct logging level
+    /// depending on Exception. Visible for testing.
+    static void logFetchSnapshotInfoFailure(Logger logger, Object asyncSnapshotInfo, Exception e) {
+        if (ExceptionsHelper.isTaskCancelledException(e)) {
+            logger.debug(() -> Strings.format("failed to fetch snapshot info after cancellation for [%s]", asyncSnapshotInfo), e);
+        } else {
+            logger.warn(() -> Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
+        }
     }
 
     /**
@@ -430,7 +441,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                         @Override
                                         public void onFailure(Exception e) {
                                             if (ignoreUnavailable) {
-                                                logger.warn(Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
+                                                logFetchSnapshotInfoFailure(logger, asyncSnapshotInfo, e);
                                                 refListener.onResponse(null);
                                             } else {
                                                 refListener.onFailure(e);

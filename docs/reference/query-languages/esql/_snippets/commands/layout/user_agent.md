@@ -88,7 +88,7 @@ If the expression evaluates to `null` or blank, all output columns are `null`.
 
 The following example parses a user-agent string and extracts its parts:
 
-:::{include} ../examples/user_agent.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/user_agent.csv-spec/basic.md
 :::
 
 To limit output to specific properties or include device type, use the `properties` and `extract_device_type` options:

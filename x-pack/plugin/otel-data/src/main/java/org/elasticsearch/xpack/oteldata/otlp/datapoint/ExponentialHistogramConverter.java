@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXConten
  * OTLP exponential histograms will be left unchanged and just formatted into the XContent that the field type expects.
  * OTLP explicit bucket histograms will be converted to exponential histograms at maximum scale,
  * with the bucket centers corresponding to the centroids which are computed by {@link TDigestConverter}.
- * For the details see {@link #buildExponentialHistogram(HistogramDataPoint, XContentBuilder, BucketBuffer)}.
+ * For the details see {@link #buildExponentialHistogram(HistogramDataPoint, AggregationTemporality, XContentBuilder, BucketBuffer)}.
  */
 public class ExponentialHistogramConverter {
 
@@ -111,14 +112,16 @@ public class ExponentialHistogramConverter {
      *
      * @param dataPoint the point to write
      * @param builder the builder to write to
+     * @param temporality the temporality of the histogram
      * @param bucketsScratch reusable, temporary memory used to build the output histogram
      */
-    public static void buildExponentialHistogram(HistogramDataPoint dataPoint, XContentBuilder builder, BucketBuffer bucketsScratch)
-        throws IOException {
+    public static void buildExponentialHistogram(
+        HistogramDataPoint dataPoint,
+        AggregationTemporality temporality,
+        XContentBuilder builder,
+        BucketBuffer bucketsScratch
+    ) throws IOException {
         builder.startObject().field(SCALE_FIELD, MAX_SCALE);
-
-        // TODO: When start supporting cumulative buckets, we can't do the synthetic min/max bucket trick anymore.
-        // Then we probably need to just drop min/max, which aren't really useful for cumulative histograms anyway
 
         int size = dataPoint.getBucketCountsCount();
 
@@ -136,28 +139,32 @@ public class ExponentialHistogramConverter {
                 long count = dataPoint.getBucketCounts(i);
                 if (count > 0) {
                     double centroid = TDigestConverter.getCentroid(dataPoint, i);
-                    if (dataPoint.hasMin() && minHandled == false) {
-                        if (centroid > dataPoint.getMin() && count > 1) {
-                            // min is smaller than the centroid and not the only value in the bucket, we inject a separate, single value
-                            // bucket for it
-                            bucketsScratch.append(dataPoint.getMin(), 1);
-                            count -= 1;
-                        } else {
-                            // clamp the bucket centroid to min
-                            centroid = dataPoint.getMin();
-                        }
-                        minHandled = true;
-                    }
                     boolean injectMaxBucketAfterIteration = false;
-                    if (dataPoint.hasMax() && lastPopulatedBucket == i) {
-                        if (centroid < dataPoint.getMax() && count > 1) {
-                            // max is bigger than the centroid and not the only value in the bucket, we inject a separate, single value
-                            // bucket for it
-                            injectMaxBucketAfterIteration = true;
-                            count -= 1;
-                        } else {
-                            // clamp the bucket centroid to min
-                            centroid = dataPoint.getMax();
+                    // for delta histograms, we extract the min and the max into separate buckets with count 1 to improve the accuracy
+                    // we can't do this for cumulative temporality, as cumulative temporality needs stable buckets
+                    if (temporality != AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                        if (dataPoint.hasMin() && minHandled == false) {
+                            if (centroid > dataPoint.getMin() && count > 1) {
+                                // min is smaller than the centroid and not the only value in the bucket, we inject a separate, single value
+                                // bucket for it
+                                bucketsScratch.append(dataPoint.getMin(), 1);
+                                count -= 1;
+                            } else {
+                                // clamp the bucket centroid to min
+                                centroid = dataPoint.getMin();
+                            }
+                            minHandled = true;
+                        }
+                        if (dataPoint.hasMax() && lastPopulatedBucket == i) {
+                            if (centroid < dataPoint.getMax() && count > 1) {
+                                // max is bigger than the centroid and not the only value in the bucket, we inject a separate, single value
+                                // bucket for it
+                                injectMaxBucketAfterIteration = true;
+                                count -= 1;
+                            } else {
+                                // clamp the bucket centroid to min
+                                centroid = dataPoint.getMax();
+                            }
                         }
                     }
                     bucketsScratch.append(centroid, count);
@@ -167,17 +174,31 @@ public class ExponentialHistogramConverter {
                 }
             }
             bucketsScratch.writeBuckets(builder);
-            if (dataPoint.hasSum()) {
-                builder.field(SUM_FIELD, dataPoint.getSum());
+            writeSummaryStatistics(dataPoint, builder);
+        } else if (dataPoint.getCount() > 0) {
+            bucketsScratch.clear();
+            double value = 0.0;
+            if (dataPoint.hasSum() && temporality != AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                // we can't use the average as singular bucket for cumulative histograms because we need stable buckets across histograms
+                value = dataPoint.getSum() / dataPoint.getCount();
             }
-            if (dataPoint.hasMin()) {
-                builder.field(MIN_FIELD, dataPoint.getMin());
-            }
-            if (dataPoint.hasMax()) {
-                builder.field(MAX_FIELD, dataPoint.getMax());
-            }
+            bucketsScratch.append(value, dataPoint.getCount());
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
         }
         builder.endObject();
+    }
+
+    private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
+        if (dataPoint.hasSum()) {
+            builder.field(SUM_FIELD, dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.field(MIN_FIELD, dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.field(MAX_FIELD, dataPoint.getMax());
+        }
     }
 
     private static class IndexWithCountList {

@@ -7,13 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
@@ -113,6 +120,31 @@ public class PromqlBuiltinFunctionDefinitions {
             Note that this does not actually return the current time, but the time at which the expression is to be evaluated.""")
         .example("time()")
         .name("time");
+
+    static final PromqlFunctionDefinition ROUND = PromqlFunctionDefinition.def()
+        .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
+            if (toNearest == null) {
+                return new Round(source, value, null);
+            } else {
+                return promqlRoundToNearest(source, value, toNearest, configuration);
+            }
+        })
+        .example("round(rate(http_requests_total[5m]))")
+        .description("Rounds the sample values to the nearest integer, or to the nearest multiple of the optional argument.")
+        .name("round");
+
+    /**
+     * PromQL {@code round(v, to_nearest)} rounds to the nearest multiple of {@code to_nearest},
+     * with ties resolved by rounding up. Matches Prometheus:
+     * {@code floor(v * (1 / to_nearest) + 0.5) / (1 / to_nearest)}.
+     */
+    private static Expression promqlRoundToNearest(Source source, Expression value, Expression toNearest, Configuration configuration) {
+        Expression inverse = new Div(source, Literal.fromDouble(source, 1.0), toNearest);
+        Expression half = Literal.fromDouble(source, 0.5);
+        Expression scaled = new Mul(source, value, inverse);
+        Expression withHalf = new Add(source, scaled, half, configuration);
+        return new Div(source, new Floor(source, withHalf), inverse);
+    }
 
     private static PromqlFunctionDefinition.Builder dateExtraction(ChronoField field) {
         return PromqlFunctionDefinition.def()

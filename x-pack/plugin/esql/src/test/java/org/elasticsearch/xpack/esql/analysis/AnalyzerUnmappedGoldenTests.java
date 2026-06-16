@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
@@ -467,7 +469,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyOnly("""
             TS k8s
             | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-            """, STAGES);
+            """, STAGES, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testRow() throws Exception {
@@ -482,7 +484,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTests("""
             TS k8s
             | STATS f = FIRST_OVER_TIME(does_not_exist::DOUBLE) BY tbucket(1 hour)
-            """);
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     public void testSubqueryOnly() throws Exception {
@@ -624,6 +626,52 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             | WHERE does_not_exist2::LONG < 10
             | EVAL x = does_not_exist3
             """, STAGES);
+    }
+
+    public void testTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
+    }
+
+    public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL cost = network.cost::double
+            | KEEP cost
+            """);
+    }
+
+    public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """);
+    }
+
+    public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """, DimensionValues.DIMENSION_VALUES_VERSION);
+    }
+
+    public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | WHERE network.cost::double > 10.0
+            | KEEP cluster, network.cost
+            """);
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -901,10 +949,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     private void runTests(String query) {
-        runTestsNullifyAndLoad(query, STAGES);
+        runTestsNullifyAndLoad(query, STAGES, null);
     }
 
     private void runTests(String query, String... nestedPaths) {
-        runTestsNullifyAndLoad(query, STAGES, nestedPaths);
+        runTestsNullifyAndLoad(query, STAGES, null, nestedPaths);
+    }
+
+    private void runTests(String query, TransportVersion minimumSupportedVersion, String... nestedPath) {
+        runTestsNullifyAndLoad(query, STAGES, minimumSupportedVersion, nestedPath);
     }
 }

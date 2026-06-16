@@ -55,7 +55,7 @@ final class DeltaOffsetGcd {
      * @param values       the array populated by the bit-pack payload stage
      * @param count        the number of values to transform
      * @param context      the per-block decoding context
-     * @param basePosition the bitmap position of the {@code delta} stage; {@code offset} and {@code gcd} follow at {@code +1} and {@code +2}
+     * @param basePosition the bitmap position of the {@code delta} stage ({@code offset} is at {@code +1}, {@code gcd} at {@code +2})
      * @throws IOException if a metadata read fails
      */
     void decode(final long[] values, int count, final DecodingContext context, int basePosition) throws IOException {

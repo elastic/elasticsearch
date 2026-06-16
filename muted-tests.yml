@@ -626,3 +626,6 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
   method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
   issue: https://github.com/elastic/elasticsearch/issues/151330
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testChunkedFetching
+  issue: https://github.com/elastic/elasticsearch/issues/151353

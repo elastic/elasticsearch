@@ -10,7 +10,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BinarySortField;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -62,7 +61,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<MultiValuedBina
         Object luceneMissingValue = XFieldComparatorSource.sortMissingLast(missingValue) ^ reverse
             ? SortField.STRING_LAST
             : SortField.STRING_FIRST;
-        return new BinarySortField(getFieldName(), reverse, luceneMissingValue);
+        return new MultiValuedBinaryDocValuesSortField(getFieldName(), reverse, luceneMissingValue);
     }
 
     @Override

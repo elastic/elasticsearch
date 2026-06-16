@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -57,17 +59,25 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         private final List<TopNOperator.SortOrder> sortOrders;
         private final ElementType[] elementTypes;
         private final int maxPageSize;
+        /**
+         * Channel index of the {@link DocBlock} in incoming pages, or {@code -1} if absent.
+         * When present, the DocVector's (shard, segment, doc) triple is used as a tiebreaker
+         * after all sort-key comparisons return 0, making the per-node merge deterministic.
+         */
+        private final int docChannel;
 
         public Factory(
             ExchangeSourceHandler exchangeSourceHandler,
             List<TopNOperator.SortOrder> sortOrders,
             ElementType[] elementTypes,
-            int maxPageSize
+            int maxPageSize,
+            int docChannel
         ) {
             this.exchangeSourceHandler = exchangeSourceHandler;
             this.sortOrders = sortOrders;
             this.elementTypes = elementTypes;
             this.maxPageSize = maxPageSize;
+            this.docChannel = docChannel;
         }
 
         @Override
@@ -79,7 +89,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
                 sortOrders,
                 elementTypes,
                 driverContext.blockFactory(),
-                maxPageSize
+                maxPageSize,
+                docChannel
             );
         }
 
@@ -95,6 +106,11 @@ public final class SortedMergeSourceOperator extends SourceOperator {
     private final ElementType[] elementTypes;
     private final BlockFactory blockFactory;
     private final int maxPageSize;
+    /**
+     * Channel index of the {@link DocBlock} in incoming pages, or {@code -1} if absent.
+     * @see Factory#docChannel
+     */
+    private final int docChannel;
 
     /** Per-source page queues: sinkId → ordered deque of pages still to merge. */
     private final Map<Integer, ArrayDeque<Page>> sourceQueues = new HashMap<>();
@@ -122,7 +138,8 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         List<TopNOperator.SortOrder> sortOrders,
         ElementType[] elementTypes,
         BlockFactory blockFactory,
-        int maxPageSize
+        int maxPageSize,
+        int docChannel
     ) {
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSource = exchangeSource;
@@ -130,6 +147,7 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         this.elementTypes = elementTypes;
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
+        this.docChannel = docChannel;
     }
 
     @Override
@@ -294,7 +312,15 @@ public final class SortedMergeSourceOperator extends SourceOperator {
         int posA = sourceCursors.getOrDefault(sourceA, 0);
         Page pageB = sourceQueues.get(sourceB).peek();
         int posB = sourceCursors.getOrDefault(sourceB, 0);
-        return compareRows(pageA, posA, pageB, posB);
+        int cmp = compareRows(pageA, posA, pageB, posB);
+        if (cmp != 0) {
+            return cmp;
+        }
+        // Final tiebreaker: order by source ID so that equal-key rows from different sources are
+        // always emitted in a consistent order. This makes the global merge deterministic even when
+        // the DocVector tiebreaker is unavailable (e.g. at the coordinator level where DocVectors
+        // are not serializable). The ordering is by source-assignment order — stable per query.
+        return Integer.compare(sourceA, sourceB);
     }
 
     private int compareRows(Page pageA, int posA, Page pageB, int posB) {
@@ -319,6 +345,22 @@ public final class SortedMergeSourceOperator extends SourceOperator {
             if (cmp != 0) {
                 return order.asc() ? cmp : -cmp;
             }
+        }
+        // Sort-key tiebreaker: when all sort keys are equal, use the DocVector's (shard, segment, doc)
+        // triple, which is globally unique within a node. Only available when docChannel >= 0 (i.e. the
+        // late-materialization path where _doc is present in the page).
+        if (docChannel >= 0) {
+            DocVector dvA = ((DocBlock) pageA.getBlock(docChannel)).asVector();
+            DocVector dvB = ((DocBlock) pageB.getBlock(docChannel)).asVector();
+            int cmpShard = Integer.compare(dvA.shards().getInt(posA), dvB.shards().getInt(posB));
+            if (cmpShard != 0) {
+                return cmpShard;
+            }
+            int cmpSeg = Integer.compare(dvA.segments().getInt(posA), dvB.segments().getInt(posB));
+            if (cmpSeg != 0) {
+                return cmpSeg;
+            }
+            return Integer.compare(dvA.docs().getInt(posA), dvB.docs().getInt(posB));
         }
         return 0;
     }

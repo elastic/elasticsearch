@@ -51,7 +51,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -747,7 +746,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     /**
      * Returns true when the node-level reduction plan contains a sorted-merge TopN — i.e. the plan
-     * inserted by {@code AddMaxLimitToUnboundedSort} with a {@code MAX_VALUE} limit
+     * inserted by {@code MarkUnboundedSort} with a {@code MAX_VALUE} limit
      * that was subsequently marked as {@code SORTED} by {@link ComputeService#reductionPlan}.  In
      * that case each shard must write to its own {@link ExchangeSinkHandler} so that
      * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} can K-way merge
@@ -765,9 +764,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         return nodeReducePlan.collectFirstChildren(
             p -> p instanceof TopNExec topN
                 && topN.inputOrdering() == TopNOperator.InputOrdering.SORTED
-                && topN.limit() instanceof Literal lit
-                && lit.value() instanceof Integer limitInt
-                && limitInt == Integer.MAX_VALUE
+                && topN.unboundedSort()
                 && topN.child() instanceof ExchangeSourceExec
         ).isEmpty() == false;
     }

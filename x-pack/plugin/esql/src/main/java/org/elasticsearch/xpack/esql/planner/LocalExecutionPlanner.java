@@ -711,14 +711,12 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         // Sorted merge path: data nodes already sorted pages; the coordinator just needs to K-way
         // merge them in order. This avoids buffering all data in TopNQueue (which would OOM for
-        // MAX_VALUE limits). Triggered when: (a) we are on the coordinator (handler != null),
-        // (b) the input is declared sorted (pushed to data nodes), and (c) the limit is MAX_VALUE
-        // (added by AddMaxLimitToUnboundedSort to allow pushing the sort).
+        // unbounded limits). Triggered when: (a) we are on the coordinator (handler != null),
+        // (b) the input is declared sorted (pushed to data nodes), and (c) unboundedSort flag is set
+        // (added by MarkUnboundedSort to mark the streaming-sort path).
         if (exchangeSourceHandler != null
             && topNExec.inputOrdering() == TopNOperator.InputOrdering.SORTED
-            && topNExec.limit() instanceof Literal limitLit
-            && limitLit.value() instanceof Integer limitInt
-            && limitInt == Integer.MAX_VALUE
+            && topNExec.unboundedSort()
             && topNExec.child() instanceof ExchangeSourceExec exchangeSourceExec) {
             return planSortedMerge(topNExec, exchangeSourceExec, context);
         }
@@ -755,7 +753,7 @@ public class LocalExecutionPlanner {
 
     /**
      * Builds the streaming K-way merge operator for the coordinator sort-merge path. Called from
-     * {@link #planTopN} when the plan is a {@code TopNExec(MAX_VALUE, SORTED)} directly above an
+     * {@link #planTopN} when the plan is an unbounded-sort {@code TopNExec} directly above an
      * {@code ExchangeSourceExec}. The data nodes have already sorted their pages; the coordinator
      * just needs to merge them in order without buffering everything first.
      */
@@ -783,8 +781,26 @@ public class LocalExecutionPlanner {
             context
         );
 
+        // Find the DocBlock channel so the merge can tiebreak on (shard, segment, doc) when present.
+        // The DocVector is only available on the data-node-reduce merge (late-materialization path),
+        // not at the coordinator where DocVectors are not serializable. When absent, docChannel = -1
+        // and the merge falls back to sourceId ordering as the final tiebreaker.
+        int docChannel = -1;
+        for (int i = 0; i < common.elementTypes.length; i++) {
+            if (common.elementTypes[i] == ElementType.DOC) {
+                docChannel = i;
+                break;
+            }
+        }
+
         int pageSize = context.pageSize(topNExec, effectiveRowSize);
-        var factory = new SortedMergeSourceOperator.Factory(exchangeSourceHandler, common.orders, common.elementTypes, pageSize);
+        var factory = new SortedMergeSourceOperator.Factory(
+            exchangeSourceHandler,
+            common.orders,
+            common.elementTypes,
+            pageSize,
+            docChannel
+        );
         return PhysicalOperation.fromSource(factory, layout);
     }
 

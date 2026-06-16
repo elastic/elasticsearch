@@ -16,7 +16,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddMaxLimitToUnboundedSort;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MarkUnboundedSort;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -3071,7 +3071,7 @@ public class EsqlCapabilities {
          * limit push-down, or before {@code MV_EXPAND}) is executed using per-shard exchange sinks and
          * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator} for K-way merge,
          * avoiding a {@code TopNOperator(MAX_VALUE)} that pre-allocates ~16 GB on the heap.
-         * Gated on {@link AddMaxLimitToUnboundedSort#STREAMING_SORT_VERSION}.
+         * Gated on {@link MarkUnboundedSort#STREAMING_SORT_VERSION}.
          */
         STREAMING_SORT,
 

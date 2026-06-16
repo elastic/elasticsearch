@@ -29,17 +29,21 @@ import java.util.List;
  * blocking the outer limit from reaching the sort).
  * <p>
  * For those cases, when the sort's data source is a Lucene-backed {@link EsRelation} and every sort
- * key is a native indexed field, convert the {@link OrderBy} to a {@link TopN} with
- * {@link Integer#MAX_VALUE}. The physical optimizer's {@code PushTopNToSource} rule will then push
- * this to a {@code LuceneSearchAfterSortedSourceOperator} on each shard, which streams documents in
- * sort order without allocating a fixed-size priority queue. The coordinator's
+ * key is a native indexed field, convert the {@link OrderBy} to a {@link TopN} with the
+ * {@code unboundedSort} flag set. The physical optimizer's {@code PushTopNToSource} rule will then
+ * push this to a {@code LuceneSearchAfterSortedSourceOperator} on each shard, which streams documents
+ * in sort order without allocating a fixed-size priority queue. The coordinator's
  * {@code SortedMergeSourceOperator} merges the per-shard streams, and any outer {@code LIMIT N}
  * downstream acts as the pipeline stop.
  * <p>
+ * The {@code unboundedSort} flag is the authoritative gate at every downstream decision point.
+ * {@link Integer#MAX_VALUE} is used as a structural limit placeholder (required because downstream
+ * plan nodes expect a foldable limit literal), but no code should key off this value — only the flag.
+ * <p>
  * This rule is gated on {@link #STREAMING_SORT_VERSION}: on mixed-version clusters where any node
  * is older than this version the rule is skipped, and the query falls back to the pre-existing
- * "Unbounded SORT not supported" rejection. This prevents sending a {@code TopNExec(MAX_VALUE, SORTED)}
- * reduction plan to data nodes that do not understand the per-shard sink / sorted-merge model.
+ * "Unbounded SORT not supported" rejection. This prevents sending an unbounded-sort reduction plan
+ * to data nodes that do not understand the per-shard sink / sorted-merge model.
  * <p>
  * Example queries that benefit from this rule:
  * <pre>{@code
@@ -56,17 +60,17 @@ import java.util.List;
  * | LIMIT 25
  * }</pre>
  */
-public class AddMaxLimitToUnboundedSort extends OptimizerRules.ParameterizedOptimizerRule<OrderBy, LogicalOptimizerContext> {
+public class MarkUnboundedSort extends OptimizerRules.ParameterizedOptimizerRule<OrderBy, LogicalOptimizerContext> {
 
     /**
      * Transport version at which the streaming sorted-merge execution model (per-shard sinks +
      * {@link org.elasticsearch.compute.operator.topn.SortedMergeSourceOperator}) was introduced.
      * The rule is gated on this version so that mixed-version clusters do not receive a plan
-     * containing {@code TopNExec(MAX_VALUE, SORTED)} on nodes that cannot execute it.
+     * containing an unbounded-sort {@code TopNExec} on nodes that cannot execute it.
      */
-    public static final TransportVersion STREAMING_SORT_VERSION = TransportVersion.fromName("esql_sorted_merge_for_lookup_join");
+    public static final TransportVersion STREAMING_SORT_VERSION = TransportVersion.fromName("esql_unbounded_sort");
 
-    public AddMaxLimitToUnboundedSort() {
+    public MarkUnboundedSort() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
 
@@ -81,10 +85,11 @@ public class AddMaxLimitToUnboundedSort extends OptimizerRules.ParameterizedOpti
         if (hasOnlyNativeFieldSorts(orderBy.order()) == false) {
             return orderBy;
         }
-        // TODO: Integer.MAX_VALUE is used as a sentinel for "unbounded". When limits become long or
-        // ES|QL supports fully streamed results, replace this with a dedicated flag on TopN/TopNExec.
+        // Integer.MAX_VALUE is kept as the limit value (semantically "no limit") so that downstream
+        // code that inspects the limit for Lucene routing still routes correctly. The unboundedSort
+        // flag — not the value — is the authoritative gate at every decision point.
         var maxLimit = new Literal(orderBy.source(), Integer.MAX_VALUE, DataType.INTEGER);
-        return new TopN(orderBy.source(), orderBy.child(), orderBy.order(), maxLimit, false);
+        return new TopN(orderBy.source(), orderBy.child(), orderBy.order(), maxLimit, false).withUnboundedSort();
     }
 
     /**

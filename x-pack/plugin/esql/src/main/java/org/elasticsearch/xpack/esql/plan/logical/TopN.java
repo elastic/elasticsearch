@@ -31,12 +31,24 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
      * It should always end up inside a fragment.
      */
     private final transient boolean local;
+    /**
+     * Set by {@code MarkUnboundedSort} when this TopN represents an unbounded streaming sort.
+     * The limit value is {@link Integer#MAX_VALUE} in that case (semantically "no limit"), but this
+     * flag — not the value — is the authoritative gate. It is transient (not serialized at the logical
+     * level) and is re-established by the optimizer rule on every node.
+     */
+    private final transient boolean unboundedSort;
 
     public TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, boolean local) {
+        this(source, child, order, limit, local, false);
+    }
+
+    private TopN(Source source, LogicalPlan child, List<Order> order, Expression limit, boolean local, boolean unboundedSort) {
         super(source, child);
         this.order = order;
         this.limit = limit;
         this.local = local;
+        this.unboundedSort = unboundedSort;
     }
 
     private TopN(StreamInput in) throws IOException {
@@ -69,20 +81,35 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
 
     @Override
     protected NodeInfo<TopN> info() {
-        return NodeInfo.create(this, TopN::new, child(), order, limit, local);
+        return NodeInfo.create(this, (s, c, o, l, loc) -> new TopN(s, c, o, l, loc, unboundedSort), child(), order, limit, local);
     }
 
     @Override
     public TopN replaceChild(LogicalPlan newChild) {
-        return new TopN(source(), newChild, order, limit, local);
+        return new TopN(source(), newChild, order, limit, local, unboundedSort);
     }
 
     public TopN withLocal(boolean local) {
-        return new TopN(source(), child(), order, limit, local);
+        return new TopN(source(), child(), order, limit, local, unboundedSort);
+    }
+
+    /**
+     * Returns a copy of this TopN with {@code unboundedSort} set to {@code true}.
+     * Used by {@code MarkUnboundedSort} to mark the streaming-sort path.
+     */
+    public TopN withUnboundedSort() {
+        return new TopN(source(), child(), order, limit, local, true);
     }
 
     public boolean local() {
         return local;
+    }
+
+    /**
+     * Whether this TopN represents an unbounded streaming sort (set by {@code MarkUnboundedSort}).
+     */
+    public boolean unboundedSort() {
+        return unboundedSort;
     }
 
     public Expression limit() {
@@ -95,14 +122,17 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, local);
+        return Objects.hash(super.hashCode(), order, limit, local, unboundedSort);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             var other = (TopN) obj;
-            return Objects.equals(order, other.order) && Objects.equals(limit, other.limit) && local == other.local;
+            return Objects.equals(order, other.order)
+                && Objects.equals(limit, other.limit)
+                && local == other.local
+                && unboundedSort == other.unboundedSort;
         }
         return false;
     }

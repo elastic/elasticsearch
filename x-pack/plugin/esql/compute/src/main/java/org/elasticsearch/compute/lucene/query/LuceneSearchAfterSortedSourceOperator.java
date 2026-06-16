@@ -12,6 +12,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.common.Strings;
@@ -183,7 +184,14 @@ public final class LuceneSearchAfterSortedSourceOperator extends LuceneOperator 
             shardScorer = scorer;
             currentShardContext = scorer.shardContext();
             currentShardId = currentShardContext.index();
-            currentSort = sortAndFormats.get().sort;
+            // Always append SortField.FIELD_DOC as the final tiebreaker so that searchAfter pagination
+            // has a total order on the cursor. Without it, equal-key docs can be dropped or duplicated
+            // across page boundaries. Mirrors LuceneTopNSourceOperator.newTopDocsCollector.
+            SortField[] originalSortFields = sortAndFormats.get().sort.getSort();
+            SortField[] tiebreakerSortFields = new SortField[originalSortFields.length + 1];
+            System.arraycopy(originalSortFields, 0, tiebreakerSortFields, 0, originalSortFields.length);
+            tiebreakerSortFields[originalSortFields.length] = SortField.FIELD_DOC;
+            currentSort = new Sort(tiebreakerSortFields);
             lastFieldDoc = null;
             docsEmitted = 0;
         }

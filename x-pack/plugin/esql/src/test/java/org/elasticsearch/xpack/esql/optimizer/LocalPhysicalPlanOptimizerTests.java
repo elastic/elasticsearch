@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MarkUnboundedSort;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -133,6 +134,7 @@ import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsT
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -2921,7 +2923,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * SORT _score | LOOKUP JOIN without a pushable LIMIT: {@code _score} is a MetadataAttribute, not a plain
-     * FieldAttribute, so {@code AddMaxLimitToUnboundedSort} does not apply (the streaming-sort
+     * FieldAttribute, so {@code MarkUnboundedSort} does not apply (the streaming-sort
      * optimisation is only valid for native Lucene field sorts). The sort remains an unbounded {@code OrderBy}
      * in the logical plan and is rejected by the logical verifier before physical planning.
      */
@@ -2955,6 +2957,78 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | LIMIT 10
             """));
         assertThat(e.getMessage(), containsString("Unbounded SORT not supported yet"));
+        assertWarnings(
+            "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
+                + "add another SORT after the LOOKUP JOIN if order is required"
+        );
+    }
+
+    /**
+     * Blast-radius guard: {@code SORT f | LIMIT 15515} (bounded limit larger than
+     * {@code luceneTopNLimit}) must keep the old plan — {@link TopNExec#unboundedSort()} must be
+     * {@code false}. Streaming is reserved for genuinely unbounded sorts only; extending it to
+     * large bounded limits is a follow-up.
+     */
+    public void testLargeBoundedLimitKeepsOldPlan() {
+        var plan = plannerOptimizer.plan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 15515
+            """);
+
+        var topNExecs = plan.collect(n -> n instanceof TopNExec);
+        assertThat("expected at least one TopNExec in plan", topNExecs, not(empty()));
+        for (var node : topNExecs) {
+            assertThat("large bounded LIMIT must not activate streaming sort", ((TopNExec) node).unboundedSort(), is(false));
+        }
+    }
+
+    /**
+     * Blast-radius guard: a literal {@code LIMIT 2147483647} ({@link Integer#MAX_VALUE}) must not
+     * be mistaken for an unbounded streaming sort. The authoritative gate is the
+     * {@link TopNExec#unboundedSort()} flag, not the limit value.
+     */
+    public void testMaxValueLiteralLimitNotMistakenForUnboundedSort() {
+        var plan = plannerOptimizer.plan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 2147483647
+            """);
+
+        var topNExecs = plan.collect(n -> n instanceof TopNExec);
+        assertThat("expected at least one TopNExec in plan", topNExecs, not(empty()));
+        for (var node : topNExecs) {
+            assertThat("MAX_VALUE literal limit must not activate streaming sort", ((TopNExec) node).unboundedSort(), is(false));
+        }
+    }
+
+    /**
+     * A native-field sort before a {@code LOOKUP JOIN} that blocks limit push-down must be flagged
+     * as an unbounded streaming sort: {@link TopNExec#unboundedSort()} must be {@code true}.
+     * Uses a planner pinned to {@link MarkUnboundedSort#STREAMING_SORT_VERSION} so the rule fires
+     * deterministically, regardless of the test's random minimum transport version.
+     */
+    public void testFieldSortBeforeLookupJoinIsMarkedAsUnboundedSort() {
+        var streamingPlanner = new TestPlannerOptimizer(
+            config,
+            makeAnalyzer("mapping-basic.json"),
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), MarkUnboundedSort.STREAMING_SORT_VERSION))
+        );
+
+        var plan = streamingPlanner.plan("""
+            FROM test
+            | RENAME languages AS language_code
+            | SORT emp_no
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "foo"
+            | LIMIT 10
+            """);
+
+        assertThat(
+            "streaming TopNExec (unboundedSort=true) expected in plan",
+            plan.anyMatch(n -> n instanceof TopNExec t && t.unboundedSort()),
+            is(true)
+        );
         assertWarnings(
             "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"

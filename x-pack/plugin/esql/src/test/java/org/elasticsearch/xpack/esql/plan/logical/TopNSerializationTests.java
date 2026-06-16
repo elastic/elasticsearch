@@ -23,7 +23,11 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = randomChild(depth);
         List<Order> order = randomOrders();
         Expression limit = AbstractExpressionSerializationTests.randomChild();
-        return new TopN(source, child, order, limit, randomBoolean());
+        TopN result = new TopN(source, child, order, limit, randomBoolean());
+        if (randomBoolean()) {
+            result = result.withUnboundedSort();
+        }
+        return result;
     }
 
     private static List<Order> randomOrders() {
@@ -42,13 +46,17 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
         List<Order> order = instance.order();
         Expression limit = instance.limit();
         boolean local = instance.local();
-        switch (between(0, 3)) {
+        boolean unboundedSort = instance.unboundedSort();
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> order = randomValueOtherThan(order, TopNSerializationTests::randomOrders);
             case 2 -> limit = randomValueOtherThan(limit, AbstractExpressionSerializationTests::randomChild);
             case 3 -> local = local == false;
+            case 4 -> unboundedSort = unboundedSort == false;
+            default -> throw new UnsupportedOperationException();
         }
-        return new TopN(source, child, order, limit, local);
+        TopN result = new TopN(source, child, order, limit, local);
+        return unboundedSort ? result.withUnboundedSort() : result;
     }
 
     @Override
@@ -58,9 +66,10 @@ public class TopNSerializationTests extends AbstractLogicalPlanSerializationTest
 
     @Override
     protected TopN copyInstance(TopN instance, TransportVersion version) throws IOException {
-        // TopN#local is ALWAYS false after serialization.
+        // TopN#local and TopN#unboundedSort are both transient — always false after serialization.
         TopN deserializedCopy = super.copyInstance(instance, version);
-        return deserializedCopy.withLocal(instance.local());
+        deserializedCopy = deserializedCopy.withLocal(instance.local());
+        return instance.unboundedSort() ? deserializedCopy.withUnboundedSort() : deserializedCopy;
     }
 
 }

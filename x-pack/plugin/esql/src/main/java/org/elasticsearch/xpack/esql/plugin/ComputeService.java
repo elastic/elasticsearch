@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
@@ -1387,26 +1386,20 @@ public class ComputeService {
                             return passThroughReduction;
                         }
                         PhysicalPlan topNPlan = topN.plan();
-                        // For MAX_VALUE limit (from AddMaxLimitToUnboundedSort), the sort was
+                        // For unbounded streaming sort (from MarkUnboundedSort), the sort was
                         // pushed to data nodes; mark as SORTED so SortedMergeSourceOperator is used instead
-                        // of TopNOperator(MAX_VALUE) which pre-allocates ~16GB.
-                        if (topNPlan instanceof TopNExec te
-                            && te.limit() instanceof Literal lit
-                            && lit.value() instanceof Integer limitInt
-                            && limitInt == Integer.MAX_VALUE) {
+                        // of TopNOperator which pre-allocates MAX_VALUE rows and would OOM.
+                        if (topNPlan instanceof TopNExec te && te.unboundedSort()) {
                             topNPlan = te.withSortedInput();
                         }
                         return placePlanBetweenExchanges.apply(topNPlan);
                     });
             case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> {
                 PhysicalPlan topNPlan = topN.plan();
-                // For MAX_VALUE limit the plan was inserted by AddMaxLimitToUnboundedSort.
+                // For unbounded streaming sort the plan was inserted by MarkUnboundedSort.
                 // Mark the reduction TopNExec as SORTED so that data nodes use SortedMergeSourceOperator
-                // (per-shard K-way merge) instead of TopNOperator, which pre-allocates MAX_VALUE rows.
-                if (topNPlan instanceof TopNExec te
-                    && te.limit() instanceof Literal lit
-                    && lit.value() instanceof Integer limitInt
-                    && limitInt == Integer.MAX_VALUE) {
+                // (per-shard K-way merge) instead of TopNOperator which pre-allocates MAX_VALUE rows.
+                if (topNPlan instanceof TopNExec te && te.unboundedSort()) {
                     topNPlan = te.withSortedInput();
                 }
                 yield placePlanBetweenExchanges.apply(topNPlan);

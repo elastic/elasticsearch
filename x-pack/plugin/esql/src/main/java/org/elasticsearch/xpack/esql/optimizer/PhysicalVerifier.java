@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerific
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -59,15 +58,13 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 );
             }
 
-            // A TopNExec with MAX_VALUE limit added by AddMaxLimitToUnboundedSort can only be handled
-            // by the coordinator's SortedMergeSourceOperator when the sort was successfully pushed to
-            // data nodes (inputOrdering == SORTED). If the sort could NOT be pushed (e.g. a non-sortable
-            // field type), the data arrives unsorted and buffering MAX_VALUE rows would OOM. Reject here.
+            // An unbounded streaming sort can only be handled by the coordinator's SortedMergeSourceOperator
+            // when the sort was successfully pushed to data nodes (inputOrdering == SORTED). If the sort
+            // could NOT be pushed (e.g. a non-sortable field type), the data arrives unsorted and buffering
+            // MAX_VALUE rows would OOM. Reject here.
             if (p instanceof TopNExec topNExec
                 && topNExec.inputOrdering() != TopNOperator.InputOrdering.SORTED
-                && topNExec.limit() instanceof Literal lit
-                && lit.value() instanceof Integer limitInt
-                && limitInt == Integer.MAX_VALUE) {
+                && topNExec.unboundedSort()) {
                 failures.add(
                     fail(
                         topNExec,

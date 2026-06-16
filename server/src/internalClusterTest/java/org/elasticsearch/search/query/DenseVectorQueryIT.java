@@ -281,6 +281,46 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         runAndCompare(index, query, new TestParams(numDocs, numDims, queryVector), VECTOR_SCORE_SCRIPT, DELTA);
     }
 
+    /**
+     * A non-indexed (index:false) float field stores the per-doc magnitude in its binary doc values.
+     * COSINE scoring uses that stored magnitude to avoid recomputing it per doc. Scores must match
+     * the COSINE script-score ground truth within float tolerance.
+     */
+    public void testCosineOnNonIndexedField() throws IOException {
+        String index = "dense_vector_query_it_unindexed_cosine";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("element_type", "float")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .build();
+        prepareCreate(index).setMapping(mapping).setSettings(settings).get();
+        ensureGreen(index);
+
+        TestParams params = TestParams.generate();
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[params.numDocs()];
+        for (int i = 0; i < params.numDocs(); i++) {
+            docs[i] = prepareIndex(index).setId(String.valueOf(i)).setSource(VECTOR_FIELD, randomVector(params.numDims()));
+        }
+        indexRandom(true, docs);
+
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(
+            VECTOR_FIELD,
+            params.queryVector(),
+            DenseVectorFieldMapper.VectorSimilarity.COSINE,
+            false
+        );
+        runAndCompare(index, query, params, VECTOR_SCORE_SCRIPT_COSINE, DELTA);
+    }
+
     /** Loose per-codec budget for codec-path vs raw script-score distance. */
     private static double quantizedTolerance(VectorIndexType type) {
         return switch (type) {

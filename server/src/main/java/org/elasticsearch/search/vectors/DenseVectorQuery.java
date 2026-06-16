@@ -334,6 +334,10 @@ public abstract class DenseVectorQuery extends Query {
             private final ElementType elementType;
             private final IndexVersion indexVersion;
             private final float[] decoded;
+            // Non-zero when we can use the stored per-doc magnitude for COSINE scoring instead of
+            // recomputing it. Only valid for FLOAT (not BFLOAT16, whose stored magnitude is computed
+            // from the pre-encoding floats rather than the decoded bfloat16 values).
+            private final float queryMagnitude;
 
             DocValuesFloatVectorScorer(
                 BinaryDocValues values,
@@ -348,6 +352,11 @@ public abstract class DenseVectorQuery extends Query {
                 this.elementType = elementType;
                 this.indexVersion = indexVersion;
                 this.decoded = new float[target.length];
+                this.queryMagnitude = function == VectorSimilarityFunction.COSINE
+                    && elementType == ElementType.FLOAT
+                    && indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
+                        ? (float) Math.sqrt(VectorUtil.dotProduct(target, target))
+                        : 0f;
             }
 
             @Override
@@ -357,6 +366,11 @@ public abstract class DenseVectorQuery extends Query {
                     VectorEncoderDecoder.decodeBFloat16DenseVector(ref, decoded);
                 } else {
                     VectorEncoderDecoder.decodeDenseVector(indexVersion, ref, decoded);
+                }
+                if (queryMagnitude > 0f) {
+                    float storedMagnitude = VectorEncoderDecoder.getMagnitude(indexVersion, ref, decoded);
+                    float rawScore = VectorUtil.dotProduct(target, decoded) / (queryMagnitude * storedMagnitude);
+                    return VectorUtil.normalizeToUnitInterval(rawScore);
                 }
                 return function.compare(target, decoded);
             }

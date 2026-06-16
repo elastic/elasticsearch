@@ -148,23 +148,13 @@ public class Augmentation {
     }
 
     /**
-     * Cancellation-aware {@code count}.  Counts the elements matching {@code predicate} by scanning the
-     * whole iterable, calling {@link PainlessScript#_pollCancellation()} once per element so counting a
-     * large collection honours search timeouts.  Delegates to {@link #count(Iterable, Predicate)} when the
-     * script has no cancellation check installed.
+     * Cancellation-aware {@code count}.  Counts the elements matching {@code predicate} by scanning the whole
+     * iterable; the wrapped predicate polls {@link PainlessScript#_pollCancellation()} once per element so
+     * counting a large collection honours search timeouts, and is the unwrapped predicate (JDK fast path) when
+     * the script has no cancellation check installed.
      */
     public static <T> int count(PainlessScript script, Iterable<T> receiver, Predicate<T> predicate) {
-        if (script._getCancellationCheck() == null) {
-            return count(receiver, predicate);
-        }
-        int count = 0;
-        for (T t : receiver) {
-            if (predicate.test(t)) {
-                count++;
-            }
-            script._pollCancellation();
-        }
-        return count;
+        return count(receiver, wrap(script, predicate));
     }
 
     /** Counts the number of occurrences which satisfy the given predicate from inside this Iterable. */

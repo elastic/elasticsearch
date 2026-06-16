@@ -102,45 +102,9 @@ final class ColumnarSourceWriter {
         SourceLoader.Leaf leaf
     ) {}
 
-    /**
-     * A reusable {@link LeafReader} for the {@code columnar_stored} synthetic-source path.
-     *
-     * <p>This reader maintains per-field <em>slots</em> whose contents are swapped via
-     * {@link #repopulate(LuceneDocument)} on each document. The slot map itself is built lazily on the
-     * first call to any {@code getXxxDocValues} accessor (during the one-time
-     * {@link SourceLoader.Synthetic#leaf} build) and then frozen — only slot contents change.
-     *
-     * <p><strong>Correctness invariants:</strong>
-     * <ol>
-     *   <li>Every schema field must yield a non-null (and for sorted-set, {@code getValueCount() ≥ 1})
-     *       stable iterator the first time the loader asks for it, so no DV layer permanently binds
-     *       to {@code NO_VALUES}.</li>
-     *   <li>{@code repopulate} fills only registered slots; unregistered fields in the document are
-     *       ignored. Registered slots that are absent in the current document remain cleared (absent)
-     *       for that document.</li>
-     *   <li>For {@code .counts} companion fields (used by
-     *       {@link org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues}), a
-     *       {@link CountsCompanionSlot} is registered that provides a virtual count of {@code 1} when
-     *       the binary payload is present but the counts field is absent. This ensures
-     *       {@code SeparateCounts} format is chosen at build time and behaves like {@code PlainBinary}
-     *       for single-valued binary fields.</li>
-     * </ol>
-     *
-     */
     static class ReusableColumnarStoredLeafReader extends LeafReader {
 
         private static final String COUNT_FIELD_SUFFIX = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-
-        private static final FieldInfos EMPTY_FIELD_INFOS = new FieldInfos(new FieldInfo[0]) {
-
-            @Override
-            public FieldInfo fieldInfo(String fieldName) {
-                // It is ok to return null here, since this will be used by DocValues#checkField(...) to return an empty doc values
-                // instance.
-                return null;
-            }
-
-        };
 
         // -------------------------------------------------------------------------
         // Slot maps — lazily populated during the one-time leaf() build
@@ -168,17 +132,6 @@ final class ColumnarSourceWriter {
         private final List<IndexableField> storedFields = new ArrayList<>();
 
         // -------------------------------------------------------------------------
-        // Dirty tracking — reset before each repopulate
-        // -------------------------------------------------------------------------
-
-        private final List<NumericSlot> dirtyNumericSlots = new ArrayList<>();
-        private final List<CountsCompanionSlot> dirtyCountsSlots = new ArrayList<>();
-        private final List<BinarySlot> dirtyBinarySlots = new ArrayList<>();
-        private final List<SortedSlot> dirtySortedSlots = new ArrayList<>();
-        private final List<SortedSetSlot> dirtySortedSetSlots = new ArrayList<>();
-        private final List<SortedNumericSlot> dirtySortedNumericSlots = new ArrayList<>();
-
-        // -------------------------------------------------------------------------
         // Document repopulation
         // -------------------------------------------------------------------------
 
@@ -192,31 +145,25 @@ final class ColumnarSourceWriter {
          * build so that the slot map is fully initialized.
          */
         void repopulate(LuceneDocument doc) {
-            // Clear dirty slots from the previous document.
-            for (NumericSlot slot : dirtyNumericSlots) {
+            // Clear all registered slots from the previous document.
+            for (NumericSlot slot : numericSlots.values()) {
                 slot.present = false;
             }
-            dirtyNumericSlots.clear();
-            for (CountsCompanionSlot slot : dirtyCountsSlots) {
+            for (CountsCompanionSlot slot : countsSlots.values()) {
                 slot.present = false;
             }
-            dirtyCountsSlots.clear();
-            for (BinarySlot slot : dirtyBinarySlots) {
+            for (BinarySlot slot : binarySlots.values()) {
                 slot.present = false;
             }
-            dirtyBinarySlots.clear();
-            for (SortedSlot slot : dirtySortedSlots) {
+            for (SortedSlot slot : sortedSlots.values()) {
                 slot.present = false;
             }
-            dirtySortedSlots.clear();
-            for (SortedSetSlot slot : dirtySortedSetSlots) {
+            for (SortedSetSlot slot : sortedSetSlots.values()) {
                 slot.count = 0;
             }
-            dirtySortedSetSlots.clear();
-            for (SortedNumericSlot slot : dirtySortedNumericSlots) {
+            for (SortedNumericSlot slot : sortedNumericSlots.values()) {
                 slot.count = 0;
             }
-            dirtySortedNumericSlots.clear();
             storedFields.clear();
 
             // Fill slots from this document's fields.
@@ -230,14 +177,12 @@ final class ColumnarSourceWriter {
                             if (slot != null && slot.present == false) {
                                 slot.value = field.numericValue().longValue();
                                 slot.present = true;
-                                dirtyCountsSlots.add(slot);
                             }
                         } else {
                             NumericSlot slot = numericSlots.get(name);
                             if (slot != null && slot.present == false) {
                                 slot.value = field.numericValue().longValue();
                                 slot.present = true;
-                                dirtyNumericSlots.add(slot);
                             }
                         }
                     }
@@ -246,7 +191,6 @@ final class ColumnarSourceWriter {
                         if (slot != null && slot.present == false) {
                             slot.value = field.binaryValue();
                             slot.present = true;
-                            dirtyBinarySlots.add(slot);
                         }
                     }
                     case SORTED -> {
@@ -256,65 +200,35 @@ final class ColumnarSourceWriter {
                         SortedSetSlot ss = sortedSetSlots.get(field.name());
                         if (ss != null) {
                             ss.add(field.binaryValue());
-                            if (ss.count == 1) {
-                                dirtySortedSetSlots.add(ss);
-                            }
                         }
                         SortedSlot s = sortedSlots.get(field.name());
                         if (s != null && s.present == false) {
                             s.value = field.binaryValue();
                             s.present = true;
-                            dirtySortedSlots.add(s);
                         }
                     }
                     case SORTED_NUMERIC -> {
                         SortedNumericSlot slot = sortedNumericSlots.get(field.name());
                         if (slot != null) {
                             slot.add(field.numericValue().longValue());
-                            if (slot.count == 1) {
-                                dirtySortedNumericSlots.add(slot);
-                            }
                         }
                     }
                     case SORTED_SET -> {
                         SortedSetSlot slot = sortedSetSlots.get(field.name());
                         if (slot != null) {
                             slot.add(field.binaryValue());
-                            if (slot.count == 1) {
-                                dirtySortedSetSlots.add(slot);
-                            }
                         }
                     }
                     default -> {
                     } // NONE: no doc values to fill
                 }
-                // Mirror ColumnarStoredLeafReader's storedFields bucketing: stored fields for SORTED_NUMERIC,
-                // SORTED_SET, and NONE-typed fields are surfaced via storedFields(); BINARY/NUMERIC/SORTED-typed
-                // fields are not.
-                if (dvType != DocValuesType.BINARY && dvType != DocValuesType.NUMERIC && dvType != DocValuesType.SORTED) {
-                    if (field.fieldType().stored()) {
-                        storedFields.add(field);
-                    }
-                }
-            }
 
-            // Sort SORTED_NUMERIC values ascending (Lucene's invariant).
-            for (SortedNumericSlot slot : dirtySortedNumericSlots) {
-                Arrays.sort(slot.values, 0, slot.count);
-            }
-
-            // Sort and deduplicate SORTED_SET values (Lucene's invariant).
-            for (SortedSetSlot slot : dirtySortedSetSlots) {
-                Arrays.sort(slot.values, 0, slot.count);
-                int distinctCount = 0;
-                BytesRef prev = null;
-                for (int i = 0; i < slot.count; i++) {
-                    if (prev == null || prev.compareTo(slot.values[i]) != 0) {
-                        slot.values[distinctCount++] = slot.values[i];
-                        prev = slot.values[i];
-                    }
+                // TODO: look into removing, with columnar source we shouldn't have any stored fields:
+                // this is actually only needed for randomized block loader tests which tests columnar source with binary doc values
+                // disabled:
+                if (field.fieldType().stored()) {
+                    storedFields.add(field);
                 }
-                slot.count = distinctCount;
             }
         }
 
@@ -358,6 +272,7 @@ final class ColumnarSourceWriter {
         // Stored fields
         // -------------------------------------------------------------------------
 
+        // TODO: look into removing this, columnar source doesn't have any stored fields.
         @Override
         public StoredFields storedFields() throws IOException {
             return new StoredFields() {
@@ -391,7 +306,7 @@ final class ColumnarSourceWriter {
             };
         }
 
-        static FieldInfo fieldInfo(String name) {
+        private static FieldInfo fieldInfo(String name) {
             return new FieldInfo(
                 name,
                 0,
@@ -424,11 +339,6 @@ final class ColumnarSourceWriter {
         }
 
         @Override
-        public FieldInfos getFieldInfos() {
-            return EMPTY_FIELD_INFOS;
-        }
-
-        @Override
         public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
             return null;
         }
@@ -436,6 +346,11 @@ final class ColumnarSourceWriter {
         // -------------------------------------------------------------------------
         // Unsupported operations
         // -------------------------------------------------------------------------
+
+        @Override
+        public FieldInfos getFieldInfos() {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public CacheHelper getCoreCacheHelper() {
@@ -699,7 +614,8 @@ final class ColumnarSourceWriter {
 
         /**
          * A stable, reusable sorted-numeric doc-values iterator backed by a growable value array.
-         * Values are sorted ascending in {@link #repopulate} before this iterator is used.
+         * Values are inserted in sorted ascending order by {@link #add}, maintaining Lucene's invariant
+         * without a separate post-population sort pass.
          */
         private static final class SortedNumericSlot extends SortedNumericDocValues {
             long[] values = new long[4];
@@ -710,7 +626,12 @@ final class ColumnarSourceWriter {
                 if (count == values.length) {
                     values = Arrays.copyOf(values, values.length * 2);
                 }
-                values[count++] = v;
+                // Insertion sort: find position and shift right to maintain ascending order.
+                int pos = Arrays.binarySearch(values, 0, count, v);
+                if (pos < 0) pos = -pos - 1;
+                System.arraycopy(values, pos, values, pos + 1, count - pos);
+                values[pos] = v;
+                count++;
             }
 
             @Override
@@ -753,7 +674,8 @@ final class ColumnarSourceWriter {
 
         /**
          * A stable, reusable sorted-set doc-values iterator backed by a growable value array.
-         * Values are sorted and deduplicated in {@link #repopulate} before this iterator is used.
+         * Values are inserted in sorted, deduplicated order by {@link #add}, maintaining Lucene's
+         * invariant without a separate post-population sort/dedup pass.
          * {@link #getValueCount()} always returns at least {@code 1} so that build-time callers
          * (e.g. {@link SortedSetDocValuesSyntheticFieldLoaderLayer#docValuesLoader}) do not
          * permanently bind to {@code NO_VALUES}.
@@ -767,7 +689,18 @@ final class ColumnarSourceWriter {
                 if (count == values.length) {
                     values = Arrays.copyOf(values, values.length * 2);
                 }
-                values[count++] = v;
+                // Binary search for insertion point; skip if already present (dedup).
+                int lo = 0, hi = count;
+                while (lo < hi) {
+                    int mid = (lo + hi) >>> 1;
+                    int cmp = values[mid].compareTo(v);
+                    if (cmp < 0) lo = mid + 1;
+                    else if (cmp > 0) hi = mid;
+                    else return;
+                }
+                System.arraycopy(values, lo, values, lo + 1, count - lo);
+                values[lo] = v;
+                count++;
             }
 
             @Override

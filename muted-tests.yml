@@ -149,9 +149,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/150782
-- class: org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapperTests
-  method: testExponentialHistogramValuesReader
-  issue: https://github.com/elastic/elasticsearch/issues/150795
 
 # Examples:
 #
@@ -244,9 +241,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testFlattenedSorting
-  issue: https://github.com/elastic/elasticsearch/issues/148374
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
@@ -277,9 +271,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
-- class: org.elasticsearch.xpack.stateless.CorruptionIT
-  method: testConcurrentOperations
-  issue: https://github.com/elastic/elasticsearch/issues/149342
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogLocalFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/149343
@@ -509,15 +500,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermAzureRestartIT
   method: testRestart
   issue: https://github.com/elastic/elasticsearch/issues/150691
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanBeRejectedAtPrimaryLevel
-  issue: https://github.com/elastic/elasticsearch/issues/150693
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanBeRejectedAtCoordinatingLevel
-  issue: https://github.com/elastic/elasticsearch/issues/150694
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteIndexingPressureMetricsAreIncremented
-  issue: https://github.com/elastic/elasticsearch/issues/150695
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
@@ -575,9 +557,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests
   method: testSeek
   issue: https://github.com/elastic/elasticsearch/issues/150912
-- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.BufferingMetricExporterTests
-  method: testFailBufferRecoverAndDrain
-  issue: https://github.com/elastic/elasticsearch/issues/150913
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/150925
@@ -602,9 +581,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150387
-- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplierTests
-  method: testSpanProcessorSelfMonitoringMetricsFlowIntoHealthProvider
-  issue: https://github.com/elastic/elasticsearch/issues/151113
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DivTests
   method: testEvaluate {TestCase=<integer>, <dense_vector>}
   issue: https://github.com/elastic/elasticsearch/issues/151114
@@ -638,3 +614,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/140_metadata/Aggregate ignored field}
   issue: https://github.com/elastic/elasticsearch/issues/151216
+- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
+  method: testCrossClusterReplicationForTSDBWithSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/151326
+- class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
+  method: testBinaryWithDifferentSelectors
+  issue: https://github.com/elastic/elasticsearch/issues/151327
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/151328
+- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
+  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
+  issue: https://github.com/elastic/elasticsearch/issues/151330
+- class: org.elasticsearch.index.store.BytesReadHeaderIT
+  method: testChunkedFetching
+  issue: https://github.com/elastic/elasticsearch/issues/151353
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:stats.maxOfHalfFloat}
+  issue: https://github.com/elastic/elasticsearch/issues/151357

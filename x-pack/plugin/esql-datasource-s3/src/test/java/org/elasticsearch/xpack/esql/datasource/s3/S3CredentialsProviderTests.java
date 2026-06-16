@@ -26,7 +26,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
 
     public void testSessionCredentials() {
         S3Configuration config = S3Configuration.fromFields("ak", "sk", "tok", null, null, null);
-        AwsCredentials creds = S3StorageProvider.credentialsProvider(config).resolveCredentials();
+        AwsCredentials creds = new S3StorageProvider(null, null).credentialsProvider(config).resolveCredentials();
         assertThat(creds, instanceOf(AwsSessionCredentials.class));
         AwsSessionCredentials session = (AwsSessionCredentials) creds;
         assertEquals("ak", session.accessKeyId());
@@ -36,7 +36,7 @@ public class S3CredentialsProviderTests extends ESTestCase {
 
     public void testBasicCredentialsWhenNoSessionToken() {
         S3Configuration config = S3Configuration.fromFields("ak", "sk", null, null);
-        AwsCredentials creds = S3StorageProvider.credentialsProvider(config).resolveCredentials();
+        AwsCredentials creds = new S3StorageProvider(null, null).credentialsProvider(config).resolveCredentials();
         assertThat(creds, instanceOf(AwsBasicCredentials.class));
         assertEquals("ak", creds.accessKeyId());
         assertEquals("sk", creds.secretAccessKey());
@@ -44,26 +44,32 @@ public class S3CredentialsProviderTests extends ESTestCase {
 
     public void testAnonymous() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1", "none");
-        assertThat(S3StorageProvider.credentialsProvider(config), instanceOf(AnonymousCredentialsProvider.class));
+        assertThat(new S3StorageProvider(null, null).credentialsProvider(config), instanceOf(AnonymousCredentialsProvider.class));
     }
 
     public void testEmptySessionTokenTreatedAsAbsent() {
         // An empty session token is treated as absent: with keys present, this falls back to basic credentials
         // rather than building STS credentials with an empty token (which would fail later at request signing).
         S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "session_token", ""));
-        AwsCredentials creds = S3StorageProvider.credentialsProvider(config).resolveCredentials();
+        AwsCredentials creds = new S3StorageProvider(null, null).credentialsProvider(config).resolveCredentials();
         assertThat(creds, instanceOf(AwsBasicCredentials.class));
     }
 
     public void testSessionTokenWithoutKeysThrows() {
         S3Configuration config = S3Configuration.fromFields(null, null, "tok", null, null, null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> S3StorageProvider.credentialsProvider(config));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new S3StorageProvider(null, null).credentialsProvider(config)
+        );
         assertTrue(e.getMessage().contains("S3 session_token requires access_key and secret_key"));
     }
 
     public void testNoCredentialsThrows() {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://endpoint", "us-east-1");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> S3StorageProvider.credentialsProvider(config));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new S3StorageProvider(null, null).credentialsProvider(config)
+        );
         assertTrue(e.getMessage().contains("S3 data source requires credentials"));
     }
 }

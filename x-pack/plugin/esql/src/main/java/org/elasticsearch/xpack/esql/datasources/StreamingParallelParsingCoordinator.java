@@ -927,10 +927,7 @@ public final class StreamingParallelParsingCoordinator {
         private void checkError() {
             Throwable t = firstError.get();
             if (t != null) {
-                if (t instanceof RuntimeException re) {
-                    throw re;
-                }
-                throw new RuntimeException("Streaming parallel parsing failed", t);
+                throw ExternalFailures.surface(t, "Streaming parallel parsing failed");
             }
         }
 

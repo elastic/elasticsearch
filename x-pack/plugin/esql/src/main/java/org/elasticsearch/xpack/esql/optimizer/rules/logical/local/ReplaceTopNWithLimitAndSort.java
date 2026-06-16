@@ -25,6 +25,9 @@ public class ReplaceTopNWithLimitAndSort extends OptimizerRules.OptimizerRule<To
 
     @Override
     protected LogicalPlan rule(TopN plan) {
+        if (plan.unboundedSort()) {
+            return plan;
+        }
         return new Limit(plan.source(), plan.limit(), new OrderBy(plan.source(), plan.child(), plan.order()));
     }
 }

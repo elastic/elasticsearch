@@ -124,7 +124,7 @@ public class JinaAIActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(TEST_EMBEDDING_INPUT), null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_EMBEDDING_INPUT), null), null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 

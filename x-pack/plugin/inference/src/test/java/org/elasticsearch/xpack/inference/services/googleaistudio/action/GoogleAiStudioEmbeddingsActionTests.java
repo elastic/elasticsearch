@@ -105,7 +105,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of(input), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(input), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -159,7 +159,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -179,7 +179,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -193,7 +193,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

@@ -67,7 +67,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             new DenseEmbeddingResponseParser("$.result.embeddings[*].embedding", CustomServiceEmbeddingType.FLOAT)
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(EmbeddingsInput.fromStrings(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
         );
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
@@ -118,7 +118,7 @@ public class CustomResponseEntityTests extends ESTestCase {
             )
         );
         var request = new CustomRequest(
-            EmbeddingParameters.of(new EmbeddingsInput(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
+            EmbeddingParameters.of(EmbeddingsInput.fromStrings(List.of("abc"), null), model.getServiceSettings().getInputTypeTranslator()),
             model
 
         );

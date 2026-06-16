@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
@@ -207,7 +208,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -236,7 +237,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -268,7 +269,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -297,7 +298,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -326,7 +327,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -358,7 +359,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -431,7 +432,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -609,7 +610,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -664,7 +665,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -712,7 +713,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            action.execute(new EmbeddingsInput(List.of(INPUT_TO_TRUNCATE), null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(INPUT_TO_TRUNCATE), null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -754,7 +755,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
             var action = actionCreator.create(model);
 
@@ -802,7 +803,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var model = NvidiaRerankModelTests.createRerankModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var actionCreator = new NvidiaActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), NO_RETRY_SETTINGS, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
             var action = actionCreator.create(model);
 

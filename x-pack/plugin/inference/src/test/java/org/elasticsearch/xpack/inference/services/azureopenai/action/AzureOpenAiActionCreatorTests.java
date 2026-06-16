@@ -116,7 +116,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -165,7 +165,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -215,7 +215,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             var failureCauseMessage = "Required [data]";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
@@ -287,7 +287,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abcd"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -362,7 +362,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abcd"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -420,7 +420,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("super long input"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("super long input"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

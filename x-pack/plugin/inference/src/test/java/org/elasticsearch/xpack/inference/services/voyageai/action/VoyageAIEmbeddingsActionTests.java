@@ -127,7 +127,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -213,7 +213,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -299,7 +299,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of(TEST_INPUT), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -364,7 +364,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -384,7 +384,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -398,7 +398,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, VoyageAIEmbeddingType.FLOAT, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of(TEST_INPUT), InputTypeTests.randomSearchAndIngestWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

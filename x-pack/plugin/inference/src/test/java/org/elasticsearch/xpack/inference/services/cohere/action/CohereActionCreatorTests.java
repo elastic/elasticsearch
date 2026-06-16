@@ -116,7 +116,7 @@ public class CohereActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), null), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), null), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

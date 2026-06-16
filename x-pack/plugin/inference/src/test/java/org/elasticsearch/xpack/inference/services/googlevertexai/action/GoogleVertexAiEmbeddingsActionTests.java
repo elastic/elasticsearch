@@ -73,7 +73,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -93,7 +93,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -107,7 +107,7 @@ public class GoogleVertexAiEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "location", "projectId", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

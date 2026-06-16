@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.action;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataType;
@@ -99,7 +100,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -159,12 +160,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -210,7 +211,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -264,12 +265,12 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -318,7 +319,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var model = HuggingFaceRerankModelTests.createModel(getUrl(webServer), "secret", "model", 8, true);
             var actionCreator = new HuggingFaceActionCreator(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
             var action = actionCreator.create(model);
 
@@ -390,7 +391,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("abcd"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abcd"), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -449,7 +450,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of("123456"), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("123456"), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -533,7 +534,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createChatCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));

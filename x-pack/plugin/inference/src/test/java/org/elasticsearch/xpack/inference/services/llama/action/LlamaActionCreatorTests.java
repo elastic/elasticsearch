@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.llama.action;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -206,7 +207,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator(), new TestCircuitBreaker())
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -225,7 +226,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
         var action = actionCreator.create(model);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
         return listener;
     }
 

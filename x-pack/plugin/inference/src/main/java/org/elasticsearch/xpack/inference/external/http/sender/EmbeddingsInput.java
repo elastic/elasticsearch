@@ -53,9 +53,18 @@ public class EmbeddingsInput extends InferenceInputs {
         this.estimatedSizeInBytes = estimatedSizeInBytes;
     }
 
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
+        return fromStrings(input, inputType, false);
+    }
+
     public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType, boolean stream) {
         var ramBytesUsed = input.stream().mapToLong(RamUsageEstimator::sizeOf).sum();
-        return new EmbeddingsInput(() -> input.stream().map(InferenceStringGroup::new).collect(Collectors.toList()), ramBytesUsed, inputType, stream);
+        return new EmbeddingsInput(
+            () -> input.stream().map(InferenceStringGroup::new).collect(Collectors.toList()),
+            ramBytesUsed,
+            inputType,
+            stream
+        );
     }
 
     private static long estimateSizeInBytes(List<InferenceStringGroup> input) {

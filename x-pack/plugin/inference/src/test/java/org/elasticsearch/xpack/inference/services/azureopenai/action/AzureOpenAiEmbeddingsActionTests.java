@@ -114,7 +114,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -143,7 +143,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -164,7 +164,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -185,7 +185,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -200,7 +200,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), inputType), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

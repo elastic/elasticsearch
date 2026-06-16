@@ -70,7 +70,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "projectId", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), null), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -90,7 +90,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "projectId", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), null), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -104,7 +104,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "projectId", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), null), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), null), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

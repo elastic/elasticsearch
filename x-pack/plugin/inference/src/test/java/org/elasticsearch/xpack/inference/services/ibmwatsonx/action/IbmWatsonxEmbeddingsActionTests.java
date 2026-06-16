@@ -106,7 +106,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(List.of(input), InputTypeTests.randomWithNull()), null, listener);
+            action.execute(EmbeddingsInput.fromStrings(List.of(input), InputTypeTests.randomWithNull()), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -133,7 +133,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -158,7 +158,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -178,7 +178,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), apiKey, model, projectId, uri, apiVersion, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
+        action.execute(EmbeddingsInput.fromStrings(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

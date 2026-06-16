@@ -15,8 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

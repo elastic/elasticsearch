@@ -721,7 +721,7 @@ public class MetadataDataStreamsService {
         }
 
         if (indexNotRemoved) {
-            throw new IllegalArgumentException("index [" + indexName + "] not found");
+            throw new IllegalArgumentException("index [" + indexName + "] not found in data stream [" + dataStreamName + "]");
         }
 
         // un-hide index

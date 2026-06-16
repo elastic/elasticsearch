@@ -213,7 +213,7 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
 
         protected RateLimitSettings rateLimitSettings;
 
-        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+        private void setRateLimitSettings(@Nullable RateLimitSettings rateLimitSettings) {
             this.rateLimitSettings = rateLimitSettings;
         }
     }

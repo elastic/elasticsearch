@@ -70,6 +70,18 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
         );
     }
 
+    public void testFromMap_EmptyRateLimitObject_UsesDefaultValue() {
+        var map = buildServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null);
+        map.put(RateLimitSettings.FIELD_NAME, new HashMap<>());
+
+        var serviceSettings = LlamaChatCompletionServiceSettings.fromMap(map, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(
+            serviceSettings,
+            is(new LlamaChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
     public void testFromMap_NoModelId_ThrowsException() {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
@@ -129,6 +141,19 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCSerializ
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
+    }
+
+    public void testUpdateServiceSettings_EmptyRateLimitObject_DoesNotChangeSettings() {
+        var originalServiceSettings = new LlamaChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()))
+        );
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_GivenImmutableFields_ThrowsException() {

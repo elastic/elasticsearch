@@ -47,16 +47,12 @@ public class SemanticTextHighlighterLegacyFormatIT extends SemanticTextLegacyFor
         "Nothing travels faster than the speed of light with the possible exception of bad news, which obeys its own special laws.";
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void storeBbqDenseModel() throws Exception {
         storeDenseModel(DENSE_BBQ_INFERENCE_ID, modelRegistry, 64, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
     @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    public void deleteHighlighterTestIndices() throws Exception {
         for (String suffix : List.of("-sparse", "-dense", "-mce", "-mas", "-mad", "-mams", "-mamd", "-flat", "-hnsw", "-bbqdisk")) {
             IntegrationTestUtils.deleteIndex(client(), indexName + suffix);
         }

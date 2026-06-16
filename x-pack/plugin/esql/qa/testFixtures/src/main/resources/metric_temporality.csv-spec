@@ -3,6 +3,7 @@
 //TODO: When we support temporality, the rate/increase should be the same for all series
 
 multipleAggsWithoutTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -23,6 +24,7 @@ prod-null       | 0.2928479               | 264.0
 
 
 rateGroupedByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -43,6 +45,7 @@ null                   | 0.2928479
 
 
 multipleAggsByTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -72,6 +75,7 @@ bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:dou
 
 
 irateWithoutTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -92,6 +96,7 @@ prod-null       | 0.5786293
 
 
 irateGroupedByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -112,6 +117,7 @@ null                   | 0.5786293
 
 
 irateByTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -141,6 +147,7 @@ bucket:datetime          | cluster:keyword | irate_bytes:double
 
 
 histogramAggsWithoutTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -161,6 +168,7 @@ prod-null       | 667      | 600.0      | 523.18     | 11.0      | 998.0
 
 
 histogramAggsGroupedByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -181,6 +189,7 @@ null                   | 667      | 600.0      | 523.18     | 11.0      | 998.0
 
 
 histogramAggsByTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -210,6 +219,7 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double 
 
 
 histogramOverTimeAggsByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -236,6 +246,7 @@ null                   | 523.18        | 11.0          | 998.0         | 667    
 
 
 tdigestAggsWithoutTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -256,6 +267,7 @@ prod-null       | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 
 
 tdigestAggsGroupedByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -276,6 +288,7 @@ null                   | 667      | 503.0..603.0  | 523.18     | 11.0      | 998
 
 
 tdigestAggsByTBucket
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 
@@ -302,6 +315,7 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double    | avg:doub
 
 
 tdigestOverTimeAggsByTemporality
+skip_flattened_rewrite: metric_temporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v8
 

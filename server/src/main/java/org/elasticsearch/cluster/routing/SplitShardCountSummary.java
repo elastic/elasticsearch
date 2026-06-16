@@ -248,9 +248,10 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
 
     /// Checks if the provided summary was produced by a coordinator that
     /// has an up-to-date view of the routing table in context of resharding.
-    /// @param indexMetadata current index metadata obtained by a receiver of the summary
-    public Decision check(IndexMetadata indexMetadata) {
-        if (shardCountSummary > indexMetadata.getNumberOfShards()) {
+    /// @param numberOfShards current number of shards based on metadata obtained by a receiver of the summary
+    /// @param reshardingMetadata current resharding metadata based on metadata obtained by a receiver of the summary
+    public Decision check(int numberOfShards, IndexReshardingMetadata reshardingMetadata) {
+        if (shardCountSummary > numberOfShards) {
             // If the summary is bigger than the current number of shards, it means:
             // 1. there is an ongoing split
             // 2. the corresponding target shard (in this "new" split) is in SPLIT state
@@ -259,15 +260,15 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
             return Decision.INVALID;
         }
 
-        if (shardCountSummary < indexMetadata.getNumberOfShards()) {
+        if (shardCountSummary < numberOfShards) {
             // Smaller summary implies an ongoing split and that our indexMetadata is already updated with the new number of shards.
             // But that is a contradiction since in that case we would see the resharding metadata
             // that is created in the same cluster state update.
             // So this can only mean that the split in question is already done and resharding metadata was removed.
             // In that case we would rather reject such request as stale for simplicity.
-            if (indexMetadata.getReshardingMetadata() == null) {
+            if (reshardingMetadata == null) {
                 return Decision.INVALID;
-            } else if (shardCountSummary < indexMetadata.getReshardingMetadata().shardCountBefore()) {
+            } else if (shardCountSummary < reshardingMetadata.shardCountBefore()) {
                 // Similarly if the summary is so old that it predates the current split, we'll reject the request.
                 return Decision.INVALID;
             }
@@ -275,7 +276,7 @@ public class SplitShardCountSummary implements Writeable, Comparable<SplitShardC
 
         // The summary is either equal to the number of shards or is at the "before split" value.
         // We can actually reason about it.
-        return shardCountSummary == indexMetadata.getNumberOfShards() ? Decision.CURRENT : Decision.OLDER;
+        return shardCountSummary == numberOfShards ? Decision.CURRENT : Decision.OLDER;
     }
 
     public enum Decision {

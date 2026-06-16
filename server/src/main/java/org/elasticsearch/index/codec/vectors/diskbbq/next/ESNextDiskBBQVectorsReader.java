@@ -29,9 +29,11 @@ import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
@@ -58,7 +60,8 @@ import static org.elasticsearch.simdvec.ES940OSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVectorsReader.NextFieldEntry>
     implements
-        VectorPreconditioner {
+        VectorPreconditioner,
+        CalibrationAwareReader {
 
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
@@ -104,13 +107,26 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return size;
     }
 
-    /**
-     * Rescore-style oversample from mivf (NaN if unset or missing field entry), for merging with
-     * query and mapping in {@code DenseVectorFieldMapper}; not used for centroid visit ratio.
-     */
-    public float getRescoreOversample(FieldInfo fieldInfo) {
+    @Override
+    public float getOversampleFactor(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e == null ? Float.NaN : e.rescoreOversample();
+        if (e == null) {
+            return IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+        }
+        float r = e.rescoreOversample();
+        return Float.isFinite(r) ? r : IvfAutoCalibration.NO_CALIBRATED_OVERSAMPLE;
+    }
+
+    @Override
+    public boolean shouldPrecondition(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e != null && e.preconditionerLength() > 0;
+    }
+
+    @Override
+    public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
+        final NextFieldEntry e = fields.get(fieldInfo.number);
+        return e == null ? null : e.quantEncoding();
     }
 
     @Override
@@ -1055,7 +1071,9 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                quantEncoding.bits() == 4 ? ES940OSQVectorsScorer.BitEncoding.PACKED : ES940OSQVectorsScorer.BitEncoding.STRIPED
+                quantEncoding.bits() == 2 || quantEncoding.bits() == 4
+                    ? ES940OSQVectorsScorer.BitEncoding.PACKED
+                    : ES940OSQVectorsScorer.BitEncoding.STRIPED
             );
         }
 

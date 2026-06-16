@@ -18,6 +18,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -34,9 +35,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.createResponseHeaderFromDirectoryMetrics;
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 import static org.elasticsearch.core.Strings.format;
 
@@ -55,6 +58,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -176,6 +180,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 protected void innerOnResponse(T result) {
                     assert shardIndex == result.getShardIndex()
                         : "shard index mismatch: " + shardIndex + " but got: " + result.getShardIndex();
+                    // scroll has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
+                    accumulateDirectoryMetrics(result.getDirectoryMetrics());
                     onFirstPhaseResult(shardIndex, result);
                     if (counter.countDown()) {
                         SearchPhase phase = moveToNextPhase(clusterNodeLookup);
@@ -243,11 +249,20 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
+    protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
+        if (metrics.isEmpty()) {
+            return;
+        }
+        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+    }
+
     protected final void sendResponse(
         SearchPhaseController.ReducedQueryPhase queryPhase,
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
+            var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+            createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

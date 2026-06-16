@@ -114,7 +114,13 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         if (grouping == Grouping.WITHOUT) {
             return List.of(timeseriesAttribute);
         }
-        return groupings.stream().filter(a -> a.resolved() && a.dataType() != DataType.NULL).toList();
+        // A label that resolved to a metric field is not a real label, so translation drops it from the
+        // aggregate; exclude it from the output too, otherwise the command projection references a column the
+        // plan never produces. Absent labels are already excluded by the resolved() check.
+        return groupings.stream()
+            .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
+            .filter(a -> a instanceof FieldAttribute fieldAttribute ? fieldAttribute.isMetric() == false : true)
+            .toList();
     }
 
     @Override

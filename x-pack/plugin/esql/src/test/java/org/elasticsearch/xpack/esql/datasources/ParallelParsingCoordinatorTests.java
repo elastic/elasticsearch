@@ -8,13 +8,19 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -25,6 +31,8 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -139,7 +147,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
     }
 
-    public void testParallelReadPreservesOrder() throws Exception {
+    /**
+     * Completeness across a multi-segment file: every row is emitted exactly once. This replaces a former
+     * "preserves order" assertion. Pages are now emitted in completion (as-ready) order, not segment order,
+     * so cross-segment row order is intentionally not preserved (an external scan has no order guarantee
+     * absent an explicit SORT). The contract this test guards is exactly-once delivery of all rows, so it
+     * sorts before comparing.
+     */
+    public void testParallelReadEmitsAllRowsExactlyOnce() throws Exception {
         StringBuilder sb = new StringBuilder();
         int lineCount = 200;
         for (int i = 0; i < lineCount; i++) {
@@ -158,6 +173,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             totalCoverage += seg[1];
         }
         assertEquals("Segments must cover entire file", contentBytes.length, totalCoverage);
+        assertThat("test needs a genuinely multi-segment file to be meaningful", segments.size(), Matchers.greaterThan(1));
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -177,8 +193,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
 
             assertEquals("All lines should be read", lineCount, allLines.size());
+            // Order-insensitive: emission order is as-ready, so sort before comparing the set.
+            List<String> sorted = new ArrayList<>(allLines);
+            Collections.sort(sorted);
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("Lines must be in order", "line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals(
+                    "every line must appear exactly once",
+                    "line-" + String.format(java.util.Locale.ROOT, "%04d", i),
+                    sorted.get(i)
+                );
             }
         } finally {
             exec.shutdown();
@@ -214,6 +237,58 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             assertEquals("gamma", allLines.get(2));
         } finally {
             exec.shutdown();
+        }
+    }
+
+    /**
+     * Early-close leak regression for {@code AsReadyParallelIterator}'s own look-ahead. Distinct from the
+     * per-reader {@link BufferingPageIterator} buffer: the coordinator parks one as-ready page in its
+     * private {@code buffered} field when {@code hasNext()} runs ahead of {@code next()}. A consumer that
+     * aborts after {@code hasNext()} (a pushed-down {@code LIMIT}, a cancellation, a downstream error)
+     * reaches {@code close()} with that page still parked; {@code close()} must release it (and drain the
+     * shared queue, and wait out the workers so each releases its own in-flight page) or the breaker leaks.
+     * A genuinely multi-segment file is required so the parallel path engages rather than the single-stream
+     * fallback (which returns the reader's own iterator directly).
+     */
+    public void testCloseReleasesBufferedPageOnEarlyTermination() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        int lineCount = 500;
+        for (int i = 0; i < lineCount; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(contentBytes);
+
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory trackingFactory = BlockFactory.builder(bigArrays).breaker(breaker).build();
+        LineFormatReader reader = new LineFormatReader(trackingFactory);
+
+        // Guard: the test only exercises AsReadyParallelIterator if the file actually splits.
+        assertThat(
+            "test needs a genuinely multi-segment file or it would hit the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            // Small batch + many lines => several pages produced; a hasNext() parks one in `buffered`.
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
+            assertTrue("workers should produce at least one page", iter.hasNext());
+            assertThat("hasNext must have parked a buffered page", breaker.getUsed(), Matchers.greaterThan(0L));
+
+            // Abandon without draining: this is the LIMIT / cancel / downstream-error shape.
+            iter.close();
+
+            assertEquals(
+                "close() must release the parked buffered page, drain the queue, and let workers release their in-flight pages",
+                0L,
+                breaker.getUsed()
+            );
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
         }
     }
 
@@ -470,10 +545,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Tightest window: {@code max_concurrent_open_segments == 1}. This is where the "the head segment is
-     * force-submitted so it can never be starved" invariant matters most — get it wrong and an in-order
-     * consumer deadlocks. Asserts only one segment stream is ever open at a time, the read completes (no
-     * deadlock), and rows come back in full file order.
+     * Tightest window: {@code max_concurrent_open_segments == 1}. Asserts only one segment stream is ever
+     * open at a time and the read completes (no deadlock). At cap=1 segments run strictly one after another
+     * — the next is submitted only in the previous worker's finally — so the single FIFO shared queue
+     * happens to yield rows in file order. That ordering is a <em>consequence</em> of serial execution here,
+     * not a general contract: with cap &gt; 1 pages emit in as-ready order (see
+     * {@link #testParallelReadEmitsAllRowsExactlyOnce} and {@link #testEmitsReadySegmentBeforeSlowerEarlierSegment}).
      */
     public void testCapOfOneIsSerialPreservesOrderAndProgresses() throws Exception {
         final int parallelism = 8; // many threads available, but the cap must keep opens to 1
@@ -593,6 +670,53 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 "Should contain the injected error message",
                 ex.getMessage().contains("injected") || (ex.getCause() != null && ex.getCause().getMessage().contains("injected"))
             );
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Pins the production wiring for elastic/esql-planning#836 on the parallel coordinator: a worker
+     * IOException surfaces as a typed {@link ExternalClientException} at the iterator's {@code hasNext()}
+     * boundary (mirroring {@code CsvFormatReader} / {@code NdJsonPageIterator}), the coordinator stores it
+     * in {@code firstError}, and {@code checkError()}'s {@code surface()} passes it through unchanged so the
+     * 400 status survives end-to-end instead of being downgraded to a generic 500 wrapper.
+     */
+    public void testParallelReadSurfacesIoFailureAsExternalClientException() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            sb.append("line-").append(i).append("\n");
+        }
+        StorageObject obj = new InMemoryStorageObject(sb.toString().getBytes(StandardCharsets.UTF_8));
+        FailingFormatReader reader = new FailingFormatReader(blockFactory(), 5);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 10, 4, exec);
+
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+                try (iter) {
+                    while (iter.hasNext()) {
+                        iter.next().releaseBlocks();
+                    }
+                }
+            });
+            assertThat(
+                "iterator-boundary IOException must surface as a typed ExternalClientException, not a generic RuntimeException",
+                ex,
+                Matchers.instanceOf(ExternalClientException.class)
+            );
+            assertEquals(
+                "ExternalClientException must classify as HTTP 400 so the read failure stops being labeled as a server fault",
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ex)
+            );
+            assertThat(
+                "the original IOException must remain reachable as the cause",
+                ex.getCause(),
+                Matchers.instanceOf(IOException.class)
+            );
+            assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             exec.shutdown();
         }
@@ -972,6 +1096,128 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * As-ready emission (the root-fix behaviour): a later segment whose reader finishes quickly must be
+     * emitted before an earlier segment that is artificially slowed. If pages were still gated on segment
+     * order, the first row out would belong to segment 0 and this would fail.
+     * <p>
+     * The first-split segment (segment 0) stalls before producing its first page; every other segment runs
+     * at full speed. With the cap wide enough for both to be open at once, a later segment must reach the
+     * consumer first. Rows are prefixed with their segment's start offset so the test can tell which segment
+     * emitted them.
+     */
+    public void testEmitsReadySegmentBeforeSlowerEarlierSegment() throws Exception {
+        int rows = 800;
+        byte[] content = repeatedLines(rows);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+
+        // Sanity: confirm the fixture is genuinely multi-segment so "later segment" is meaningful.
+        int segmentCount = ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1)
+            .size();
+        assertThat("test needs multiple segments", segmentCount, Matchers.greaterThan(1));
+
+        // Segment 0 (the file-leader split) blocks before emitting any page until the consumer has already
+        // pulled a page. Because the blocked leader has enqueued nothing, that first page can only have come
+        // from a later segment — proving as-ready emission deterministically, with no enqueue race. A
+        // regressed in-order implementation would gate every page behind the blocked leader and time out.
+        java.util.concurrent.CountDownLatch leaderRelease = new java.util.concurrent.CountDownLatch(1);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        String firstLineEmitted = null;
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4 // wide window so the slowed segment 0 and a fast later segment are open together
+                )
+            ) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    if (firstLineEmitted == null && p.getPositionCount() > 0) {
+                        BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                        firstLineEmitted = block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString();
+                        // First page is in hand while the leader is still blocked — now let the leader proceed.
+                        leaderRelease.countDown();
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        // The leader segment owns the file's leading bytes, hence line-00000. It is structurally blocked from
+        // emitting until a later segment has produced a page, so the first page reaching the consumer cannot
+        // be the leader's: the first line out must not be line-00000. Under strict segment-order emission it
+        // would have been (and the read would have deadlocked on the stalled leader instead).
+        assertNotNull("expected at least one page", firstLineEmitted);
+        assertThat(
+            "first emitted row must come from a later segment, not the stalled leader",
+            firstLineEmitted,
+            Matchers.not(Matchers.equalTo("line-00000"))
+        );
+    }
+
+    /**
+     * {@link LineFormatReader} variant where the segment owning the file leader ({@code firstSplit=true})
+     * blocks before emitting its first page until a later segment has emitted; every other segment runs at
+     * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
+     */
+    private static class FirstSegmentStallingReader extends LineFormatReader {
+        private final java.util.concurrent.CountDownLatch leaderRelease;
+
+        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch leaderRelease) {
+            super(blockFactory);
+            this.leaderRelease = leaderRelease;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean isFirstSplit = context.firstSplit();
+            CloseableIterator<Page> delegate = super.read(object, context);
+            return new CloseableIterator<>() {
+                private boolean firstPage = true;
+
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    if (firstPage && isFirstSplit) {
+                        firstPage = false;
+                        // Block the leader before emitting anything until the consumer releases it (which it
+                        // does only after pulling a page — necessarily from a later segment, since the leader
+                        // has enqueued nothing). Later segments are never gated and run at full speed.
+                        try {
+                            leaderRelease.await(30, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
+        }
+    }
+
+    /**
      * Records the {@link FormatReadContext} of every {@code read} call so tests can assert the
      * coordinator's per-segment split-flag dispatch behavior. Otherwise behaves like the parent
      * {@link LineFormatReader}.
@@ -1084,10 +1330,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private final List<String> buffer = new ArrayList<>();
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -1141,7 +1386,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }
@@ -1369,10 +1614,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 br.readLine();
             }
 
-            return new CloseableIterator<>() {
+            return new BufferingPageIterator() {
                 private int linesRead = 0;
                 private boolean done = false;
-                private Page nextPage = null;
 
                 @Override
                 public boolean hasNext() {
@@ -1382,7 +1626,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     try {
                         nextPage = readBatch();
                     } catch (IOException e) {
-                        throw new RuntimeException(e);
+                        // Mirror the production iterators (CsvFormatReader, NdJsonPageIterator), which surface
+                        // a raw IOException as a typed ExternalClientException at the hasNext() boundary so the
+                        // 400 status survives into the coordinator's firstError.
+                        throw ExternalFailures.surface(e, "Failed to read injected test page");
                     }
                     return nextPage != null;
                 }
@@ -1430,7 +1677,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() throws IOException {
+                protected void closeInternal() throws IOException {
                     br.close();
                     stream.close();
                 }

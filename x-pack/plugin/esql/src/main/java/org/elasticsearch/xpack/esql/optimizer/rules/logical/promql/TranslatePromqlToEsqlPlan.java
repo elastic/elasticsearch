@@ -519,6 +519,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
+        if (childResult.constFolded()) {
+            return childResult;
+        }
+
         Expression window = AggregateFunction.NO_WINDOW;
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
             window = rangeSelector.range();

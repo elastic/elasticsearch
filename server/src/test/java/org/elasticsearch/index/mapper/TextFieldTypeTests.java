@@ -49,11 +49,11 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesRegexpQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 
 import java.io.IOException;
@@ -854,10 +854,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery
+        // Binary DV → SlowCustomBinaryDocValuesRegexpQuery
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesRegexpQuery.class));
 
         // Neither indexed nor doc values → error
         TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());
@@ -885,10 +885,10 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
-        // Binary DV → StringScriptFieldRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
+        // Binary DV → SlowCustomBinaryDocValuesRegexpQuery with ASCII_CASE_INSENSITIVE matchFlag
         TextFieldType binaryFt = binaryDocValuesOnly();
         q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesRegexpQuery.class));
     }
 
 }

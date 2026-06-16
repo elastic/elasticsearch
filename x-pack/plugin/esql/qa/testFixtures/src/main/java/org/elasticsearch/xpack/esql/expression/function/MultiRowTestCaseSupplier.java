@@ -353,6 +353,9 @@ public final class MultiRowTestCaseSupplier {
 
     public static List<TypedDataSupplier> dateRangeCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.DATE_RANGE.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
 
         addSuppliers(cases, minRows, maxRows, "random date range", DataType.DATE_RANGE, () -> {
             LongRangeBlockBuilder.LongRange r = TestCaseSupplier.randomDateRange();

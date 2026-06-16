@@ -122,8 +122,17 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
-        file("build/distributions/hello-world.jar").exists()
-        assertValidJar(file("build/distributions/hello-world.jar"))
+
+        and: "the produced jar bundles LICENSE and NOTICE"
+        // The jar file name embeds the project version, which is set by elasticsearch.build via
+        // ElasticsearchBasePlugin#apply(project.setVersion(VersionProperties.getElasticsearch())).
+        // We deliberately don't pin the version in the assertion — the jar name is incidental;
+        // what this test actually verifies is that the LICENSE / NOTICE files are packaged.
+        def distributionsDir = file("build/distributions")
+        def producedJars = distributionsDir.listFiles({ f -> f.name.startsWith("hello-world") && f.name.endsWith(".jar") } as FileFilter) ?: []
+        assert producedJars.length == 1 :
+            "expected exactly one hello-world*.jar in ${distributionsDir}, found: ${producedJars*.name}"
+        assertValidJar(producedJars[0])
     }
 
     def "applies checks"() {

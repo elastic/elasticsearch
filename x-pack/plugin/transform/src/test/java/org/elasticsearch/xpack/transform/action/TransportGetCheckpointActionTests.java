@@ -149,10 +149,7 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
 
     public void testFirstNonSkippableRemoteFailure_OneNonSkippable() {
         var cause = new IOException("connection refused");
-        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(
-            Map.of("cluster_a", cause),
-            cluster -> false
-        );
+        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(Map.of("cluster_a", cause), cluster -> false);
         assertThat(fatal, instanceOf(RemoteTransportException.class));
         assertThat(fatal.getMessage(), containsString("cluster_a"));
         assertThat(fatal.getCause(), is(cause));
@@ -164,10 +161,7 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
         var causeB = new IOException("cluster_b down");
         var exceptions = Map.of("cluster_a", (Exception) causeA, "cluster_b", causeB, "cluster_skip", new IOException("skipped"));
         // cluster_skip is skip_unavailable=true and must be tolerated; cluster_a and cluster_b are not
-        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(
-            exceptions,
-            cluster -> cluster.equals("cluster_skip")
-        );
+        var fatal = TransportGetCheckpointAction.firstNonSkippableRemoteFailure(exceptions, cluster -> cluster.equals("cluster_skip"));
         assertThat(fatal, instanceOf(RemoteTransportException.class));
         // both non-skippable failures must be accounted for (one primary + one suppressed)
         assertThat(fatal.getSuppressed(), arrayWithSize(1));

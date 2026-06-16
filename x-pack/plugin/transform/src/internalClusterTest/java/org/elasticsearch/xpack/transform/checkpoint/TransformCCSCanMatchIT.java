@@ -350,9 +350,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             MockTransportService mts = (MockTransportService) ts;
             mts.addRequestHandlingBehavior(
                 GetCheckpointAction.NAME,
-                (handler, request, channel, task) -> channel.sendResponse(
-                    new ElasticsearchException("simulated remote checkpoint failure")
-                )
+                (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("simulated remote checkpoint failure"))
             );
             remoteMockServices.add(mts);
         }
@@ -423,11 +421,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
                     (r, l) -> client().execute(GetCheckpointAction.INSTANCE, r, l)
                 );
                 assertTrue("timed out waiting for checkpoint response", latch.await(10, TimeUnit.SECONDS));
-                assertThat(
-                    "checkpoint over unavailable skip_unavailable=true remote must succeed",
-                    exRef.get(),
-                    is(nullValue())
-                );
+                assertThat("checkpoint over unavailable skip_unavailable=true remote must succeed", exRef.get(), is(nullValue()));
                 assertThat(respRef.get(), is(notNullValue()));
                 // Failed remote cluster is omitted; only local index keys may appear.
                 assertThat(

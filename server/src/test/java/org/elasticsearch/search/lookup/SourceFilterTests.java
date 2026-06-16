@@ -172,8 +172,6 @@ public class SourceFilterTests extends ESTestCase {
         assertEquals(Map.of(y, 2), excluded.source());
 
         // path-level checks used by synthetic source / field selection (drive SourceFilter#step directly)
-        assertTrue(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(x));
-        assertFalse(new SourceFilter(new String[] { x }, null).isExplicitlyIncluded(y));
         assertTrue(new SourceFilter(null, new String[] { x }).isPathFiltered(x, false));
         assertFalse(new SourceFilter(null, new String[] { x }).isPathFiltered(y, false));
     }

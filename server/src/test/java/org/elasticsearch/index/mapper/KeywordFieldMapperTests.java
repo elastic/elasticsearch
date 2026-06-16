@@ -1929,8 +1929,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexType expectedColumnarIndexType() {
-        // With the extended doc values options enabled, keyword defaults to high-cardinality binary doc values in columnar mode, which
-        // cannot carry a skipper. Without it, keyword uses SORTED_SET doc values with a skipper.
-        return FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() ? IndexType.docValuesOnly() : IndexType.skippers();
+        // Columnar mode requires the extended doc values options, under which keyword defaults to high-cardinality binary doc values,
+        // which cannot carry a skipper.
+        return IndexType.docValuesOnly();
     }
 }

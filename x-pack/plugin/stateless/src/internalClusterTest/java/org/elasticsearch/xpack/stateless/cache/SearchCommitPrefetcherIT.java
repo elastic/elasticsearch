@@ -262,7 +262,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(pendingVbcc.getPrimaryTermAndGeneration().generation(), equalTo(lastCommitGeneration));
 
         // Capture the metrics
-        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, BatchedCompoundCommit.blobNameFromGeneration(lastCommitGeneration));
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(
+            searchNode,
+            BatchedCompoundCommit.blobNameFromGeneration(lastCommitGeneration)
+        );
         var beforeNewCommit = bytesReadFromBlobStore.get();
 
         // Now we can release the delayed requests and flush, so that prefetcher kicks in

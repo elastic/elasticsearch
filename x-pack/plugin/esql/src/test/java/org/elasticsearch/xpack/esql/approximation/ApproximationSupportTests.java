@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePointFillEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -198,6 +199,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Rename.class,
         ResolvingProject.class,
         SemiJoin.class,
+        ChangePointFillEmptyBuckets.class,
         SparklineGenerateEmptyBuckets.class,
         UnresolvedExternalRelation.class,
         UnresolvedRelation.class,

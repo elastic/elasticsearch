@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointBucketFill;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
@@ -182,6 +183,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
+            new ReplaceChangePointBucketFill(),
             new SubstituteSurrogateExpressions(),
             new SubstituteTransportVersionAwareExpressions(),
             // check for a trivial conversion introduced by a surrogate

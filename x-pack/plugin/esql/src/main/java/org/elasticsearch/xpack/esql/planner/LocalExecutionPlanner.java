@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.operator.ChangePointFillEmptyBucketsOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
@@ -144,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointFillEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -361,6 +363,8 @@ public class LocalExecutionPlanner {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
+        } else if (node instanceof ChangePointFillEmptyBucketsExec fill) {
+            return planChangePointFillEmptyBuckets(fill, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
@@ -1839,6 +1843,28 @@ public class LocalExecutionPlanner {
                 collapse.start(),
                 collapse.end(),
                 collapse.stepMillis()
+            ),
+            layout
+        );
+    }
+
+    private PhysicalOperation planChangePointFillEmptyBuckets(ChangePointFillEmptyBucketsExec fill, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fill.child(), context);
+        Layout layout = source.layout;
+        int keyChannel = layout.get(fill.key().id()).channel();
+        int valueChannel = layout.get(fill.value().id()).channel();
+        List<Integer> groupingChannels = fill.groupings()
+            .stream()
+            .map(g -> getAttributeChannel(g, layout, "CHANGE_POINT BY expression must be an attribute"))
+            .toList();
+        return source.with(
+            new ChangePointFillEmptyBucketsOperator.Factory(
+                keyChannel,
+                valueChannel,
+                groupingChannels.stream().mapToInt(Integer::intValue).toArray(),
+                fill.dateBucketRounding(),
+                fill.minDate(),
+                fill.maxDate()
             ),
             layout
         );

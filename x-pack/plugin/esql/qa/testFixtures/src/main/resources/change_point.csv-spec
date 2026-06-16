@@ -1534,3 +1534,112 @@ k:integer | grp:keyword | type:keyword
 13        | a           | step_change
 13        | b           | step_change
 ;
+
+
+sparse buckets filled from filter
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:22:00.000Z
+
+FROM k8s
+  | WHERE DATE_TRUNC(1 minute, @timestamp) IN (
+      "2024-05-10T00:00:00.000Z", "2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z",
+      "2024-05-10T00:15:00.000Z", "2024-05-10T00:20:00.000Z"
+    )
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | STATS bucket_count=COUNT(*)
+;
+
+bucket_count:long
+22
+;
+
+
+interior gap zero fill preserves dip sequence
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:03:00.000Z
+
+FROM k8s
+  | WHERE @timestamp IN ("2024-05-10T00:00:00.000Z", "2024-05-10T00:02:00.000Z")
+  | STATS count=COUNT(*) BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | EVAL count=50
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | WHERE type == "dip"
+  | KEEP @timestamp, count, type
+;
+
+@timestamp:datetime      | count:long | type:keyword
+2024-05-10T00:01:00.000Z | 50         | dip
+;
+
+
+single sparse bucket padded backward
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T01:00:00.000Z
+
+FROM k8s
+  | WHERE DATE_TRUNC(1 minute, @timestamp) IN ("2024-05-10T00:20:00.000Z")
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | STATS bucket_count=COUNT(*)
+;
+
+bucket_count:long
+22
+;
+
+
+single sparse bucket keeps real row
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T01:00:00.000Z
+
+FROM k8s
+  | WHERE DATE_TRUNC(1 minute, @timestamp) IN ("2024-05-10T00:20:00.000Z")
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | WHERE @timestamp == "2024-05-10T00:20:00.000Z"
+  | KEEP @timestamp, count
+;
+
+@timestamp:datetime      | count:long
+2024-05-10T00:20:00.000Z | 10
+;
+
+
+interior gap adds zero bucket row
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:30:00.000Z
+
+FROM k8s
+  | WHERE DATE_TRUNC(1 minute, @timestamp) IN (
+      "2024-05-10T00:00:00.000Z", "2024-05-10T00:02:00.000Z"
+    )
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
+  | CHANGE_POINT count ON @timestamp AS type, pvalue
+  | WHERE @timestamp == "2024-05-10T00:01:00.000Z"
+  | KEEP @timestamp, count
+;
+
+@timestamp:datetime      | count:long
+2024-05-10T00:01:00.000Z | 0
+;
+
+
+sparse buckets filled per group
+required_capability: change_point
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:22:00.000Z
+
+FROM k8s
+  | WHERE DATE_TRUNC(1 minute, @timestamp) IN (
+      "2024-05-10T00:00:00.000Z", "2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z",
+      "2024-05-10T00:15:00.000Z", "2024-05-10T00:20:00.000Z"
+    )
+  | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE), cluster
+  | CHANGE_POINT count ON @timestamp BY cluster
+  | STATS bucket_count=COUNT(*) BY cluster
+  | STATS bad_groups=COUNT(*) WHERE bucket_count != 22
+;
+
+bad_groups:long
+0
+;

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePointFillEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointFillEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -162,6 +164,19 @@ public class MapperUtils {
                 collapse.start(),
                 collapse.end(),
                 collapse.stepMillis()
+            );
+        }
+
+        if (p instanceof ChangePointFillEmptyBuckets fill) {
+            return new ChangePointFillEmptyBucketsExec(
+                fill.source(),
+                child,
+                fill.value(),
+                fill.key(),
+                fill.groupings(),
+                fill.dateBucketRounding(),
+                fill.minDate(),
+                fill.maxDate()
             );
         }
 

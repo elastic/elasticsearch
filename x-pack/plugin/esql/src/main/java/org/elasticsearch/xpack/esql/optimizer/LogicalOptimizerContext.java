@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Objects;
@@ -17,11 +19,23 @@ public class LogicalOptimizerContext {
     private final Configuration configuration;
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
+    @Nullable
+    private final TimestampBounds timestampBounds;
 
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion) {
+        this(configuration, foldCtx, minimumVersion, null);
+    }
+
+    public LogicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.minimumVersion = minimumVersion;
+        this.timestampBounds = timestampBounds;
     }
 
     public Configuration configuration() {
@@ -36,6 +50,11 @@ public class LogicalOptimizerContext {
         return minimumVersion;
     }
 
+    @Nullable
+    public TimestampBounds timestampBounds() {
+        return timestampBounds;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == this) return true;
@@ -43,12 +62,13 @@ public class LogicalOptimizerContext {
         var that = (LogicalOptimizerContext) obj;
         return this.configuration.equals(that.configuration)
             && this.foldCtx.equals(that.foldCtx)
-            && Objects.equals(this.minimumVersion, that.minimumVersion);
+            && Objects.equals(this.minimumVersion, that.minimumVersion)
+            && Objects.equals(this.timestampBounds, that.timestampBounds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(configuration, foldCtx, minimumVersion);
+        return Objects.hash(configuration, foldCtx, minimumVersion, timestampBounds);
     }
 
     @Override
@@ -59,6 +79,8 @@ public class LogicalOptimizerContext {
             + foldCtx
             + ", minimumVersion="
             + minimumVersion
+            + ", timestampBounds="
+            + timestampBounds
             + ']';
     }
 

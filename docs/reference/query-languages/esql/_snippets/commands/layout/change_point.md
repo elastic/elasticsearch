@@ -61,6 +61,10 @@ The possible change point types are:
 ::::{note}
 There must be at least 22 values for change point detection. Any values beyond the first 1,000 are ignored.
 
+When `ON key` matches a `STATS` grouping produced by `BUCKET` on a `datetime` or `date_nanos` field (any field name), and a time range is available from foldable `from` and `to` arguments on `BUCKET` or from an `@timestamp` range filter on the request, missing bucket keys between real buckets are always zero-filled so the value sequence is contiguous. If fewer than 22 real buckets are present and interior gap fill alone does not reach 22, additional buckets are added alternately to the left and right of the real data until 22 are reached or the timerange ends; when one side reaches the range edge, padding continues on the other side only. Real buckets are never removed. Detection is still sequence-based, not time-aware.
+
+Gap-filled buckets always use a value of `0`. That is appropriate for count-like metrics (for example `COUNT()` and `SUM()` of events) where a missing bucket means no activity. It is not correct for other aggregations such as `AVG()`, `MIN()`, and `MAX()`, where a missing bucket does not imply zero. For those metrics, gap filling is best-effort so sparse time-bucketed series can reach the 22-value minimum; interpret results with care. A future ES|QL enhancement may allow choosing the fill value, but the syntax does not expose that today.
+
 When a `BY` clause is provided, these rules apply per group. {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
 ::::
 

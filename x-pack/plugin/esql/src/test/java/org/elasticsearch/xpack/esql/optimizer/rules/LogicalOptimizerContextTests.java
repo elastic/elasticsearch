@@ -14,9 +14,12 @@ import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
+
+import java.time.Instant;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,7 +37,9 @@ public class LogicalOptimizerContextTests extends ESTestCase {
         assertThat(
             ctx.toString(),
             equalTo(
-                "LogicalOptimizerContext[configuration=" + EsqlTestUtils.TEST_CFG + ", foldCtx=FoldContext[3/102], minimumVersion=9075000]"
+                "LogicalOptimizerContext[configuration="
+                    + EsqlTestUtils.TEST_CFG
+                    + ", foldCtx=FoldContext[3/102], minimumVersion=9075000, timestampBounds=null]"
             )
         );
     }
@@ -48,19 +53,29 @@ public class LogicalOptimizerContextTests extends ESTestCase {
     }
 
     private LogicalOptimizerContext copy(LogicalOptimizerContext c) {
-        return new LogicalOptimizerContext(c.configuration(), c.foldCtx(), c.minimumVersion());
+        return new LogicalOptimizerContext(c.configuration(), c.foldCtx(), c.minimumVersion(), c.timestampBounds());
     }
 
     private LogicalOptimizerContext mutate(LogicalOptimizerContext c) {
         Configuration configuration = c.configuration();
         FoldContext foldCtx = c.foldCtx();
         TransportVersion minVersion = c.minimumVersion();
-        switch (randomIntBetween(0, 2)) {
+        TimestampBounds timestampBounds = c.timestampBounds();
+        switch (randomIntBetween(0, 3)) {
             case 0 -> configuration = randomValueOtherThan(configuration, ConfigurationTestUtils::randomConfiguration);
             case 1 -> foldCtx = randomValueOtherThan(foldCtx, this::randomFoldContext);
             case 2 -> minVersion = randomValueOtherThan(minVersion, EsqlTestUtils::randomMinimumVersion);
+            case 3 -> timestampBounds = randomValueOtherThan(timestampBounds, this::randomTimestampBounds);
         }
-        return new LogicalOptimizerContext(configuration, foldCtx, minVersion);
+        return new LogicalOptimizerContext(configuration, foldCtx, minVersion, timestampBounds);
+    }
+
+    private TimestampBounds randomTimestampBounds() {
+        if (randomBoolean()) {
+            return null;
+        }
+        Instant start = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        return new TimestampBounds(start, start.plusSeconds(randomLongBetween(1, 3600)));
     }
 
     private FoldContext randomFoldContext() {

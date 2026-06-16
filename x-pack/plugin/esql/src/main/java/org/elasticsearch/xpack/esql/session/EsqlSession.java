@@ -438,8 +438,12 @@ public class EsqlSession {
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
                         new LogicalPreOptimizerContext(foldContext, inferenceService, minimumVersion)
                     );
+                    TimestampBounds timestampBoundsForOptimizer = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+                        request.filter(),
+                        finalConfiguration::absoluteStartedTimeInMillis
+                    );
                     var logicalPlanOptimizer = new LogicalPlanOptimizer(
-                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
+                        new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion, timestampBoundsForOptimizer)
                     );
 
                     var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();

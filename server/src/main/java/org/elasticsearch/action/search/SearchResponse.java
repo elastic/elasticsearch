@@ -465,6 +465,19 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return clusters;
     }
 
+    /**
+     * Bytes charged on the request breaker for merged query-phase aggregations and transferred from
+     * {@link QueryPhaseResultConsumer} for multi-search buffering. Zero for ordinary searches.
+     */
+    public long getQueryPhaseAggregationBreakerBytes() {
+        return queryPhaseAggregationBreakerBytes;
+    }
+
+    void setQueryPhaseAggregationBreakerBytes(long queryPhaseAggregationBreakerBytes) {
+        assert queryPhaseAggregationBreakerBytes >= 0 : "bytes must be non-negative";
+        this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
@@ -544,19 +557,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Long getTimeRangeFilterFromMillis() {
         return timeRangeFilterFromMillis;
-    }
-
-    /**
-     * Bytes charged on the request breaker for merged query-phase aggregations and transferred from
-     * {@link QueryPhaseResultConsumer} for multi-search buffering. Zero for ordinary searches.
-     */
-    public long getQueryPhaseAggregationBreakerBytes() {
-        return queryPhaseAggregationBreakerBytes;
-    }
-
-    void setQueryPhaseAggregationBreakerBytes(long queryPhaseAggregationBreakerBytes) {
-        assert queryPhaseAggregationBreakerBytes >= 0 : "bytes must be non-negative";
-        this.queryPhaseAggregationBreakerBytes = queryPhaseAggregationBreakerBytes;
     }
 
     @Override

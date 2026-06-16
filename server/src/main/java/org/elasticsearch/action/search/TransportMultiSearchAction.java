@@ -38,13 +38,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.SearchProfileResults;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.Text;
 
-import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -151,6 +151,14 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * {@code 32 + reason.length()}).
      */
     static final long PER_SHARD_FAILURE_OVERHEAD = 160L;
+
+    /**
+     * Wire-byte fallback returned by {@link #tryCountSerializedBytes} when serialisation fails.
+     * Callers multiply by {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR}, so the effective heap
+     * charge per failed component is {@code 2 × 1024 = 2 KiB}. This prevents the breaker from
+     * being completely blind to a component whose true size is unknown.
+     */
+    static final long SERIALISED_BYTES_FAILURE_FALLBACK = 1024L;
 
     private final int allocatedProcessors;
     private final ClusterService clusterService;
@@ -288,6 +296,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * </ul>
      * Estimates use stored {@link SearchHit#rawSourceLength()} and never call
      * {@link SearchHit#getSourceRef()}, which can decompress and mutate {@code _source}.
+     * <p>
+     * <strong>Post-materialization limitation:</strong> estimation runs after the sub-search
+     * response has already been fully allocated on the coordinator heap. The breaker therefore
+     * protects against unbounded <em>accumulation</em> across multiple buffered sub-responses
+     * (each new response is checked against the running total before being added to the
+     * {@link AtomicArray}), but it cannot prevent a single large response from consuming
+     * significant heap before the check fires.
      */
     static long estimateActualBytes(SearchResponse response) {
         long bytes = BASE_RESPONSE_OVERHEAD;
@@ -303,7 +318,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {
             try {
                 bytes += DelayableWriteable.getUncompressedSerializedSize(response.getAggregations());
-            } catch (UncheckedIOException e) {
+            } catch (Exception e) {
                 logger.warn("msearch circuit breaker: failed to estimate aggregation bytes", e);
             }
         }
@@ -316,7 +331,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             // for deep stacks, so it must be counted explicitly.
             String reason = failure.reason();
             if (reason != null) {
-                bytes += 32L + reason.length();
+                bytes += RamUsageEstimator.sizeOf(reason);
             }
         }
 
@@ -355,12 +370,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     /**
      * Counts bytes that {@code writeable} would occupy when serialised to the transport wire format.
      * Resets {@code counter} before writing and reads {@link CountingStreamOutput#position()} after.
-     * Returns {@code 0} and logs a warning if serialisation raises an unexpected exception;
-     * in that case {@code counter} is reset so the next call starts from a clean state.
+     * Returns {@link #SERIALISED_BYTES_FAILURE_FALLBACK} and logs a warning if serialisation raises
+     * an unexpected exception; in that case {@code counter} is reset so the next call starts from a
+     * clean state.
      * <p>
      * Callers must multiply the result by {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR} to convert
-     * wire bytes to a heap estimate. Returning {@code 0} on failure means the component is uncharged,
-     * so the breaker may under-protect for that specific field when serialisation fails.
+     * wire bytes to a heap estimate.
      */
     private static long tryCountSerializedBytes(CountingStreamOutput counter, Writeable writeable, String logMessage) {
         try {
@@ -370,7 +385,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         } catch (Exception e) {
             counter.reset();
             logger.warn(logMessage, e);
-            return 0L;
+            return SERIALISED_BYTES_FAILURE_FALLBACK;
         }
     }
 
@@ -384,12 +399,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * for standard class-loader paths while correctly sizing failures from hot-deploy code.
      * The message string is always unique (never interned) and is charged at its character count.
      * <p>
-     * Recursion terminates at {@code null} cause; suppressed exceptions are each walked fully.
-     * Real JVMs cap cause-chain depth at ~1000 frames before throwing
-     * {@link StackOverflowError}; shard failure chains are shallow (typically 2–4 levels).
+     * Recursion is capped at 10 levels. Cause chains cannot be circular (the JVM's
+     * {@code initCause} prevents it), but suppressed-exception graphs have no such guarantee:
+     * {@code addSuppressed} only guards against self-suppression, so a two-node suppressed
+     * cycle is legal Java. The depth cap prevents a pathological graph from causing a
+     * {@link StackOverflowError}. Shard failure chains are typically 2–4 levels deep, so
+     * the cap does not affect real-world accuracy.
      */
     static long estimateExceptionBytes(Throwable t) {
-        if (t == null) {
+        return estimateExceptionBytes(t, 10);
+    }
+
+    private static long estimateExceptionBytes(Throwable t, int depthRemaining) {
+        if (t == null || depthRemaining == 0) {
             return 0L;
         }
         long bytes = 96L; // exception object shell (header + fields + padding)
@@ -400,9 +422,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         if (msg != null) {
             bytes += 32L + msg.length(); // unique message String shell + chars
         }
-        bytes += estimateExceptionBytes(t.getCause());
+        bytes += estimateExceptionBytes(t.getCause(), depthRemaining - 1);
         for (Throwable suppressed : t.getSuppressed()) {
-            bytes += estimateExceptionBytes(suppressed);
+            bytes += estimateExceptionBytes(suppressed, depthRemaining - 1);
         }
         return bytes;
     }

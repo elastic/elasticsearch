@@ -280,20 +280,6 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Marks this sub-search as buffered by a multi-search on the coordinating node. Query-phase aggregation
-     * breaker bytes are handed off to the {@link SearchResponse} instead of being released when the search completes.
-     * Internal protocol between {@link TransportMultiSearchAction} and {@code AbstractSearchAsyncAction};
-     * callers outside that pair risk stranding REQUEST breaker bytes.
-     */
-    void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
-        this.bufferSubSearchResponseForMultiSearch = bufferSubSearchResponseForMultiSearch;
-    }
-
-    boolean bufferSubSearchResponseForMultiSearch() {
-        return bufferSubSearchResponseForMultiSearch;
-    }
-
-    /**
      * Constructs a new search request from reading the specified stream.
      *
      * @param in The stream the request is read from
@@ -472,6 +458,20 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     long getAbsoluteStartMillis() {
         return absoluteStartMillis;
+    }
+
+    /**
+     * Marks this sub-search as buffered by a multi-search on the coordinating node. Query-phase aggregation
+     * breaker bytes are handed off to the {@link SearchResponse} instead of being released when the search completes.
+     * Internal protocol between {@link TransportMultiSearchAction} and {@code AbstractSearchAsyncAction};
+     * callers outside that pair risk stranding REQUEST breaker bytes.
+     */
+    void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
+        this.bufferSubSearchResponseForMultiSearch = bufferSubSearchResponseForMultiSearch;
+    }
+
+    boolean bufferSubSearchResponseForMultiSearch() {
+        return bufferSubSearchResponseForMultiSearch;
     }
 
     /**

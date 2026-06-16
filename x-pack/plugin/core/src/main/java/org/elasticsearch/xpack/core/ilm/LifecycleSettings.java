@@ -83,12 +83,6 @@ public class LifecycleSettings {
         Setting.Property.NodeScope,
         Setting.Property.DeprecatedWarning
     );
-    public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(
-        LIFECYCLE_SKIP,
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(
         SLM_HISTORY_INDEX_ENABLED,

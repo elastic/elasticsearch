@@ -20,6 +20,5 @@
   "examples" : [
     "minute()"
   ],
-  "preview" : true,
   "snapshot_only" : false
 }

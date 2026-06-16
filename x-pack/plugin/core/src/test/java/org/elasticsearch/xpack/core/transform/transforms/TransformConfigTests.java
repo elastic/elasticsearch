@@ -196,7 +196,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            TransformConfigVersion.CURRENT.toString()
+            TransformConfigVersion.CURRENT.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -236,7 +237,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
-            version == null ? null : version.toString()
+            version == null ? null : version.toString(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16)
         );
     }
 
@@ -354,7 +356,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             instance.getMetadata(),
             instance.getRetentionPolicyConfig(),
             instance.getCreateTime(),
-            instance.getVersion() == null ? null : instance.getVersion().toString()
+            instance.getVersion() == null ? null : instance.getVersion().toString(),
+            version.supports(TransformConfig.TRANSFORM_CLOUD_TOKEN) ? instance.getCredentialId() : null
         );
     }
 

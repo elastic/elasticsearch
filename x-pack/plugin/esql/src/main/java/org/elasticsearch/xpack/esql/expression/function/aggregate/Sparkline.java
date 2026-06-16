@@ -11,6 +11,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.operator.SparklineGenerateEmptyBucketsOperator;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIFTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -79,7 +83,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWho
  *     and {@link SparklineGenerateEmptyBucketsOperator} for special implementation bits.
  * </p>
  */
-public class Sparkline extends AggregateFunction implements AggregateMetricDoubleNativeSupport {
+public class Sparkline extends AggregateFunction implements AggregateMetricDoubleNativeSupport, PostAnalysisVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Sparkline",
@@ -89,12 +93,14 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         .quinary(Sparkline::new, 0)
         .capabilities(
             "complex", // Fix for complex queries inside the agg inside the SPARKLINE
-            "null_alongside" // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE
+            "null_alongside", // Fix for null aggs (e.g. COUNT_DISTINCT(null)) paired with SPARKLINE
+            "reject_mv" // Rejects multi-valued aggregates (TOP, SAMPLE, VALUES) as first argument
         )
         .name("sparkline");
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },
+        briefSummary = "Computes y-axis values of a sparkline graph for an aggregation over time.",
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
         preview = true,
@@ -198,6 +204,23 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             return resolution;
         } else {
             return TypeResolution.TYPE_RESOLVED;
+        }
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (field() instanceof Top || field() instanceof Sample || field() instanceof Values) {
+            failures.add(
+                new Failure(
+                    this,
+                    String.format(
+                        Locale.ROOT,
+                        "first argument of [%s] must be a single-valued aggregate function, found [%s]",
+                        sourceText(),
+                        field().sourceText()
+                    )
+                )
+            );
         }
     }
 

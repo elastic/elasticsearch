@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -43,6 +49,15 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("unchecked")
 public class HttpStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);
@@ -89,7 +104,8 @@ public class HttpStorageObjectTests extends ESTestCase {
         HttpConfiguration config = HttpConfiguration.defaults();
         HttpStorageObject object = new HttpStorageObject(mockClient, path, config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(0, -1); });
+        // -1 is now the READ_TO_END open-ended sentinel; a different negative length is still invalid.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> { object.newStream(0, -2); });
         assertTrue(e.getMessage().contains("length"));
     }
 
@@ -133,9 +149,8 @@ public class HttpStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("https://example.com/data.parquet");
         HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
 
-        ByteBuffer result = readBytesAsyncToCompletion(object, 0, payload.length);
-        assertTrue("readBytesAsync must return a direct ByteBuffer", result.isDirect());
-        assertArrayEquals(payload, toByteArray(result));
+        byte[] result = readBytesAsyncToCompletion(object, 0, payload.length);
+        assertArrayEquals(payload, result);
     }
 
     public void testReadBytesAsync200OkUsesBodyHandlerToSlice() throws Exception {
@@ -147,9 +162,8 @@ public class HttpStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("https://example.com/data.parquet");
         HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
 
-        ByteBuffer result = readBytesAsyncToCompletion(object, 5, expected.length);
-        assertTrue(result.isDirect());
-        assertArrayEquals(expected, toByteArray(result));
+        byte[] result = readBytesAsyncToCompletion(object, 5, expected.length);
+        assertArrayEquals(expected, result);
     }
 
     public void testReadBytesAsyncLengthExceedsIntMaxFails() throws Exception {
@@ -163,6 +177,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         object.readBytesAsync(
             0,
             (long) Integer.MAX_VALUE + 1,
+            FACTORY,
             Runnable::run,
             ActionListener.wrap(buf -> { fail("expected failure"); }, e -> {
                 error.set(e);
@@ -242,33 +257,42 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertEquals(0L, obj.metrics().bytesRead());
     }
 
-    private static ByteBuffer readBytesAsyncToCompletion(HttpStorageObject object, long position, long length) throws Exception {
+    private static byte[] readBytesAsyncToCompletion(HttpStorageObject object, long position, long length) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
 
-        object.readBytesAsync(position, length, Runnable::run, ActionListener.wrap(buf -> {
+        object.readBytesAsync(position, length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> { throw new AssertionError("unexpected failure", e); }));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(result.get());
-        return result.get();
+        // Copy the bytes off the allocator-backed buffer so the caller doesn't hold a view of
+        // memory that we release here. The DirectReadBuffer payload is always allocator-backed
+        // (i.e. direct); callers historically asserted isDirect() on the returned buffer.
+        DirectReadBuffer drb = result.get();
+        try {
+            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            return toByteArray(drb.buffer());
+        } finally {
+            drb.close();
+        }
     }
 
     @SuppressWarnings("unchecked")
     private static void mockSendAsyncWithBodyChunks(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) throws Exception {
         doAnswer(invocation -> {
-            HttpResponse.BodyHandler<ByteBuffer> handler = invocation.getArgument(1);
+            HttpResponse.BodyHandler<DirectReadBuffer> handler = invocation.getArgument(1);
             HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
             when(responseInfo.statusCode()).thenReturn(statusCode);
-            HttpResponse.BodySubscriber<ByteBuffer> subscriber = handler.apply(responseInfo);
+            HttpResponse.BodySubscriber<DirectReadBuffer> subscriber = handler.apply(responseInfo);
             subscriber.onSubscribe(new NoOpSubscription());
             subscriber.onNext(bodyChunks);
             subscriber.onComplete();
-            ByteBuffer body = subscriber.getBody().toCompletableFuture().get();
+            DirectReadBuffer body = subscriber.getBody().toCompletableFuture().get();
 
-            HttpResponse<ByteBuffer> response = mock(HttpResponse.class);
+            HttpResponse<DirectReadBuffer> response = mock(HttpResponse.class);
             when(response.statusCode()).thenReturn(statusCode);
             when(response.body()).thenReturn(body);
             return CompletableFuture.completedFuture(response);

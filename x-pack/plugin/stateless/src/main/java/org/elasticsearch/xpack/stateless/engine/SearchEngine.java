@@ -113,6 +113,8 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    // Used for filtering unowned documents from a shard during resharding.
+    private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
 
@@ -127,21 +129,7 @@ public class SearchEngine extends Engine {
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
-    private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-        relocatedPITReader -> acquireSearcherSupplier(
-            relocatedPITReader.wrapper,
-            SearcherScope.EXTERNAL,
-            r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
-                r,
-                shardId,
-                engineConfig.getIndexSettings().getIndexMetadata(),
-                engineConfig.getMapperService(),
-                relocatedPITReader.reshardingMetadata,
-                relocatedPITReader.splitShardCountSummary
-            ),
-            relocatedPITReader.pitReaderManager
-        )
-    );
+    private final RelocatedPITReaderTracker relocatedPITReaderTracker;
 
     @SuppressWarnings("this-escape")
     public SearchEngine(
@@ -150,14 +138,32 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        ReshardSearchFilters reshardSearchFilters
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
+        this.reshardSearchFilters = reshardSearchFilters;
         this.closedShardService = closedShardService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
+
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+            relocatedPITReader -> acquireSearcherSupplier(
+                relocatedPITReader.wrapper,
+                SearcherScope.EXTERNAL,
+                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                    r,
+                    shardId,
+                    engineConfig.getIndexSettings().getIndexMetadata(),
+                    engineConfig.getMapperService(),
+                    relocatedPITReader.reshardingMetadata,
+                    relocatedPITReader.splitShardCountSummary
+                ),
+                relocatedPITReader.pitReaderManager
+            )
+        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -434,14 +440,16 @@ public class SearchEngine extends Engine {
                 assert listenableFuture.isDone() : "unexpected sync call not done after invocation";
                 listenableFuture.addListener(ActionListener.wrap(blobFileRangesMap -> {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
-                    if (commitUpdated) {
-                        store.incRef();
-                        try {
+                    if (store.tryIncRef() == false) {
+                        throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+                    }
+                    try {
+                        final boolean commitUpdated = searchDirectory.updateCommit(latestCommit, blobFileRangesMap);
+                        if (commitUpdated) {
                             updateInternalState(latestCommit, current);
-                        } finally {
-                            store.decRef();
                         }
+                    } finally {
+                        store.decRef();
                     }
                 }, this::onFailure));
             }
@@ -750,7 +758,7 @@ public class SearchEngine extends Engine {
 
     @Override
     protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary summary) throws IOException {
-        return ReshardSearchFilters.maybeWrapDirectoryReader(
+        return reshardSearchFilters.maybeWrapDirectoryReader(
             reader,
             shardId,
             summary,

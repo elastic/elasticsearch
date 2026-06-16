@@ -12,6 +12,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +78,8 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
             NodeEnvironment nodeEnvironment,
             Settings settings,
             ThreadPool threadPool,
-            BlobCacheMetrics blobCacheMetrics
+            BlobCacheMetrics blobCacheMetrics,
+            ClusterService clusterService
         ) {
             // Use the DIRECT executor to be able to block blob store reads in the merge threads
             return new StatelessSharedBlobCacheService(
@@ -85,6 +87,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 settings,
                 threadPool,
                 blobCacheMetrics,
+                clusterService,
                 threadPool::relativeTimeInNanos,
                 new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
             );

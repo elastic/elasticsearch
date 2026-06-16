@@ -418,6 +418,28 @@ sv:double
 ;
 
 
+Approximate stats with dependent potentially multi-valued variables
+required_capability: approximation_v7
+required_capability: approximation_fix_mv_functions
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS median = MEDIAN(sv)::INTEGER
+    | EVAL append = MV_APPEND([42,42,42], median),
+           diff   = MV_DIFFERENCE([42,42,42], median),
+           isect  = MV_INTERSECTION([42,42,42], median),
+           slice  = MV_SLICE([42,42,42], median % 2, median % 2 + 1),
+           union  = MV_SORT(MV_UNION([42,42,42], median))
+;
+
+documents_found: 8000..12000
+
+median:integer | append:integer      | diff:integer    | isect:integer | slice:integer | union:integer | _approximation_confidence_interval(median):integer | _approximation_certified(median):boolean
+450..540       | [42,42,42,450..540] | [42,42,42]      | null          | [42,42]       | [42,450..540] | [450..540,450..540]                                | {any}
+;
+
+
 Approximate stats with dependent constant variable
 required_capability: approximation_v7
 request_stored: skip
@@ -439,7 +461,7 @@ Approximate stats by with zero variance
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | MV_EXPAND mv
     | STATS avg=avg(mv), median=median(mv), one=3/(1+SUM(2.0*mv)/SUM(mv)) BY mv
@@ -447,7 +469,7 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 avg:double               | median:double | one:double | mv:integer | _approximation_confidence_interval(avg):double      | _approximation_certified(avg):boolean | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean | _approximation_confidence_interval(one):double | _approximation_certified(one):boolean
 1999.999999..2000.000001 | 2000          | 1          | 2000       | [1999.999999..2000.000001,1999.999999..2000.000001] | {any}                                 | [2000,2000]                                       | {any}                                    | [1,1]                                          | {any}
@@ -462,14 +484,14 @@ Approximate stats by on large single-valued data
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | STATS count=COUNT() BY sv
     | SORT sv DESC
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 count:long | sv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 100..2000  | 700        | [100..2000,100..2000]                          | {any}
@@ -484,7 +506,7 @@ Approximate stats by on large multi-valued data
 required_capability: approximation_v7
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM many_numbers
     | MV_EXPAND mv
     | STATS count=COUNT() BY mv
@@ -492,7 +514,7 @@ FROM many_numbers
     | LIMIT 5
 ;
 
-documents_found: 8000..12000
+documents_found: 16000..24000
 
 count:long | mv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 500..4000  | 2000       | [500..4000,500..4000]                          | {any}
@@ -548,7 +570,7 @@ count:long | mv:integer | _approximation_confidence_interval(count):long | _appr
 ;
 
 
-Approximate stats by on mixed data
+Approximate stats on mixed data
 required_capability: approximation_v7
 request_stored: skip
 
@@ -1376,14 +1398,14 @@ required_capability: approximation_fork
 required_capability: subquery_in_from_command
 request_stored: skip
 
-SET approximation={"rows":10000}\;
+SET approximation={"rows":20000}\;
 FROM (FROM many_numbers | STATS count  = 100.0*COUNT() BY sv | RENAME value = count ),
      (FROM many_numbers | STATS median = MEDIAN(sv)  BY sv | RENAME value = median)
 | SORT sv DESC, value ASC
 | LIMIT 5
 ;
 
-documents_found: 16000..24000
+documents_found: 32000..48000
 
 value:double           | sv:integer | _approximation_confidence_interval(value):double | _approximation_certified(value):boolean
 699.999999..700.000001 | 700        | [699.999999..700.000001,699.999999..700.000001]  | {any}
@@ -1391,6 +1413,29 @@ value:double           | sv:integer | _approximation_confidence_interval(value):
 698.999999..699.000001 | 699        | [698.999999..700.000001,698.999999..699.000001]  | {any}
 10000..200000          | 699        | [10000..200000,10000..200000]                    | {any}
 697.999999..698.000001 | 698        | [697.999999..700.000001,697.999999..698.000001]  | {any}
+;
+
+
+Subqueries with non-approximable stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_fix_non_approximable_fork_branches
+required_capability: subquery_in_from_command
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM colors | LIMIT 1 BY color | STATS bad1 = COUNT(*)),
+     (FROM colors | STATS good = COUNT(*)),
+     (FROM colors | STATS bad2 = MAX(color))
+| SORT bad1 DESC, bad2 DESC
+;
+
+documents_found: 118..130
+
+bad1:long | good:long | bad2:string | _approximation_confidence_interval(good):long | _approximation_certified(good):boolean
+null      | 59        | null        | [59,59]                                       | true
+null      | null      | yellow      | null                                          | null
+59        | null      | null        | null                                          | null
 ;
 
 

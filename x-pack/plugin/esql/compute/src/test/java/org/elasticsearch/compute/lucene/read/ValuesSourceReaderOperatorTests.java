@@ -203,7 +203,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceThreshold
+            docSequenceThreshold,
+            () -> 0L
         );
     }
 
@@ -235,7 +236,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             pageSize,
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L
         );
         return luceneFactory.get(context);
     }
@@ -549,7 +551,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             reuseColumnLoaders,
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -677,7 +680,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -699,7 +703,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 ).get(driverContext)
             );
         }
@@ -847,7 +852,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         reuseBlockLoaders,
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(runner.context())
                 )
                 .toList()
@@ -1006,7 +1012,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(runner.context())
                 )
                 .toList()
@@ -1549,7 +1556,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            false // no scoring
+            false, // no scoring
+            () -> 0L
         );
         try (
             Driver driver = TestDriverFactory.create(
@@ -1696,7 +1704,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         randomBoolean(),
                         0,
                         randomDoubleBetween(0.1, 10.0, true),
-                        docSequenceBytesRefFieldThreshold()
+                        docSequenceBytesRefFieldThreshold(),
+                        () -> 0L
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1753,7 +1762,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     randomBoolean(),
                     0,
                     randomDoubleBetween(0.1, 10.0, true),
-                    docSequenceBytesRefFieldThreshold()
+                    docSequenceBytesRefFieldThreshold(),
+                    () -> 0L
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1791,7 +1801,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            docSequenceBytesRefFieldThreshold()
+            docSequenceBytesRefFieldThreshold(),
+            () -> 0L
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1955,7 +1966,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomBoolean(),
             0,
             randomDoubleBetween(0.1, 10.0, true),
-            totalBytesRefFields
+            totalBytesRefFields,
+            () -> 0L
         );
 
         var runner = new TestDriverRunner().builder(driverContext);
@@ -2211,7 +2223,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomIntBetween(1, 10),
                 1000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                () -> 0L
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
@@ -2224,7 +2237,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                docSequenceBytesRefFieldThreshold()
+                docSequenceBytesRefFieldThreshold(),
+                () -> 0L
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);
@@ -2377,7 +2391,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 randomBoolean(),
                 0,
                 randomDoubleBetween(0.1, 10.0, true),
-                keywordFieldCount
+                keywordFieldCount,
+                () -> 0L
             );
 
             var runner = new TestDriverRunner().builder(driverContext);

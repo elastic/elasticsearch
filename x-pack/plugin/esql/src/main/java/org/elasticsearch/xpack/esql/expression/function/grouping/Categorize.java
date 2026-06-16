@@ -142,7 +142,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                     valueHint = { "regex", "tokens" },
                     description = "The output format of the categories. "
                         + "Supported formats are `regex`, which outputs a regular expression matching the category, "
-                        + "and `tokens`, which outputs a human-readable representation of the category. "
+                        + "and `tokens`, which outputs a more human-readable space-separated list of the matching tokens of the category. "
                         + "Defaults to `regex`."
                 ),
                 @MapParam.MapParamEntry(

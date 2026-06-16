@@ -68,7 +68,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
         TestAction action = action();
         action.mainRequest().getDestination().routing("=cat").setRoutingFromSlice(true);
         IndexRequest index = new IndexRequest();
-        action.copyMetadata(AbstractAsyncBulkByScrollAction.wrap(index), doc().setRouting("foo"));
+        action.copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));
         assertEquals("cat", index.routing());
         assertTrue(index.isRoutingFromSlice());
     }

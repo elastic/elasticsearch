@@ -53,6 +53,7 @@ dependencies {
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
   clusterModules project(':modules:reindex-management')
+  clusterModules project(':test:external-modules:test-slice-indexing-validation')
 }
 
 restResources {

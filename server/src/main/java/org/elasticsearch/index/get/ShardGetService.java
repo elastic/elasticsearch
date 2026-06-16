@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -458,6 +461,24 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     metadataFields = new HashMap<>();
                 }
                 metadataFields.put(IgnoredFieldMapper.NAME, ignoredDocumentField);
+            }
+        }
+
+        // When routing is stored as doc values, it won't appear in storedFields()
+        // and must be fetched from doc values directly.
+        if (metadataFields == null || metadataFields.containsKey(RoutingFieldMapper.NAME) == false) {
+            MetadataFieldMapper fieldMapper = mappingLookup.getMapping().getMetadataMapperByName(RoutingFieldMapper.NAME);
+            assert fieldMapper == null || fieldMapper instanceof RoutingFieldMapper
+                : "the only metadata field that should be loaded here is _routing but got [" + fieldMapper.typeName() + "]";
+            if (fieldMapper instanceof RoutingFieldMapper routingMapper && routingMapper.docValues()) {
+                SortedDocValues routingDocValues = DocValues.getSorted(docIdAndVersion.reader, RoutingFieldMapper.NAME);
+                if (routingDocValues.advanceExact(docIdAndVersion.docId)) {
+                    String routingValue = routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+                    if (metadataFields == null) {
+                        metadataFields = new HashMap<>();
+                    }
+                    metadataFields.put(RoutingFieldMapper.NAME, new DocumentField(RoutingFieldMapper.NAME, List.of(routingValue)));
+                }
             }
         }
 

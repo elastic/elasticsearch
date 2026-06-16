@@ -96,14 +96,14 @@
       get:
         index:   dest_keep
         id:      "1"
-        routing: r1
+        _slice: r1
   - match: { _routing: r1 }
 
   - do:
       get:
         index:   dest_keep
         id:      "2"
-        routing: r2
+        _slice: r2
   - match: { _routing: r2 }
 
 ---
@@ -148,13 +148,13 @@
       get:
         index:   dest_equals
         id:      "1"
-        routing: s1
+        _slice: s1
   - match: { _routing: s1 }
 
   - do:
       get:
         index:   dest_equals
         id:      "2"
-        routing: s1
+        _slice: s1
   - match: { _routing: s1 }
 

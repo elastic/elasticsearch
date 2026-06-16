@@ -215,9 +215,9 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             }
         });
 
-        AbstractAsyncBulkByScrollAction<ReindexRequest, ?> action = action(scriptService, request.setScript(mockScript("")));
-        AbstractAsyncBulkByScrollAction.RequestWrapper<?> wrapped = action.buildScriptApplier()
-            .apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
+        AbstractAsyncBulkByPaginatedSearchAction<ReindexRequest, ?> action = action(scriptService, request.setScript(mockScript("")));
+        AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper<?> wrapped = action.buildScriptApplier()
+            .apply(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc);
         return (wrapped != null) ? (T) wrapped.self() : null;
     }
 }

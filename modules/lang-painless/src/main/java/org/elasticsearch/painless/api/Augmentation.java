@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.PrimitiveIterator;
 import java.util.Spliterator;
 import java.util.TreeMap;
 import java.util.function.BiConsumer;
@@ -57,6 +58,7 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collector;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -1061,6 +1063,94 @@ public class Augmentation {
         }
     }
 
+    // Wrap a primitive consumer so it polls _pollCancellation() once per element before delegating, or return it
+    // unchanged when no cancellation check is installed so the caller still takes the JDK fast path. Overloaded
+    // per primitive consumer type rather than one generic Consumer wrapper, which would box every element.
+
+    private static IntConsumer wrap(PainlessScript script, IntConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return i -> {
+            script._pollCancellation();
+            action.accept(i);
+        };
+    }
+
+    private static LongConsumer wrap(PainlessScript script, LongConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return l -> {
+            script._pollCancellation();
+            action.accept(l);
+        };
+    }
+
+    private static DoubleConsumer wrap(PainlessScript script, DoubleConsumer action) {
+        if (script._getCancellationCheck() == null) {
+            return action;
+        }
+        return d -> {
+            script._pollCancellation();
+            action.accept(d);
+        };
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link PrimitiveIterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, PrimitiveIterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfInt#forEachRemaining(IntConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link IntConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfInt receiver, IntConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfLong#forEachRemaining(LongConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link LongConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfLong receiver, LongConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Spliterator.OfDouble#forEachRemaining(DoubleConsumer)}.  Polls
+     * {@link PainlessScript#_pollCancellation()} once per element via the wrapped {@link DoubleConsumer}; takes the
+     * JDK fast path unchanged when no cancellation check is installed.
+     */
+    public static void forEachRemaining(PainlessScript script, Spliterator.OfDouble receiver, DoubleConsumer action) {
+        receiver.forEachRemaining(wrap(script, action));
+    }
+
     // stream terminal wrappers for cancellation-aware iteration
     //
     // Each wrapper takes the user's functional-interface argument and wraps it in a polling lambda so
@@ -1188,6 +1278,28 @@ public class Augmentation {
             accumulator.accept(r, t);
             script._pollCancellation();
         }, combiner);
+    }
+
+    /**
+     * Cancellation-aware wrapper around {@link Stream#collect(Collector)}.  Unlike the other stream
+     * terminals there is no per-element argument to wrap directly — the accumulator is bundled inside
+     * the {@link Collector} — so this decomposes the collector and rebuilds an equivalent one whose
+     * accumulator also polls {@link PainlessScript#_pollCancellation()} once per element.  Painless does
+     * not expose {@link Stream#parallel()}, so the stream is always sequential: the accumulator runs once
+     * per element and the combiner is never invoked.  The original characteristics (including
+     * {@code IDENTITY_FINISH}) and finisher are preserved unchanged, so the result is identical to the JDK.
+     * Fast path delegates straight to the JDK when the script has no cancellation check installed.
+     */
+    public static <T, A, R> R collect(PainlessScript script, Stream<T> receiver, Collector<? super T, A, R> collector) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.collect(collector);
+        }
+        BiConsumer<A, ? super T> accumulator = collector.accumulator();
+        Collector<T, A, R> polling = Collector.of(collector.supplier(), (a, t) -> {
+            accumulator.accept(a, t);
+            script._pollCancellation();
+        }, collector.combiner(), collector.finisher(), collector.characteristics().toArray(new Collector.Characteristics[0]));
+        return receiver.collect(polling);
     }
 
     /** Cancellation-aware wrapper around {@link IntStream#forEach}. */
@@ -1495,30 +1607,63 @@ public class Augmentation {
 
     // CharSequence augmentation
     /**
-     * Replace all matches. Similar to {@link Matcher#replaceAll(String)} but allows you to customize the replacement based on the match.
+     * Cancellation-aware {@code replaceAll(Pattern, Function)}.  Similar to {@link Matcher#replaceAll(String)} but lets the script
+     * customise the replacement per match.  Two protections layered on top of the JDK call:
+     * <ul>
+     *   <li>The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     *       {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor}
+     *       setting (closing the gap that previously left {@code String.replaceAll(Pattern, Function)}
+     *       unprotected against catastrophic backtracking).</li>
+     *   <li>When the script has a cancellation check installed, polls
+     *       {@link PainlessScript#_pollCancellation()} once per match so a many-match sweep honours
+     *       the search timeout.</li>
+     * </ul>
      */
-    public static String replaceAll(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
-        Matcher m = pattern.matcher(receiver);
+    public static String replaceAll(
+        PainlessScript script,
+        CharSequence receiver,
+        int limitFactor,
+        Pattern pattern,
+        Function<Matcher, String> replacementBuilder
+    ) {
+        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
+        Matcher m = pattern.matcher(input);
         if (false == m.find()) {
             // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
-        do {
-            m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
-        } while (m.find());
+        if (script._getCancellationCheck() == null) {
+            do {
+                m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+            } while (m.find());
+        } else {
+            do {
+                m.appendReplacement(result, Matcher.quoteReplacement(replacementBuilder.apply(m)));
+                script._pollCancellation();
+            } while (m.find());
+        }
         m.appendTail(result);
         return result.toString();
     }
 
     /**
-     * Replace the first match. Similar to {@link Matcher#replaceFirst(String)} but allows you to customize the replacement based on the
-     * match.
+     * Regex-limited {@code replaceFirst(Pattern, Function)}.  Similar to {@link Matcher#replaceFirst(String)} but lets the script
+     * customise the replacement based on the match.  The receiver is wrapped in {@link LimitedCharSequence} so the regex engine's
+     * {@code charAt} reads are bounded by the {@code script.painless.regex.limit-factor} setting (same protection as
+     * {@link #replaceAll(PainlessScript, CharSequence, int, Pattern, Function)}).  Per-match polling is not added because at most
+     * one match is performed.
      */
-    public static String replaceFirst(CharSequence receiver, Pattern pattern, Function<Matcher, String> replacementBuilder) {
-        Matcher m = pattern.matcher(receiver);
+    public static String replaceFirst(
+        CharSequence receiver,
+        int limitFactor,
+        Pattern pattern,
+        Function<Matcher, String> replacementBuilder
+    ) {
+        CharSequence input = limitFactor == UNLIMITED_PATTERN_FACTOR ? receiver : new LimitedCharSequence(receiver, pattern, limitFactor);
+        Matcher m = pattern.matcher(input);
         if (false == m.find()) {
-            // CharSequqence's toString is *supposed* to always return the characters in the sequence as a String
+            // CharSequence's toString is *supposed* to always return the characters in the sequence as a String
             return receiver.toString();
         }
         StringBuilder result = new StringBuilder(initialBufferForReplaceWith(receiver));
@@ -1584,8 +1729,122 @@ public class Augmentation {
     }
 
     /**
-     * The initial size of the {@link StringBuilder} used for {@link #replaceFirst(CharSequence, Pattern, Function)} and
-     * {@link #replaceAll(CharSequence, Pattern, Function)} for a particular sequence. We ape
+     * Cancellation-aware {@link String#indexOf(String)}.  Reimplements the search with an explicit O(n*m) outer-position scan so the
+     * augmentation can poll {@link PainlessScript#_pollCancellation()} between candidate starting positions.  This guards against a
+     * malicious haystack/needle pair (lots of false-positive prefix matches) running uninterrupted past the search timeout.
+     * Delegates to the JDK call when no cancellation check is installed.
+     */
+    public static int indexOf(PainlessScript script, String receiver, String search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.indexOf(search);
+        }
+        return indexOfWithPolling(script, receiver, search, 0);
+    }
+
+    /**
+     * Cancellation-aware {@link String#indexOf(String, int)}.  Same as {@link #indexOf(PainlessScript, String, String)} but starts
+     * the search at {@code fromIndex}.  Matches the JDK's clamping behaviour for {@code fromIndex} outside the receiver's bounds.
+     */
+    public static int indexOf(PainlessScript script, String receiver, String search, int fromIndex) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.indexOf(search, fromIndex);
+        }
+        return indexOfWithPolling(script, receiver, search, fromIndex);
+    }
+
+    /**
+     * Cancellation-aware {@link String#lastIndexOf(String)}.  Symmetric to {@link #indexOf(PainlessScript, String, String)}: scans
+     * candidate starting positions backwards from the end of the receiver, polling between each.
+     */
+    public static int lastIndexOf(PainlessScript script, String receiver, String search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.lastIndexOf(search);
+        }
+        return lastIndexOfWithPolling(script, receiver, search, receiver.length());
+    }
+
+    /**
+     * Cancellation-aware {@link String#lastIndexOf(String, int)}.  Same as {@link #lastIndexOf(PainlessScript, String, String)} but
+     * starts the backward search no later than {@code fromIndex}.
+     */
+    public static int lastIndexOf(PainlessScript script, String receiver, String search, int fromIndex) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.lastIndexOf(search, fromIndex);
+        }
+        return lastIndexOfWithPolling(script, receiver, search, fromIndex);
+    }
+
+    /**
+     * Cancellation-aware {@link String#contains(CharSequence)}.  Delegates to the indexOf augmentation, which polls between candidate
+     * positions, so the contains check honours the search timeout even when the haystack and needle pathologically interact.
+     */
+    public static boolean contains(PainlessScript script, String receiver, CharSequence search) {
+        if (script._getCancellationCheck() == null) {
+            return receiver.contains(search);
+        }
+        return indexOfWithPolling(script, receiver, search.toString(), 0) >= 0;
+    }
+
+    /**
+     * Naive forward scan with cancellation polling between candidate starting positions.  Matches the JDK's documented behaviour for
+     * edge cases: empty {@code search} returns {@code min(fromIndex, length)}; negative {@code fromIndex} is clamped to zero; if the
+     * needle cannot fit anywhere starting at or after {@code fromIndex}, returns {@code -1}.
+     */
+    private static int indexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        int searchStart = Math.max(0, fromIndex);
+        if (searchLength == 0) {
+            return Math.min(searchStart, receiverLength);
+        }
+        int lastStart = receiverLength - searchLength;
+        for (int start = searchStart; start <= lastStart; start++) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
+            }
+            if (offset == searchLength) {
+                return start;
+            }
+            script._pollCancellation();
+        }
+        return -1;
+    }
+
+    /**
+     * Naive backward scan with cancellation polling between candidate starting positions.  Matches the JDK's documented behaviour
+     * for edge cases: a negative {@code fromIndex} returns {@code -1}; empty {@code search} returns {@code min(fromIndex, length)};
+     * if there is no room for the needle anywhere on or before {@code fromIndex}, returns {@code -1}.
+     */
+    private static int lastIndexOfWithPolling(PainlessScript script, String receiver, String search, int fromIndex) {
+        int receiverLength = receiver.length();
+        int searchLength = search.length();
+        if (fromIndex < 0) {
+            return -1;
+        }
+        if (searchLength == 0) {
+            return Math.min(fromIndex, receiverLength);
+        }
+        int searchStart = Math.min(fromIndex, receiverLength - searchLength);
+        if (searchStart < 0) {
+            return -1;
+        }
+        for (int start = searchStart; start >= 0; start--) {
+            int offset = 0;
+            while (offset < searchLength && receiver.charAt(start + offset) == search.charAt(offset)) {
+                offset++;
+            }
+            if (offset == searchLength) {
+                return start;
+            }
+            script._pollCancellation();
+        }
+        return -1;
+    }
+
+    /**
+     * The initial size of the {@link StringBuilder} used for {@link #replaceFirst(CharSequence, int, Pattern, Function)} and
+     * {@link #replaceAll(PainlessScript, CharSequence, int, Pattern, Function)} for a particular sequence. We ape
      * {{@link StringBuilder#StringBuilder(CharSequence)} here and add 16 extra chars to the buffer to have a little room for growth.
      */
     private static int initialBufferForReplaceWith(CharSequence seq) {

@@ -20,5 +20,13 @@ public class LinkerHelperUtil {
         return ALLOW_HEAP_ACCESS;
     }
 
+    /**
+     * Whether downcalls may receive heap {@link java.lang.foreign.MemorySegment}s directly via
+     * {@code Linker.Option.critical(boolean)}. Always true on JDK 22+.
+     */
+    static boolean heapAccessAvailable() {
+        return true;
+    }
+
     private LinkerHelperUtil() {}
 }

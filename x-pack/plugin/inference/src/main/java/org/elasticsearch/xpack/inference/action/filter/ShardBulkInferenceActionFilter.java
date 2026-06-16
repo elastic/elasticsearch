@@ -699,7 +699,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     final List<?> values;
                     try {
                         values = allowObjectValues
-                            ? SemanticTextUtils.nodeObjectValues(field, valueObj, true)
+                            ? SemanticTextUtils.nodeObjectValues(field, valueObj)
                             : SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
                         setInferenceResponseFailure(itemIndex, exc);

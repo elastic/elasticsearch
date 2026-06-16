@@ -162,7 +162,7 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 
-inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
+inWithWarningsRegex
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -334,7 +334,7 @@ FROM logs
 2023-10-23T13:55:01.546Z | java           | More java stuff                     | null
 ;
 
-toIpInAgg#[skip:-8.12.99,reason:StatsNestedExp introduced in v8.13.0]
+toIpInAgg
 ROW s = "1.1.1.1" | STATS COUNT(*) BY ip = TO_IP(s)
 ;
 
@@ -342,7 +342,7 @@ COUNT(*):long | ip:ip
             1 | 1.1.1.1
 ;
 
-toIpInSort#[skip:-8.13.99,reason:SortByExpression introduced in 8.14]
+toIpInSort
 ROW s = "1.1.1.1" | SORT TO_IP(s)
 ;
 

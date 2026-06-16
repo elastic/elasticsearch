@@ -34,8 +34,10 @@ import static java.util.Collections.singletonList;
  * @see UnresolvedExternalRelation external-side counterpart for {@code FROM <dataset>} and inline
  * {@code EXTERNAL}; if you traverse one and care about FROM-style leaves, consider whether you need
  * the other too.
+ * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
+ * FROM-style leaf.
  */
-public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
+public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware, UnresolvedSourceRelation {
 
     private final IndexPattern indexPattern;
     private final boolean frozen;

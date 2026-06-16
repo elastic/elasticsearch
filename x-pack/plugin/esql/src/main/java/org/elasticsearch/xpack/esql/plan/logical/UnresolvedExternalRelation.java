@@ -33,8 +33,10 @@ import static java.util.Collections.singletonList;
  *
  * @see UnresolvedRelation index-side counterpart for {@code FROM <index>}; if you traverse one and
  * care about FROM-style leaves, consider whether you need the other too.
+ * @see UnresolvedSourceRelation marker implemented by both shapes; match on it to traverse any
+ * FROM-style leaf.
  */
-public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable {
+public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable, UnresolvedSourceRelation {
 
     private final Expression tablePath;
     private final Map<String, Object> config;

@@ -41,8 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
@@ -129,9 +128,8 @@ public enum FeatureMetric {
     /**
      * List here plans we want to exclude from telemetry
      */
-    private static final List<Class<? extends LogicalPlan>> excluded = List.of(
-        UnresolvedRelation.class,
-        UnresolvedExternalRelation.class,
+    private static final List<Class<?>> excluded = List.of(
+        UnresolvedSourceRelation.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,

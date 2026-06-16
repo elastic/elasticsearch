@@ -338,7 +338,11 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
                 logger.debug(() -> "acquiring primary permit for shard " + shardId + " for unhollowing");
                 indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(primaryPermit -> {
                     logger.debug(() -> "acquired primary permit for shard " + shardId + " and adding to the ingestion blocker");
-                    ingestionBlocker.listener.addListener(ActionListener.releaseBefore(primaryPermit, listener));
+                    ingestionBlocker.listener.addListener(
+                        ActionListener.releaseBefore(primaryPermit, listener),
+                        executorOnDelay,
+                        threadPool.getThreadContext()
+                    );
                     unhollow(shardId);
                 }, e -> listener.onFailure(e)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }

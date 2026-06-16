@@ -8,12 +8,11 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -36,13 +35,13 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
         super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
 
         private final String dataStreamName;
         private final Collection<Instant> timestamps;
 
-        public Request(TimeValue masterNodeTimeout, String dataStreamName, Collection<Instant> timestamps) {
-            super(masterNodeTimeout);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String dataStreamName, Collection<Instant> timestamps) {
+            super(masterNodeTimeout, ackTimeout);
             this.dataStreamName = dataStreamName;
             this.timestamps = timestamps;
         }
@@ -77,11 +76,6 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
         public IndicesOptions indicesOptions() {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
     }
 
     /**
@@ -89,20 +83,23 @@ public final class PastTimeSeriesIndexCreationAction extends ActionType<PastTime
      * (whether already covered before the call or covered by a newly created backing index). The caller can derive
      * the uncovered set by subtracting these from what was requested.
      */
-    public static class Response extends ActionResponse {
+    public static class Response extends AcknowledgedResponse {
 
         private final Set<Instant> coveredTimestamps;
 
-        public Response(Set<Instant> coveredTimestamps) {
+        public Response(boolean acknowledged, Set<Instant> coveredTimestamps) {
+            super(acknowledged);
             this.coveredTimestamps = coveredTimestamps;
         }
 
         public Response(StreamInput in) throws IOException {
+            super(in);
             this.coveredTimestamps = in.readCollectionAsSet(StreamInput::readInstant);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeCollection(coveredTimestamps, StreamOutput::writeInstant);
         }
 

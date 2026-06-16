@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RerouteBehavior;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
@@ -59,7 +61,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING;
+import static org.elasticsearch.action.admin.indices.create.AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
@@ -101,7 +103,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
         this.projectResolver = projectResolver;
         this.taskQueue = clusterService.createTaskQueue(
             "past-tsdb-index-creation",
-            CREATE_INDEX_PRIORITY_SETTING.get(settings),
+            AUTO_CREATE_INDEX_PRIORITY_SETTING.get(settings),
             new PastTsdbIndexCreationExecutor(clusterService, allocationService, createDataStreamService, systemIndices, projectResolver)
         );
     }
@@ -119,7 +121,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
         if (dataStream == null) {
             // No data stream — nothing can be covered.
-            listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(Set.of()));
+            listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(true, Set.of()));
             return;
         }
 
@@ -134,7 +136,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             }
         }
         if (hasUncovered == false) {
-            listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(alreadyCovered));
+            listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(true, alreadyCovered));
             return;
         }
 
@@ -143,7 +145,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             new PastTsdbIndexCreationTask(
                 request.dataStreamName(),
                 request.timestamps().stream().mapToLong(Instant::toEpochMilli).sorted().toArray(),
-                request.masterNodeTimeout(),
+                request.ackTimeout(),
                 listener
             ),
             request.masterNodeTimeout()
@@ -158,7 +160,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
     record PastTsdbIndexCreationTask(
         String dataStreamName,
         long[] sortedTimestamps,
-        TimeValue timeout,
+        TimeValue ackTimeout,
         ActionListener<PastTimeSeriesIndexCreationAction.Response> listener
     ) implements ClusterStateTaskListener {
 
@@ -199,23 +201,46 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                         coveredTimestamps
                     );
                     stateChanged |= createdIndexNames.isEmpty() == false;
-                    final PastTimeSeriesIndexCreationAction.Response response = new PastTimeSeriesIndexCreationAction.Response(
-                        Set.copyOf(coveredTimestamps)
-                    );
-                    taskContext.success(() -> {
-                        if (createdIndexNames.isEmpty()) {
-                            task.listener().onResponse(response);
-                            return;
+                    taskContext.success(new ClusterStateAckListener() {
+                        @Override
+                        public boolean mustAck(DiscoveryNode discoveryNode) {
+                            return true;
                         }
-                        TimeValue timeout = task.timeout.millis() < 0 ? null : task.timeout;
-                        ActiveShardsObserver.waitForActiveShards(
-                            clusterService,
-                            projectResolver.getProjectId(),
-                            createdIndexNames.toArray(new String[0]),
-                            ActiveShardCount.DEFAULT,
-                            timeout,
-                            multiListener.delay(task.listener()).map(ok -> response)
-                        );
+
+                        @Override
+                        public void onAllNodesAcked() {
+                            if (createdIndexNames.isEmpty()) {
+                                task.listener()
+                                    .onResponse(new PastTimeSeriesIndexCreationAction.Response(true, Set.copyOf(coveredTimestamps)));
+                                return;
+                            }
+                            ActiveShardsObserver.waitForActiveShards(
+                                clusterService,
+                                projectResolver.getProjectId(),
+                                createdIndexNames.toArray(String[]::new),
+                                ActiveShardCount.DEFAULT,
+                                task.ackTimeout(),
+                                multiListener.delay(task.listener())
+                                    .map(ok -> new PastTimeSeriesIndexCreationAction.Response(true, Set.copyOf(coveredTimestamps)))
+                            );
+                        }
+
+                        @Override
+                        public void onAckFailure(Exception e) {
+                            multiListener.delay(task.listener())
+                                .onResponse(new PastTimeSeriesIndexCreationAction.Response(false, Set.copyOf(coveredTimestamps)));
+                        }
+
+                        @Override
+                        public void onAckTimeout() {
+                            multiListener.delay(task.listener())
+                                .onResponse(new PastTimeSeriesIndexCreationAction.Response(false, Set.copyOf(coveredTimestamps)));
+                        }
+
+                        @Override
+                        public TimeValue ackTimeout() {
+                            return task.ackTimeout();
+                        }
                     });
                 } catch (Exception e) {
                     taskContext.onFailure(e);
@@ -250,7 +275,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             ClusterState updatedClusterState = clusterState;
             ensureNoSnapshotInProgress(projectState, dataStreamName);
 
-            ProjectMetadata currentProject = updatedClusterState.metadata().getProject(projectResolver.getProjectId());
+            ProjectMetadata currentProject = projectState.metadata();
             DataStream dataStream = currentProject.dataStreams().get(dataStreamName);
 
             Rounding.Prepared rounding = Rounding.builder(INDEX_DURATION)
@@ -288,7 +313,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                     systemIndices,
                     updatedClusterState,
                     projectResolver.getProjectId(),
-                    RerouteBehavior.PERFORM_REROUTE,
+                    RerouteBehavior.SKIP_REROUTE,
                     rerouteCompletionIsNotRequired(),
                     dataStream,
                     pastIndexName,
@@ -316,7 +341,7 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 assert im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null : "TSDB indices always have start and end time";
                 sortedExistingBackingIndices.add(new IndexBoundaries(im.getTimeSeriesStart(), im.getTimeSeriesEnd()));
             }
-            sortedExistingBackingIndices.sort(Comparator.comparing(IndexBoundaries::start));
+            sortedExistingBackingIndices.sort(Comparator.comparingLong(IndexBoundaries::start));
             Deque<IndexBoundaries> sortedIndexBoundaries = new ArrayDeque<>();
             for (int i = sortedExistingBackingIndices.size() - 1; i >= 0; i--) {
                 sortedIndexBoundaries.push(sortedExistingBackingIndices.get(i));

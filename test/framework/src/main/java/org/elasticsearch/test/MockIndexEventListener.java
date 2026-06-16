@@ -156,11 +156,6 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
-            delegate.beforeIndexShardMutableOperation(indexShard, permitAcquired, listener);
-        }
-
-        @Override
         public void onStoreCreated(ShardId shardId) {
             delegate.onStoreCreated(shardId);
         }

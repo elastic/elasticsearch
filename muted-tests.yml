@@ -635,3 +635,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:approximation.Approximate stats by with zero variance}
   issue: https://github.com/elastic/elasticsearch/issues/151409
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testRelocateHollowShards
+  issue: https://github.com/elastic/elasticsearch/issues/151410

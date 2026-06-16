@@ -44,6 +44,7 @@ dependencies {
   api(project(':modules:aggregations'))
   implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
+  api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
   implementation project(path: ':libs:simdvec')
@@ -55,6 +56,7 @@ dependencies {
   // Dependencies of JMH
   runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
   runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+  testImplementation(project(':test:framework'))
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes

@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -237,6 +238,13 @@ public class SlowCustomBinaryDocValuesRegexpQueryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testToString() {
+        SlowCustomBinaryDocValuesRegexpQuery query = new SlowCustomBinaryDocValuesRegexpQuery("my_field", "foo.*", 0, 0, 1000);
+        // toString must always use the stored field name, not the Lucene context parameter
+        assertThat(query.toString("other_field"), containsString("my_field"));
+        assertThat(query.toString(""), containsString("my_field"));
     }
 
     public void testVisitor() {

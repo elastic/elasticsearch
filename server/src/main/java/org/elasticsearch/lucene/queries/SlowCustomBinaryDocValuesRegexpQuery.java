@@ -88,7 +88,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
     @Override
     public String toString(String field) {
         return "SlowCustomBinaryDocValuesRegexpQuery(fieldName="
-            + field
+            + fieldName
             + ",pattern=/"
             + pattern
             + "/,syntaxFlags="

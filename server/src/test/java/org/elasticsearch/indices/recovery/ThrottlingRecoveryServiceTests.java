@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.test.ESTestCase;
@@ -667,9 +666,30 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var totalTasksEnqueued = new AtomicInteger();
         final var totalTasksFinished = new AtomicInteger();
         final var allFinished = new CountDownLatch(1);
-        final var taskLatch = AbstractRefCounted.of(allFinished::countDown);
+        final var refCounted = AbstractRefCounted.of(allFinished::countDown);
         final int maxTaskCount = 1000;
         final var recoveryState = fakeRecoveryState();
+
+        final var trackingListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                refCounted.decRef();
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                refCounted.decRef();
+            }
+
+            @Override
+            public void onRecoveryAborted() {
+                refCounted.decRef();
+            }
+        };
 
         final int producerThreads = between(3, 6);
         runInParallel(producerThreads, index -> {
@@ -683,7 +703,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             );
                         peakLimit.accumulateAndGet(nextLimit, Integer::max);
                     }
-                    if (totalTasksEnqueued.get() * 0.1 / maxTaskCount > 0.8 && rarely()) {
+                    if (totalTasksEnqueued.get() * 1.0 / maxTaskCount > 0.8 && rarely()) {
                         throttlingRecoveryService.close();
                     }
                 }
@@ -691,17 +711,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     // high contention
                     int burst = between(2, 50);
                     for (int b = 0; b < burst && totalTasksEnqueued.get() < maxTaskCount; b++) {
-                        taskLatch.incRef();
+                        refCounted.incRef();
                         totalTasksEnqueued.incrementAndGet();
                         throttlingRecoveryService.enqueue(
-                            RecoveryListener.NOOP,
+                            trackingListener,
                             recoveryState,
                             schedulingListener -> runStressInboundRecoveryTask(
                                 schedulingListener,
                                 running,
                                 peakRunning,
                                 totalTasksFinished,
-                                taskLatch,
                                 recoveryState,
                                 threadPool.generic()
                             )
@@ -711,17 +730,16 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     // low contention
                     Thread.yield();
                     if (totalTasksEnqueued.get() < maxTaskCount) {
-                        taskLatch.incRef();
+                        refCounted.incRef();
                         totalTasksEnqueued.incrementAndGet();
                         throttlingRecoveryService.enqueue(
-                            RecoveryListener.NOOP,
+                            trackingListener,
                             recoveryState,
                             schedulingListener -> runStressInboundRecoveryTask(
                                 schedulingListener,
                                 running,
                                 peakRunning,
                                 totalTasksFinished,
-                                taskLatch,
                                 recoveryState,
                                 threadPool.generic()
                             )
@@ -733,7 +751,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         });
 
         // taskLatch starts with 1 ref, decremented here
-        taskLatch.decRef();
+        refCounted.decRef();
         safeAwait(allFinished, TimeValue.timeValueSeconds(30));
         assertThat(totalTasksFinished.get(), equalTo(totalTasksEnqueued.get()));
         assertThat(peakRunning.get(), lessThanOrEqualTo(peakLimit.get()));
@@ -745,13 +763,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger running,
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
-        RefCounted refCounted,
         RecoveryState recoveryState,
         Executor executor
     ) {
-        executor.execute(
-            () -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, refCounted, recoveryState)
-        );
+        executor.execute(() -> doRunStressInboundRecoveryTask(schedulingListener, running, peakRunning, totalTasksFinished, recoveryState));
     }
 
     private static void doRunStressInboundRecoveryTask(
@@ -759,7 +774,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         AtomicInteger running,
         AtomicInteger peakRunning,
         AtomicInteger totalTasksFinished,
-        RefCounted refCounted,
         RecoveryState recoveryState
     ) {
         peakRunning.accumulateAndGet(running.incrementAndGet(), Integer::max);
@@ -783,8 +797,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError(e);
-        } finally {
-            refCounted.decRef();
         }
     }
 

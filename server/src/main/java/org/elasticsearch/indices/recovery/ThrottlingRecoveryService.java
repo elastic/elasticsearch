@@ -9,9 +9,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -45,7 +47,7 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     private final Executor executor;
 
-    private int maxConcurrentRecoveries = 0;
+    private int maxConcurrentRecoveries;
     private int runningRecoveries = 0;
     private final Deque<PendingRecovery> pendingRecoveries = new ArrayDeque<>();
 
@@ -59,34 +61,36 @@ public final class ThrottlingRecoveryService implements Closeable {
 
     /// Enqueues a recovery task and/or dispatches it to the executor if there are any available slots.
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
-        final boolean abortRecovery;
+        final PendingRecovery pendingRecovery;
         synchronized (this) {
-            abortRecovery = closed;
-            if (abortRecovery == false) {
-                pendingRecoveries.add(new PendingRecovery(recoveryState, task, recoveryListener));
+            if (closed == false) {
+                pendingRecovery = new PendingRecovery(recoveryState, task, recoveryListener);
+                pendingRecoveries.add(pendingRecovery);
+            } else {
+                pendingRecovery = null;
             }
         }
-        if (abortRecovery) {
-            logger.debug(
-                "service is closed, aborting recovery: recoverySource: [{}], shardId: [{}]",
-                recoveryState.getRecoverySource(),
-                recoveryState.getShardId()
-            );
+        final RecoverySource source = recoveryState.getRecoverySource();
+        final ShardId shardId = recoveryState.getShardId();
+        if (pendingRecovery == null) {
+            logger.debug("service is closed, aborting recovery: recoverySource [{}], shardId [{}]", source, shardId);
             recoveryListener.onRecoveryAborted();
             return;
         }
-        logger.trace(
-            "enqueued recovery: recoverySource: [{}], shardId: [{}]",
-            recoveryState.getRecoverySource(),
-            recoveryState.getShardId()
-        );
+        logger.trace("enqueued recovery: recoverySource [{}], shardId [{}]", source, shardId);
         fillSlots();
+    }
+
+    // visible for testing
+    synchronized int currentQueueSize() {
+        return pendingRecoveries.size();
     }
 
     @Override
     public void close() {
         final List<PendingRecovery> recoveriesToAbort;
         synchronized (this) {
+            // idempotent
             if (closed) {
                 return;
             }
@@ -95,10 +99,11 @@ public final class ThrottlingRecoveryService implements Closeable {
             pendingRecoveries.clear();
         }
         for (PendingRecovery pending : recoveriesToAbort) {
+            final RecoveryState state = pending.recoveryState;
             logger.trace(
-                "closing service and aborting recovery: recoverySource: [{}], shardId: [{}]",
-                pending.recoveryState.getRecoverySource(),
-                pending.recoveryState.getShardId()
+                "service closing, aborting recovery: recoverySource [{}], shardId [{}]",
+                state.getRecoverySource(),
+                state.getShardId()
             );
             pending.listener.onRecoveryAborted();
         }
@@ -110,7 +115,7 @@ public final class ThrottlingRecoveryService implements Closeable {
     }
 
     /// Drains the pending queue up to the max slot capacity
-    void fillSlots() {
+    private void fillSlots() {
         List<PendingRecovery> recoveriesToDispatch = new ArrayList<>();
         synchronized (this) {
             if (closed) {
@@ -122,33 +127,24 @@ public final class ThrottlingRecoveryService implements Closeable {
             }
         }
         for (PendingRecovery recovery : recoveriesToDispatch) {
-            logger.trace(
-                "dispatch recovery: recoverySource: [{}], shardId: [{}]",
-                recovery.recoveryState.getRecoverySource(),
-                recovery.recoveryState.getShardId()
-            );
-            executor.execute(new RecoveryRunnable(recovery, () -> {
-                logger.trace(
-                    "close recovery: recoverySource: [{}], shardId: [{}]",
-                    recovery.recoveryState.getRecoverySource(),
-                    recovery.recoveryState.getShardId()
-                );
-                releaseSlot();
-            }));
+            final RecoveryState state = recovery.recoveryState;
+            executor.execute(new RecoveryRunnable(recovery, () -> releaseSlot(state)));
+            logger.trace("dispatched recovery: recoverySource [{}], shardId [{}]", state.getRecoverySource(), state.getShardId());
         }
     }
 
-    private void releaseSlot() {
+    private void releaseSlot(RecoveryState state) {
         int currentRunning;
         synchronized (this) {
             runningRecoveries--;
             currentRunning = runningRecoveries;
         }
         assert currentRunning >= 0 : "negative number of running recoveries " + currentRunning;
+        logger.trace("recovery slot released: recoverySource: [{}], shardId: [{}]", state.getRecoverySource(), state.getShardId());
         fillSlots();
     }
 
-    private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
+    private void setMaxConcurrentRecoveries(int newMaxConcurrentRecoveries) {
         final int previousLimit;
         synchronized (this) {
             previousLimit = this.maxConcurrentRecoveries;
@@ -157,11 +153,6 @@ public final class ThrottlingRecoveryService implements Closeable {
         if (previousLimit < newMaxConcurrentRecoveries) {
             fillSlots();
         }
-    }
-
-    // visible for testing
-    synchronized int currentQueueSize() {
-        return pendingRecoveries.size();
     }
 
     private record PendingRecovery(RecoveryState recoveryState, Consumer<RecoveryListener> task, RecoveryListener listener) {}

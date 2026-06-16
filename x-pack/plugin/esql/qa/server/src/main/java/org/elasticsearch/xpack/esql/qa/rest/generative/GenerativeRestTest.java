@@ -921,13 +921,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b).*",
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|DEDUP|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b|"
+            + "\\(\\s*FROM\\b[^\\n]*,).*",
         Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.) or when full-text functions/operators
+     * pipeline-breaking command ({@code LIMIT}, {@code DEDUP}, {@code INLINE STATS}, etc.) or when full-text functions/operators
      * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a
      * parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
@@ -1123,7 +1124,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");
-
     private static final Pattern OPTIMIZED_INCORRECTLY_AGGREGATE_PATTERN = Pattern.compile(
         ".*Plan \\[Aggregate\\[.*optimized incorrectly due to missing references.*\\$\\$.*\\$converted_to\\$.*",
         Pattern.DOTALL

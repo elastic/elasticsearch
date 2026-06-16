@@ -34,6 +34,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             99990,
             8000,
             222,
+            4096,
             Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC)
         );
     }
@@ -58,6 +59,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
               "slice_max" : 99990,
               "current" : 8000,
               "rows_emitted" : 222,
+              "bytes_read" : 4096,
               "partitioning_strategies" : {
                 "a:1" : "DOC",
                 "b:0" : "SHARD"
@@ -87,6 +89,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomPartitioningStrategies()
         );
@@ -135,8 +138,9 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         int sliceMax = instance.sliceMax();
         int current = instance.current();
         long rowsEmitted = instance.rowsEmitted();
+        long bytesRead = instance.bytesRead();
         Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies = instance.partitioningStrategies();
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
             case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
@@ -152,6 +156,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 partitioningStrategies,
                 LuceneSourceOperatorStatusTests::randomPartitioningStrategies
             );
+            case 12 -> bytesRead = randomValueOtherThan(bytesRead, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
         return new LuceneSourceOperator.Status(
@@ -166,6 +171,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             sliceMax,
             current,
             rowsEmitted,
+            bytesRead,
             partitioningStrategies
         );
     }

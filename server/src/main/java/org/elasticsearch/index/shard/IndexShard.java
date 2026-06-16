@@ -74,6 +74,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -226,6 +227,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final String checkIndexOnStartup;
     private final CodecService codecService;
     private final Engine.Warmer warmer;
+    private final MutableOperationGate mutableOperationGate;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
     private final IndexEventListener indexEventListener;
@@ -352,6 +354,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
+        final MutableOperationGate mutableOperationGate,
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
@@ -368,6 +371,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPoolMergeExecutorService == null ? null : threadPool
         );
         this.warmer = warmer;
+        this.mutableOperationGate = mutableOperationGate;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -1135,29 +1139,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
      * signaling the caller to fall back to the item-by-item path.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(List<Engine.Index> operations, EirfBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations);
+        return indexBatch(engine, operations, batch);
     }
 
     /**
      * Applies a batch of index operations on a replica.
      */
-    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations) throws IOException {
+    public List<Engine.IndexResult> applyIndexOperationBatchOnReplica(List<Engine.Index> operations, EirfBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.REPLICA);
         final Engine engine = getEngine();
-        return indexBatch(engine, operations);
+        return indexBatch(engine, operations, batch);
     }
 
-    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations) throws IOException {
+    private List<Engine.IndexResult> indexBatch(Engine engine, List<Engine.Index> operations, EirfBatch batch) throws IOException {
         List<Engine.Index> preIndexOps = new ArrayList<>(operations.size());
         // TODO: Right now the only production users are stats. Should add batch listener.
         for (Engine.Index op : operations) {
             preIndexOps.add(indexingOperationListeners.preIndex(shardId, op));
         }
         try {
-            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps);
+            List<Engine.IndexResult> results = engine.indexBatch(preIndexOps, batch);
             // TODO: Look at if these can be batch optimized
             for (int i = 0; i < results.size(); i++) {
                 indexingOperationListeners.postIndex(shardId, preIndexOps.get(i), results.get(i));
@@ -5009,7 +5013,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener the listener to be notified when the shard is mutable
      */
     public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired) {
-        indexEventListener.beforeIndexShardMutableOperation(this, permitAcquired, listener);
+        if (mutableOperationGate == null) {
+            listener.onResponse(null);
+        } else {
+            mutableOperationGate.beforeMutableOperation(this, permitAcquired, listener);
+        }
     }
 
     // package-private for tests

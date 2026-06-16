@@ -14,6 +14,8 @@ import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,6 +23,7 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 
+@ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportTracerSupplierTests extends ESTestCase {
 
     public void testConstructorWithoutEndpointThrows() {
@@ -64,6 +67,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.getKey(), "http://127.0.0.1:9/v1/traces")
             .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.getKey(), "1ms")
+            .put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_SAMPLE_RATE.getKey(), 1.0)
             .build();
         try (var supplier = new OtelSdkExportTracerSupplier(settings, () -> meterProvider)) {
             // Start and end a span so BatchSpanProcessor registers its queue metrics.

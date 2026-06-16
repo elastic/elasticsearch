@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -1580,6 +1581,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFlattenedSorting() {
+        assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
@@ -1813,16 +1815,17 @@ public class VerifierTests extends ESTestCase {
 
     public void testTimeseriesAggregate() {
         tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+            1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside aggregation function [max(avg(rate(network.bytes_in)))];\
+            only time-series aggregation function can be used inside another aggregation function"""));
 
-        tsdb().error("TS test  | STATS max(avg(rate(network.bytes_in)))", equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] \
-            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
-            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
-            inside over-time aggregation function [rate(network.bytes_in)]"""));
+        tsdb().error("TS test  | STATS max(avg_over_time(rate(network.bytes_in)))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
+
+        tsdb().error("TS test  | STATS avg_over_time(rate(network.bytes_in))", equalTo("""
+            1:12: cannot use aggregate function [rate(network.bytes_in)] \
+            inside over-time aggregation function [avg_over_time(rate(network.bytes_in))]"""));
 
         tsdb().error(
             "TS test  | STATS COUNT(*)",
@@ -1832,9 +1835,18 @@ public class VerifierTests extends ESTestCase {
         tsdb().error(
             "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
             equalTo(
-                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")]" + " can't be used with TS command"
+                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")] can't be used with TS command\n"
+                    + "line 1:12: cannot use aggregate function [COUNT(*)] inside aggregation function "
+                    + "[SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")];"
+                    + "only time-series aggregation function can be used inside another aggregation function"
             )
         );
+
+        // should not throw
+        tsdb().addK8s().query("""
+            TS k8s
+            | STATS `event_shape` = count_distinct(network.eth0.currently_connected_clients)
+            BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
     }
 
     public void testSparklineRejectsMultiValuedAggs() {
@@ -2601,8 +2613,8 @@ public class VerifierTests extends ESTestCase {
             "row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")",
             equalTo(
                 "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, flattened, geo_point, "
-                    + "geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
+                    + "[boolean, cartesian_point, cartesian_shape, date_nanos, date_range, datetime, dense_vector, double, flattened, "
+                    + "geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, "
                     + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]"
             )
         );
@@ -3708,7 +3720,10 @@ public class VerifierTests extends ESTestCase {
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in",
-            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+            equalTo(
+                "1:84: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
         );
         tsdb().error(
             "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)",
@@ -4326,7 +4341,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMetricsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | METRICS_INFO", containsString("METRICS_INFO cannot be used after STATS command"));
     }
 
     public void testMetricsInfoCannotBeUsedAfterLimit() {
@@ -4346,7 +4361,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTsInfoCannotBeUsedAfterStats() {
-        k8s().error("TS k8s | STATS c = count(*) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
+        k8s().error("TS k8s | STATS c = count(1) | TS_INFO", containsString("TS_INFO cannot be used after STATS command"));
     }
 
     public void testTsInfoCannotBeUsedAfterLimit() {
@@ -4514,7 +4529,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer tsdb() {
-        return analyzer().addIndex("test", "tsdb-mapping.json").stripErrorPrefix(true);
+        return analyzer().addIndex("test", "tsdb-mapping.json")
+            .stripErrorPrefix(true)
+            .minimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION);
     }
 
     private static TestAnalyzer k8s() {

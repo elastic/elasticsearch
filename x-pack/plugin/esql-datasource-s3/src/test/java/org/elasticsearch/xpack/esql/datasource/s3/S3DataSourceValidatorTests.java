@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
@@ -31,12 +33,12 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
 
     @Override
     protected Map<String, Object> sampleConfigWithAllSecrets() {
-        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "region", "us-east-1");
+        return Map.of("access_key", "AKIA_sample", "secret_key", "wJal_sample", "session_token", "FwoG_sample", "region", "us-east-1");
     }
 
     @Override
     protected Set<String> expectedSecretFieldNames() {
-        return Set.of("access_key", "secret_key");
+        return Set.of("access_key", "secret_key", "session_token");
     }
 
     @Override
@@ -110,6 +112,50 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsWorkloadIdentityWhenDisabled() {
+        // default validator has workload identity disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.workload_identity.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsWorkloadIdentityWhenEnabled() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
+        var result = workloadIdentityValidator.validateDatasource(Map.of("auth", "workload_identity", "region", "us-east-1"));
+        assertEquals("workload_identity", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceWorkloadIdentityConflictWithCredentials() {
+        var workloadIdentityValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"))
+            .withWorkloadIdentityEnabled(() -> true);
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> workloadIdentityValidator.validateDatasource(
+                Map.of("auth", "workload_identity", "access_key", "AKIA123", "secret_key", "secret")
+            )
+        );
+    }
+
+    public void testValidateDatasourceWithSessionToken() {
+        var result = validator.validateDatasource(
+            Map.of("access_key", "AKIA123", "secret_key", "secret", "session_token", "FwoGZXIvYXdz", "region", "us-east-1")
+        );
+        assertTrue(result.get("session_token").secret());
+        assertEquals("FwoGZXIvYXdz", result.get("session_token").rawValue());
+        assertTrue(result.get("access_key").secret());
+    }
+
+    public void testValidateDatasourceSessionTokenConflictsWithAuthNone() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "none", "session_token", "FwoGZXIvYXdz"))
         );
     }
 

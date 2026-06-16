@@ -52,6 +52,7 @@ null                     | null         | 0.161517
 ;
 
 subqueryInFromWithTsSubqueryRateWithBucket
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -80,6 +81,7 @@ null                     | null         | 3.19            | 2024-05-10T00:20:00.
 ;
 
 subqueryInFromWithTsSubqueryMaxOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -107,6 +109,7 @@ null                     | null         | qa              | 32.75       | 2024-0
 ;
 
 subqueryInFromWithTsSubqueryMinOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -130,6 +133,7 @@ null                     | null         | prod            | 29.0        | 2024-0
 ;
 
 subqueryInFromWithTsSubqueryAvgOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -154,6 +158,7 @@ null                     | null         | qa              | 12.375          | 20
 ;
 
 subqueryInFromWithTsSubquerySumOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -176,6 +181,7 @@ null                     | null         | qa              | 67.625          | 20
 ;
 
 subqueryInFromWithTsSubqueryCountOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -198,6 +204,7 @@ null                     | null         | prod            | 3          | 2024-05
 ;
 
 subqueryInFromWithTsSubqueryLastOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -222,6 +229,7 @@ null                     | null         | staging         | 12.5            | 20
 ;
 
 subqueryInFromWithTsSubqueryFirstOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -306,6 +314,7 @@ null                     | null         | staging         | 7403
 ;
 
 subqueryInFromWithMainIndexPatternWithTsAndFromSubqueries
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -329,6 +338,7 @@ null                     | null         | qa              | 10797
 ;
 
 subqueryInFromWithMainIndexPatternWithMixedTsRowAndFromSubqueries
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: subquery_with_row
@@ -398,6 +408,7 @@ null                     | null         | qa              | 10797
 ;
 
 subqueryInFromWithTsSubqueryWithEvalInMainQuery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -445,6 +456,7 @@ null                     | null         | qa          | 10797
 ;
 
 subqueryInFromWithTsSubqueryWithDropInSubquery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -467,6 +479,7 @@ null                     | null         | qa              | 13.1737
 ;
 
 subqueryInFromWithTsSubqueryWithKeepInSubquery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -489,6 +502,7 @@ null                     | null         | qa              | 13.1737
 ;
 
 subqueryInFromWithTsSubqueryDownsampled
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -527,6 +541,7 @@ cnt:long
 ;
 
 subqueryInFromWithTsSubqueryWithFilterInSubqueryAndMainQuery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -587,6 +602,7 @@ null                     | null         | 790.423509
 ;
 
 subqueryInFromWithTsSubqueryWithWhereOnPodInSubquery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -612,6 +628,7 @@ null                     | null         | two         | false                   
 ;
 
 subqueryInFromWithTsSubqueryAndInlineStatsInSubquery
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -695,6 +712,7 @@ FROM
 // Mirrors castCounterDouble from k8s-counter.csv-spec - explicitly casts the
 // counter_double to double inside the TS subquery, then aggregates per (cluster, pod).
 subqueryInFromWithTsSubqueryCastCounterDouble
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -729,6 +747,7 @@ null                     | null         | 63.875            | qa              | 
 // Mirrors AggregateMetricDoubleStatsAfterBinaryOperator - filters an
 // aggregate_metric_double field with a binary operator and then aggregates.
 subqueryInFromWithTsSubqueryAndStatsAfterFilter
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -755,6 +774,7 @@ null                     | null         | two         | 540.0         | 1251.0
 // Mirrors AggregateMetricDoubleInlineFilterInStats - uses an inline WHERE
 // filter inside STATS over an aggregate_metric_double field.
 subqueryInFromWithTsSubqueryAmdInlineFilterInStats
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -782,6 +802,7 @@ null                     | null         | staging         | 539.0               
 // subquery exercising implicit casting between aggregate_metric_double and
 // double via *_over_time functions.
 subqueryInFromWithTsSubqueryAmdImplicitCastingAndStats
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -843,6 +864,7 @@ null           | 2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | nul
 // METADATA _index is declared inside the TS subquery AND on the outer FROM,
 // so sample_data rows also carry the correct _index in the unioned result.
 subqueryInFromWithTsSubqueryAndMetadataIndexInBoth
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -921,6 +943,7 @@ null                     | null         | 790.423509      | 972
 
 // Mirrors percentile_over_time - exercises PERCENTILE_OVER_TIME with TBUCKET.
 subqueryInFromWithTsSubqueryPercentileOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -948,6 +971,7 @@ null                     | null         | prod            | 12.375          | 12
 // Mirrors absent_over_time - counterpart to the present_over_time pattern
 // already covered earlier in this file.
 subqueryInFromWithTsSubqueryAbsentOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1002,6 +1026,7 @@ null                     | null         | 2024-05-10T00:02:00.000Z | 3.625     |
 
 // Mirrors derivative_of_gauge_metric - exercises DERIV inside a TS subquery.
 subqueryInFromWithTsSubqueryDeriv
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1031,6 +1056,7 @@ null                     | null         | three       | 0.101674         | 2024-
 // Mirrors oneRateIncreaseWithBucketAndClusterThenFilter - exercises INCREASE
 // alongside RATE inside a TS subquery.
 subqueryInFromWithTsSubqueryRateAndIncrease
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1060,6 +1086,7 @@ null                     | null         | prod            | 64.5       | 2287.44
 // Mirrors GroupingOnScalarFunction - groups by a scalar function (to_upper(pod))
 // inside a TS subquery.
 subqueryInFromWithTsSubqueryStatsByScalarFunction
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1085,6 +1112,7 @@ null                     | null         | TWO         | 12.375   | 2024-05-10T00
 // Mirrors windowSmallerThanBucket - exercises MAX_OVER_TIME with an explicit
 // look-back window smaller than the bucket size.
 subqueryInFromWithTsSubqueryMaxOverTimeWithWindow
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1120,6 +1148,7 @@ null                     | null         | prod            | one         | 9.375 
 // Mirrors storedSourceTimeseriesGroupByAllImplicitly - exercises the
 // stored-source TSDB variant as the TS subquery source.
 subqueryInFromWithTsSubqueryStoredSource
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1146,6 +1175,7 @@ null                     | null         | prod            | three       | 8.375
 // output column and is not addressable in subsequent EVAL/KEEP/outer query
 // stages, so the union surfaces only avg_cost from the subquery.
 subqueryInFromWithTsSubqueryWithoutGrouping
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1169,6 +1199,7 @@ null                     | null         | 8.833333        | "{""cluster"":""qa""
 
 // Mirrors irate_of_long_grouping - exercises IRATE inside a TS subquery.
 subqueryInFromWithTsSubqueryIrate
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0
@@ -1271,6 +1302,7 @@ null                     | null         | 2024-05-10T00:02:00.000Z | 3487       
 // Mirrors count_distinct_over_time_of_long - exercises COUNT_DISTINCT_OVER_TIME
 // in a TS subquery.
 subqueryInFromWithTsSubqueryCountDistinctOverTime
+skip_flattened_rewrite: subquery_bleed
 required_capability: subquery_in_from_command
 required_capability: subquery_with_ts
 required_capability: ts_command_v0

@@ -56,6 +56,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFieldType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDFunction;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxAllocationBytes;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDMaxLoopCounter;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDModifiers;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
@@ -145,6 +146,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
             attachLoopProtection(irFunctionNode, scriptScope);
+            // Carry the per-context allocation limit on the execute entry so its prologue can reset $allocBytes; the value
+            // is -1 when tracking is disabled, in which case no counter bytecode is emitted.
+            irFunctionNode.attachDecoration(new IRDMaxAllocationBytes(scriptScope.getCompilerSettings().getMaxAllocationBytes()));
 
             injectStaticFieldsAndGetters();
             injectGetsDeclarations(irBlockNode, scriptScope);
@@ -416,10 +420,6 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
             irThrowNode.setExpressionNode(irLoadVariableNode);
 
-            // Cancellation signals must propagate unwrapped so QueryPhase / the surrounding caller
-            // can convert them to the appropriate response (timed_out flag, task-cancelled status).
-            // Wrapping them in ScriptException would surface them to clients as runtime errors
-            // instead.
             for (Class<? extends Throwable> rethrow : List.of(
                 ContextIndexSearcher.TimeExceededException.class,
                 TaskCancelledException.class

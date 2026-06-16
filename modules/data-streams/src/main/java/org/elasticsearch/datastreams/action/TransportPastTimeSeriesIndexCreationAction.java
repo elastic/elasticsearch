@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.PastTimeSeriesIndexCreationAction;
@@ -121,7 +122,15 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
 
         if (dataStream == null) {
             // No data stream — nothing can be covered.
-            listener.onResponse(new PastTimeSeriesIndexCreationAction.Response(true, Set.of()));
+            listener.onFailure(new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found"));
+            return;
+        }
+
+        // Checking here is sufficient because a data stream cannot be converted from leader to follower, only the other way around.
+        if (dataStream.isReplicated()) {
+            listener.onFailure(
+                new ElasticsearchException("Cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]")
+            );
             return;
         }
 
@@ -269,14 +278,15 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
             long[] timestamps = task.sortedTimestamps();
 
             ProjectState projectState = clusterState.projectState(projectResolver.getProjectId());
-            if (projectState.metadata().dataStreams().containsKey(dataStreamName) == false) {
-                throw new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found");
-            }
-            ClusterState updatedClusterState = clusterState;
-            ensureNoSnapshotInProgress(projectState, dataStreamName);
-
             ProjectMetadata currentProject = projectState.metadata();
             DataStream dataStream = currentProject.dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                throw new ResourceNotFoundException("Data stream [" + dataStreamName + "] not found");
+            }
+            assert dataStream.isReplicated() == false
+                : "cannot create past TSDB backing index for replicated data stream [" + dataStreamName + "]";
+            ClusterState updatedClusterState = clusterState;
+            ensureNoSnapshotInProgress(projectState, dataStreamName);
 
             Rounding.Prepared rounding = Rounding.builder(INDEX_DURATION)
                 .timeZone(ZoneOffset.UTC)

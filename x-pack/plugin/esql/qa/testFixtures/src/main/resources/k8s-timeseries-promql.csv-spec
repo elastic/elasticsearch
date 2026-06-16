@@ -631,6 +631,16 @@ result:double | step:datetime
 972.0         | 2024-05-10T01:00:00.000Z
 ;
 
+max_across_series_matches_quantile_phi_one
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(max(max by (cluster) (network.bytes_in)));
+
+result:double | step:datetime
+972.0         | 2024-05-10T01:00:00.000Z
+;
+
 // PromQL φ is in [0, 1], so quantile_over_time(1.0, ...) must equal max_over_time over the range.
 // Therefore sum(quantile_over_time(1.0, network.cost[1m])) must match sum(max_over_time(network.cost[1m]))
 // (see max_over_time_of_double_no_grouping_promql_expanded in k8s-timeseries-max-over-time.csv-spec).
@@ -640,6 +650,19 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_promql_quantile_scale
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(quantile_over_time(1.0, network.cost[1m])))
+| SORT step;
+
+cost:double | step:datetime
+33.25       | 2024-05-10T00:08:00.000Z
+50.125      | 2024-05-10T00:09:00.000Z
+83.125      | 2024-05-10T00:10:00.000Z
+;
+
+max_over_time_matches_quantile_over_time_phi_one
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(max_over_time(network.cost[1m])))
 | SORT step;
 
 cost:double | step:datetime

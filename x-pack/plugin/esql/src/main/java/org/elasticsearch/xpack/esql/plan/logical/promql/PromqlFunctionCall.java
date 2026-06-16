@@ -32,7 +32,7 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate, HistogramQuantile,
     ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 

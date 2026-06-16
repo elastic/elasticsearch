@@ -626,3 +626,6 @@ tests:
 - class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
   method: testSnapshotCreatedInOldVersionCanBeDeletedInNew
   issue: https://github.com/elastic/elasticsearch/issues/151389
+- class: org.elasticsearch.upgrades.MultiVersionRepositoryAccessIT
+  method: testReadOnlyRepo
+  issue: https://github.com/elastic/elasticsearch/issues/151390

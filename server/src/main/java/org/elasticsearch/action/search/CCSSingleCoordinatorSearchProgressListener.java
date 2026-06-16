@@ -58,7 +58,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         this.clusters = clusters;
         this.timeProvider = timeProvider;
         this.fetchPhaseExpected = fetchPhase;
-        this.clusterAliasByShardIndex.clear();
 
         // Partition by clusterAlias and get counts
         // the 'shards' list does not include the shards in the 'skipped' list, so combine counts from both to get total
@@ -68,13 +67,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
 
-            // Skip clusters that are not in participatingProjects. This can happen when reconcileProjects
-            // excludes a cluster (e.g. the alias resolves to no indices, or all shards were can-match'd
-            // away remotely), yet the cluster still appears in skippedByClusterAlias because
-            // numSkippedShards is populated from all SearchShardsResponse entries before reconciliation.
-            // Without this guard, swapCluster would call the remapping function with v=null and throw NPE,
-            // silently aborting the loop and leaving all remaining clusters stuck in RUNNING state.
+            // Skip aliases that are not present in the clusters map.
+            // This can occur if stale skipped-shard accounting is received for a cluster that
+            // does not participate in this search response.
             if (clusters.getCluster(clusterAlias) == null) {
+                assert false : "cluster alias [" + clusterAlias + "] not present in clusters map";
                 continue;
             }
             clusters.swapCluster(clusterAlias, (k, v) -> {
@@ -119,15 +116,14 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
      */
     @Override
     public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
-        rememberClusterAliasForShardIndex(shardIndex, queryResult.getSearchShardTarget());
+        SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
+        rememberClusterAliasForShardIndex(shardIndex, shardTarget);
         // we only need to update Cluster state here if the search has timed out, since:
         // 1) this is the only callback that gets search timedOut info and
         // 2) the onFinalReduce will get all these shards again so the final accounting can be done there
         // for queries that did not time out
         if (queryResult.searchTimedOut() && clusters.hasClusterObjects()) {
-            SearchShardTarget shardTarget = queryResult.getSearchShardTarget();
             String clusterAlias = clusterAliasOrLocal(shardTarget);
-
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 if (v.isTimedOut()) {
                     return v; // cluster has already been marked as timed out on some other shard
@@ -154,7 +150,6 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         }
         rememberClusterAliasForShardIndex(shardIndex, shardTarget);
         String clusterAlias = clusterAliasOrLocal(shardTarget);
-
         clusters.swapCluster(clusterAlias, (k, v) -> {
             TimeValue took;
             SearchResponse.Cluster.Status status;
@@ -342,15 +337,11 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
     }
 
     private void rememberClusterAliasForShardIndex(int shardIndex, SearchShardTarget shardTarget) {
-        if (shardTarget != null) {
-            clusterAliasByShardIndex.put(shardIndex, clusterAliasOrLocal(shardTarget));
-        }
+        clusterAliasByShardIndex.put(shardIndex, clusterAliasOrLocal(shardTarget));
     }
 
     private static String clusterAliasOrLocal(SearchShardTarget shardTarget) {
-        if (shardTarget == null) {
-            return null;
-        }
+        assert shardTarget != null : "shardTarget must not be null";
         return Objects.requireNonNullElse(shardTarget.getClusterAlias(), RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
     }
 

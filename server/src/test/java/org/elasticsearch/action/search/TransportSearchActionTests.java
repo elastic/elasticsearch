@@ -105,6 +105,7 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterConnectionTests;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteClusterServiceTests;
@@ -2310,6 +2311,15 @@ public class TransportSearchActionTests extends ESTestCase {
         );
 
         Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
         clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
         clusterMap.put("project-b", new SearchResponse.Cluster("project-b", indexExpr, false, null));
         SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
@@ -2320,73 +2330,87 @@ public class TransportSearchActionTests extends ESTestCase {
             indexExpr,
             new HashSet<>(Set.of("my-index")),
             ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            // Both linked projects are referenced by the original expression; project-b is later
+            // pruned because its SearchShards response has no groups.
             Set.of("project-a:" + indexExpr, "project-b:" + indexExpr)
         );
         ResolvedIndexExpressions originExpressions = builder.build();
 
         SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
 
-        assertThat(result.getClusterAliases(), containsInAnyOrder("project-a"));
+        assertThat(result.getClusterAliases(), containsInAnyOrder(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "project-a"));
         assertFalse("project-b must be excluded because it returned empty groups", result.getClusterAliases().contains("project-b"));
     }
 
-    /**
-     * Reproduces the root-cause scenario for the {@code _cluster/details} stuck-in-RUNNING bug:
-     * after {@link TransportSearchAction#reconcileProjects} excludes a cluster that returned an
-     * empty {@link SearchShardsResponse}, the {@code numSkippedShards} map still contains an entry
-     * for that cluster. This test verifies that calling
-     * {@code numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases())} (the
-     * fix applied in {@code TransportSearchAction}) removes the stale entry so that
-     * {@code skippedByClusterAlias} passed to the search phase is consistent with the clusters
-     * that are actually in {@code participatingProjects}.
-     */
-    public void testNumSkippedShardsIsPrunedToMatchParticipatingProjects() {
-        String indexExpr = "my-alias";
-        SearchShardsGroup group = new SearchShardsGroup(
-            new ShardId("my-index", "my-index-uuid", 0),
-            List.of("node1"),
-            false,
-            SplitShardCountSummary.UNSET
-        );
-        // project-b has no groups: reconcileProjects will exclude it
-        Map<String, SearchShardsResponse> shardResponses = Map.of(
-            "project-a",
-            new SearchShardsResponse(List.of(group), 2, List.of(), Map.of()),
-            "project-b",
-            new SearchShardsResponse(List.of(), 0, List.of(), Map.of())
-        );
+    public void testReconcileProjectsReturnsEmptyWhenOnlyOriginRemains() {
+        String indexExpr = "my-local-alias";
+        Map<String, SearchShardsResponse> shardResponses = Map.of("project-a", new SearchShardsResponse(List.of(), 0, List.of(), Map.of()));
 
         Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            new SearchResponse.Cluster(
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                indexExpr,
+                false,
+                SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
+            )
+        );
         clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
-        clusterMap.put("project-b", new SearchResponse.Cluster("project-b", indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-local-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            Set.of()
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+        assertSame(SearchResponse.Clusters.EMPTY, result);
+    }
+
+    public void testReconcileProjectsRetainsFailureOnlyProject() {
+        String indexExpr = "my-alias";
+        Map<String, SearchShardsResponse> shardResponses = Map.of("project-a", new SearchShardsResponse(List.of(), 0, List.of(), Map.of()));
+
+        SearchShardTarget shardTarget = new SearchShardTarget("node-1", new ShardId("my-index", "uuid", 0), "project-a");
+        ShardSearchFailure failure = new ShardSearchFailure(new IllegalStateException("simulated"), shardTarget);
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(
+            "project-a",
+            new SearchResponse.Cluster(
+                "project-a",
+                indexExpr,
+                false,
+                SearchResponse.Cluster.Status.RUNNING,
+                null,
+                null,
+                null,
+                null,
+                List.of(failure),
+                null,
+                false,
+                null
+            )
+        );
         SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
 
         ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
         builder.addExpressions(
             indexExpr,
             new HashSet<>(Set.of("my-index")),
-            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
-            Set.of("project-a:" + indexExpr, "project-b:" + indexExpr)
+            ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
+            Set.of()
         );
         ResolvedIndexExpressions originExpressions = builder.build();
 
-        SearchResponse.Clusters participatingProjects = TransportSearchAction.reconcileProjects(
-            originExpressions,
-            shardResponses,
-            projects
-        );
-
-        // Simulate what TransportSearchAction does after reconcileProjects: build numSkippedShards
-        // from all responses, then prune to match participatingProjects.
-        Map<String, Integer> numSkippedShards = new HashMap<>();
-        shardResponses.forEach((clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards()));
-        assertThat("both clusters present before pruning", numSkippedShards.keySet(), containsInAnyOrder("project-a", "project-b"));
-
-        numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
-
-        assertThat("only participating cluster remains after pruning", numSkippedShards.keySet(), containsInAnyOrder("project-a"));
-        assertFalse("stale project-b entry must be removed", numSkippedShards.containsKey("project-b"));
-        assertThat(numSkippedShards.get("project-a"), equalTo(2));
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+        assertThat(result.getClusterAliases(), containsInAnyOrder("project-a"));
+        assertThat(result.getCluster("project-a").getFailures(), hasSize(1));
     }
 
     public void testIgnoreIndicesWithIndexRefreshBlock() {

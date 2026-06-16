@@ -24,28 +24,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Unit tests for {@link CCSSingleCoordinatorSearchProgressListener}, in particular for the
- * {@code minimize_roundtrips=false} path where {@code _cluster/details} is updated progressively.
- */
 public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase {
 
-    /**
-     * Regression test for the bug where a cluster alias present in {@code skippedByClusterAlias}
-     * but absent from the {@link SearchResponse.Clusters} map (a "stale" alias left behind after
-     * {@link TransportSearchAction#reconcileProjects} excluded that cluster) would cause a
-     * {@code NullPointerException} inside the {@code swapCluster} lambda, silently aborting the
-     * entire update loop and leaving all remaining valid clusters permanently in {@code RUNNING}
-     * state with no shard counts set.
-     *
-     * <p>The fix adds a {@code null} guard that skips the {@code swapCluster} call for any alias
-     * that is not present in the {@link SearchResponse.Clusters} map, so the loop always runs to
-     * completion and every participating cluster is correctly updated.
-     */
-    public void testOnListShardsStaleClusterAliasDoesNotAbortValidClusterUpdates() {
+    /** Verifies stale aliases trip the invariant assert. */
+    public void testOnListShardsAssertsOnStaleClusterAlias() {
         String clusterA = "project-a";
         String clusterB = "project-b";
-        // This alias was excluded by reconcileProjects (alias not hosted on that cluster) but its
+        // This alias was excluded by TransportSearchAction.reconcileProjects (alias not hosted on that cluster) but its
         // entry survived in numSkippedShards and is now arriving via skippedByClusterAlias.
         String staleCluster = "project-stale";
 
@@ -68,22 +53,11 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0L);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        // Must not throw; before the fix this would intermittently NPE inside swapCluster when the
-        // stale alias was processed first, silently aborting the loop via notifyListShards's catch block.
-        listener.onListShards(shards, skippedByClusterAlias, clusters, true, timeProvider);
-
-        SearchResponse.Cluster updatedA = clusters.getCluster(clusterA);
-        SearchResponse.Cluster updatedB = clusters.getCluster(clusterB);
-
-        // Both real clusters must have had their shard counts populated; null here means the loop
-        // was aborted before reaching that cluster.
-        assertThat("project-a totalShards must be set after onListShards", updatedA.getTotalShards(), notNullValue());
-        assertThat("project-b totalShards must be set after onListShards", updatedB.getTotalShards(), notNullValue());
-        assertThat(updatedA.getTotalShards(), equalTo(1));
-        assertThat(updatedB.getTotalShards(), equalTo(1));
-
-        // The stale cluster must never have been inserted into the Clusters map.
-        assertNull("stale cluster must not appear in the Clusters map", clusters.getCluster(staleCluster));
+        AssertionError assertionError = expectThrows(
+            AssertionError.class,
+            () -> listener.onListShards(shards, skippedByClusterAlias, clusters, true, timeProvider)
+        );
+        assertThat(assertionError.getMessage(), equalTo("cluster alias [project-stale] not present in clusters map"));
     }
 
     /**
@@ -225,23 +199,53 @@ public class CCSSingleCoordinatorSearchProgressListenerTests extends ESTestCase 
         assertThat(afterFetchFailure.getTook().millis(), equalTo(7L));
     }
 
+    public void testFetchFailureDoesNotRefreshTookWhenFetchPhaseDisabled() {
+        String cluster = "project-a";
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put(cluster, new SearchResponse.Cluster(cluster, "my-alias", false, null));
+        SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
+        List<SearchShard> shards = List.of(new SearchShard(cluster, new ShardId("my-index", "uuid-a", 0)));
+
+        AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(1).nanos());
+        TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
+        CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
+
+        listener.onListShards(shards, Map.of(), clusters, false, timeProvider);
+        listener.onFinalReduce(shards, null, null, 1);
+        listener.onQueryResult(0, queryResultForShard(cluster, "my-index", "uuid-a", 0));
+        assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
+
+        nowNanos.set(TimeValue.timeValueMillis(9).nanos());
+        listener.onFetchFailure(
+            0,
+            new SearchShardTarget("node-0", new ShardId("my-index", "uuid-a", 0), cluster),
+            new RuntimeException("simulated fetch failure")
+        );
+
+        assertThat(clusters.getCluster(cluster).getTook().millis(), equalTo(1L));
+    }
+
     public void testFetchResultOnlyRefreshesClusterForShardIndex() {
         String localCluster = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
         String remoteCluster = "remote-a";
         Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
-        clusterMap.put(localCluster, new SearchResponse.Cluster(localCluster, "nomatch*", false, "_origin"));
+        clusterMap.put(localCluster, new SearchResponse.Cluster(localCluster, "local-index", false, "_origin"));
         clusterMap.put(remoteCluster, new SearchResponse.Cluster(remoteCluster, "remote-index", false, null));
         SearchResponse.Clusters clusters = new SearchResponse.Clusters(clusterMap, false);
-        List<SearchShard> shards = List.of(new SearchShard(remoteCluster, new ShardId("remote-index", "uuid-r", 0)));
+        // Keep index 0 bound to remote cluster; local cluster still has matching shards.
+        List<SearchShard> shards = List.of(
+            new SearchShard(remoteCluster, new ShardId("remote-index", "uuid-r", 0)),
+            new SearchShard(localCluster, new ShardId("local-index", "uuid-l", 0))
+        );
 
         AtomicLong nowNanos = new AtomicLong(TimeValue.timeValueMillis(0).nanos());
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0L, 0L, nowNanos::get);
         CCSSingleCoordinatorSearchProgressListener listener = new CCSSingleCoordinatorSearchProgressListener();
 
-        // local cluster has no matching indices/shards and is finalized immediately with took=0
-        listener.onListShards(shards, Map.of(localCluster, 0), clusters, true, timeProvider);
+        listener.onListShards(shards, Map.of(), clusters, true, timeProvider);
         listener.onFinalReduce(shards, null, null, 1);
         listener.onQueryResult(0, queryResultForShard(remoteCluster, "remote-index", "uuid-r", 0));
+        listener.onQueryResult(1, queryResultForShard(localCluster, "local-index", "uuid-l", 0));
 
         assertThat(clusters.getCluster(localCluster).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
         assertThat(clusters.getCluster(localCluster).getTook().millis(), equalTo(0L));

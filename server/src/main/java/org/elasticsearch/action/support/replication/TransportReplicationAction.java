@@ -451,6 +451,10 @@ public abstract class TransportReplicationAction<
         }
 
         try {
+            // We dispatch immediately to the handler executor before acquiring a primary permit to ensure that
+            // tasks that have a permit are executed immediately instead of sitting in the executor queue. This helps
+            // speed up relocations. On the other hand, if the task gets blocked while acquiring a permit, but then
+            // the shard stays on the same node, the task will be dispatched twice.
             handlerExecutor(indexShard).execute(new AsyncPrimaryAction(request, listener, (ReplicationTask) task));
         } catch (Exception e) {
             listener.onFailure(e);

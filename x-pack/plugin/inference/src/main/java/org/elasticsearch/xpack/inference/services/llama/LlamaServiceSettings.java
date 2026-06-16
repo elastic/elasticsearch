@@ -29,10 +29,10 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.validateRequiredNonEmptyString;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateRequiredNonEmptyString;
 
 /**
  * Abstract base for all Llama task-specific service settings. Holds the fields shared across every Llama task

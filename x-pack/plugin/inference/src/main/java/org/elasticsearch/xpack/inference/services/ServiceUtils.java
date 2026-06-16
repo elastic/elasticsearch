@@ -372,51 +372,6 @@ public final class ServiceUtils {
         );
     }
 
-    /**
-     * Converts a string into a {@link SimilarityMeasure}, throwing an {@link IllegalArgumentException} with a user-facing message
-     * listing the accepted values when the string is not recognized. This keeps the string-to-enum parsing separate from the builder
-     * setter that stores the value, and is intended to be used as the conversion function of
-     * {@link org.elasticsearch.xcontent.AbstractObjectParser#declareString(java.util.function.BiConsumer, java.util.function.Function,
-     * org.elasticsearch.xcontent.ParseField)}. The default message produced by {@link SimilarityMeasure#fromString(String)} exposes the
-     * enum constant names and is not suitable for returning to a user.
-     */
-    public static SimilarityMeasure parseSimilarity(String value) {
-        try {
-            return SimilarityMeasure.fromString(value);
-        } catch (IllegalArgumentException e) {
-            var validValuesAsStrings = Arrays.stream(SimilarityMeasure.values())
-                .map(measure -> measure.toString().toLowerCase(Locale.ROOT))
-                .toArray(String[]::new);
-            throw new IllegalArgumentException(
-                Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings))
-            );
-        }
-    }
-
-    /**
-     * Validates that a required string service setting is present and not empty, throwing an {@link IllegalArgumentException} otherwise.
-     */
-    public static void validateRequiredNonEmptyString(@Nullable String value, String settingName) {
-        if (value == null) {
-            throw new IllegalArgumentException(missingSettingErrorMsg(settingName, ModelConfigurations.SERVICE_SETTINGS));
-        }
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException(mustBeNonEmptyString(settingName, ModelConfigurations.SERVICE_SETTINGS));
-        }
-    }
-
-    /**
-     * Validates that an optional integer service setting, when present, is strictly positive, throwing an
-     * {@link IllegalArgumentException} otherwise.
-     */
-    public static void validatePositiveInteger(@Nullable Integer value, String settingName) {
-        if (value != null && value <= 0) {
-            throw new IllegalArgumentException(
-                mustBeAPositiveIntegerErrorMessage(settingName, ModelConfigurations.SERVICE_SETTINGS, value)
-            );
-        }
-    }
-
     public static String extractRequiredString(
         Map<String, Object> map,
         String settingName,

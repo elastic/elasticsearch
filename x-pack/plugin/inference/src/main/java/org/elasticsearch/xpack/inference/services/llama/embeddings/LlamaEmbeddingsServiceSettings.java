@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.llama.LlamaServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -29,11 +28,11 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.parser.NumberParser.validatePositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validatePositiveInteger;
 
 /**
  * Settings for the Llama embeddings service. Extends {@link LlamaServiceSettings} and adds the
@@ -61,7 +60,7 @@ public class LlamaEmbeddingsServiceSettings extends LlamaServiceSettings {
         );
         LlamaServiceSettings.declareCommonFields(parser);
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
-        parser.declareString(Builder::setSimilarity, ServiceUtils::parseSimilarity, new ParseField(SIMILARITY));
+        parser.declareString(Builder::setSimilarity, SimilarityMeasure::parseSimilarity, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
         return parser;
     }

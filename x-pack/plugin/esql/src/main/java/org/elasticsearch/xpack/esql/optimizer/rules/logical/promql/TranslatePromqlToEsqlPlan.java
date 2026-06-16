@@ -340,23 +340,19 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             ctx.promqlCommand,
             ctx.analyzerContext,
             ctx.stepBucketAlias,
-            histogramQuantileChildLabels(histogramQuantile)
+            histogramQuantileChildLabels(histogramQuantile, currentPlan, ctx)
         );
         TranslationResult childResult = translateNode(histogramQuantile.child(), currentPlan, childCtx);
 
         LogicalPlan childPlan = childResult.plan();
         boolean childAlreadyAggregated = findAggregate(childResult.plan(), Aggregate.class) != null;
-        Attribute upperBound = childAlreadyAggregated
-            ? findAttributeByPromqlLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL)
-            : null;
+        Attribute upperBound = findAttributeByPromqlLabelName(childResult.synthesizedAttributes().declared(), HistogramQuantile.LE_LABEL);
         if (upperBound == null && childAlreadyAggregated) {
             upperBound = findAttributeByPromqlLabelName(childResult.plan().output(), HistogramQuantile.LE_LABEL);
         }
         SynthesizedAttributes exportLabels;
         if (upperBound == null) {
             // Mirrors Prometheus, which warns and drops series whose `le` bucket label is missing.
-            // The implicit `histogram_quantile(rate(bucket[5m]))` shape is intentionally handled
-            // in a follow-up; this branch only lowers children that explicitly carry `le`.
             HeaderWarning.addWarning("histogram_quantile: input vector has no le label; no buckets to evaluate");
             exportLabels = preserveTimeseries(childResult.synthesizedAttributes(), histogramQuantile.child().output());
             LogicalPlan filteredChild = new Filter(histogramQuantile.source(), childPlan, Literal.FALSE);
@@ -365,6 +361,25 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 ? createOuterAggregatePlan(ctx, filteredChild, exportLabels, emptyResult)
                 : createInnermostAggregatePlan(ctx, filteredChild, exportLabels, List.of(), emptyResult);
             return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportLabels);
+        }
+
+        if (childAlreadyAggregated == false) {
+            childPlan = createInnermostAggregatePlan(
+                ctx,
+                childPlan,
+                childResult.synthesizedAttributes(),
+                List.of(upperBound),
+                childResult.expression()
+            );
+            childResult = new TranslationResult(
+                childPlan,
+                getValueOutput(childPlan),
+                childResult.pendingFilter(),
+                synthesizedLabels(childPlan)
+            );
+            childAlreadyAggregated = true;
+            upperBound = findAttributeByPromqlLabelName(childPlan.output(), HistogramQuantile.LE_LABEL);
+            assert upperBound != null : "histogram_quantile child materialization must expose le";
         }
 
         // histogram_quantile groups by every label except the `le` bucket label, so the `le` attribute is the
@@ -402,10 +417,38 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         return labels;
     }
 
-    private static InheritedAttributes histogramQuantileChildLabels(HistogramQuantile histogramQuantile) {
-        List<Attribute> childLabels = PromqlAttributesTranslationContext.dimensionAttributes(histogramQuantile.child().output());
-        List<Attribute> demand = childLabels.isEmpty() ? histogramQuantile.child().output() : childLabels;
-        return InheritedAttributes.unconstrained().including(demand);
+    private static SynthesizedAttributes synthesizedLabels(LogicalPlan plan) {
+        List<Attribute> labels = concreteDimensionAttributes(plan.output());
+        Attribute ts = PromqlAttributesTranslationContext.findByFieldName(plan.output(), MetadataAttribute.TIMESERIES);
+        if (ts != null) {
+            labels = PromqlAttributesTranslationContext.union(labels, List.of(ts));
+        }
+        return SynthesizedAttributes.of(labels);
+    }
+
+    private static InheritedAttributes histogramQuantileChildLabels(
+        HistogramQuantile histogramQuantile,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        List<Attribute> childLabels = concreteDimensionAttributes(histogramQuantile.child().output());
+        List<Attribute> demand = PromqlAttributesTranslationContext.union(childLabels, ctx.inheritedAttributes().requiredLabels());
+
+        Attribute upperBound = findAttributeByPromqlLabelName(currentPlan.output(), HistogramQuantile.LE_LABEL);
+        if (upperBound != null) {
+            demand = PromqlAttributesTranslationContext.union(demand, List.of(upperBound));
+        } else if (demand.isEmpty()) {
+            demand = histogramQuantile.child().output();
+        }
+        return ctx.inheritedAttributes().including(demand);
+    }
+
+    private static List<Attribute> concreteDimensionAttributes(List<Attribute> attributes) {
+        return PromqlAttributesTranslationContext.dimensionAttributes(attributes)
+            .stream()
+            // FieldAttribute.timeSeriesAttribute(...) also reports as a dimension; keep it out of concrete label demand.
+            .filter(attribute -> isTimeSeriesAttributeName(attribute.name()) == false)
+            .toList();
     }
 
     private static Attribute findAttributeByPromqlLabelName(List<Attribute> attributes, String labelName) {

@@ -96,14 +96,13 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(groupingKeyNames(histogramAggregate), not(hasItem("le")));
     }
 
-    public void testHistogramQuantileRateDoesNotResolveImplicitLe() {
+    public void testHistogramQuantileRateResolvesImplicitLe() {
         var plan = planPromqlClassicHistogram(
             "PROMQL index=histograms step=1m result=(histogram_quantile(0.5, rate(http_request_duration_seconds_bucket[5m])))"
         );
-        assertWarnings("histogram_quantile: input vector has no le label; no buckets to evaluate");
 
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "_timeseries")));
-        assertThat(collectHistogramQuantiles(plan), empty());
+        assertThat(collectHistogramQuantiles(plan), hasSize(1));
     }
 
     public void testRangeSelector() {

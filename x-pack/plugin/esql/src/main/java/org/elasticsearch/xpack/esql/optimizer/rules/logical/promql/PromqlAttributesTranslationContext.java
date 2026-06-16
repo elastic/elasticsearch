@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+
 /**
  * The label-grouping fragment of the PromQL -> ESQL syntax-directed translation.
  * <p>
@@ -151,6 +153,11 @@ public final class PromqlAttributesTranslationContext {
         /** Every dimension excluded along the path to here, for the innermost aggregate's {@code TimeSeriesWithout}. */
         public List<Attribute> pathExclusions() {
             return accumulatedExclusions;
+        }
+
+        /** The finite labels required from below, or an empty list when the demand is unconstrained ({@code T}). */
+        public List<Attribute> requiredLabels() {
+            return asList(required);
         }
     }
 
@@ -454,8 +461,6 @@ public final class PromqlAttributesTranslationContext {
         String name = attr instanceof FieldAttribute fieldAttr ? fieldAttr.fieldName().string() : attr.name();
         return name.startsWith(PROMETHEUS_LABELS_PREFIX) ? name.substring(PROMETHEUS_LABELS_PREFIX.length()) : name;
     }
-
-    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
 
     /** The concrete dimension fields among {@code attributes} (used to seed a child demand from a selector's output). */
     static List<Attribute> dimensionAttributes(List<Attribute> attributes) {

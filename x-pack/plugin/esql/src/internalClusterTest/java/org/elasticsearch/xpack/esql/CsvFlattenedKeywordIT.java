@@ -739,7 +739,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         + "the unmodified spec already covers this behavior"
                 );
             }
-            // Check 1: LOOKUP JOIN source-side type mismatch.
+            // LOOKUP JOIN phase 1 - source-side type mismatch.
             // If a LOOKUP JOIN field is keyword-protected in the target (KEYWORD) but
             // converted to flattened in a FROM-source dataset, executing the join would
             // raise a type-incompatibility error. Detect and skip now so the test does
@@ -786,7 +786,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     }
                 }
             }
-            // Check 2: cross-dataset type conflict.
+            // Lookup join phase 2 - cross-dataset type conflict.
             // If a field is converted to flattened in one FROM-source dataset but is a
             // different, non-keyword type in another FROM-source dataset, executing the
             // query either raises a VerificationException or produces wrong results because

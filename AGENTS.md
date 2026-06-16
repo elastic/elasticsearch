@@ -136,7 +136,7 @@ When expected test methods are absent from results (not failed, not skipped — 
    ```bash
    grep 'ClassName\|methodName' muted-tests.yml
    ```
-   
+
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.

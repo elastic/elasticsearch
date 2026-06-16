@@ -55,7 +55,9 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
         parser.declareString(Builder::setUrl, new ParseField(URL));
         parser.declareObject(
             Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT).apply(p, null),
+            // An explicitly empty rate_limit object ({}) resolves to the default rate limit rather than null, so the setter is never
+            // invoked with null.
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT, DEFAULT_RATE_LIMIT_SETTINGS).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -188,7 +190,9 @@ public abstract class LlamaServiceSettings extends FilteredXContentObject implem
     public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
         parser.declareObject(
             CommonUpdate::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
+            // A null default preserves "no change" semantics for updates: an empty or value-less rate_limit object leaves the existing
+            // rate limit untouched in CommonUpdate#mergedRateLimit.
+            (p, c) -> RateLimitSettings.createParser(false, null).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
     }

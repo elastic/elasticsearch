@@ -76,8 +76,8 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        return vector.filter(mayContainDuplicates, positions).asBlock();
+    public BytesRefBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return vector.filter(mayContainDuplicates, positions, offset, length).asBlock();
     }
 
     @Override

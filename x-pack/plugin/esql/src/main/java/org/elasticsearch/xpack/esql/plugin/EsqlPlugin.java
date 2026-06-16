@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -156,6 +157,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -180,6 +182,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Controls whether LOOKUP JOIN uses the streaming lookup operator, which streams pages to the
+     * lookup node instead of performing a request per input page. Acts as an escape hatch to fall
+     * back to the non-streaming operator; even when enabled, streaming is only used if all target
+     * nodes support the streaming protocol.
+     */
+    public static final Setting<Boolean> LOOKUP_JOIN_STREAMING = Setting.boolSetting(
+        "esql.query.lookup_join_streaming",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -304,6 +319,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
+        boolean isStateless = DiscoveryNode.isStateless(settings);
+        AtomicBoolean workloadIdentityEnabled = new AtomicBoolean(
+            isStateless == false && ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED.get(settings)
+        );
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ExternalSourceSettings.WORKLOAD_IDENTITY_ENABLED,
+                v -> workloadIdentityEnabled.set(isStateless == false && v)
+            );
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
@@ -313,6 +339,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC),
             dataSourceCredentials,
+            workloadIdentityEnabled::get,
             services.threadPool()
         );
 
@@ -386,7 +413,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         for (DataSourcePlugin p : allDataSourcePlugins) {
             p.datasourceValidators(settings).forEach((type, v) -> {
                 DataSourceValidator effective = v;
-                if (formatKeyResolver != null && v instanceof FileDataSourceValidator fdv) {
+                if (effective instanceof FileDataSourceValidator fdv) {
+                    effective = fdv.withWorkloadIdentityEnabled(workloadIdentityEnabled::get);
+                }
+                if (formatKeyResolver != null && effective instanceof FileDataSourceValidator fdv) {
                     effective = fdv.withFormatConfigKeyResolver(formatKeyResolver, compressionExtensions);
                 }
                 if (crudValidators.putIfAbsent(type, effective) != null) {
@@ -454,6 +484,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
                 AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
                 QUERY_ALLOW_PARTIAL_RESULTS,
+                LOOKUP_JOIN_STREAMING,
                 ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,

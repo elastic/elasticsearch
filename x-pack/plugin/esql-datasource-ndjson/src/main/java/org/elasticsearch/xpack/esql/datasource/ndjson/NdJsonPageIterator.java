@@ -121,11 +121,25 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         this.rowLimit = rowLimit;
         if (canUseByteArrayFastPath(object)) {
+            // Strict policy: wrap with the byte-cap stream so an oversized line trips during the single
+            // readAllBytes() pull — no second walk over the buffer like the previous enforceMaxRecordBytes
+            // pre-scan. Lenient policy: that wrap can't preserve the row-drop contract (an IOException
+            // mid-bulk-read leaves the underlying stream at an undefined offset), so we keep the
+            // post-read filtering pass — bounded to the byte-array fast path's ≤16 MiB segments — to
+            // drop oversized lines while leaving the rest of the file intact. Splitter-side enforcement
+            // (NdJsonRecordSplitter.findLastRecordBoundary at split discovery time) still covers parallel
+            // chunks; this branch protects whole-file and byte-range macro-split reads that bypass splitting.
             byte[] data;
-            try (InputStream toClose = inputStream) {
-                data = toClose.readAllBytes();
+            if (errorPolicy.isStrict()) {
+                try (InputStream toClose = new NdJsonRecordCappingInputStream(inputStream, recordSplitter)) {
+                    data = toClose.readAllBytes();
+                }
+            } else {
+                try (InputStream toClose = inputStream) {
+                    data = toClose.readAllBytes();
+                }
+                data = filterOversizedRecords(data, recordSplitter);
             }
-            data = enforceMaxRecordBytes(data, errorPolicy, recordSplitter);
             this.byteCounter = null;
             this.byteArrayBytesRead = data.length;
             this.pageDecoder = new NdJsonPageDecoder(
@@ -159,8 +173,16 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
     }
 
-    private static byte[] enforceMaxRecordBytes(byte[] data, ErrorPolicy errorPolicy, NdJsonRecordSplitter recordSplitter)
-        throws IOException {
+    /**
+     * Lenient-mode byte-array post-filter: walks the freshly buffered segment once and drops every
+     * record whose terminator-inclusive byte count exceeds {@code maxRecordBytes}, leaving the rest
+     * of the file intact for downstream parsing. This preserves the pre-existing skip-row contract
+     * for oversized NDJSON lines while still avoiding a redundant pre-scan on the strict path
+     * (which goes through {@link NdJsonRecordCappingInputStream}). Bounded by the byte-array fast
+     * path's segment cap, so the extra walk is a single bounded pass rather than open-ended work.
+     */
+    private static byte[] filterOversizedRecords(byte[] data, NdJsonRecordSplitter recordSplitter) {
+        int max = recordSplitter.maxRecordBytes();
         ByteArrayOutputStream filtered = null;
         int recordStart = 0;
         for (int i = 0; i < data.length; i++) {
@@ -170,12 +192,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
                 if (b == '\r' && i + 1 < data.length && data[i + 1] == '\n') {
                     boundary = ++i;
                 }
-                filtered = copyOrSkipRecord(data, recordStart, boundary + 1, filtered, errorPolicy, recordSplitter);
+                filtered = copyOrSkipRecord(data, recordStart, boundary + 1, max, filtered);
                 recordStart = boundary + 1;
             }
         }
         if (recordStart < data.length) {
-            filtered = copyOrSkipRecord(data, recordStart, data.length, filtered, errorPolicy, recordSplitter);
+            filtered = copyOrSkipRecord(data, recordStart, data.length, max, filtered);
         }
         return filtered == null ? data : filtered.toByteArray();
     }
@@ -184,16 +206,13 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         byte[] data,
         int recordStart,
         int recordEnd,
-        ByteArrayOutputStream filtered,
-        ErrorPolicy errorPolicy,
-        NdJsonRecordSplitter recordSplitter
-    ) throws IOException {
+        int maxRecordBytes,
+        ByteArrayOutputStream filtered
+    ) {
         int recordBytes = recordEnd - recordStart;
-        if (recordBytes > recordSplitter.maxRecordBytes()) {
-            if (errorPolicy.isStrict()) {
-                throw recordSplitter.recordTooLargeException();
-            }
+        if (recordBytes > maxRecordBytes) {
             if (filtered == null) {
+                // First skip materializes the kept-prefix once; subsequent records are appended as we go.
                 filtered = new ByteArrayOutputStream(data.length);
                 filtered.write(data, 0, recordStart);
             }

@@ -1449,6 +1449,8 @@ public class StatelessPlugin extends Plugin
             });
             if (hollowShardsEnabled == false) {
                 indexModule.setIndexCommitListener(createIndexCommitListener());
+            } else {
+                indexModule.setMutableOperationGate(hollowShardsService.get());
             }
             final var idxVersion = indexModule.indexSettings().getIndexVersionCreated();
             final var readSiFromMemoryIfPossible = idxVersion.onOrAfter(IndexVersions.READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS);

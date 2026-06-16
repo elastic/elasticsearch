@@ -64,6 +64,7 @@ public class AutomatonBuildBenchmark {
 
     static {
         LogConfigurator.configureESLogging();
+        LogConfigurator.setNodeName("test");
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             selfTest();
         }

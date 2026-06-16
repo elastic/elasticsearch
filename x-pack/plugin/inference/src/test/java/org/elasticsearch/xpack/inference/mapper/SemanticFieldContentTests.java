@@ -82,13 +82,13 @@ public class SemanticFieldContentTests extends ESTestCase {
         assertEquals("hello", content.getChunkText(0, 5));
         assertEquals("world", content.getChunkText(6, 11));
 
-        IndexOutOfBoundsException separatorException = expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(5, 6));
+        IndexOutOfBoundsException separatorException = assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(5, 6));
         assertThat(separatorException.getMessage(), containsString("refers to a separator character"));
 
-        IndexOutOfBoundsException outOfBoundsException = expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(11, 12));
+        IndexOutOfBoundsException outOfBoundsException = assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(11, 12));
         assertThat(outOfBoundsException.getMessage(), containsString("out of bounds"));
 
-        IndexOutOfBoundsException crossesBoundaryException = expectThrows(
+        IndexOutOfBoundsException crossesBoundaryException = assertThrows(
             IndexOutOfBoundsException.class,
             () -> content.getChunkText(0, 6)
         );
@@ -97,7 +97,7 @@ public class SemanticFieldContentTests extends ESTestCase {
 
     public void testGetChunkTextMapOnlyInput() throws IOException {
         SemanticFieldContent content = new SemanticFieldContent(materialize(List.of(randomInferenceString())));
-        expectThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
+        assertThrows(IndexOutOfBoundsException.class, () -> content.getChunkText(0, 1));
     }
 
     public void testUnparseableMapValue() {
@@ -106,7 +106,7 @@ public class SemanticFieldContentTests extends ESTestCase {
 
         assertEquals(badMap, content.getMapValue(0));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> content.getInferenceStringValue(0));
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> content.getInferenceStringValue(0));
         assertThat(e.getMessage(), containsString("Cannot parse value [{foo=bar}] to an InferenceString"));
         assertThat(e.getCause().getMessage(), containsString("[InferenceString] unknown field [foo]"));
     }

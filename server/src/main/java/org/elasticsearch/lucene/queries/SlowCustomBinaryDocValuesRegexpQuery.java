@@ -36,25 +36,7 @@ public final class SlowCustomBinaryDocValuesRegexpQuery extends AbstractBinaryDo
         int matchFlags,
         int maxDeterminizedStates
     ) {
-        this(
-            fieldName,
-            pattern,
-            syntaxFlags,
-            matchFlags,
-            maxDeterminizedStates,
-            buildAutomaton(pattern, syntaxFlags, matchFlags, maxDeterminizedStates)
-        );
-    }
-
-    private SlowCustomBinaryDocValuesRegexpQuery(
-        String fieldName,
-        String pattern,
-        int syntaxFlags,
-        int matchFlags,
-        int maxDeterminizedStates,
-        ByteRunAutomaton automaton
-    ) {
-        super(fieldName, automaton);
+        super(fieldName, buildAutomaton(pattern, syntaxFlags, matchFlags, maxDeterminizedStates));
         this.pattern = Objects.requireNonNull(pattern);
         this.syntaxFlags = syntaxFlags;
         this.matchFlags = matchFlags;

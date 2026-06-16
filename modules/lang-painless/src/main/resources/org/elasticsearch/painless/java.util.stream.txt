@@ -176,7 +176,7 @@ class java.util.stream.Stream {
   boolean org.elasticsearch.painless.api.Augmentation allMatch(Predicate) @script_aware
   boolean org.elasticsearch.painless.api.Augmentation anyMatch(Predicate) @script_aware
   Stream.Builder builder()
-  def collect(Collector)
+  def org.elasticsearch.painless.api.Augmentation collect(Collector) @script_aware
   def org.elasticsearch.painless.api.Augmentation collect(Supplier,BiConsumer,BiConsumer) @script_aware
   Stream concat(Stream,Stream)
   long count()

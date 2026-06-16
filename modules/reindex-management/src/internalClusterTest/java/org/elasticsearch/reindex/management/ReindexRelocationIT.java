@@ -677,7 +677,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        awaitClusterState(state -> state.metadata().getProject().hasIndex(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);

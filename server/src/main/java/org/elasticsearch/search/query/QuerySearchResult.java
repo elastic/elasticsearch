@@ -474,6 +474,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
+            readDirectoryMetrics(in);
             success = true;
         } finally {
             if (success == false) {
@@ -542,6 +543,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
         }
+        writeDirectoryMetrics(out);
     }
 
     @Nullable

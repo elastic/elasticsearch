@@ -46,6 +46,7 @@ import java.util.concurrent.Executor;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
+import static org.mockito.Mockito.mock;
 
 public class TestUtils {
 
@@ -66,7 +67,7 @@ public class TestUtils {
         Settings settings,
         ThreadPool threadPool
     ) {
-        return newCacheService(nodeEnvironment, settings, threadPool, null);
+        return newCacheService(nodeEnvironment, settings, threadPool, null, mock(ClusterService.class));
     }
 
     public static StatelessSharedBlobCacheService newCacheService(
@@ -75,11 +76,22 @@ public class TestUtils {
         ThreadPool threadPool,
         MeterRegistry meterRegistry
     ) {
+        return newCacheService(nodeEnvironment, settings, threadPool, meterRegistry, mock(ClusterService.class));
+    }
+
+    public static StatelessSharedBlobCacheService newCacheService(
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry,
+        ClusterService clusterService
+    ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
             meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry),
+            clusterService,
             new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
         );
         statelessSharedBlobCacheService.assertInvariants();

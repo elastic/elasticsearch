@@ -59,6 +59,23 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
+/**
+ * Resolves views and {@code InSubquery} expressions in a single pass.
+ * <p>
+ * {@link #replaceViews} handles {@code InSubquery} expressions inline as it traverses the plan: whenever it encounters a
+ * {@link Filter} containing an {@code InSubquery}, it rewrites it to a
+ * {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin}/{@link org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin}/
+ * {@link org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin} and immediately recurses to resolve any view references in the
+ * newly created subquery plans. This means a single {@code replaceViews} call fully expands the plan — no fixed-point loop is needed.
+ * <p>
+ * Whether any {@code InSubquery} was rewritten — directly in the query <em>or</em> inside a view definition — is reported back on
+ * {@link ViewResolutionResult#hasInSubquery()} so callers (e.g. {@code EsqlSession}) can drive {@code IN_SUBQUERY} telemetry. The
+ * pre-resolution plan cannot be used for this because the IN subqueries hidden inside view bodies are not yet visible.
+ *
+ * TODO: {@code ViewResolver} needs refactor or rename, as it does two tasks - view resolution and IN subquery resolution. Keep the core
+ *  of view resolution in {@code ViewResolver}, and have a {@code ViewAndSubqueryResolver} drive the plan tree traversal, call
+ *  {@code ViewResolver} and {@code InSubqueryResolver} to do the view and IN subquery resolution respectively.
+ */
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());

@@ -509,20 +509,14 @@ public class TestAnalyzer {
 
     /**
      * Resolves views and IN subquery expressions in a single traversal, mirroring the production pipeline driven by
-     * {@code ViewAndSubqueryResolver} in {@code EsqlSession#execute}.
-     * <p>
-     * Like {@code ViewResolver#replaceViews}, {@link #resolveViews} expands view references and rewrites IN subqueries (in
-     * {@link Filter} conditions) into Semi/Anti/MarkJoins <em>inline</em> as it descends the plan: rewriting an IN subquery exposes its
-     * subquery plan as a join child, which the same traversal then descends into to resolve any views nested there; expanding a view
-     * likewise exposes any IN subqueries hidden in its body for the same traversal to rewrite.
+     * {@code ViewResolver#replaceViews} followed by {@code InSubqueryResolver#verify} in {@code EsqlSession#execute}.
      * <p>
      * After resolution, {@link InSubqueryResolver#verify} rejects any IN subquery that survived (e.g. one in an unsupported position
      * such as EVAL or SORT).
      */
     public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
         if (views.isEmpty()) {
-            // No views to expand, so view resolution is a no-op; resolve (and validate) IN subqueries directly, just as
-            // ViewResolver#replaceViews does inline when the project defines no views.
+            // No views to expand, resolve and validate IN subqueries directly
             return InSubqueryResolver.resolve(plan);
         }
         LogicalPlan resolved = resolveViews(plan);
@@ -537,10 +531,6 @@ public class TestAnalyzer {
 
     /**
      * Single traversal that interleaves view expansion and IN-subquery rewriting, mirroring {@code ViewResolver#replaceViews}.
-     * <p>
-     * Because {@code transformDown} applies its rule to the children of a replacement subtree but not to the replacement's root, we
-     * recurse explicitly into every view body / rewritten subquery so that references exposed only after an expansion (including ones
-     * sitting at the root of a view body) are resolved within this same pass.
      */
     private LogicalPlan resolveViews(LogicalPlan parsed, Map<String, LogicalPlan> viewDefinitions) {
         return parsed.transformDown(p -> {

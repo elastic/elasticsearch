@@ -133,7 +133,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -396,13 +395,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             });
         }
 
-        var viewResolver = new ViewResolver(
-            services.threadPool(),
-            services.clusterService(),
-            services.projectResolver(),
-            services.client(),
-            services.crossProjectModeDecider()
-        );
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
@@ -426,7 +418,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             blockFactoryProvider,
             dataSourceModule,
             dataSourceCredentials,
-            new ViewAndSubqueryResolver(viewResolver),
+            new ViewResolver(
+                services.threadPool(),
+                services.clusterService(),
+                services.projectResolver(),
+                services.client(),
+                services.crossProjectModeDecider()
+            ),
             new ViewService(services.clusterService(), parser),
             new DataSourceService(services.clusterService(), crudValidators),
             new DatasetService(services.clusterService(), crudValidators)

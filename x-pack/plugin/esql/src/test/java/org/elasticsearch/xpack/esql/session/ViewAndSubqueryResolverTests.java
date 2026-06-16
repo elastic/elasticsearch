@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
@@ -49,8 +50,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.anEmptyMap;
 
 /**
- * Tests for {@link ViewAndSubqueryResolver}, which expands view references and rewrites IN subqueries into Semi/Anti/MarkJoins in a
- * single traversal so that views referenced from inside IN subqueries and IN subqueries nested in view bodies are fully expanded.
+ * Tests for the combined view + IN subquery resolution performed by {@code ViewResolver#replaceViews} followed by
+ * {@code InSubqueryResolver#verify}, which expands view references and rewrites IN subqueries into Semi/Anti/MarkJoins in a single
+ * traversal so that views referenced from inside IN subqueries and IN subqueries nested in view bodies are fully expanded.
  * Backed by the in-memory view fixture {@link InMemoryViewService}.
  */
 public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
@@ -623,9 +625,12 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
     }
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
-        ViewAndSubqueryResolver resolver = new ViewAndSubqueryResolver(viewResolver);
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.resolve(query(query), null, this::parse, future);
+        viewResolver.replaceViews(query(query), null, this::parse, future.delegateFailureAndWrap((l, viewResult) -> {
+            // Validate: no InSubquery expressions should survive view+subquery resolution.
+            InSubqueryResolver.verify(viewResult.plan());
+            l.onResponse(viewResult);
+        }));
         return future.actionGet();
     }
 

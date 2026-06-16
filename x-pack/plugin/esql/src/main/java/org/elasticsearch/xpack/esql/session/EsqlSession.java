@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -178,7 +179,7 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewAndSubqueryResolver viewAndSubqueryResolver;
+    private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -242,7 +243,7 @@ public class EsqlSession {
         AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
-        ViewAndSubqueryResolver viewAndSubqueryResolver,
+        ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -262,7 +263,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewAndSubqueryResolver = viewAndSubqueryResolver;
+        this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -316,11 +317,11 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        // View + IN-subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
+        // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
         // once resolution succeeds, because IN subqueries can be hidden inside view definitions and only become visible — and are
         // rewritten away into SemiJoin/AntiJoin/MarkJoin — during resolution. The WHERE counter is set by the analyzer/verifier plan
         // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/MarkJoin too.
-        viewAndSubqueryResolver.resolve(
+        viewResolver.replaceViews(
             statement.plan(),
             projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
@@ -331,6 +332,8 @@ public class EsqlSession {
                 viewName
             ).plan(),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
+                // Validate: no InSubquery expressions should survive ViewAndSubqueryResolution.
+                InSubqueryResolver.verify(viewResolution.plan());
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
             })

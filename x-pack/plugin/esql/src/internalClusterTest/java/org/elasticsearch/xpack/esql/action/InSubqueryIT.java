@@ -105,7 +105,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     // ---- forced hash-join path correctness ----
     //
-    // These tests pin {@code in_subquery_hash_join_threshold=0} so SemiJoin.inlineData always
+    // These tests pin {@code in_subquery_hash_join_threshold=0} so AbstractSubqueryJoin.inlineData always
     // routes through the hash-join branch (LEFT-join on sentinel + IS NOT NULL filter) once dedup
     // produces at least one key, instead of folding into Filter(IN(literals...)).
     // They cover the cases the default-threshold tests above cannot — small subquery results that

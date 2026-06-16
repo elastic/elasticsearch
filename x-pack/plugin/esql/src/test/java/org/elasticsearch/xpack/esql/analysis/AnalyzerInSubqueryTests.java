@@ -79,7 +79,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertFalse(semiJoin.isAntiJoin());
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(semiJoin.config().rightFields().size(), equalTo(1));
@@ -103,7 +102,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         Limit limit = as(plan, Limit.class);
         AntiJoin antiJoin = as(limit.child(), AntiJoin.class);
         assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
-        assertTrue(antiJoin.isAntiJoin());
         assertThat(antiJoin.config().leftFields().size(), equalTo(1));
         assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("emp_no"));
         assertThat(antiJoin.config().rightFields().size(), equalTo(1));
@@ -127,7 +125,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
         SemiJoin semiJoin = as(limit.child(), SemiJoin.class);
-        assertFalse(semiJoin.isAntiJoin());
 
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().size(), equalTo(1));
@@ -2942,7 +2939,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
         SemiJoin semiJoin = as(agg.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
-        assertFalse(semiJoin.isAntiJoin());
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
         assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
 
@@ -3119,7 +3115,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             .map(TimeSeriesMetadataAttribute.class::cast)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Expected _timeseries metadata attribute on the k8s relation"));
-        assertThat(lowered.withoutFields(), equalTo(expectedWithoutFields));
+        assertThat(lowered.excludedFields(), equalTo(expectedWithoutFields));
     }
 
     // -- helpers --

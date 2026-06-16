@@ -29,7 +29,7 @@ import java.util.Objects;
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
  */
-// TODO: create abstract class for binary doc values based automaton queries in follow up, in order to support regex and fuzzy queries.
+// TODO: create abstract class for binary doc values based automaton queries in follow up, in order to support fuzzy queries.
 public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinaryDocValuesQuery {
 
     private final String pattern;
